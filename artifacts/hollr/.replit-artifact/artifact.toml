@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "hollr.chat"
+version = "1.0.0"
+id = "artifacts/hollr"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 22056
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/hollr run dev"
+
+[services.env]
+PORT = "22056"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/hollr", "run", "build"]
+publicDir = "artifacts/hollr/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

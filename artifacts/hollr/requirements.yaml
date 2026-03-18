@@ -1,0 +1,17 @@
+packages:
+  "framer-motion": "For fluid UI animations, modal transitions, and interactive element feedback"
+  "zustand": "For lightweight global state management (active selections, voice connection state)"
+  "date-fns": "For readable message timestamps (e.g., 'Today at 5:00 PM')"
+  "react-intersection-observer": "For infinite scrolling in the message list"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility for merging tailwind classes without style conflicts"
+
+images:
+  - path: "artifacts/hollr/public/images/auth-bg.png"
+    description: "Sleek, abstract dark mode background with subtle glowing indigo and violet neon geometric lines, professional and modern"
+    aspect_ratio: "16:9"
+
+notes:
+  - "The app assumes standard React Query caching behavior for real-time updates."
+  - "WebSocket is expected at /api/ws and handles standard JSON payloads with { type, payload } structure."
+  - "WebRTC uses standard browser APIs and Google's public STUN servers for signaling over the WebSocket."

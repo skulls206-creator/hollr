@@ -1,4 +1,6 @@
+import { createServer } from "http";
 import app from "./app";
+import { initWebSocket } from "./lib/ws";
 
 const rawPort = process.env["PORT"];
 
@@ -14,6 +16,9 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, () => {
+const server = createServer(app);
+initWebSocket(server);
+
+server.listen(port, () => {
   console.log(`Server listening on port ${port}`);
 });
