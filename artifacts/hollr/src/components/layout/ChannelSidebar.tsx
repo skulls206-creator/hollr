@@ -1,26 +1,34 @@
 import { useEffect, useState } from 'react';
 import {
   Hash, Volume2, Plus, ChevronDown, Settings, Mic, Headphones,
-  PhoneOff, UserPlus, LogOut, MessageSquarePlus
+  PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import {
   useGetServer, useListChannels, useListDmThreads,
   getGetServerQueryKey, getListChannelsQueryKey, getListDmThreadsQueryKey,
+  useDeleteChannel, useUpdateChannel,
 } from '@workspace/api-client-react';
 import { cn, getInitials } from '@/lib/utils';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import type { Channel } from '@workspace/api-client-react';
 
 export function ChannelSidebar() {
   const {
     activeServerId, activeChannelId, activeDmThreadId,
     setActiveChannel, setActiveDmThread,
-    setCreateChannelModalOpen, setInviteModalOpen,
+    setCreateChannelModalOpen, setInviteModalOpen, setServerSettingsModalOpen,
     voiceConnection, setVoiceConnection,
   } = useAppStore();
   const { user } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const [serverMenuOpen, setServerMenuOpen] = useState(false);
+  const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
+  const [editChannelName, setEditChannelName] = useState('');
 
   const { data: server } = useGetServer(activeServerId || '', {
     query: { queryKey: getGetServerQueryKey(activeServerId || ''), enabled: !!activeServerId },
@@ -32,10 +40,12 @@ export function ChannelSidebar() {
     query: { queryKey: getListDmThreadsQueryKey() },
   });
 
+  const { mutate: deleteChannel } = useDeleteChannel();
+  const { mutate: updateChannel } = useUpdateChannel();
+
   const textChannels = channels.filter(c => c.type === 'text');
   const voiceChannels = channels.filter(c => c.type === 'voice');
 
-  // Auto-select first text channel when switching servers
   useEffect(() => {
     if (activeServerId && textChannels.length > 0 && !activeChannelId) {
       setActiveChannel(textChannels[0].id);
@@ -46,15 +56,50 @@ export function ChannelSidebar() {
     setActiveChannel(null);
   }, [activeServerId]);
 
-  const joinVoice = (channelId: string) => {
-    setVoiceConnection({ status: 'connecting', channelId, serverId: activeServerId });
+  const joinVoice = (channelId: string) => setVoiceConnection({ status: 'connecting', channelId, serverId: activeServerId });
+  const leaveVoice = () => setVoiceConnection({ status: 'disconnected', channelId: null, serverId: null });
+
+  const isOwnerOrAdmin = server?.ownerId === user?.id || false;
+
+  const startEditChannel = (channel: Channel, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingChannelId(channel.id);
+    setEditChannelName(channel.name);
   };
 
-  const leaveVoice = () => {
-    setVoiceConnection({ status: 'disconnected', channelId: null, serverId: null });
+  const saveChannelEdit = (channel: Channel, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!editChannelName.trim() || !activeServerId) return;
+    updateChannel(
+      { serverId: activeServerId, channelId: channel.id, data: { name: editChannelName.trim() } },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: getListChannelsQueryKey(activeServerId) });
+          setEditingChannelId(null);
+          toast({ title: 'Channel renamed' });
+        },
+        onError: () => toast({ title: 'Failed to rename channel', variant: 'destructive' }),
+      }
+    );
   };
 
-  // DM view
+  const handleDeleteChannel = (channel: Channel, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!activeServerId) return;
+    if (!confirm(`Delete #${channel.name}? This cannot be undone.`)) return;
+    deleteChannel(
+      { serverId: activeServerId, channelId: channel.id },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: getListChannelsQueryKey(activeServerId) });
+          if (activeChannelId === channel.id) setActiveChannel(null);
+          toast({ title: `#${channel.name} deleted` });
+        },
+        onError: () => toast({ title: 'Failed to delete channel', variant: 'destructive' }),
+      }
+    );
+  };
+
   if (!activeServerId) {
     return (
       <div className="w-[240px] bg-[#2B2D31] shrink-0 flex flex-col h-full border-r border-border/5">
@@ -64,10 +109,7 @@ export function ChannelSidebar() {
         <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
           <div className="flex items-center justify-between px-2 py-2">
             <p className="text-xs text-muted-foreground font-semibold">DIRECT MESSAGES</p>
-            <button
-              title="Open DM"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
+            <button title="Open DM" className="text-muted-foreground hover:text-foreground transition-colors">
               <MessageSquarePlus size={14} />
             </button>
           </div>
@@ -131,6 +173,15 @@ export function ChannelSidebar() {
               <UserPlus size={16} />
               Invite People
             </button>
+            {isOwnerOrAdmin && (
+              <button
+                onClick={() => { setServerSettingsModalOpen(true); setServerMenuOpen(false); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              >
+                <Settings size={16} />
+                Server Settings
+              </button>
+            )}
             <button
               onClick={() => { setCreateChannelModalOpen(true); setServerMenuOpen(false); }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
@@ -167,19 +218,64 @@ export function ChannelSidebar() {
           </div>
           <div className="space-y-[2px]">
             {textChannels.map(channel => (
-              <button
+              <div
                 key={channel.id}
-                onClick={() => setActiveChannel(channel.id)}
                 className={cn(
-                  'w-full flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition-colors group',
+                  'group/ch flex items-center px-2 py-1.5 rounded-md transition-colors',
                   activeChannelId === channel.id
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
                 )}
               >
-                <Hash size={18} className="mr-1.5 opacity-60 shrink-0" />
-                <span className="truncate">{channel.name}</span>
-              </button>
+                {editingChannelId === channel.id ? (
+                  <>
+                    <Hash size={18} className="mr-1.5 opacity-60 shrink-0" />
+                    <input
+                      autoFocus
+                      value={editChannelName}
+                      onChange={e => setEditChannelName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveChannelEdit(channel, e as any);
+                        if (e.key === 'Escape') setEditingChannelId(null);
+                      }}
+                      onClick={e => e.stopPropagation()}
+                      className="flex-1 bg-[#1E1F22] text-foreground text-sm px-1.5 py-0.5 rounded outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <button onClick={e => saveChannelEdit(channel, e)} className="ml-1 text-primary hover:text-primary/80">
+                      <Check size={12} />
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); setEditingChannelId(null); }} className="ml-0.5 text-muted-foreground hover:text-foreground">
+                      <X size={12} />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setActiveChannel(channel.id)}
+                    className="flex items-center flex-1 min-w-0 text-left"
+                  >
+                    <Hash size={18} className="mr-1.5 opacity-60 shrink-0" />
+                    <span className="truncate text-sm font-medium">{channel.name}</span>
+                  </button>
+                )}
+                {!editingChannelId && isOwnerOrAdmin && (
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover/ch:opacity-100 transition-opacity shrink-0 ml-1">
+                    <button
+                      onClick={e => startEditChannel(channel, e)}
+                      title="Rename channel"
+                      className="p-0.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                    <button
+                      onClick={e => handleDeleteChannel(channel, e)}
+                      title="Delete channel"
+                      className="p-0.5 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>

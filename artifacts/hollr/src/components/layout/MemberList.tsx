@@ -3,6 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { Crown, ShieldCheck } from 'lucide-react';
 import type { Member } from '@workspace/api-client-react';
+import { useAppStore } from '@/store/use-app-store';
 
 function statusColor(status: string) {
   switch (status) {
@@ -14,9 +15,23 @@ function statusColor(status: string) {
 }
 
 function MemberRow({ member }: { member: Member }) {
+  const { openProfileCard } = useAppStore();
   const isOnline = member.user.status !== 'offline';
+
+  const handleClick = (e: React.MouseEvent) => {
+    openProfileCard({
+      userId: member.userId,
+      joinedAt: member.joinedAt,
+      role: member.role,
+      position: { x: e.clientX, y: e.clientY },
+    });
+  };
+
   return (
-    <div className={`flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-secondary/50 transition-colors cursor-pointer group ${!isOnline ? 'opacity-50' : ''}`}>
+    <button
+      onClick={handleClick}
+      className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-secondary/50 transition-colors cursor-pointer group text-left ${!isOnline ? 'opacity-50' : ''}`}
+    >
       <div className="relative shrink-0">
         <Avatar className="h-8 w-8">
           <AvatarImage src={member.user.avatarUrl || undefined} />
@@ -38,7 +53,7 @@ function MemberRow({ member }: { member: Member }) {
           <p className="text-xs text-muted-foreground truncate">{member.user.customStatus}</p>
         )}
       </div>
-    </div>
+    </button>
   );
 }
 

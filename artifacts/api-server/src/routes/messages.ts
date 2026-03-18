@@ -1,26 +1,41 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, userProfilesTable, usersTable } from "@workspace/db/schema";
-import { eq, and, lt, desc } from "drizzle-orm";
+import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, userProfilesTable, usersTable, messageReactionsTable } from "@workspace/db/schema";
+import { eq, and, lt, desc, sql as drizzleSql } from "drizzle-orm";
 import { SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
 
 const router: IRouter = Router();
-
 const MAX_LIMIT = 50;
 
-async function formatMessage(msg: typeof messagesTable.$inferSelect) {
-  const attachments = await db.query.attachmentsTable.findMany({
-    where: eq(attachmentsTable.messageId, msg.id),
-  });
-  const author = await db.query.userProfilesTable.findFirst({
-    where: eq(userProfilesTable.userId, msg.authorId),
-  });
+async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserId?: string) {
+  const [attachments, author, rawUser, reactions] = await Promise.all([
+    db.query.attachmentsTable.findMany({ where: eq(attachmentsTable.messageId, msg.id) }),
+    db.query.userProfilesTable.findFirst({ where: eq(userProfilesTable.userId, msg.authorId) }),
+    (async () => {
+      const profile = await db.query.userProfilesTable.findFirst({ where: eq(userProfilesTable.userId, msg.authorId) });
+      return profile ? null : db.query.usersTable.findFirst({ where: eq(usersTable.id, msg.authorId) });
+    })(),
+    db.select({
+      emojiId: messageReactionsTable.emojiId,
+      count: drizzleSql<number>`count(*)::int`,
+    })
+      .from(messageReactionsTable)
+      .where(eq(messageReactionsTable.messageId, msg.id))
+      .groupBy(messageReactionsTable.emojiId),
+  ]);
 
-  // Fallback: read raw user row so we always have firstName/lastName
-  const rawUser = !author
-    ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, msg.authorId) })
-    : null;
+  // Per-user reactions for reactedByCurrentUser flag
+  let userReactionEmojis = new Set<string>();
+  if (viewerUserId && reactions.length > 0) {
+    const userRxns = await db.query.messageReactionsTable.findMany({
+      where: and(
+        eq(messageReactionsTable.messageId, msg.id),
+        eq(messageReactionsTable.userId, viewerUserId)
+      ),
+    });
+    userReactionEmojis = new Set(userRxns.map(r => r.emojiId));
+  }
 
   const authorData = author ? {
     id: msg.authorId,
@@ -42,15 +57,31 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect) {
     createdAt: msg.createdAt.toISOString(),
   };
 
+  const sortedReactions = reactions
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20)
+    .map(r => ({
+      emojiId: r.emojiId,
+      count: r.count,
+      reactedByCurrentUser: userReactionEmojis.has(r.emojiId),
+    }));
+
+  let mentionsList: any[] = [];
+  try { mentionsList = JSON.parse(msg.mentions || "[]"); } catch {}
+
   return {
     id: msg.id,
     content: msg.content,
     authorId: msg.authorId,
     channelId: msg.channelId,
     dmThreadId: msg.dmThreadId,
+    parentMessageId: msg.parentMessageId ?? null,
+    replyCount: msg.replyCount ?? 0,
     edited: msg.edited,
     pinned: msg.pinned,
     pinnedBy: msg.pinnedBy ?? null,
+    mentions: mentionsList,
+    reactions: sortedReactions,
     attachments: attachments.map((a) => ({
       id: a.id,
       objectPath: a.objectPath,
@@ -64,12 +95,11 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect) {
   };
 }
 
+// List messages
 router.get("/channels/:channelId/messages", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const channel = await db.query.channelsTable.findFirst({
-    where: eq(channelsTable.id, req.params.channelId),
-  });
+  const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, req.params.channelId) });
   if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
 
   const member = await db.query.serverMembersTable.findFirst({
@@ -81,8 +111,15 @@ router.get("/channels/:channelId/messages", async (req, res) => {
   const before = req.query.before as string | undefined;
 
   const whereClause = before
-    ? and(eq(messagesTable.channelId, req.params.channelId), lt(messagesTable.id, before))
-    : eq(messagesTable.channelId, req.params.channelId);
+    ? and(
+        eq(messagesTable.channelId, req.params.channelId),
+        lt(messagesTable.id, before),
+        drizzleSql`${messagesTable.parentMessageId} is null`
+      )
+    : and(
+        eq(messagesTable.channelId, req.params.channelId),
+        drizzleSql`${messagesTable.parentMessageId} is null`
+      );
 
   const messages = await db.query.messagesTable.findMany({
     where: whereClause,
@@ -90,16 +127,15 @@ router.get("/channels/:channelId/messages", async (req, res) => {
     limit,
   });
 
-  const formatted = await Promise.all(messages.map(formatMessage));
+  const formatted = await Promise.all(messages.map(m => formatMessage(m, req.user.id)));
   res.json(formatted.reverse());
 });
 
+// Send message
 router.post("/channels/:channelId/messages", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const channel = await db.query.channelsTable.findFirst({
-    where: eq(channelsTable.id, req.params.channelId),
-  });
+  const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, req.params.channelId) });
   if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
 
   const member = await db.query.serverMembersTable.findFirst({
@@ -110,14 +146,12 @@ router.post("/channels/:channelId/messages", async (req, res) => {
   const parsed = SendMessageBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [msg] = await db
-    .insert(messagesTable)
-    .values({
-      content: parsed.data.content,
-      authorId: req.user.id,
-      channelId: req.params.channelId,
-    })
-    .returning();
+  const [msg] = await db.insert(messagesTable).values({
+    content: parsed.data.content,
+    authorId: req.user.id,
+    channelId: req.params.channelId,
+    mentions: parsed.data.mentions ? JSON.stringify(parsed.data.mentions) : "[]",
+  }).returning();
 
   if (parsed.data.attachments?.length) {
     await db.insert(attachmentsTable).values(
@@ -131,17 +165,16 @@ router.post("/channels/:channelId/messages", async (req, res) => {
     );
   }
 
-  const formatted = await formatMessage(msg);
+  const formatted = await formatMessage(msg, req.user.id);
   broadcast({ type: "MESSAGE_CREATE", payload: formatted });
   res.status(201).json(formatted);
 });
 
+// Edit message
 router.patch("/channels/:channelId/messages/:messageId", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const msg = await db.query.messagesTable.findFirst({
-    where: eq(messagesTable.id, req.params.messageId),
-  });
+  const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, req.params.messageId) });
   if (!msg) { res.status(404).json({ error: "Not found" }); return; }
   if (msg.authorId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
 
@@ -154,17 +187,16 @@ router.patch("/channels/:channelId/messages/:messageId", async (req, res) => {
     .where(eq(messagesTable.id, req.params.messageId))
     .returning();
 
-  const formatted = await formatMessage(updated);
+  const formatted = await formatMessage(updated, req.user.id);
   broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
   res.json(formatted);
 });
 
+// Delete message
 router.delete("/channels/:channelId/messages/:messageId", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const msg = await db.query.messagesTable.findFirst({
-    where: eq(messagesTable.id, req.params.messageId),
-  });
+  const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, req.params.messageId) });
   if (!msg) { res.status(404).json({ error: "Not found" }); return; }
   if (msg.authorId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
 
@@ -173,13 +205,11 @@ router.delete("/channels/:channelId/messages/:messageId", async (req, res) => {
   res.json({ success: true });
 });
 
-// GET pinned messages for a channel
+// GET pinned messages
 router.get("/channels/:channelId/pinned-messages", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const channel = await db.query.channelsTable.findFirst({
-    where: eq(channelsTable.id, req.params.channelId),
-  });
+  const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, req.params.channelId) });
   if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
 
   const member = await db.query.serverMembersTable.findFirst({
@@ -192,17 +222,15 @@ router.get("/channels/:channelId/pinned-messages", async (req, res) => {
     orderBy: (m, { desc }) => [desc(m.updatedAt)],
   });
 
-  const formatted = await Promise.all(messages.map(formatMessage));
+  const formatted = await Promise.all(messages.map(m => formatMessage(m, req.user.id)));
   res.json(formatted);
 });
 
-// PIN a message
+// PIN message
 router.put("/channels/:channelId/messages/:messageId/pin", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const channel = await db.query.channelsTable.findFirst({
-    where: eq(channelsTable.id, req.params.channelId),
-  });
+  const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, req.params.channelId) });
   if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
 
   const member = await db.query.serverMembersTable.findFirst({
@@ -221,18 +249,16 @@ router.put("/channels/:channelId/messages/:messageId/pin", async (req, res) => {
     .where(eq(messagesTable.id, req.params.messageId))
     .returning();
 
-  const formatted = await formatMessage(updated);
+  const formatted = await formatMessage(updated, req.user.id);
   broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
   res.json(formatted);
 });
 
-// UNPIN a message
+// UNPIN message
 router.delete("/channels/:channelId/messages/:messageId/pin", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const channel = await db.query.channelsTable.findFirst({
-    where: eq(channelsTable.id, req.params.channelId),
-  });
+  const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, req.params.channelId) });
   if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
 
   const member = await db.query.serverMembersTable.findFirst({
@@ -251,11 +277,12 @@ router.delete("/channels/:channelId/messages/:messageId/pin", async (req, res) =
     .where(eq(messagesTable.id, req.params.messageId))
     .returning();
 
-  const formatted = await formatMessage(updated);
+  const formatted = await formatMessage(updated, req.user.id);
   broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
   res.json(formatted);
 });
 
+// Search messages
 router.get("/channels/:channelId/messages/search", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -269,8 +296,115 @@ router.get("/channels/:channelId/messages/search", async (req, res) => {
     orderBy: (m, { desc }) => [desc(m.createdAt)],
   });
 
-  const formatted = await Promise.all(messages.map(formatMessage));
+  const formatted = await Promise.all(messages.map(m => formatMessage(m, req.user.id)));
   res.json(formatted);
+});
+
+// TOGGLE reaction (PUT = add, DELETE = remove)
+router.put("/channels/:channelId/messages/:messageId/reactions/:emojiId", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { messageId, emojiId } = req.params;
+  const decodedEmoji = decodeURIComponent(emojiId);
+
+  const existing = await db.query.messageReactionsTable.findFirst({
+    where: and(
+      eq(messageReactionsTable.messageId, messageId),
+      eq(messageReactionsTable.userId, req.user.id),
+      eq(messageReactionsTable.emojiId, decodedEmoji)
+    ),
+  });
+
+  if (existing) {
+    await db.delete(messageReactionsTable).where(eq(messageReactionsTable.id, existing.id));
+  } else {
+    await db.insert(messageReactionsTable).values({
+      messageId,
+      userId: req.user.id,
+      emojiId: decodedEmoji,
+    });
+  }
+
+  const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, messageId) });
+  if (msg) {
+    const formatted = await formatMessage(msg, req.user.id);
+    broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
+    res.json(formatted);
+  } else {
+    res.status(404).json({ error: "Message not found" });
+  }
+});
+
+// GET thread replies
+router.get("/channels/:channelId/messages/:messageId/thread", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, req.params.channelId) });
+  if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+
+  const member = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, channel.serverId), eq(serverMembersTable.userId, req.user.id)),
+  });
+  if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const rootMsg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, req.params.messageId) });
+  if (!rootMsg) { res.status(404).json({ error: "Not found" }); return; }
+
+  const replies = await db.query.messagesTable.findMany({
+    where: eq(messagesTable.parentMessageId, req.params.messageId),
+    orderBy: (m, { asc }) => [asc(m.createdAt)],
+  });
+
+  const [formattedRoot, formattedReplies] = await Promise.all([
+    formatMessage(rootMsg, req.user.id),
+    Promise.all(replies.map(m => formatMessage(m, req.user.id))),
+  ]);
+
+  res.json({ root: formattedRoot, replies: formattedReplies });
+});
+
+// POST thread reply
+router.post("/channels/:channelId/messages/:messageId/thread", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, req.params.channelId) });
+  if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+
+  const member = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, channel.serverId), eq(serverMembersTable.userId, req.user.id)),
+  });
+  if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const parsed = SendMessageBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const parentId = req.params.messageId;
+
+  const [reply] = await db.insert(messagesTable).values({
+    content: parsed.data.content,
+    authorId: req.user.id,
+    channelId: req.params.channelId,
+    parentMessageId: parentId,
+  }).returning();
+
+  // Increment parent replyCount
+  await db.update(messagesTable)
+    .set({ replyCount: drizzleSql`${messagesTable.replyCount} + 1` })
+    .where(eq(messagesTable.id, parentId));
+
+  const [formattedReply, updatedParent] = await Promise.all([
+    formatMessage(reply, req.user.id),
+    (async () => {
+      const p = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, parentId) });
+      return p ? formatMessage(p, req.user.id) : null;
+    })(),
+  ]);
+
+  // Broadcast the reply and the updated parent (with incremented replyCount)
+  broadcast({ type: "THREAD_REPLY_CREATE", payload: { reply: formattedReply, parentMessageId: parentId } });
+  if (updatedParent) broadcast({ type: "MESSAGE_UPDATE", payload: updatedParent });
+
+  res.status(201).json(formattedReply);
 });
 
 export default router;

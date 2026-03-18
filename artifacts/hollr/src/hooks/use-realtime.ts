@@ -7,7 +7,9 @@ type WsEvent =
   | { type: 'MESSAGE_CREATE'; payload: Message }
   | { type: 'MESSAGE_UPDATE'; payload: Message }
   | { type: 'MESSAGE_DELETE'; payload: { id: string; channelId?: string; dmThreadId?: string } }
+  | { type: 'THREAD_REPLY_CREATE'; payload: { reply: Message; parentMessageId: string } }
   | { type: 'VOICE_SIGNAL'; payload: any }
+  | { type: 'PRESENCE_UPDATE'; payload: { userId: string; status: string } }
   | { type: 'CONNECTED' };
 
 export function useRealtime(userId?: string) {
@@ -25,6 +27,7 @@ export function useRealtime(userId?: string) {
 
     ws.current.onopen = () => {
       ws.current?.send(JSON.stringify({ type: 'IDENTIFY', payload: { userId } }));
+      ws.current?.send(JSON.stringify({ type: 'PRESENCE_UPDATE', payload: { userId, status: 'online' } }));
     };
 
     ws.current.onmessage = (event) => {
@@ -34,8 +37,6 @@ export function useRealtime(userId?: string) {
         switch (data.type) {
           case 'MESSAGE_CREATE': {
             const msg = data.payload;
-
-            // Server channel message
             if (msg.channelId) {
               queryClient.setQueryData<Message[]>(
                 getListMessagesQueryKey(msg.channelId),
@@ -46,8 +47,6 @@ export function useRealtime(userId?: string) {
                 }
               );
             }
-
-            // DM message
             if (msg.dmThreadId) {
               queryClient.setQueryData<Message[]>(
                 getListDmMessagesQueryKey(msg.dmThreadId),
@@ -57,7 +56,6 @@ export function useRealtime(userId?: string) {
                   return [...old, msg];
                 }
               );
-              // Refresh thread list so lastMessage updates
               queryClient.invalidateQueries({ queryKey: getListDmThreadsQueryKey() });
             }
             break;
@@ -96,6 +94,17 @@ export function useRealtime(userId?: string) {
             }
             break;
           }
+
+          case 'THREAD_REPLY_CREATE': {
+            // Thread sidebar will refetch; the parent message update is handled by MESSAGE_UPDATE
+            break;
+          }
+
+          case 'PRESENCE_UPDATE': {
+            // Invalidate member lists so status dots update
+            queryClient.invalidateQueries({ queryKey: ['server-members'] });
+            break;
+          }
         }
       } catch (e) {
         console.error('WebSocket message parse error', e);
@@ -103,6 +112,7 @@ export function useRealtime(userId?: string) {
     };
 
     return () => {
+      ws.current?.send(JSON.stringify({ type: 'PRESENCE_UPDATE', payload: { userId, status: 'offline' } }));
       ws.current?.close();
     };
   }, [userId, queryClient]);

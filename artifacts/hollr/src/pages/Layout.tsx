@@ -10,13 +10,21 @@ import { CreateServerModal } from '@/components/modals/CreateServerModal';
 import { CreateChannelModal } from '@/components/modals/CreateChannelModal';
 import { InviteModal } from '@/components/modals/InviteModal';
 import { HelpModal } from '@/components/modals/HelpModal';
+import { ServerSettingsModal } from '@/components/modals/ServerSettingsModal';
+import { ThreadSidebar } from '@/components/chat/ThreadSidebar';
+import { UserProfileCard } from '@/components/chat/UserProfileCard';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { Loader2 } from 'lucide-react';
 
 export function Layout() {
   const { user, isLoading } = useAuth();
-  const { activeServerId, activeDmThreadId, memberListOpen, mobileSidebarOpen, setMobileSidebarOpen } = useAppStore();
+  const {
+    activeServerId, activeDmThreadId, memberListOpen, mobileSidebarOpen, setMobileSidebarOpen,
+    threadMessageId, threadChannelId, closeThread,
+    profileCard, closeProfileCard,
+    pinnedPanelOpen,
+  } = useAppStore();
 
   useRealtime(user?.id);
 
@@ -39,6 +47,9 @@ export function Layout() {
   const dmRecipient = activeDmThread?.participants?.find((p: any) => p.id !== user.id)
     ?? activeDmThread?.participants?.[0];
 
+  const showThread = !!(threadMessageId && threadChannelId);
+  const showMemberList = !!(activeServerId && memberListOpen && !showThread && !pinnedPanelOpen);
+
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
 
@@ -50,9 +61,7 @@ export function Layout() {
         />
       )}
 
-      {/* Left sidebar: ServerSidebar + ChannelSidebar
-          - Desktop: always visible as columns
-          - Mobile: slide-in overlay via fixed positioning */}
+      {/* Left sidebar */}
       <div
         className={[
           'flex h-full z-40',
@@ -77,19 +86,43 @@ export function Layout() {
           <ChatArea />
         )}
 
-        {/* Member List — desktop only visible, hidden on narrow screens */}
-        {activeServerId && memberListOpen && (
+        {/* Thread sidebar */}
+        {showThread && threadChannelId && threadMessageId && (
           <div className="hidden lg:flex">
-            <MemberList serverId={activeServerId} />
+            <ThreadSidebar
+              channelId={threadChannelId}
+              messageId={threadMessageId}
+              onClose={closeThread}
+            />
+          </div>
+        )}
+
+        {/* Member List — only when no thread sidebar */}
+        {showMemberList && (
+          <div className="hidden lg:flex">
+            <MemberList serverId={activeServerId!} />
           </div>
         )}
       </div>
 
+      {/* Modals & Overlays */}
       <VoiceOverlay />
       <CreateServerModal />
       <CreateChannelModal />
       <InviteModal />
       <HelpModal />
+      <ServerSettingsModal />
+
+      {/* User Profile Card */}
+      {profileCard && (
+        <UserProfileCard
+          userId={profileCard.userId}
+          joinedAt={profileCard.joinedAt}
+          role={profileCard.role}
+          position={profileCard.position}
+          onClose={closeProfileCard}
+        />
+      )}
     </div>
   );
 }

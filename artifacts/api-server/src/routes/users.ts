@@ -88,4 +88,19 @@ router.patch("/users/me", async (req, res) => {
   });
 });
 
+router.get("/users/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const profile = await db.query.userProfilesTable.findFirst({ where: eq(userProfilesTable.userId, userId) });
+  if (!profile) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({
+    id: userId,
+    username: profile.username,
+    displayName: profile.displayName,
+    avatarUrl: profile.avatarUrl,
+    status: profile.status,
+    customStatus: profile.customStatus,
+    createdAt: profile.createdAt.toISOString(),
+  });
+});
+
 export default router;

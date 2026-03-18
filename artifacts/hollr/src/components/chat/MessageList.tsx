@@ -5,9 +5,11 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
-import { FileText, Download, Pencil, Trash2, Check, X, Pin } from 'lucide-react';
+import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAppStore } from '@/store/use-app-store';
 import { cn } from '@/lib/utils';
+import { ReactionPills } from './ReactionPills';
 
 async function pinMessage(channelId: string, messageId: string) {
   const res = await fetch(`/api/channels/${channelId}/messages/${messageId}/pin`, { method: 'PUT' });
@@ -19,6 +21,42 @@ async function unpinMessage(channelId: string, messageId: string) {
   const res = await fetch(`/api/channels/${channelId}/messages/${messageId}/pin`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to unpin');
   return res.json();
+}
+
+async function toggleReaction(channelId: string, messageId: string, emojiId: string) {
+  const res = await fetch(
+    `/api/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emojiId)}`,
+    { method: 'PUT' }
+  );
+  return res.json();
+}
+
+function renderContent(content: string) {
+  const mentionRegex = /(@[\w\-. ]+)/g;
+  const parts = content.split(mentionRegex);
+  return parts.map((part, i) => {
+    if (mentionRegex.test(part)) {
+      return (
+        <span key={i} className="bg-primary/20 text-primary font-semibold px-1 py-0.5 rounded text-[13px]">
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+function formatContent(content: string) {
+  const parts = content.split(/(@\S+)/g);
+  return parts.map((part, i) =>
+    part.startsWith('@') ? (
+      <span key={i} className="bg-primary/20 text-primary font-semibold px-1 rounded text-[13px]">
+        {part}
+      </span>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
 }
 
 export function MessageList({
@@ -34,25 +72,23 @@ export function MessageList({
   const qc = useQueryClient();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { openThread, openProfileCard } = useAppStore();
   const bottomRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [emojiHoverMsg, setEmojiHoverMsg] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const editRef = useRef<HTMLTextAreaElement>(null);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Scroll to + highlight a specific message when requested
   useEffect(() => {
     if (!highlightedMessageId) return;
     const el = messageRefs.current[highlightedMessageId];
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [highlightedMessageId]);
 
   useEffect(() => {
@@ -65,7 +101,7 @@ export function MessageList({
   const startEdit = (id: string, content: string) => { setEditingId(id); setEditDraft(content); };
   const cancelEdit = () => { setEditingId(null); setEditDraft(''); };
 
-  const saveEdit = (channelId: string, messageId: string) => {
+  const saveEdit = (messageId: string) => {
     if (!editDraft.trim()) return;
     editMessage({ channelId, messageId, data: { content: editDraft.trim() } }, {
       onSuccess: () => {
@@ -76,7 +112,7 @@ export function MessageList({
     });
   };
 
-  const handleDelete = (channelId: string, messageId: string) => {
+  const handleDelete = (messageId: string) => {
     deleteMessage({ channelId, messageId }, {
       onSuccess: () => qc.invalidateQueries({ queryKey: getListMessagesQueryKey(channelId) }),
       onError: () => toast({ title: 'Failed to delete message', variant: 'destructive' }),
@@ -86,69 +122,96 @@ export function MessageList({
   const { mutate: doPin } = useMutation({
     mutationFn: ({ msgId, pinned }: { msgId: string; pinned: boolean }) =>
       pinned ? unpinMessage(channelId, msgId) : pinMessage(channelId, msgId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: getListMessagesQueryKey(channelId) });
+    onSuccess: (updated) => {
+      qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), old =>
+        old ? old.map(m => m.id === updated.id ? updated : m) : old
+      );
       qc.invalidateQueries({ queryKey: ['pinned-messages', channelId] });
     },
     onError: () => toast({ title: 'Failed to pin/unpin', variant: 'destructive' }),
+  });
+
+  const { mutate: doReact } = useMutation({
+    mutationFn: ({ msgId, emojiId }: { msgId: string; emojiId: string }) =>
+      toggleReaction(channelId, msgId, emojiId),
+    onSuccess: (updated) => {
+      qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), old =>
+        old ? old.map(m => m.id === updated.id ? updated : m) : old
+      );
+    },
   });
 
   if (isLoading) {
     return <div className="flex-1 flex items-center justify-center text-muted-foreground">Loading messages…</div>;
   }
 
-  const sortedMessages = messages;
-
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col p-4 gap-4 no-scrollbar">
+    <div className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
       <div className="mt-auto" />
 
-      {sortedMessages.length === 0 && (
+      {messages.length === 0 && (
         <div className="text-center py-10">
           <h2 className="text-2xl font-bold text-foreground">Welcome to the channel!</h2>
           <p className="text-muted-foreground mt-2">This is the start of a beautiful conversation.</p>
         </div>
       )}
 
-      {sortedMessages.map((msg, index) => {
+      {messages.map((msg, index) => {
+        const prev = messages[index - 1];
         const showHeader = index === 0
-          || sortedMessages[index - 1].authorId !== msg.authorId
-          || (new Date(msg.createdAt).getTime() - new Date(sortedMessages[index - 1].createdAt).getTime() > 5 * 60000);
+          || prev.authorId !== msg.authorId
+          || (new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60000);
 
         const isOwner = user?.id === msg.authorId;
         const isEditing = editingId === msg.id;
         const isHighlighted = highlightedMessageId === msg.id;
+        const reactions = (msg as any).reactions || [];
+        const replyCount = (msg as any).replyCount || 0;
 
         return (
           <div
             key={msg.id}
             ref={el => { messageRefs.current[msg.id] = el; }}
             className={cn(
-              'group relative flex hover:bg-black/5 p-1 -mx-4 px-4 rounded-sm transition-colors',
-              showHeader ? 'mt-4' : 'mt-0.5',
+              'group relative flex py-0.5 px-4 -mx-4 rounded-sm transition-colors',
+              showHeader ? 'mt-4' : 'mt-0',
               isHighlighted && 'bg-primary/10 hover:bg-primary/15 ring-1 ring-primary/30 rounded-md',
+              !isHighlighted && 'hover:bg-black/5',
               msg.pinned && 'border-l-2 border-amber-500/60 pl-3'
             )}
+            onMouseLeave={() => setEmojiHoverMsg(null)}
           >
+            {/* Avatar or timestamp stub */}
             {showHeader ? (
-              <Avatar className="h-10 w-10 mr-4 cursor-pointer hover:opacity-80 transition-opacity shrink-0">
-                <AvatarImage src={msg.author.avatarUrl || undefined} />
-                <AvatarFallback className="bg-primary text-white">
-                  {getInitials(msg.author.displayName || msg.author.username)}
-                </AvatarFallback>
-              </Avatar>
+              <button
+                onClick={e => openProfileCard({
+                  userId: msg.authorId,
+                  position: { x: e.clientX, y: e.clientY },
+                })}
+                className="shrink-0 mr-4"
+              >
+                <Avatar className="h-10 w-10 hover:opacity-80 transition-opacity">
+                  <AvatarImage src={msg.author.avatarUrl || undefined} />
+                  <AvatarFallback className="bg-primary text-white">
+                    {getInitials(msg.author.displayName || msg.author.username)}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
             ) : (
               <div className="w-14 shrink-0 text-right pr-4 text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 flex items-center justify-end">
                 {format(new Date(msg.createdAt), 'h:mm a')}
               </div>
             )}
 
-            <div className="flex flex-col min-w-0 flex-1">
+            <div className="flex flex-col min-w-0 flex-1 py-0.5">
               {showHeader && (
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="font-medium text-base text-indigo-400 hover:underline cursor-pointer tracking-wide">
+                <div className="flex items-baseline gap-2 mb-0.5">
+                  <button
+                    onClick={e => openProfileCard({ userId: msg.authorId, position: { x: e.clientX, y: e.clientY } })}
+                    className="font-medium text-base text-indigo-400 hover:underline"
+                  >
                     {msg.author.displayName || msg.author.username}
-                  </span>
+                  </button>
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(msg.createdAt), 'MM/dd/yyyy h:mm a')}
                   </span>
@@ -167,14 +230,14 @@ export function MessageList({
                     value={editDraft}
                     onChange={e => setEditDraft(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(channelId, msg.id); }
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg.id); }
                       if (e.key === 'Escape') cancelEdit();
                     }}
                     className="bg-[#383A40] rounded-md px-3 py-2 text-foreground text-[15px] leading-relaxed resize-none w-full outline-none focus:ring-1 focus:ring-primary"
                     rows={1}
                   />
                   <div className="flex gap-2 text-xs text-muted-foreground">
-                    <button onClick={() => saveEdit(channelId, msg.id)} className="flex items-center gap-1 text-primary hover:text-primary/80">
+                    <button onClick={() => saveEdit(msg.id)} className="flex items-center gap-1 text-primary hover:text-primary/80">
                       <Check size={12} /> Save
                     </button>
                     <span>•</span>
@@ -185,7 +248,7 @@ export function MessageList({
                 </div>
               ) : (
                 <div className="text-foreground text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-                  {msg.content}
+                  {formatContent(msg.content)}
                   {msg.edited && (
                     <span className="text-[11px] text-muted-foreground ml-1.5 italic">(edited)</span>
                   )}
@@ -206,7 +269,8 @@ export function MessageList({
                       );
                     }
                     return (
-                      <a key={att.id} href={url} download target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-lg hover:bg-secondary/80 transition-colors w-72">
+                      <a key={att.id} href={url} download target="_blank" rel="noreferrer"
+                        className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-lg hover:bg-secondary/80 transition-colors w-72">
                         <div className="bg-primary/20 p-2 rounded-md"><FileText className="text-primary" size={24} /></div>
                         <div className="flex flex-col overflow-hidden">
                           <span className="text-sm font-medium text-primary hover:underline truncate">{att.name}</span>
@@ -218,12 +282,49 @@ export function MessageList({
                   })}
                 </div>
               )}
+
+              {/* Reactions */}
+              {!isEditing && (
+                <ReactionPills
+                  reactions={reactions}
+                  channelId={channelId}
+                  messageId={msg.id}
+                  showAddButton={emojiHoverMsg === msg.id}
+                />
+              )}
+
+              {/* Thread reply count */}
+              {!isEditing && replyCount > 0 && (
+                <button
+                  onClick={() => openThread(channelId, msg.id)}
+                  className="mt-1 flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 hover:underline w-fit"
+                >
+                  <MessageSquare size={12} />
+                  {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
+                </button>
+              )}
             </div>
 
             {/* Hover action buttons */}
             {!isEditing && (
               <div className="absolute right-4 top-0 -translate-y-1/2 bg-[#2B2D31] border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                {/* Pin/Unpin — any member can pin */}
+                {/* Add reaction */}
+                <button
+                  onClick={() => setEmojiHoverMsg(v => v === msg.id ? null : msg.id)}
+                  title="Add reaction"
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                >
+                  <Smile size={14} />
+                </button>
+                {/* Thread */}
+                <button
+                  onClick={() => openThread(channelId, msg.id)}
+                  title="Reply in thread"
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                >
+                  <MessageSquare size={14} />
+                </button>
+                {/* Pin/Unpin */}
                 <button
                   onClick={() => doPin({ msgId: msg.id, pinned: !!msg.pinned })}
                   title={msg.pinned ? 'Unpin message' : 'Pin message'}
@@ -247,7 +348,7 @@ export function MessageList({
                       <Pencil size={14} />
                     </button>
                     <button
-                      onClick={() => handleDelete(channelId, msg.id)}
+                      onClick={() => handleDelete(msg.id)}
                       title="Delete"
                       className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
                     >

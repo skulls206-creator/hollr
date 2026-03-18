@@ -7,7 +7,6 @@ export const userStatusEnum = pgEnum("user_status", ["online", "idle", "dnd", "o
 export const channelTypeEnum = pgEnum("channel_type", ["text", "voice"]);
 export const memberRoleEnum = pgEnum("member_role", ["owner", "admin", "member"]);
 
-// Extended user profile (extends the auth usersTable)
 export const userProfilesTable = pgTable("user_profiles", {
   userId: varchar("user_id").primaryKey().notNull(),
   username: varchar("username", { length: 32 }).notNull(),
@@ -23,7 +22,6 @@ export const insertUserProfileSchema = createInsertSchema(userProfilesTable);
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type UserProfile = typeof userProfilesTable.$inferSelect;
 
-// Servers
 export const serversTable = pgTable("servers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 100 }).notNull(),
@@ -39,7 +37,6 @@ export const insertServerSchema = createInsertSchema(serversTable).omit({ id: tr
 export type InsertServer = z.infer<typeof insertServerSchema>;
 export type DbServer = typeof serversTable.$inferSelect;
 
-// Server Members
 export const serverMembersTable = pgTable("server_members", {
   userId: varchar("user_id").notNull(),
   serverId: varchar("server_id").notNull(),
@@ -49,7 +46,6 @@ export const serverMembersTable = pgTable("server_members", {
 
 export type ServerMember = typeof serverMembersTable.$inferSelect;
 
-// Channels
 export const channelsTable = pgTable("channels", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   serverId: varchar("server_id").notNull(),
@@ -65,7 +61,6 @@ export const insertChannelSchema = createInsertSchema(channelsTable).omit({ id: 
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
 export type DbChannel = typeof channelsTable.$inferSelect;
 
-// DM Threads
 export const dmThreadsTable = pgTable("dm_threads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -73,22 +68,23 @@ export const dmThreadsTable = pgTable("dm_threads", {
 
 export type DmThread = typeof dmThreadsTable.$inferSelect;
 
-// DM Thread Participants
 export const dmParticipantsTable = pgTable("dm_participants", {
   threadId: varchar("thread_id").notNull(),
   userId: varchar("user_id").notNull(),
 });
 
-// Messages
 export const messagesTable = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   content: text("content").notNull(),
   authorId: varchar("author_id").notNull(),
   channelId: varchar("channel_id"),
   dmThreadId: varchar("dm_thread_id"),
+  parentMessageId: varchar("parent_message_id"),
+  replyCount: integer("reply_count").notNull().default(0),
   edited: boolean("edited").notNull().default(false),
   pinned: boolean("pinned").notNull().default(false),
   pinnedBy: varchar("pinned_by"),
+  mentions: text("mentions").default("[]"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -97,7 +93,6 @@ export const insertMessageSchema = createInsertSchema(messagesTable).omit({ id: 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type DbMessage = typeof messagesTable.$inferSelect;
 
-// Attachments
 export const attachmentsTable = pgTable("attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   messageId: varchar("message_id").notNull(),
@@ -109,3 +104,13 @@ export const attachmentsTable = pgTable("attachments", {
 });
 
 export type Attachment = typeof attachmentsTable.$inferSelect;
+
+export const messageReactionsTable = pgTable("message_reactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  emojiId: varchar("emoji_id", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type MessageReaction = typeof messageReactionsTable.$inferSelect;

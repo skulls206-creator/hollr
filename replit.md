@@ -24,18 +24,21 @@ lib/
 - **Express** HTTP server with session middleware (PostgreSQL-backed via `connect-pg-simple`)
 - **Replit Auth** via OpenID Connect (PKCE flow) — `/api/auth/*` routes
 - **WebSocket** server attached to the same HTTP server at `/api/ws`
-  - Real-time events: `MESSAGE_CREATE`, `MESSAGE_UPDATE`, `MESSAGE_DELETE`, `CHANNEL_UPDATE`, `VOICE_SIGNAL`, `PRESENCE_UPDATE`
+  - Real-time events: `MESSAGE_CREATE`, `MESSAGE_UPDATE`, `MESSAGE_DELETE`, `CHANNEL_UPDATE`, `VOICE_SIGNAL`, `PRESENCE_UPDATE`, `THREAD_REPLY_CREATE`
   - WS broadcast module: `src/lib/ws.ts`
 - **Object Storage** via GCS (presigned PUT URL flow)
   - 100MB file size limit enforced server-side
   - MIME type allowlist (images, video, audio, PDF, docs, archives)
 - **Routes**: `/api/users`, `/api/servers`, `/api/channels`, `/api/messages`, `/api/dms`, `/api/storage`
+  - Reaction toggle: `PUT /api/channels/:channelId/messages/:messageId/reactions/:emojiId`
+  - Thread replies: `GET|POST /api/channels/:channelId/messages/:messageId/thread`
+  - User profile: `GET /api/users/:userId` (note: `/users/me` must be registered first)
 
 ### Frontend (artifacts/hollr)
 
 - **React 19** + **Vite 7** + **Tailwind CSS v4** + **shadcn/ui** components
 - **Wouter** for routing: `/login` → Login page, `/app` → main Layout
-- **Zustand** global state: `use-app-store` (active server/channel, voice connection, modal state)
+- **Zustand** global state: `use-app-store` (active server/channel, voice connection, modal state, thread sidebar, profile card)
 - **TanStack Query** for all API data fetching (generated hooks from `@workspace/api-client-react`)
 - **WebSocket** in `use-realtime.ts` — connects to `/api/ws`, invalidates React Query cache on events
 - **WebRTC** in `use-webrtc.ts`:
@@ -49,7 +52,9 @@ lib/
 
 ### Database (lib/db)
 
-Tables: `user_profiles`, `servers`, `server_members`, `channels`, `dm_threads`, `dm_participants`, `messages`, `attachments`
+Tables: `user_profiles`, `servers`, `server_members`, `channels`, `dm_threads`, `dm_participants`, `messages`, `attachments`, `message_reactions`
+
+New columns on `messages`: `parentMessageId`, `replyCount`, `mentions` (text array)
 
 ## Development
 
@@ -77,6 +82,23 @@ pnpm --filter @workspace/db push
 | `PORT` | Server port (set by Replit per artifact) |
 | `REPLIT_DOMAINS` | Comma-separated domains for CORS/auth |
 
+## Features
+
+- **Auth**: Replit OIDC (Sign in with Replit)
+- **Servers & Channels**: Create, rename, delete; server settings modal; invite via code
+- **Real-time chat**: WebSocket (MESSAGE_CREATE/UPDATE/DELETE); message edit/delete/pin/search
+- **Emoji Reactions**: React to messages with any emoji; toggle add/remove; shown as pills with counts
+- **Message Threads**: Click thread icon → ThreadSidebar; reply in thread; "X replies" link on parent message
+- **@Mention autocomplete**: Type `@` in composer → member dropdown; mention text highlighted in rendered messages
+- **Emoji Picker**: `emoji-picker-react` integrated in composer toolbar
+- **User Profile Card**: Click avatar/username → floating profile card (no blocking overlay); Escape to close
+- **DMs**: Open direct message threads with any server member
+- **Voice/Video**: WebRTC mesh with per-participant volume control (0–200%)
+- **Screen Share**: `getDisplayMedia` with track renegotiation
+- **File Upload**: Direct-to-GCS presigned URL flow, 100MB limit, progress bar
+- **Mobile**: Responsive layout with slide-in sidebar
+- **Presence**: Online/idle/dnd/offline status indicators
+
 ## Key Design Decisions
 
 - WebSocket server is attached to the **same HTTP server** as Express to avoid separate port
@@ -85,3 +107,5 @@ pnpm --filter @workspace/db push
 - Screen sharing uses `getDisplayMedia` + `RTCPeerConnection.addTrack` renegotiation
 - File uploads go directly to GCS (bypasses the API server for large files)
 - Auth is handled entirely by `@workspace/replit-auth-web` (OpenID Connect, not the generated API client)
+- `UserProfileCard` uses mousedown-outside-click listener only (no full-screen backdrop overlay) to avoid blocking other interactions
+- Route order in `users.ts`: `/users/me` must be registered before `/users/:userId`

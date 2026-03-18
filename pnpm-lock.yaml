@@ -235,6 +235,9 @@ importers:
       '@workspace/replit-auth-web':
         specifier: workspace:*
         version: link:../../lib/replit-auth-web
+      emoji-picker-react:
+        specifier: ^4.18.0
+        version: 4.18.0(react@19.1.0)
       react-intersection-observer:
         specifier: ^10.0.3
         version: 10.0.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -2297,6 +2300,12 @@ packages:
   embla-carousel@8.6.0:
     resolution: {integrity: sha512-SjWyZBHJPbqxHOzckOfo8lHisEaJWmwd23XppYFYVh10bU66/Pn5tkVkbkCMZVdbUE5eTCI2nD8OyIP4Z+uwkA==}
 
+  emoji-picker-react@4.18.0:
+    resolution: {integrity: sha512-vLTrLfApXAIciguGE57pXPWs9lPLBspbEpPMiUq03TIli2dHZBiB+aZ0R9/Wat0xmTfcd4AuEzQgSYxEZ8C88Q==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      react: 19.1.0
+
   encodeurl@2.0.0:
     resolution: {integrity: sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==}
     engines: {node: '>= 0.8'}
@@ -2437,6 +2446,9 @@ packages:
   find-up@8.0.0:
     resolution: {integrity: sha512-JGG8pvDi2C+JxidYdIwQDyS/CgcrIdh18cvgxcBge3wSHRQOrooMD3GlFBcmMJAN9M42SAZjDp5zv1dglJjwww==}
     engines: {node: '>=20'}
+
+  flairup@1.0.0:
+    resolution: {integrity: sha512-IKlE+pNvL2R+kVL1kEhUYqRxVqeFnjiIvHWDMLFXNaqyUdFXQM2wte44EfMYJNHkW16X991t2Zg8apKkhv7OBA==}
 
   form-data@2.5.5:
     resolution: {integrity: sha512-jqdObeR2rxZZbPSGL+3VckHMYtu+f9//KXBsVny6JSX/pa38Fy+bGjuG8eW/H6USNQWhLi8Num++cU2yOCNz4A==}
@@ -5298,6 +5310,11 @@ snapshots:
 
   embla-carousel@8.6.0: {}
 
+  emoji-picker-react@4.18.0(react@19.1.0):
+    dependencies:
+      flairup: 1.0.0
+      react: 19.1.0
+
   encodeurl@2.0.0: {}
 
   end-of-stream@1.4.5:
@@ -5481,6 +5498,8 @@ snapshots:
     dependencies:
       locate-path: 8.0.0
       unicorn-magic: 0.3.0
+
+  flairup@1.0.0: {}
 
   form-data@2.5.5:
     dependencies:

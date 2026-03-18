@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 
+interface ProfileCardState {
+  userId: string;
+  joinedAt?: string;
+  role?: string;
+  position?: { x: number; y: number };
+}
+
 interface AppState {
   activeServerId: string | null;
   activeChannelId: string | null;
@@ -17,6 +24,13 @@ interface AppState {
   memberListOpen: boolean;
   mobileSidebarOpen: boolean;
   pinnedPanelOpen: boolean;
+
+  // Thread sidebar
+  threadMessageId: string | null;
+  threadChannelId: string | null;
+
+  // User profile card
+  profileCard: ProfileCardState | null;
 
   // Notification mutes: set of channelIds that are muted
   mutedChannels: Set<string>;
@@ -47,6 +61,12 @@ interface AppState {
   setPinnedPanelOpen: (open: boolean) => void;
   togglePinnedPanel: () => void;
 
+  openThread: (channelId: string, messageId: string) => void;
+  closeThread: () => void;
+
+  openProfileCard: (state: ProfileCardState) => void;
+  closeProfileCard: () => void;
+
   toggleMuteChannel: (channelId: string) => void;
   isChannelMuted: (channelId: string) => boolean;
 
@@ -69,6 +89,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   mobileSidebarOpen: false,
   pinnedPanelOpen: false,
 
+  threadMessageId: null,
+  threadChannelId: null,
+
+  profileCard: null,
+
   mutedChannels: new Set<string>(),
 
   voiceConnection: {
@@ -77,9 +102,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     status: 'disconnected',
   },
 
-  setActiveServer: (id) => set({ activeServerId: id, activeDmThreadId: null, pinnedPanelOpen: false }),
-  setActiveChannel: (id) => set({ activeChannelId: id, mobileSidebarOpen: false, pinnedPanelOpen: false }),
-  setActiveDmThread: (id) => set({ activeDmThreadId: id, activeServerId: null, activeChannelId: null, mobileSidebarOpen: false, pinnedPanelOpen: false }),
+  setActiveServer: (id) => set({ activeServerId: id, activeDmThreadId: null, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
+  setActiveChannel: (id) => set({ activeChannelId: id, mobileSidebarOpen: false, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
+  setActiveDmThread: (id) => set({ activeDmThreadId: id, activeServerId: null, activeChannelId: null, mobileSidebarOpen: false, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
 
   setCreateServerModalOpen: (open) => set({ createServerModalOpen: open }),
   setCreateChannelModalOpen: (open) => set({ createChannelModalOpen: open }),
@@ -93,7 +118,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
   toggleMobileSidebar: () => set((state) => ({ mobileSidebarOpen: !state.mobileSidebarOpen })),
   setPinnedPanelOpen: (open) => set({ pinnedPanelOpen: open }),
-  togglePinnedPanel: () => set((state) => ({ pinnedPanelOpen: !state.pinnedPanelOpen })),
+  togglePinnedPanel: () => set((state) => ({
+    pinnedPanelOpen: !state.pinnedPanelOpen,
+    threadMessageId: null,
+    threadChannelId: null,
+  })),
+
+  openThread: (channelId, messageId) => set({ threadChannelId: channelId, threadMessageId: messageId, pinnedPanelOpen: false }),
+  closeThread: () => set({ threadMessageId: null, threadChannelId: null }),
+
+  openProfileCard: (state) => set({ profileCard: state }),
+  closeProfileCard: () => set({ profileCard: null }),
 
   toggleMuteChannel: (channelId) => set((state) => {
     const next = new Set(state.mutedChannels);
