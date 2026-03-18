@@ -49,6 +49,8 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect) {
     channelId: msg.channelId,
     dmThreadId: msg.dmThreadId,
     edited: msg.edited,
+    pinned: msg.pinned,
+    pinnedBy: msg.pinnedBy ?? null,
     attachments: attachments.map((a) => ({
       id: a.id,
       objectPath: a.objectPath,
@@ -169,6 +171,89 @@ router.delete("/channels/:channelId/messages/:messageId", async (req, res) => {
   await db.delete(messagesTable).where(eq(messagesTable.id, req.params.messageId));
   broadcast({ type: "MESSAGE_DELETE", payload: { id: req.params.messageId, channelId: req.params.channelId } });
   res.json({ success: true });
+});
+
+// GET pinned messages for a channel
+router.get("/channels/:channelId/pinned-messages", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const channel = await db.query.channelsTable.findFirst({
+    where: eq(channelsTable.id, req.params.channelId),
+  });
+  if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+
+  const member = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, channel.serverId), eq(serverMembersTable.userId, req.user.id)),
+  });
+  if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const messages = await db.query.messagesTable.findMany({
+    where: and(eq(messagesTable.channelId, req.params.channelId), eq(messagesTable.pinned, true)),
+    orderBy: (m, { desc }) => [desc(m.updatedAt)],
+  });
+
+  const formatted = await Promise.all(messages.map(formatMessage));
+  res.json(formatted);
+});
+
+// PIN a message
+router.put("/channels/:channelId/messages/:messageId/pin", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const channel = await db.query.channelsTable.findFirst({
+    where: eq(channelsTable.id, req.params.channelId),
+  });
+  if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+
+  const member = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, channel.serverId), eq(serverMembersTable.userId, req.user.id)),
+  });
+  if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const msg = await db.query.messagesTable.findFirst({
+    where: and(eq(messagesTable.id, req.params.messageId), eq(messagesTable.channelId, req.params.channelId)),
+  });
+  if (!msg) { res.status(404).json({ error: "Not found" }); return; }
+
+  const [updated] = await db
+    .update(messagesTable)
+    .set({ pinned: true, pinnedBy: req.user.id })
+    .where(eq(messagesTable.id, req.params.messageId))
+    .returning();
+
+  const formatted = await formatMessage(updated);
+  broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
+  res.json(formatted);
+});
+
+// UNPIN a message
+router.delete("/channels/:channelId/messages/:messageId/pin", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const channel = await db.query.channelsTable.findFirst({
+    where: eq(channelsTable.id, req.params.channelId),
+  });
+  if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+
+  const member = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, channel.serverId), eq(serverMembersTable.userId, req.user.id)),
+  });
+  if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const msg = await db.query.messagesTable.findFirst({
+    where: and(eq(messagesTable.id, req.params.messageId), eq(messagesTable.channelId, req.params.channelId)),
+  });
+  if (!msg) { res.status(404).json({ error: "Not found" }); return; }
+
+  const [updated] = await db
+    .update(messagesTable)
+    .set({ pinned: false, pinnedBy: null })
+    .where(eq(messagesTable.id, req.params.messageId))
+    .returning();
+
+  const formatted = await formatMessage(updated);
+  broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
+  res.json(formatted);
 });
 
 router.get("/channels/:channelId/messages/search", async (req, res) => {

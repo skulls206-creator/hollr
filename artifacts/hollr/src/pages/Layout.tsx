@@ -9,6 +9,7 @@ import { MemberList } from '@/components/layout/MemberList';
 import { CreateServerModal } from '@/components/modals/CreateServerModal';
 import { CreateChannelModal } from '@/components/modals/CreateChannelModal';
 import { InviteModal } from '@/components/modals/InviteModal';
+import { HelpModal } from '@/components/modals/HelpModal';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { Loader2 } from 'lucide-react';
@@ -88,6 +89,7 @@ export function Layout() {
       <CreateServerModal />
       <CreateChannelModal />
       <InviteModal />
+      <HelpModal />
     </div>
   );
 }

@@ -87,6 +87,8 @@ export const messagesTable = pgTable("messages", {
   channelId: varchar("channel_id"),
   dmThreadId: varchar("dm_thread_id"),
   edited: boolean("edited").notNull().default(false),
+  pinned: boolean("pinned").notNull().default(false),
+  pinnedBy: varchar("pinned_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

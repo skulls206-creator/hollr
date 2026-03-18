@@ -1,30 +1,59 @@
 import { useEffect, useRef, useState } from 'react';
 import { useListMessages, useEditMessage, useDeleteMessage, getListMessagesQueryKey } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
-import { FileText, Download, Pencil, Trash2, Check, X } from 'lucide-react';
+import { FileText, Download, Pencil, Trash2, Check, X, Pin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
-export function MessageList({ channelId }: { channelId: string }) {
+async function pinMessage(channelId: string, messageId: string) {
+  const res = await fetch(`/api/channels/${channelId}/messages/${messageId}/pin`, { method: 'PUT' });
+  if (!res.ok) throw new Error('Failed to pin');
+  return res.json();
+}
+
+async function unpinMessage(channelId: string, messageId: string) {
+  const res = await fetch(`/api/channels/${channelId}/messages/${messageId}/pin`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to unpin');
+  return res.json();
+}
+
+export function MessageList({
+  channelId,
+  highlightedMessageId,
+}: {
+  channelId: string;
+  highlightedMessageId?: string | null;
+}) {
   const { data: messages = [], isLoading } = useListMessages(channelId);
   const { mutate: editMessage } = useEditMessage();
   const { mutate: deleteMessage } = useDeleteMessage();
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   const { user } = useAuth();
   const { toast } = useToast();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Track which message is being edited and its draft content
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const editRef = useRef<HTMLTextAreaElement>(null);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Scroll to + highlight a specific message when requested
+  useEffect(() => {
+    if (!highlightedMessageId) return;
+    const el = messageRefs.current[highlightedMessageId];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightedMessageId]);
 
   useEffect(() => {
     if (editingId && editRef.current) {
@@ -33,21 +62,14 @@ export function MessageList({ channelId }: { channelId: string }) {
     }
   }, [editingId]);
 
-  const startEdit = (id: string, content: string) => {
-    setEditingId(id);
-    setEditDraft(content);
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditDraft('');
-  };
+  const startEdit = (id: string, content: string) => { setEditingId(id); setEditDraft(content); };
+  const cancelEdit = () => { setEditingId(null); setEditDraft(''); };
 
   const saveEdit = (channelId: string, messageId: string) => {
     if (!editDraft.trim()) return;
     editMessage({ channelId, messageId, data: { content: editDraft.trim() } }, {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(channelId) });
+        qc.invalidateQueries({ queryKey: getListMessagesQueryKey(channelId) });
         cancelEdit();
       },
       onError: () => toast({ title: 'Failed to edit message', variant: 'destructive' }),
@@ -56,18 +78,25 @@ export function MessageList({ channelId }: { channelId: string }) {
 
   const handleDelete = (channelId: string, messageId: string) => {
     deleteMessage({ channelId, messageId }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(channelId) });
-      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: getListMessagesQueryKey(channelId) }),
       onError: () => toast({ title: 'Failed to delete message', variant: 'destructive' }),
     });
   };
+
+  const { mutate: doPin } = useMutation({
+    mutationFn: ({ msgId, pinned }: { msgId: string; pinned: boolean }) =>
+      pinned ? unpinMessage(channelId, msgId) : pinMessage(channelId, msgId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: getListMessagesQueryKey(channelId) });
+      qc.invalidateQueries({ queryKey: ['pinned-messages', channelId] });
+    },
+    onError: () => toast({ title: 'Failed to pin/unpin', variant: 'destructive' }),
+  });
 
   if (isLoading) {
     return <div className="flex-1 flex items-center justify-center text-muted-foreground">Loading messages…</div>;
   }
 
-  // API already returns messages in ascending (oldest-first) order — no reverse needed
   const sortedMessages = messages;
 
   return (
@@ -82,16 +111,24 @@ export function MessageList({ channelId }: { channelId: string }) {
       )}
 
       {sortedMessages.map((msg, index) => {
-        const showHeader = index === 0 || sortedMessages[index - 1].authorId !== msg.authorId ||
-          (new Date(msg.createdAt).getTime() - new Date(sortedMessages[index - 1].createdAt).getTime() > 5 * 60000);
+        const showHeader = index === 0
+          || sortedMessages[index - 1].authorId !== msg.authorId
+          || (new Date(msg.createdAt).getTime() - new Date(sortedMessages[index - 1].createdAt).getTime() > 5 * 60000);
 
         const isOwner = user?.id === msg.authorId;
         const isEditing = editingId === msg.id;
+        const isHighlighted = highlightedMessageId === msg.id;
 
         return (
           <div
             key={msg.id}
-            className={`group relative flex ${showHeader ? 'mt-4' : 'mt-0.5'} hover:bg-black/5 p-1 -mx-4 px-4 rounded-sm transition-colors`}
+            ref={el => { messageRefs.current[msg.id] = el; }}
+            className={cn(
+              'group relative flex hover:bg-black/5 p-1 -mx-4 px-4 rounded-sm transition-colors',
+              showHeader ? 'mt-4' : 'mt-0.5',
+              isHighlighted && 'bg-primary/10 hover:bg-primary/15 ring-1 ring-primary/30 rounded-md',
+              msg.pinned && 'border-l-2 border-amber-500/60 pl-3'
+            )}
           >
             {showHeader ? (
               <Avatar className="h-10 w-10 mr-4 cursor-pointer hover:opacity-80 transition-opacity shrink-0">
@@ -115,6 +152,11 @@ export function MessageList({ channelId }: { channelId: string }) {
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(msg.createdAt), 'MM/dd/yyyy h:mm a')}
                   </span>
+                  {msg.pinned && (
+                    <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-0.5">
+                      <Pin size={10} className="inline" /> Pinned
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -123,8 +165,8 @@ export function MessageList({ channelId }: { channelId: string }) {
                   <textarea
                     ref={editRef}
                     value={editDraft}
-                    onChange={(e) => setEditDraft(e.target.value)}
-                    onKeyDown={(e) => {
+                    onChange={e => setEditDraft(e.target.value)}
+                    onKeyDown={e => {
                       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(channelId, msg.id); }
                       if (e.key === 'Escape') cancelEdit();
                     }}
@@ -156,7 +198,6 @@ export function MessageList({ channelId }: { channelId: string }) {
                   {msg.attachments.map(att => {
                     const isImage = att.contentType.startsWith('image/');
                     const url = `/api/storage/objects${att.objectPath}`;
-
                     if (isImage) {
                       return (
                         <div key={att.id} className="max-w-[400px] max-h-[400px] rounded-lg overflow-hidden border border-border/50 bg-black/20">
@@ -179,23 +220,41 @@ export function MessageList({ channelId }: { channelId: string }) {
               )}
             </div>
 
-            {/* Hover action buttons — only for owner, not while editing */}
-            {isOwner && !isEditing && (
+            {/* Hover action buttons */}
+            {!isEditing && (
               <div className="absolute right-4 top-0 -translate-y-1/2 bg-[#2B2D31] border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                {/* Pin/Unpin — any member can pin */}
                 <button
-                  onClick={() => startEdit(msg.id, msg.content)}
-                  title="Edit"
-                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                  onClick={() => doPin({ msgId: msg.id, pinned: !!msg.pinned })}
+                  title={msg.pinned ? 'Unpin message' : 'Pin message'}
+                  className={cn(
+                    'p-1.5 rounded-md transition-colors',
+                    msg.pinned
+                      ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  )}
                 >
-                  <Pencil size={14} />
+                  <Pin size={14} />
                 </button>
-                <button
-                  onClick={() => handleDelete(channelId, msg.id)}
-                  title="Delete"
-                  className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {/* Edit + Delete — owner only */}
+                {isOwner && (
+                  <>
+                    <button
+                      onClick={() => startEdit(msg.id, msg.content)}
+                      title="Edit"
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(channelId, msg.id)}
+                      title="Delete"
+                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
