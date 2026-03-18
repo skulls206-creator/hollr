@@ -1,11 +1,11 @@
-import { Hash, Users, Bell, Pin, Search, HelpCircle } from 'lucide-react';
+import { Hash, Users, Bell, Pin, Search, HelpCircle, Menu } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListChannels, getListChannelsQueryKey } from '@workspace/api-client-react';
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
 
 export function ChatArea() {
-  const { activeServerId, activeChannelId, toggleMemberList } = useAppStore();
+  const { activeServerId, activeChannelId, toggleMemberList, toggleMobileSidebar } = useAppStore();
   const { data: channels = [] } = useListChannels(activeServerId || '', {
     query: { queryKey: getListChannelsQueryKey(activeServerId || ''), enabled: !!activeServerId },
   });
@@ -14,12 +14,24 @@ export function ChatArea() {
 
   if (!activeChannelId || !channel) {
     return (
-      <div className="flex-1 bg-[#313338] flex flex-col items-center justify-center text-muted-foreground">
-        <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4">
-          <Hash size={32} className="opacity-50" />
+      <div className="flex-1 bg-[#313338] flex flex-col min-w-0 h-full">
+        {/* Mobile header with hamburger on empty state */}
+        <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 md:hidden bg-[#313338]">
+          <button
+            onClick={toggleMobileSidebar}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Open sidebar"
+          >
+            <Menu size={22} />
+          </button>
         </div>
-        <h2 className="text-xl font-bold text-foreground">No Text Channel Selected</h2>
-        <p>Select a channel from the left to start chatting.</p>
+        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+          <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4">
+            <Hash size={32} className="opacity-50" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground">No Text Channel Selected</h2>
+          <p>Select a channel from the left to start chatting.</p>
+        </div>
       </div>
     );
   }
@@ -29,6 +41,14 @@ export function ChatArea() {
       {/* Top Header */}
       <div className="h-12 border-b border-border/10 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-[#313338]">
         <div className="flex items-center min-w-0">
+          {/* Hamburger — mobile only */}
+          <button
+            onClick={toggleMobileSidebar}
+            className="md:hidden mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            title="Open sidebar"
+          >
+            <Menu size={22} />
+          </button>
           <Hash size={24} className="text-muted-foreground mr-2 shrink-0" />
           <h2 className="font-bold text-foreground truncate text-[15px]">{channel.name}</h2>
           {channel.topic && (

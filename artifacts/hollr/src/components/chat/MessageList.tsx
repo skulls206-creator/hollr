@@ -67,7 +67,8 @@ export function MessageList({ channelId }: { channelId: string }) {
     return <div className="flex-1 flex items-center justify-center text-muted-foreground">Loading messages…</div>;
   }
 
-  const sortedMessages = [...messages].reverse();
+  // API already returns messages in ascending (oldest-first) order — no reverse needed
+  const sortedMessages = messages;
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col p-4 gap-4 no-scrollbar">

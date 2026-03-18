@@ -14,6 +14,7 @@ interface AppState {
 
   // UI
   memberListOpen: boolean;
+  mobileSidebarOpen: boolean;
 
   // Voice connection state
   voiceConnection: {
@@ -35,6 +36,8 @@ interface AppState {
 
   setMemberListOpen: (open: boolean) => void;
   toggleMemberList: () => void;
+  setMobileSidebarOpen: (open: boolean) => void;
+  toggleMobileSidebar: () => void;
 
   setVoiceConnection: (conn: Partial<AppState['voiceConnection']>) => void;
 }
@@ -51,6 +54,7 @@ export const useAppStore = create<AppState>((set) => ({
   inviteModalOpen: false,
 
   memberListOpen: true,
+  mobileSidebarOpen: false,
 
   voiceConnection: {
     channelId: null,
@@ -59,8 +63,8 @@ export const useAppStore = create<AppState>((set) => ({
   },
 
   setActiveServer: (id) => set({ activeServerId: id, activeDmThreadId: null }),
-  setActiveChannel: (id) => set({ activeChannelId: id }),
-  setActiveDmThread: (id) => set({ activeDmThreadId: id, activeServerId: null, activeChannelId: null }),
+  setActiveChannel: (id) => set({ activeChannelId: id, mobileSidebarOpen: false }),
+  setActiveDmThread: (id) => set({ activeDmThreadId: id, activeServerId: null, activeChannelId: null, mobileSidebarOpen: false }),
 
   setCreateServerModalOpen: (open) => set({ createServerModalOpen: open }),
   setCreateChannelModalOpen: (open) => set({ createChannelModalOpen: open }),
@@ -70,6 +74,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   setMemberListOpen: (open) => set({ memberListOpen: open }),
   toggleMemberList: () => set((state) => ({ memberListOpen: !state.memberListOpen })),
+  setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
+  toggleMobileSidebar: () => set((state) => ({ mobileSidebarOpen: !state.mobileSidebarOpen })),
 
   setVoiceConnection: (conn) => set((state) => ({
     voiceConnection: { ...state.voiceConnection, ...conn },

@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useRealtime } from '@/hooks/use-realtime';
 import { useAppStore } from '@/store/use-app-store';
@@ -16,12 +15,10 @@ import { Loader2 } from 'lucide-react';
 
 export function Layout() {
   const { user, isLoading } = useAuth();
-  const { activeServerId, activeDmThreadId, memberListOpen } = useAppStore();
+  const { activeServerId, activeDmThreadId, memberListOpen, mobileSidebarOpen, setMobileSidebarOpen } = useAppStore();
 
-  // Establish WebSocket connection globally
   useRealtime(user?.id);
 
-  // Fetch DM threads for use in DmChatArea header info
   const { data: dmThreads = [] } = useListDmThreads({
     query: { queryKey: getListDmThreadsQueryKey() },
   });
@@ -37,39 +34,57 @@ export function Layout() {
 
   if (!user) return null;
 
-  // Resolve DM thread info for the chat header
   const activeDmThread = dmThreads.find(t => t.id === activeDmThreadId);
   const dmRecipient = activeDmThread?.participants?.find((p: any) => p.id !== user.id)
     ?? activeDmThread?.participants?.[0];
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
-      {/* Column 1: Servers */}
-      <ServerSidebar />
 
-      {/* Column 2: Channels / DMs */}
-      <ChannelSidebar />
-
-      {/* Column 3: Main Chat Area */}
-      {activeDmThreadId ? (
-        <DmChatArea
-          threadId={activeDmThreadId}
-          recipientName={dmRecipient?.displayName || dmRecipient?.username || 'Unknown'}
-          recipientAvatar={dmRecipient?.avatarUrl}
+      {/* Mobile sidebar backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
         />
-      ) : (
-        <ChatArea />
       )}
 
-      {/* Column 4: Member List (server only, toggleable) */}
-      {activeServerId && memberListOpen && (
-        <MemberList serverId={activeServerId} />
-      )}
+      {/* Left sidebar: ServerSidebar + ChannelSidebar
+          - Desktop: always visible as columns
+          - Mobile: slide-in overlay via fixed positioning */}
+      <div
+        className={[
+          'flex h-full z-40',
+          'md:relative md:translate-x-0 md:flex',
+          'fixed transition-transform duration-200',
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
+        ].join(' ')}
+      >
+        <ServerSidebar />
+        <ChannelSidebar />
+      </div>
 
-      {/* Floating Voice Overlay */}
+      {/* Main area */}
+      <div className="flex flex-1 min-w-0 h-full">
+        {activeDmThreadId ? (
+          <DmChatArea
+            threadId={activeDmThreadId}
+            recipientName={dmRecipient?.displayName || dmRecipient?.username || 'Unknown'}
+            recipientAvatar={dmRecipient?.avatarUrl}
+          />
+        ) : (
+          <ChatArea />
+        )}
+
+        {/* Member List — desktop only visible, hidden on narrow screens */}
+        {activeServerId && memberListOpen && (
+          <div className="hidden lg:flex">
+            <MemberList serverId={activeServerId} />
+          </div>
+        )}
+      </div>
+
       <VoiceOverlay />
-
-      {/* Modals */}
       <CreateServerModal />
       <CreateChannelModal />
       <InviteModal />

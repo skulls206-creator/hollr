@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, userProfilesTable } from "@workspace/db/schema";
+import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, userProfilesTable, usersTable } from "@workspace/db/schema";
 import { eq, and, lt, desc } from "drizzle-orm";
 import { SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
@@ -17,6 +17,31 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect) {
     where: eq(userProfilesTable.userId, msg.authorId),
   });
 
+  // Fallback: read raw user row so we always have firstName/lastName
+  const rawUser = !author
+    ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, msg.authorId) })
+    : null;
+
+  const authorData = author ? {
+    id: msg.authorId,
+    username: author.username,
+    displayName: author.displayName,
+    avatarUrl: author.avatarUrl,
+    status: author.status,
+    customStatus: author.customStatus,
+    createdAt: author.createdAt.toISOString(),
+  } : {
+    id: msg.authorId,
+    username: `user_${msg.authorId.slice(0, 8)}`,
+    displayName: rawUser
+      ? [rawUser.firstName, rawUser.lastName].filter(Boolean).join(" ") || `User_${msg.authorId.slice(0, 6)}`
+      : `User_${msg.authorId.slice(0, 6)}`,
+    avatarUrl: rawUser?.profileImageUrl ?? null,
+    status: "offline" as const,
+    customStatus: null,
+    createdAt: msg.createdAt.toISOString(),
+  };
+
   return {
     id: msg.id,
     content: msg.content,
@@ -31,23 +56,7 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect) {
       contentType: a.contentType,
       size: a.size,
     })),
-    author: author ? {
-      id: msg.authorId,
-      username: author.username,
-      displayName: author.displayName,
-      avatarUrl: author.avatarUrl,
-      status: author.status,
-      customStatus: author.customStatus,
-      createdAt: author.createdAt.toISOString(),
-    } : {
-      id: msg.authorId,
-      username: `user_${msg.authorId.slice(0, 8)}`,
-      displayName: "User",
-      avatarUrl: null,
-      status: "offline" as const,
-      customStatus: null,
-      createdAt: msg.createdAt.toISOString(),
-    },
+    author: authorData,
     createdAt: msg.createdAt.toISOString(),
     updatedAt: msg.updatedAt.toISOString(),
   };

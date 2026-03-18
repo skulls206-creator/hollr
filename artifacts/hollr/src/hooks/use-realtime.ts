@@ -42,7 +42,7 @@ export function useRealtime(userId?: string) {
                 (old) => {
                   if (!old) return [msg];
                   if (old.some(m => m.id === msg.id)) return old;
-                  return [msg, ...old];
+                  return [...old, msg];
                 }
               );
             }
@@ -54,7 +54,7 @@ export function useRealtime(userId?: string) {
                 (old) => {
                   if (!old) return [msg];
                   if (old.some(m => m.id === msg.id)) return old;
-                  return [msg, ...old];
+                  return [...old, msg];
                 }
               );
               // Refresh thread list so lastMessage updates

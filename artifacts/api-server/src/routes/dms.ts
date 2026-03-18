@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable } from "@workspace/db/schema";
+import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, usersTable } from "@workspace/db/schema";
 import { eq, and, lt, inArray } from "drizzle-orm";
 import { OpenDmThreadBody, SendMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
@@ -11,19 +11,26 @@ async function formatUser(userId: string) {
   const profile = await db.query.userProfilesTable.findFirst({
     where: eq(userProfilesTable.userId, userId),
   });
-  return profile ? {
-    id: userId,
-    username: profile.username,
-    displayName: profile.displayName,
-    avatarUrl: profile.avatarUrl,
-    status: profile.status,
-    customStatus: profile.customStatus,
-    createdAt: profile.createdAt.toISOString(),
-  } : {
+  if (profile) {
+    return {
+      id: userId,
+      username: profile.username,
+      displayName: profile.displayName,
+      avatarUrl: profile.avatarUrl,
+      status: profile.status,
+      customStatus: profile.customStatus,
+      createdAt: profile.createdAt.toISOString(),
+    };
+  }
+  // Fallback to raw user table so firstName+lastName are always used
+  const raw = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+  return {
     id: userId,
     username: `user_${userId.slice(0, 8)}`,
-    displayName: "User",
-    avatarUrl: null,
+    displayName: raw
+      ? [raw.firstName, raw.lastName].filter(Boolean).join(" ") || `User_${userId.slice(0, 6)}`
+      : `User_${userId.slice(0, 6)}`,
+    avatarUrl: raw?.profileImageUrl ?? null,
     status: "offline" as const,
     customStatus: null,
     createdAt: new Date().toISOString(),

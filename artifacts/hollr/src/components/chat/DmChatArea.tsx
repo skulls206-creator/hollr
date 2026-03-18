@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { useListDmMessages, getListDmMessagesQueryKey, useSendDmMessage } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useListDmMessages, useSendDmMessage } from '@workspace/api-client-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Smile } from 'lucide-react';
+import { PlusCircle, Smile, Menu } from 'lucide-react';
+import { useAppStore } from '@/store/use-app-store';
 
 export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   threadId: string;
@@ -14,7 +14,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
 }) {
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
-  const queryClient = useQueryClient();
+  const { toggleMobileSidebar } = useAppStore();
   const { toast } = useToast();
   const [content, setContent] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -28,7 +28,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
     sendMessage({ threadId, data: { content: content.trim() } }, {
       onSuccess: () => {
         setContent('');
-        queryClient.invalidateQueries({ queryKey: getListDmMessagesQueryKey(threadId) });
+        // WebSocket handler appends DM messages — no manual invalidation needed
       },
       onError: () => toast({ title: 'Failed to send', variant: 'destructive' }),
     });
@@ -41,12 +41,20 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
     }
   };
 
-  const sorted = [...messages].reverse();
+  // API returns messages in ascending (oldest-first) order — no reverse needed
+  const sorted = messages;
 
   return (
     <div className="flex-1 bg-[#313338] flex flex-col h-full min-w-0">
       {/* Header */}
       <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 shadow-sm z-10 bg-[#313338]">
+        <button
+          onClick={toggleMobileSidebar}
+          className="md:hidden mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          title="Open sidebar"
+        >
+          <Menu size={22} />
+        </button>
         <Avatar className="h-7 w-7 mr-2.5">
           <AvatarImage src={recipientAvatar || undefined} />
           <AvatarFallback className="bg-primary text-white text-xs">{getInitials(recipientName)}</AvatarFallback>

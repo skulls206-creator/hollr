@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import { PlusCircle, Smile, FileText, Image as ImageIcon } from 'lucide-react';
-import { useSendMessage, useRequestUploadUrl, getListMessagesQueryKey } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useSendMessage, useRequestUploadUrl } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn, formatBytes } from '@/lib/utils';
 
@@ -13,7 +12,6 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   
   const { mutate: sendMessage, isPending: isSending } = useSendMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
-  const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const handleSend = () => {
@@ -22,8 +20,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     sendMessage({ channelId, data: { content: content.trim() } }, {
       onSuccess: () => {
         setContent('');
-        // Optimistic update could go here, but use-realtime handles the WS event
-        queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(channelId) });
+        // WebSocket handler in use-realtime.ts appends the new message — no manual invalidation needed
       },
       onError: () => toast({ title: "Failed to send", variant: "destructive" })
     });
