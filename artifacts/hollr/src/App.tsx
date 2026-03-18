@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -25,13 +26,18 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
 
-  // Redirect root to layout if authed, else login
-  if (location === "/") {
-    setLocation(isAuthenticated ? "/app" : "/login");
-  }
+  // Only redirect from root once we know the auth state
+  useEffect(() => {
+    if (!isLoading && location === "/") {
+      setLocation(isAuthenticated ? "/app" : "/login");
+    }
+  }, [isLoading, isAuthenticated, location, setLocation]);
+
+  // Show nothing at root while loading (avoids flash-redirect to /login)
+  if (location === "/" && isLoading) return null;
 
   return (
     <Switch>
