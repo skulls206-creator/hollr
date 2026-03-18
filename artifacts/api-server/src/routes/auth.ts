@@ -7,6 +7,7 @@ import {
   LogoutMobileSessionResponse,
 } from "@workspace/api-zod";
 import { db, usersTable } from "@workspace/db";
+import { userProfilesTable } from "@workspace/db/schema";
 import {
   clearSession,
   getOidcConfig,
@@ -57,15 +58,27 @@ function getSafeReturnTo(value: unknown): string {
   return value;
 }
 
+function deriveUsername(claims: Record<string, unknown>): string {
+  const first = ((claims.first_name as string) || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const last = ((claims.last_name as string) || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const base = (first + last) || "user";
+  return base.slice(0, 20) + "_" + (claims.sub as string).slice(0, 6);
+}
+
+function deriveDisplayName(claims: Record<string, unknown>): string {
+  const first = (claims.first_name as string) || "";
+  const last = (claims.last_name as string) || "";
+  const full = [first, last].filter(Boolean).join(" ").trim();
+  return full || `User_${(claims.sub as string).slice(0, 6)}`;
+}
+
 async function upsertUser(claims: Record<string, unknown>) {
   const userData = {
     id: claims.sub as string,
     email: (claims.email as string) || null,
     firstName: (claims.first_name as string) || null,
     lastName: (claims.last_name as string) || null,
-    profileImageUrl: (claims.profile_image_url || claims.picture) as
-      | string
-      | null,
+    profileImageUrl: (claims.profile_image_url || claims.picture) as string | null,
   };
 
   const [user] = await db
@@ -73,12 +86,30 @@ async function upsertUser(claims: Record<string, unknown>) {
     .values(userData)
     .onConflictDoUpdate({
       target: usersTable.id,
-      set: {
-        ...userData,
-        updatedAt: new Date(),
-      },
+      set: { ...userData, updatedAt: new Date() },
     })
     .returning();
+
+  // Always keep the user profile in sync with OIDC claims
+  await db
+    .insert(userProfilesTable)
+    .values({
+      userId: user.id,
+      username: deriveUsername(claims),
+      displayName: deriveDisplayName(claims),
+      avatarUrl: userData.profileImageUrl,
+      status: "online",
+    })
+    .onConflictDoUpdate({
+      target: userProfilesTable.userId,
+      set: {
+        displayName: deriveDisplayName(claims),
+        avatarUrl: userData.profileImageUrl,
+        status: "online",
+        updatedAt: new Date(),
+      },
+    });
+
   return user;
 }
 

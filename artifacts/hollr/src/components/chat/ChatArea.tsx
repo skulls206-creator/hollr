@@ -5,9 +5,11 @@ import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
 
 export function ChatArea() {
-  const { activeServerId, activeChannelId } = useAppStore();
-  const { data: channels = [] } = useListChannels(activeServerId || "", { query: { queryKey: getListChannelsQueryKey(activeServerId || ""), enabled: !!activeServerId } });
-  
+  const { activeServerId, activeChannelId, toggleMemberList } = useAppStore();
+  const { data: channels = [] } = useListChannels(activeServerId || '', {
+    query: { queryKey: getListChannelsQueryKey(activeServerId || ''), enabled: !!activeServerId },
+  });
+
   const channel = channels.find(c => c.id === activeChannelId);
 
   if (!activeChannelId || !channel) {
@@ -36,15 +38,21 @@ export function ChatArea() {
             </>
           )}
         </div>
-        
-        <div className="flex items-center gap-4 text-muted-foreground shrink-0 ml-4">
+
+        <div className="flex items-center gap-3 text-muted-foreground shrink-0 ml-4">
           <button className="hover:text-foreground transition-colors"><Bell size={20} /></button>
           <button className="hover:text-foreground transition-colors"><Pin size={20} /></button>
-          <button className="hover:text-foreground transition-colors"><Users size={20} /></button>
+          <button
+            onClick={toggleMemberList}
+            title="Toggle member list"
+            className="hover:text-foreground transition-colors"
+          >
+            <Users size={20} />
+          </button>
           <div className="relative">
-            <input 
-              type="text" 
-              placeholder="Search" 
+            <input
+              type="text"
+              placeholder="Search"
               className="bg-[#1E1F22] rounded-sm h-6 w-36 px-2 text-xs text-foreground focus:w-48 transition-all duration-300 outline-none focus:ring-1 focus:ring-primary"
             />
             <Search size={14} className="absolute right-1.5 top-1.5 opacity-50" />
@@ -53,7 +61,7 @@ export function ChatArea() {
         </div>
       </div>
 
-      {/* Messages Area */}
+      {/* Messages */}
       <MessageList channelId={channel.id} />
 
       {/* Composer */}

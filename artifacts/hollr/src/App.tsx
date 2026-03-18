@@ -1,47 +1,66 @@
 import { useEffect } from "react";
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation, useParams } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@workspace/replit-auth-web";
-import { Login } from "@/pages/Login";
 import { Layout } from "@/pages/Layout";
-import NotFound from "@/pages/not-found";
+import { Login } from "@/pages/Login";
+import { JoinServer } from "@/pages/JoinServer";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+});
 
-// Auth Guard Component
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  const [_, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
-  if (isLoading) return null; // Handled nicely inside Layout/Login
+  if (isLoading) return null;
 
   if (!isAuthenticated) {
-    setLocation("/login");
+    const returnTo = encodeURIComponent(location);
+    setTimeout(() => setLocation(`/login?returnTo=${returnTo}`), 0);
     return null;
   }
 
   return <>{children}</>;
 }
 
+function JoinServerRoute() {
+  const params = useParams<{ code: string }>();
+  return (
+    <RequireAuth>
+      <JoinServer code={params.code || ""} />
+    </RequireAuth>
+  );
+}
+
+function NotFound() {
+  const [, setLocation] = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
+  useEffect(() => {
+    if (!isLoading) setLocation(isAuthenticated ? "/app" : "/login");
+  }, [isLoading, isAuthenticated]);
+  return null;
+}
+
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
 
-  // Only redirect from root once we know the auth state
   useEffect(() => {
     if (!isLoading && location === "/") {
       setLocation(isAuthenticated ? "/app" : "/login");
     }
   }, [isLoading, isAuthenticated, location, setLocation]);
 
-  // Show nothing at root while loading (avoids flash-redirect to /login)
   if (location === "/" && isLoading) return null;
 
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/join/:code" component={JoinServerRoute} />
       <Route path="/app">
         <RequireAuth>
           <Layout />
@@ -55,12 +74,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={150}>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <WouterRouter base={import.meta.env.BASE_URL}>
+        <TooltipProvider>
           <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+          <Toaster />
+        </TooltipProvider>
+      </WouterRouter>
     </QueryClientProvider>
   );
 }

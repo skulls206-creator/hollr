@@ -1,21 +1,26 @@
-import { useEffect } from 'react';
-import { Hash, Volume2, Plus, ChevronDown, Settings, Mic, Headphones, PhoneOff } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  Hash, Volume2, Plus, ChevronDown, Settings, Mic, Headphones,
+  PhoneOff, UserPlus, LogOut, MessageSquarePlus
+} from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
-import { useGetServer, useListChannels, getGetServerQueryKey, getListChannelsQueryKey } from '@workspace/api-client-react';
+import {
+  useGetServer, useListChannels, useListDmThreads,
+  getGetServerQueryKey, getListChannelsQueryKey, getListDmThreadsQueryKey,
+} from '@workspace/api-client-react';
 import { cn, getInitials } from '@/lib/utils';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export function ChannelSidebar() {
   const {
-    activeServerId,
-    activeChannelId,
-    setActiveChannel,
-    setCreateChannelModalOpen,
-    voiceConnection,
-    setVoiceConnection,
+    activeServerId, activeChannelId, activeDmThreadId,
+    setActiveChannel, setActiveDmThread,
+    setCreateChannelModalOpen, setInviteModalOpen,
+    voiceConnection, setVoiceConnection,
   } = useAppStore();
   const { user } = useAuth();
+  const [serverMenuOpen, setServerMenuOpen] = useState(false);
 
   const { data: server } = useGetServer(activeServerId || '', {
     query: { queryKey: getGetServerQueryKey(activeServerId || ''), enabled: !!activeServerId },
@@ -23,9 +28,12 @@ export function ChannelSidebar() {
   const { data: channels = [] } = useListChannels(activeServerId || '', {
     query: { queryKey: getListChannelsQueryKey(activeServerId || ''), enabled: !!activeServerId },
   });
+  const { data: dmThreads = [] } = useListDmThreads({
+    query: { queryKey: getListDmThreadsQueryKey() },
+  });
 
-  const textChannels = channels.filter((c) => c.type === 'text');
-  const voiceChannels = channels.filter((c) => c.type === 'voice');
+  const textChannels = channels.filter(c => c.type === 'text');
+  const voiceChannels = channels.filter(c => c.type === 'voice');
 
   // Auto-select first text channel when switching servers
   useEffect(() => {
@@ -34,7 +42,6 @@ export function ChannelSidebar() {
     }
   }, [activeServerId, textChannels.length, activeChannelId]);
 
-  // When the server changes, clear the active channel so the effect above fires
   useEffect(() => {
     setActiveChannel(null);
   }, [activeServerId]);
@@ -47,17 +54,57 @@ export function ChannelSidebar() {
     setVoiceConnection({ status: 'disconnected', channelId: null, serverId: null });
   };
 
+  // DM view
   if (!activeServerId) {
     return (
       <div className="w-[240px] bg-[#2B2D31] shrink-0 flex flex-col h-full border-r border-border/5">
         <div className="h-12 border-b border-border/10 flex items-center px-4 font-bold text-foreground shadow-sm">
           Direct Messages
         </div>
-        <div className="flex-1 p-2">
-          <p className="text-xs text-muted-foreground font-semibold px-2 py-2">DIRECT MESSAGES</p>
-          <div className="px-2 py-4 text-center text-sm text-muted-foreground italic">
-            Select a server to get started!
+        <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
+          <div className="flex items-center justify-between px-2 py-2">
+            <p className="text-xs text-muted-foreground font-semibold">DIRECT MESSAGES</p>
+            <button
+              title="Open DM"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <MessageSquarePlus size={14} />
+            </button>
           </div>
+          {dmThreads.length === 0 && (
+            <p className="px-2 py-2 text-sm text-muted-foreground italic">No DMs yet.</p>
+          )}
+          {dmThreads.map(thread => {
+            const other = thread.participants?.find((p: any) => p.id !== user?.id) ?? thread.participants?.[0];
+            return (
+              <button
+                key={thread.id}
+                onClick={() => setActiveDmThread(thread.id)}
+                className={cn(
+                  'w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
+                  activeDmThreadId === thread.id
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                )}
+              >
+                <div className="relative shrink-0">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={other?.avatarUrl || undefined} />
+                    <AvatarFallback className="bg-primary text-white text-xs">
+                      {getInitials(other?.displayName || other?.username || '?')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-[#2B2D31] rounded-full" />
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="truncate text-sm font-medium">{other?.displayName || other?.username || 'Unknown'}</p>
+                  {thread.lastMessage && (
+                    <p className="text-[11px] text-muted-foreground truncate">{thread.lastMessage.content}</p>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
         <UserProfilePanel user={user} voiceConnection={voiceConnection} onLeaveVoice={leaveVoice} />
       </div>
@@ -66,14 +113,42 @@ export function ChannelSidebar() {
 
   return (
     <div className="w-[240px] bg-[#2B2D31] shrink-0 flex flex-col h-full border-r border-border/5">
-      {/* Server Header */}
-      <button className="h-12 border-b border-border/10 flex items-center justify-between px-4 font-bold text-foreground hover:bg-secondary/50 transition-colors shadow-sm w-full">
-        <span className="truncate">{server?.name || 'Loading…'}</span>
-        <ChevronDown size={16} className="text-muted-foreground" />
-      </button>
+      {/* Server Header with dropdown */}
+      <div className="relative">
+        <button
+          onClick={() => setServerMenuOpen(o => !o)}
+          className="h-12 border-b border-border/10 flex items-center justify-between px-4 font-bold text-foreground hover:bg-secondary/50 transition-colors shadow-sm w-full"
+        >
+          <span className="truncate">{server?.name || 'Loading…'}</span>
+          <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", serverMenuOpen && "rotate-180")} />
+        </button>
+        {serverMenuOpen && (
+          <div className="absolute top-full left-0 right-0 z-50 bg-[#111214] border border-border/20 rounded-lg shadow-2xl py-1 mx-2 mt-1">
+            <button
+              onClick={() => { setInviteModalOpen(true); setServerMenuOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-indigo-400 hover:bg-indigo-500/10 transition-colors font-medium"
+            >
+              <UserPlus size={16} />
+              Invite People
+            </button>
+            <button
+              onClick={() => { setCreateChannelModalOpen(true); setServerMenuOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            >
+              <Plus size={16} />
+              Create Channel
+            </button>
+            <div className="h-[1px] bg-border/20 my-1" />
+            <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
+              <LogOut size={16} />
+              Leave Server
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Channel List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-4 no-scrollbar">
+      <div className="flex-1 overflow-y-auto p-2 space-y-4 no-scrollbar" onClick={() => setServerMenuOpen(false)}>
 
         {/* Text Channels */}
         <div>
@@ -91,7 +166,7 @@ export function ChannelSidebar() {
             </button>
           </div>
           <div className="space-y-[2px]">
-            {textChannels.map((channel) => (
+            {textChannels.map(channel => (
               <button
                 key={channel.id}
                 onClick={() => setActiveChannel(channel.id)}
@@ -125,15 +200,14 @@ export function ChannelSidebar() {
             </button>
           </div>
           <div className="space-y-[2px]">
-            {voiceChannels.map((channel) => {
-              const isConnected =
-                voiceConnection.status !== 'disconnected' && voiceConnection.channelId === channel.id;
+            {voiceChannels.map(channel => {
+              const isConnected = voiceConnection.status !== 'disconnected' && voiceConnection.channelId === channel.id;
               return (
                 <button
                   key={channel.id}
-                  onClick={() => (isConnected ? leaveVoice() : joinVoice(channel.id))}
+                  onClick={() => isConnected ? leaveVoice() : joinVoice(channel.id)}
                   className={cn(
-                    'w-full flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition-colors group',
+                    'w-full flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
                     isConnected
                       ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
                       : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
@@ -172,7 +246,6 @@ function UserProfilePanel({
 
   return (
     <div className="shrink-0 bg-[#232428]">
-      {/* Voice connected banner */}
       {inVoice && (
         <div className="px-2 pt-2 pb-1">
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
@@ -191,7 +264,6 @@ function UserProfilePanel({
         </div>
       )}
 
-      {/* User row */}
       <div className="h-[52px] flex items-center px-2 py-1.5 gap-2">
         <div className="flex items-center hover:bg-white/10 rounded-md p-1 cursor-pointer transition-colors flex-1 min-w-0">
           <div className="relative">
@@ -205,7 +277,7 @@ function UserProfilePanel({
           </div>
           <div className="ml-2 flex flex-col overflow-hidden">
             <span className="text-sm font-bold text-foreground truncate leading-tight">
-              {user.displayName || user.firstName}
+              {user.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'You'}
             </span>
             <span className="text-xs text-muted-foreground truncate leading-tight">
               {inVoice ? 'In Voice' : 'Online'}

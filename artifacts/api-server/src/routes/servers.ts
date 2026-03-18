@@ -212,6 +212,57 @@ router.post("/servers/:serverId/join", async (req, res) => {
   });
 });
 
+router.get("/invite/:inviteCode", async (req, res) => {
+  const server = await db.query.serversTable.findFirst({
+    where: eq(serversTable.inviteCode, req.params.inviteCode),
+  });
+  if (!server) {
+    res.status(404).json({ error: "Invalid invite code" });
+    return;
+  }
+  const result = await getServerWithCount(server.id);
+  res.json({
+    id: result!.id,
+    name: result!.name,
+    description: result!.description,
+    iconUrl: result!.iconUrl,
+    inviteCode: result!.inviteCode,
+    memberCount: result!.memberCount,
+    createdAt: result!.createdAt.toISOString(),
+  });
+});
+
+router.post("/invite/:inviteCode/join", async (req, res) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const server = await db.query.serversTable.findFirst({
+    where: eq(serversTable.inviteCode, req.params.inviteCode),
+  });
+  if (!server) {
+    res.status(404).json({ error: "Invalid invite code" });
+    return;
+  }
+  const existing = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, server.id), eq(serverMembersTable.userId, req.user.id)),
+  });
+  if (!existing) {
+    await db.insert(serverMembersTable).values({ userId: req.user.id, serverId: server.id, role: "member" });
+  }
+  const result = await getServerWithCount(server.id);
+  res.json({
+    id: result!.id,
+    name: result!.name,
+    description: result!.description,
+    iconUrl: result!.iconUrl,
+    ownerId: result!.ownerId,
+    inviteCode: result!.inviteCode,
+    memberCount: result!.memberCount,
+    createdAt: result!.createdAt.toISOString(),
+  });
+});
+
 router.post("/servers/:serverId/leave", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
