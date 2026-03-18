@@ -5,6 +5,7 @@ import { ServerSidebar } from '@/components/layout/ServerSidebar';
 import { ChannelSidebar } from '@/components/layout/ChannelSidebar';
 import { ChatArea } from '@/components/chat/ChatArea';
 import { CreateServerModal } from '@/components/modals/CreateServerModal';
+import { CreateChannelModal } from '@/components/modals/CreateChannelModal';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { Loader2 } from 'lucide-react';
 
@@ -41,7 +42,7 @@ export function Layout() {
       
       {/* Modals */}
       <CreateServerModal />
-      {/* CreateChannelModal would go here */}
+      <CreateChannelModal />
     </div>
   );
 }
