@@ -163,8 +163,10 @@ export function useRealtime(userId?: string) {
           case 'VOICE_USER_JOINED': {
             const { channelId, user } = data.payload;
             addVoiceChannelUser(channelId, user);
-            // Notify WebRTC hook about new peer (everyone connects to the new joiner)
-            if (user.userId !== userId && _onNewPeer) _onNewPeer(user.userId);
+            // Do NOT call _onNewPeer here. The joining user already receives VOICE_ROOM_STATE
+            // and creates the offer for each existing peer. Existing peers only respond to
+            // incoming offers — if both sides create offers simultaneously (glare), both
+            // setRemoteDescription calls throw and audio never connects.
             break;
           }
 
