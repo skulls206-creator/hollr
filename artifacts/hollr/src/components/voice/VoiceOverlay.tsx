@@ -36,6 +36,17 @@ export function VoiceOverlay() {
   const localUserData = channelUsers.find(u => u.userId === myUserId);
   const remoteUsers = channelUsers.filter(u => u.userId !== myUserId);
 
+  // ALL hooks must be declared before any early returns
+  // Stop watching if the streaming user stops sharing
+  useEffect(() => {
+    if (watchingUserId && watchingUserId !== myUserId) {
+      const watcher = channelUsers.find(u => u.userId === watchingUserId);
+      if (watcher && !watcher.streaming && !remoteVideoStreams[watchingUserId]) {
+        setWatchingUserId(null);
+      }
+    }
+  }, [channelUsers, remoteVideoStreams, watchingUserId, myUserId]);
+
   if (voiceConnection.status === 'disconnected') return null;
 
   const handleToggleDeafen = () => {
@@ -52,16 +63,6 @@ export function VoiceOverlay() {
     setShareMenuOpen(false);
     startScreenShare(surface);
   };
-
-  // Stop watching if the streaming user stops sharing
-  useEffect(() => {
-    if (watchingUserId && watchingUserId !== myUserId) {
-      const watcher = channelUsers.find(u => u.userId === watchingUserId);
-      if (watcher && !watcher.streaming && !remoteVideoStreams[watchingUserId]) {
-        setWatchingUserId(null);
-      }
-    }
-  }, [channelUsers, remoteVideoStreams, watchingUserId, myUserId]);
 
   // --- Minimized pill ---
   if (minimized) {
