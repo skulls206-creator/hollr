@@ -196,7 +196,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Message…  (type @ to mention someone)"
+          placeholder=""
           className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 h-[44px] min-h-[44px] max-h-[50vh] overflow-y-auto leading-normal"
           rows={1}
         />
