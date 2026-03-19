@@ -5,6 +5,52 @@ function getCtx(): AudioContext {
   return ctx;
 }
 
+function playTone(
+  ac: AudioContext,
+  freq: number,
+  startTime: number,
+  duration: number,
+  volume: number,
+) {
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, startTime);
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(volume, startTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+  osc.connect(gain);
+  gain.connect(ac.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+/**
+ * Rising two-note chime — plays when someone joins a voice channel.
+ */
+export function playVoiceJoinSound(volume = 0.2) {
+  try {
+    const ac = getCtx();
+    if (ac.state === 'suspended') ac.resume();
+    const now = ac.currentTime;
+    playTone(ac, 523, now,        0.12, volume * 0.8); // C5
+    playTone(ac, 784, now + 0.1,  0.18, volume);       // G5 — higher follow-up
+  } catch { /* ignore */ }
+}
+
+/**
+ * Falling two-note chime — plays when someone leaves a voice channel.
+ */
+export function playVoiceLeaveSound(volume = 0.15) {
+  try {
+    const ac = getCtx();
+    if (ac.state === 'suspended') ac.resume();
+    const now = ac.currentTime;
+    playTone(ac, 784, now,        0.12, volume);       // G5
+    playTone(ac, 392, now + 0.1,  0.18, volume * 0.7); // G4 — lower follow-up
+  } catch { /* ignore */ }
+}
+
 /**
  * Plays a soft two-tone notification ping similar to a Discord message sound.
  * Uses the Web Audio API — no external file needed.

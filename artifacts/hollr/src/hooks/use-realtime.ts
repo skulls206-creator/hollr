@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getListMessagesQueryKey, getListDmMessagesQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import type { Message } from '@workspace/api-client-react';
 import { useAppStore } from '@/store/use-app-store';
-import { playNotificationSound } from '@/lib/notification-sound';
+import { playNotificationSound, playVoiceJoinSound, playVoiceLeaveSound } from '@/lib/notification-sound';
 
 // Module-level singleton so any module can send signals without creating a second WS connection
 let _sendSignal: ((payload: any) => void) | null = null;
@@ -179,6 +179,8 @@ export function useRealtime(userId?: string) {
           case 'VOICE_USER_JOINED': {
             const { channelId, user } = data.payload;
             addVoiceChannelUser(channelId, user);
+            // Play join chime for other users only (not when you yourself join)
+            if (user.userId !== userId) playVoiceJoinSound();
             // Do NOT call _onNewPeer here. The joining user already receives VOICE_ROOM_STATE
             // and creates the offer for each existing peer. Existing peers only respond to
             // incoming offers — if both sides create offers simultaneously (glare), both
@@ -189,6 +191,8 @@ export function useRealtime(userId?: string) {
           case 'VOICE_USER_LEFT': {
             const { channelId, userId: leftUserId } = data.payload;
             removeVoiceChannelUser(channelId, leftUserId);
+            // Play leave chime for other users only (not when you yourself disconnect)
+            if (leftUserId !== userId) playVoiceLeaveSound();
             break;
           }
 
