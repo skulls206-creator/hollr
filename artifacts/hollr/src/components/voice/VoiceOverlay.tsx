@@ -17,6 +17,7 @@ export function VoiceOverlay() {
   const {
     voiceConnection, setVoiceConnection, voiceChannelUsers,
     micMuted, deafened, toggleMicMuted, toggleDeafened,
+    memberListOpen,
   } = useAppStore();
   const {
     localStream, remoteStreams, remoteVideoStreams, volumes,
@@ -258,8 +259,8 @@ export function VoiceOverlay() {
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="absolute bottom-20 left-[320px] right-8 bg-[#000000]/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
-        style={{ minHeight: '280px' }}
+        className="absolute bottom-20 left-[320px] bg-[#000000]/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
+        style={{ right: memberListOpen ? 256 : 32 }}
       >
         {/* Title bar with minimize */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-border/20 shrink-0">
@@ -284,7 +285,7 @@ export function VoiceOverlay() {
           </div>
         )}
 
-        <div className="flex-1 p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 auto-rows-fr">
+        <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 auto-rows-[120px]">
           <LocalUserTile
             isMuted={micMuted}
             isDeafened={deafened}
@@ -422,9 +423,9 @@ function LocalUserTile({
         </button>
       )}
       <SpeakingRing speaking={speaking}>
-        <Avatar className="h-20 w-20 shadow-xl">
+        <Avatar className="h-14 w-14 shadow-xl">
           <AvatarImage src={avatarUrl || undefined} />
-          <AvatarFallback className="bg-indigo-600 text-white text-2xl">{getInitials(label)}</AvatarFallback>
+          <AvatarFallback className="bg-indigo-600 text-white text-lg">{getInitials(label)}</AvatarFallback>
         </Avatar>
       </SpeakingRing>
       <div className="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm flex items-center gap-1 z-20">
@@ -488,9 +489,9 @@ function RemoteUserTile({
       <button onClick={onToggleVolume}
         className="absolute inset-0 w-full h-full flex flex-col items-center justify-center hover:bg-black/20 transition-colors z-10">
         <SpeakingRing speaking={speaking}>
-          <Avatar className="h-20 w-20 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
+          <Avatar className="h-14 w-14 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
             <AvatarImage src={avatarUrl || undefined} />
-            <AvatarFallback className="bg-slate-700 text-white text-2xl">{getInitials(displayName)}</AvatarFallback>
+            <AvatarFallback className="bg-slate-700 text-white text-lg">{getInitials(displayName)}</AvatarFallback>
           </Avatar>
         </SpeakingRing>
       </button>

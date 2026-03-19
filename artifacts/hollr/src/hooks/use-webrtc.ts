@@ -40,7 +40,10 @@ export function useWebRTC(channelId: string | null) {
   const getDisplayInfo = () => {
     const firstName = user?.firstName ?? '';
     const lastName = user?.lastName ?? '';
-    const displayName = [firstName, lastName].filter(Boolean).join(' ') || 'User';
+    const displayName = (user as any)?.displayName
+      || [firstName, lastName].filter(Boolean).join(' ')
+      || (user as any)?.username
+      || 'User';
     const username = displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32) || 'user';
     const avatarUrl = user?.profileImageUrl ?? null;
     return { displayName, username, avatarUrl };
