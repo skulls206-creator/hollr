@@ -20,13 +20,14 @@ export function useWebRTC(
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [remoteVideoStreams, setRemoteVideoStreams] = useState<Record<string, MediaStream>>({});
-  const [volumes, setVolumes] = useState<Record<string, number>>({});
   const [connectionTypes, setConnectionTypes] = useState<Record<string, 'lan' | 'stun' | 'relay' | 'connecting'>>({});
 
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -109,6 +110,13 @@ export function useWebRTC(
       });
     }
 
+    // Add local camera tracks if camera is active
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach(track => {
+        peer.addTrack(track, cameraStreamRef.current!);
+      });
+    }
+
     peer.onicecandidate = (e) => {
       if (e.candidate) {
         sendVoiceSignal({
@@ -127,10 +135,8 @@ export function useWebRTC(
         setRemoteStreams(prev => {
           const existing = prev[peerId];
           if (existing) {
-            // Reuse existing stream; add track only if genuinely new
             const ids = existing.getAudioTracks().map(t => t.id);
             if (!ids.includes(track.id)) existing.addTrack(track);
-            // Return same reference so React doesn't re-render audio element
             return prev[peerId] === existing ? prev : { ...prev, [peerId]: existing };
           }
           const newStream = e.streams[0] ?? new MediaStream([track]);
@@ -227,7 +233,6 @@ export function useWebRTC(
   useEffect(() => {
     setNewPeerHandler((peerId: string) => {
       if (!channelIdRef.current) return;
-      // createPeer triggers onnegotiationneeded which sends the offer
       createPeer(peerId);
     });
     return () => setNewPeerHandler(null);
@@ -244,6 +249,7 @@ export function useWebRTC(
 
       setLocalStream(prev => { prev?.getTracks().forEach(t => t.stop()); localStreamRef.current = null; return null; });
       setScreenStream(prev => { prev?.getTracks().forEach(t => t.stop()); return null; });
+      setCameraStream(prev => { prev?.getTracks().forEach(t => t.stop()); cameraStreamRef.current = null; return null; });
       setRemoteStreams({});
       setRemoteVideoStreams({});
 
@@ -288,10 +294,6 @@ export function useWebRTC(
     return () => { stopSpeakingDetection(); };
   }, [channelId]);
 
-  const setParticipantVolume = (participantId: string, volume: number) => {
-    setVolumes(prev => ({ ...prev, [participantId]: volume }));
-  };
-
   // Sync micMuted
   useEffect(() => {
     if (!localStream) return;
@@ -316,7 +318,6 @@ export function useWebRTC(
         if (peer.connectionState === 'closed') continue;
         try {
           const stats = await peer.getStats();
-          // Find the active transport's selected candidate pair
           let selectedPairId: string | null = null;
           stats.forEach((r: any) => {
             if (r.type === 'transport' && r.selectedCandidatePairId) {
@@ -356,7 +357,7 @@ export function useWebRTC(
       if (Object.keys(updates).length > 0) setConnectionTypes(prev => ({ ...prev, ...updates }));
     };
 
-    poll(); // run once immediately
+    poll();
     const id = setInterval(poll, 5000);
     return () => clearInterval(id);
   }, []);
@@ -371,7 +372,6 @@ export function useWebRTC(
       });
       setScreenStream(stream);
 
-      // Add tracks to all existing peers for renegotiation
       stream.getTracks().forEach(track => {
         Object.values(peersRef.current).forEach(peer => {
           peer.addTrack(track, stream);
@@ -379,7 +379,6 @@ export function useWebRTC(
         track.onended = () => stopScreenShare();
       });
 
-      // Signal to everyone that we started sharing
       if (channelIdRef.current && userIdRef.current) {
         sendVoiceSignal({ type: 'screen_share_start', channelId: channelIdRef.current, userId: userIdRef.current });
       }
@@ -398,15 +397,49 @@ export function useWebRTC(
     }
   };
 
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setCameraStream(stream);
+      cameraStreamRef.current = stream;
+
+      // Add video tracks to all existing peer connections
+      stream.getTracks().forEach(track => {
+        Object.values(peersRef.current).forEach(peer => {
+          peer.addTrack(track, stream);
+        });
+        track.onended = () => stopCamera();
+      });
+
+      if (channelIdRef.current && userIdRef.current) {
+        sendVoiceSignal({ type: 'camera_start', channelId: channelIdRef.current, userId: userIdRef.current });
+      }
+    } catch (err) {
+      console.error('[WebRTC] Failed to start camera:', err);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach(t => t.stop());
+      cameraStreamRef.current = null;
+    }
+    setCameraStream(null);
+    if (channelIdRef.current && userIdRef.current) {
+      sendVoiceSignal({ type: 'camera_stop', channelId: channelIdRef.current, userId: userIdRef.current });
+    }
+  };
+
   return {
     localStream,
     screenStream,
+    cameraStream,
     remoteStreams,
     remoteVideoStreams,
-    volumes,
     connectionTypes,
-    setParticipantVolume,
     startScreenShare,
     stopScreenShare,
+    startCamera,
+    stopCamera,
   };
 }

@@ -30,6 +30,27 @@ export function setNewPeerHandler(handler: ((userId: string) => void) | null) {
   _onNewPeer = handler;
 }
 
+// Request browser notification permission once
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+}
+
+function showBrowserNotification(title: string, body: string, avatarUrl?: string | null) {
+  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+    try {
+      const n = new Notification(title, {
+        body,
+        icon: avatarUrl ?? '/favicon.ico',
+        tag: 'hollr-message',
+        silent: true,
+      });
+      setTimeout(() => n.close(), 6000);
+    } catch {}
+  }
+}
+
 type WsEvent =
   | { type: 'MESSAGE_CREATE'; payload: Message }
   | { type: 'MESSAGE_UPDATE'; payload: Message }
@@ -40,7 +61,7 @@ type WsEvent =
   | { type: 'VOICE_ROOM_STATE'; payload: { channelId: string; users: any[] } }
   | { type: 'VOICE_USER_JOINED'; payload: { channelId: string; user: any } }
   | { type: 'VOICE_USER_LEFT'; payload: { channelId: string; userId: string } }
-  | { type: 'VOICE_USER_UPDATED'; payload: { channelId: string; userId: string; muted?: boolean; streaming?: boolean } }
+  | { type: 'VOICE_USER_UPDATED'; payload: { channelId: string; userId: string; muted?: boolean; streaming?: boolean; hasCamera?: boolean } }
   | { type: 'VOICE_SPEAKING_START'; payload: { channelId: string; userId: string } }
   | { type: 'VOICE_SPEAKING_STOP'; payload: { channelId: string; userId: string } }
   | { type: 'PRESENCE_UPDATE'; payload: { userId: string; status: string } }
@@ -55,7 +76,14 @@ export function useRealtime(userId?: string) {
     addVoiceChannelUser,
     removeVoiceChannelUser,
     updateVoiceChannelUser,
+    incrementUnreadCount,
+    clearUnreadCount,
   } = useAppStore();
+
+  // Request notification permission early
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -105,11 +133,40 @@ export function useRealtime(userId?: string) {
               );
               queryClient.invalidateQueries({ queryKey: getListDmThreadsQueryKey() });
             }
-            // Play notification sound for messages from other users in non-muted channels/DMs
+
             if (msg.authorId !== userId) {
-              const { isChannelMuted } = useAppStore.getState();
+              const { isChannelMuted, activeChannelId } = useAppStore.getState();
               const isMuted = msg.channelId ? isChannelMuted(msg.channelId) : false;
-              if (!isMuted) playNotificationSound();
+
+              if (!isMuted) {
+                playNotificationSound();
+
+                // Unread badge: increment if not the active channel
+                if (msg.channelId && msg.channelId !== activeChannelId) {
+                  incrementUnreadCount(msg.channelId);
+                }
+
+                // Check for @mention of current user
+                let mentionsList: string[] = [];
+                try {
+                  mentionsList = msg.mentions ? JSON.parse(msg.mentions as string) : [];
+                } catch {}
+                const isMentioned = mentionsList.includes(userId);
+
+                // Browser notification: always show if tab is hidden (for DMs and mentions)
+                const isDm = !!msg.dmThreadId;
+                if (isDm || isMentioned || msg.channelId !== activeChannelId) {
+                  const author = (msg as any).author;
+                  const senderName = author?.displayName || author?.username || 'Someone';
+                  const preview = msg.content?.slice(0, 80) || '📎 Attachment';
+                  const notifTitle = isMentioned
+                    ? `${senderName} mentioned you`
+                    : isDm
+                    ? `DM from ${senderName}`
+                    : senderName;
+                  showBrowserNotification(notifTitle, preview, author?.avatarUrl);
+                }
+              }
             }
             break;
           }
@@ -153,13 +210,11 @@ export function useRealtime(userId?: string) {
           }
 
           case 'VOICE_SIGNAL': {
-            // Dispatch to WebRTC hook listener
             if (_onVoiceSignal) _onVoiceSignal(data.payload);
             break;
           }
 
           case 'VOICE_ROOMS_SNAPSHOT': {
-            // Seed all occupied voice rooms on connect — visible before ever joining
             for (const room of data.payload.rooms) {
               setVoiceRoomState(room.channelId, room.users);
             }
@@ -169,7 +224,6 @@ export function useRealtime(userId?: string) {
           case 'VOICE_ROOM_STATE': {
             const { channelId, users } = data.payload;
             setVoiceRoomState(channelId, users);
-            // Notify WebRTC hook about existing peers to connect to
             users.forEach(u => {
               if (u.userId !== userId && _onNewPeer) _onNewPeer(u.userId);
             });
@@ -179,19 +233,13 @@ export function useRealtime(userId?: string) {
           case 'VOICE_USER_JOINED': {
             const { channelId, user } = data.payload;
             addVoiceChannelUser(channelId, user);
-            // Play join chime for other users only (not when you yourself join)
             if (user.userId !== userId) playVoiceJoinSound();
-            // Do NOT call _onNewPeer here. The joining user already receives VOICE_ROOM_STATE
-            // and creates the offer for each existing peer. Existing peers only respond to
-            // incoming offers — if both sides create offers simultaneously (glare), both
-            // setRemoteDescription calls throw and audio never connects.
             break;
           }
 
           case 'VOICE_USER_LEFT': {
             const { channelId, userId: leftUserId } = data.payload;
             removeVoiceChannelUser(channelId, leftUserId);
-            // Play leave chime for other users only (not when you yourself disconnect)
             if (leftUserId !== userId) playVoiceLeaveSound();
             break;
           }

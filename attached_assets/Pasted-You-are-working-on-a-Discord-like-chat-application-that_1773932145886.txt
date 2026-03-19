@@ -1,0 +1,84 @@
+You are working on a Discord-like chat application that is nearly complete. 
+The following tasks are required to finalize the project. Read each section 
+carefully — some have specific constraints about what NOT to touch.
+
+---
+
+## TASK 1 — Unread Counts & Badges (Sidebar)
+
+The database currently has no concept of a "last read position" per user per channel.
+
+Implement the following:
+
+1. **New DB table**: Create a `channel_reads` table that tracks the last-read 
+   message timestamp (or message ID) per user per channel.
+
+2. **API endpoint**: Add a `POST /channels/:id/read` (or equivalent) endpoint 
+   that updates the user's last-read position when they open a channel.
+
+3. **Sidebar UI**: Using the `channel_reads` data:
+   - Show red unread badge counts on channels with new messages
+   - Bold channel names that have unread messages
+   - Show mention count badges (e.g. @mentions directed at the user)
+
+This is the highest-priority quality-of-life feature currently missing.
+
+---
+
+## TASK 2 — Browser Notifications (Background Tab Popups)
+
+Sound already plays on new messages. Now add browser-level push notifications:
+
+1. Request `Notification` permission from the browser on app load (if not 
+   already granted).
+2. When a new message arrives while the tab is in the background or unfocused, 
+   trigger a `new Notification(...)` with the sender name and message preview.
+3. Tie this into the unread/mention system from Task 1 — notifications should 
+   fire specifically on @mentions directed at the current user.
+
+---
+
+## TASK 3 — Live Camera in Voice Channels
+
+Screen sharing currently works. Camera video does not because `getUserMedia` 
+is hardcoded to `{ video: false }`.
+
+Implement the following:
+
+1. **Enable video track**: Change the `getUserMedia` call to support 
+   `{ video: true }` when the user activates the camera.
+2. **WebRTC integration**: Send the camera video track through the existing 
+   WebRTC peer connections. The `ontrack` handler already receives video and 
+   renders it, so the plumbing is ~80% complete.
+3. **Camera toggle button**: Add a camera on/off toggle button to the voice 
+   control bar alongside the existing screen share button.
+
+---
+
+## TASK 4 — Clickable Users in Voice Channel Sidebar Panel
+
+**IMPORTANT CONSTRAINT**: Do NOT touch the voice channel popup window that 
+appears beneath the message input box. That component should remain untouched.
+
+The target is the **voice channel panel in the main sidebar** — the vertical 
+list of usernames that appears when users have joined a voice channel (similar 
+to how Discord shows connected users in the left sidebar under the channel name).
+
+Currently these users are displayed as static text. Make the following changes 
+to that sidebar voice channel user list ONLY:
+
+1. **Clickable user entries**: Make each username in the voice channel sidebar 
+   list clickable/hoverable, exactly like users are in the Members List panel.
+
+2. **User action popup**: When clicked or hovered, show a popup/context menu 
+   with the same options available in the Members List:
+   - **Message** — opens a DM with that user
+   - **Mention** — inserts an @mention of that user into the current message input
+
+3. **Per-user volume slider**: Add an individual volume slider (range: 0%–200%) 
+   for each user in this sidebar voice panel list, the same way it exists in 
+   the voice channel popup window. This lets users control the audio level of 
+   individual participants directly from the sidebar.
+
+Again — all of Task 4 applies ONLY to the sidebar voice channel user list, 
+NOT the popup window under the message box.

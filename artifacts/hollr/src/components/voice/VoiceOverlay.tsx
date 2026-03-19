@@ -5,7 +5,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 import {
   Mic, MicOff, Headphones, VolumeX, MonitorUp, PhoneOff,
   Monitor, AppWindow, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Radio,
-  MessageSquare, AtSign, Volume2, Loader2, Wifi, Globe, Server,
+  MessageSquare, AtSign, Volume2, Loader2, Wifi, Globe, Server, Video, VideoOff,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,11 +26,12 @@ export function VoiceOverlay() {
     voiceMinimized, setVoiceMinimized,
     setVoicePanelHeight,
     audioOutputDeviceId,
+    voiceVolumes, setVoiceVolume,
   } = useAppStore();
   const { data: profile } = useGetMyProfile({ query: { enabled: !!user } });
   const {
-    localStream, remoteStreams, remoteVideoStreams, volumes, connectionTypes,
-    setParticipantVolume, startScreenShare, stopScreenShare, screenStream,
+    localStream, remoteStreams, remoteVideoStreams, cameraStream, connectionTypes,
+    startScreenShare, stopScreenShare, screenStream, startCamera, stopCamera,
   } = useWebRTC(voiceConnection.channelId, { displayName: profile?.displayName, avatarUrl: profile?.avatarUrl });
 
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
@@ -332,6 +333,7 @@ export function VoiceOverlay() {
             displayName={localUserData?.displayName}
             avatarUrl={localUserData?.avatarUrl ?? null}
             streaming={!!screenStream}
+            cameraStream={cameraStream}
             onWatch={() => screenStream && setWatchingUserId(myUserId ?? null)}
           />
 
@@ -349,13 +351,13 @@ export function VoiceOverlay() {
                 streaming={u.streaming}
                 stream={stream ?? null}
                 videoStream={videoStream ?? null}
-                volume={volumes[u.userId] ?? 1}
+                volume={voiceVolumes[u.userId] ?? 1}
                 deafened={deafened}
                 isDeafened={u.deafened ?? false}
                 outputDeviceId={audioOutputDeviceId}
                 connectionType={connectionTypes[u.userId] ?? null}
                 onOpenProfile={(x, y) => setVoiceCard({ userId: u.userId, x, y })}
-                onVolumeChange={(v) => setParticipantVolume(u.userId, v)}
+                onVolumeChange={(v) => setVoiceVolume(u.userId, v)}
                 onWatch={() => setWatchingUserId(u.userId)}
               />
             );
@@ -373,6 +375,17 @@ export function VoiceOverlay() {
             className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors",
               deafened ? "bg-destructive text-white hover:bg-destructive/90" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]")}>
             {deafened ? <VolumeX size={22} /> : <Headphones size={22} />}
+          </button>
+
+          {/* Camera toggle */}
+          <button
+            onClick={cameraStream ? stopCamera : startCamera}
+            title={cameraStream ? 'Turn off camera' : 'Turn on camera'}
+            className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors",
+              cameraStream ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]"
+            )}
+          >
+            {cameraStream ? <Video size={22} /> : <VideoOff size={22} />}
           </button>
 
           {screenStream ? (
@@ -434,8 +447,8 @@ export function VoiceOverlay() {
           userId={voiceCard.userId}
           x={voiceCard.x}
           y={voiceCard.y}
-          volume={volumes[voiceCard.userId] ?? 1}
-          onVolumeChange={(v) => setParticipantVolume(voiceCard.userId, v)}
+          volume={voiceVolumes[voiceCard.userId] ?? 1}
+          onVolumeChange={(v) => setVoiceVolume(voiceCard.userId, v)}
           onClose={() => setVoiceCard(null)}
         />
       )}
@@ -455,18 +468,36 @@ function SpeakingRing({ speaking, children }: { speaking: boolean; children: Rea
 }
 
 function LocalUserTile({
-  isMuted, isDeafened, speaking, displayName, avatarUrl, streaming, onWatch,
+  isMuted, isDeafened, speaking, displayName, avatarUrl, streaming, cameraStream, onWatch,
 }: {
   isMuted: boolean; isDeafened: boolean; speaking: boolean;
   displayName?: string; avatarUrl: string | null;
-  streaming: boolean; onWatch: () => void;
+  streaming: boolean; cameraStream: MediaStream | null; onWatch: () => void;
 }) {
   const label = displayName ?? 'You';
+  const cameraRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (cameraRef.current && cameraStream) {
+      cameraRef.current.srcObject = cameraStream;
+    } else if (cameraRef.current) {
+      cameraRef.current.srcObject = null;
+    }
+  }, [cameraStream]);
+
   return (
     <div className={cn(
       "relative aspect-video bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border transition-colors",
       isMuted ? "border-destructive/40" : speaking ? "border-emerald-500/60" : "border-border/20"
     )}>
+      {/* Local camera feed */}
+      {cameraStream && (
+        <video
+          ref={cameraRef}
+          autoPlay playsInline muted
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      )}
       {streaming && (
         <button onClick={onWatch}
           className="absolute inset-0 w-full h-full flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity z-10 cursor-pointer group">
@@ -476,12 +507,14 @@ function LocalUserTile({
           </div>
         </button>
       )}
-      <SpeakingRing speaking={speaking}>
-        <Avatar className="h-14 w-14 shadow-xl">
-          <AvatarImage src={avatarUrl || undefined} />
-          <AvatarFallback className="bg-indigo-600 text-white text-lg">{getInitials(label)}</AvatarFallback>
-        </Avatar>
-      </SpeakingRing>
+      {!cameraStream && (
+        <SpeakingRing speaking={speaking}>
+          <Avatar className="h-14 w-14 shadow-xl">
+            <AvatarImage src={avatarUrl || undefined} />
+            <AvatarFallback className="bg-indigo-600 text-white text-lg">{getInitials(label)}</AvatarFallback>
+          </Avatar>
+        </SpeakingRing>
+      )}
       <div className="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm flex items-center gap-1 z-20">
         {isMuted && <MicOff size={12} className="text-destructive" />}
         <span className="truncate max-w-[90px]">{label} (You)</span>
@@ -490,6 +523,12 @@ function LocalUserTile({
         <div className="absolute top-2 right-2 bg-emerald-500/90 rounded px-1.5 py-0.5 flex items-center gap-1 z-20">
           <Radio size={9} className="text-white" />
           <span className="text-[10px] text-white font-bold">LIVE</span>
+        </div>
+      )}
+      {cameraStream && (
+        <div className="absolute top-2 left-2 bg-blue-500/90 rounded px-1.5 py-0.5 flex items-center gap-1 z-20">
+          <Video size={9} className="text-white" />
+          <span className="text-[10px] text-white font-bold">CAM</span>
         </div>
       )}
       {isDeafened && (

@@ -17,6 +17,7 @@ export interface VoiceChannelUser {
   deafened: boolean;
   speaking: boolean;
   streaming: boolean;
+  hasCamera: boolean;
 }
 
 interface AppState {
@@ -112,7 +113,7 @@ interface AppState {
   setVoiceRoomState: (channelId: string, users: VoiceChannelUser[]) => void;
   addVoiceChannelUser: (channelId: string, user: VoiceChannelUser) => void;
   removeVoiceChannelUser: (channelId: string, userId: string) => void;
-  updateVoiceChannelUser: (channelId: string, userId: string, update: Partial<Pick<VoiceChannelUser, 'muted' | 'speaking' | 'streaming' | 'displayName' | 'avatarUrl'>>) => void;
+  updateVoiceChannelUser: (channelId: string, userId: string, update: Partial<Pick<VoiceChannelUser, 'muted' | 'deafened' | 'speaking' | 'streaming' | 'hasCamera' | 'displayName' | 'avatarUrl'>>) => void;
   clearVoiceChannelUsers: (channelId: string) => void;
 
   // Local audio toggle actions
@@ -121,6 +122,16 @@ interface AppState {
 
   // User settings modal
   setUserSettingsModalOpen: (open: boolean) => void;
+
+  // Unread message counts per channel
+  unreadCounts: Record<string, number>;
+  setUnreadCount: (channelId: string, count: number) => void;
+  incrementUnreadCount: (channelId: string) => void;
+  clearUnreadCount: (channelId: string) => void;
+
+  // Per-participant voice volumes (shared between VoiceOverlay + sidebar)
+  voiceVolumes: Record<string, number>;
+  setVoiceVolume: (userId: string, volume: number) => void;
 
   // Pending mention to insert into the active composer
   pendingMention: string | null;
@@ -260,6 +271,14 @@ export const useAppStore = create<AppState>()(
   toggleMicMuted: () => set((state) => ({ micMuted: !state.micMuted })),
   toggleDeafened: () => set((state) => ({ deafened: !state.deafened })),
   setUserSettingsModalOpen: (open) => set({ userSettingsModalOpen: open }),
+
+  unreadCounts: {},
+  setUnreadCount: (channelId, count) => set((state) => ({ unreadCounts: { ...state.unreadCounts, [channelId]: count } })),
+  incrementUnreadCount: (channelId) => set((state) => ({ unreadCounts: { ...state.unreadCounts, [channelId]: (state.unreadCounts[channelId] ?? 0) + 1 } })),
+  clearUnreadCount: (channelId) => set((state) => { const n = { ...state.unreadCounts }; delete n[channelId]; return { unreadCounts: n }; }),
+
+  voiceVolumes: {},
+  setVoiceVolume: (userId, volume) => set((state) => ({ voiceVolumes: { ...state.voiceVolumes, [userId]: volume } })),
 
   pendingMention: null,
   triggerMention: (displayName) => set({ pendingMention: displayName }),

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, integer, pgTable, text, timestamp, varchar, pgEnum } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp, varchar, pgEnum, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -115,3 +115,11 @@ export const messageReactionsTable = pgTable("message_reactions", {
 });
 
 export type MessageReaction = typeof messageReactionsTable.$inferSelect;
+
+export const channelReadsTable = pgTable("channel_reads", {
+  userId: varchar("user_id").notNull(),
+  channelId: varchar("channel_id").notNull(),
+  lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.userId, t.channelId] })]);
+
+export type ChannelRead = typeof channelReadsTable.$inferSelect;

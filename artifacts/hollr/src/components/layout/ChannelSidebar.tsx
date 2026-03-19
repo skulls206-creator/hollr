@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Hash, Volume2, Plus, ChevronDown, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
-  Smile,
+  Smile, MessageSquare, AtSign,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import {
@@ -11,13 +11,27 @@ import {
   useDeleteChannel, useUpdateChannel,
   useGetMyProfile, useUpdateMyProfile,
 } from '@workspace/api-client-react';
+import type { VoiceChannelUser } from '@/store/use-app-store';
 import { cn, getInitials } from '@/lib/utils';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useQueryClient } from '@tanstack/react-query';
+import { Slider } from '@/components/ui/slider';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import type { Channel } from '@workspace/api-client-react';
+
+const BASE = import.meta.env.BASE_URL;
+
+async function fetchUnread(serverId: string): Promise<{ channelId: string; count: number }[]> {
+  const res = await fetch(`${BASE}api/servers/${serverId}/unread`, { credentials: 'include' });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+async function markChannelRead(channelId: string) {
+  await fetch(`${BASE}api/channels/${channelId}/read`, { method: 'POST', credentials: 'include' });
+}
 
 export function ChannelSidebar() {
   const {
@@ -25,6 +39,9 @@ export function ChannelSidebar() {
     setActiveChannel, setActiveDmThread,
     setCreateChannelModalOpen, setInviteModalOpen, setServerSettingsModalOpen,
     voiceConnection, setVoiceConnection, voiceChannelUsers,
+    unreadCounts, setUnreadCount, clearUnreadCount,
+    voiceVolumes, setVoiceVolume,
+    triggerMention,
   } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -32,6 +49,19 @@ export function ChannelSidebar() {
   const [serverMenuOpen, setServerMenuOpen] = useState(false);
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [editChannelName, setEditChannelName] = useState('');
+
+  // Fetch initial unread counts from server when activeServerId changes
+  const { data: unreadData } = useQuery({
+    queryKey: ['unread', activeServerId],
+    queryFn: () => fetchUnread(activeServerId!),
+    enabled: !!activeServerId,
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    if (!unreadData) return;
+    unreadData.forEach(({ channelId, count }) => setUnreadCount(channelId, count));
+  }, [unreadData]);
 
   const { data: server } = useGetServer(activeServerId || '', {
     query: { queryKey: getGetServerQueryKey(activeServerId || ''), enabled: !!activeServerId },
@@ -61,6 +91,14 @@ export function ChannelSidebar() {
 
   const joinVoice = (channelId: string) => setVoiceConnection({ status: 'connecting', channelId, serverId: activeServerId });
   const leaveVoice = () => setVoiceConnection({ status: 'disconnected', channelId: null, serverId: null });
+
+  const handleSelectChannel = (channelId: string) => {
+    setActiveChannel(channelId);
+    clearUnreadCount(channelId);
+    markChannelRead(channelId).catch(() => {});
+    // Invalidate unread query so next server visit is accurate
+    qc.invalidateQueries({ queryKey: ['unread', activeServerId] });
+  };
 
   const isOwnerOrAdmin = server?.ownerId === user?.id || false;
 
@@ -253,11 +291,18 @@ export function ChannelSidebar() {
                   </>
                 ) : (
                   <button
-                    onClick={() => setActiveChannel(channel.id)}
+                    onClick={() => handleSelectChannel(channel.id)}
                     className="flex items-center flex-1 min-w-0 text-left"
                   >
                     <Hash size={18} className="mr-1.5 opacity-60 shrink-0" />
-                    <span className="truncate text-sm font-medium">{channel.name}</span>
+                    <span className={cn("truncate text-sm", unreadCounts[channel.id] ? "font-bold text-foreground" : "font-medium")}>
+                      {channel.name}
+                    </span>
+                    {!!unreadCounts[channel.id] && (
+                      <span className="ml-auto mr-1 min-w-[18px] h-[18px] px-1 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                        {unreadCounts[channel.id] > 99 ? '99+' : unreadCounts[channel.id]}
+                      </span>
+                    )}
                   </button>
                 )}
                 {!editingChannelId && isOwnerOrAdmin && (
@@ -374,27 +419,15 @@ export function ChannelSidebar() {
                   {channelUsers.length > 0 && (
                     <div className="ml-4 mt-0.5 mb-1 space-y-0.5">
                       {channelUsers.map(u => (
-                        <div key={u.userId} className="flex items-center gap-1.5 px-1 py-0.5 rounded">
-                          {/* Avatar with speaking ring */}
-                          <div className={cn(
-                            'relative shrink-0 rounded-full transition-all duration-150',
-                            u.speaking
-                              ? 'ring-2 ring-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
-                              : 'ring-2 ring-transparent'
-                          )}>
-                            <Avatar className="h-5 w-5">
-                              <AvatarImage src={u.avatarUrl || undefined} />
-                              <AvatarFallback className="bg-primary text-white text-[9px]">
-                                {getInitials(u.displayName)}
-                              </AvatarFallback>
-                            </Avatar>
-                          </div>
-                          <span className="text-xs text-muted-foreground truncate flex-1">{u.displayName}</span>
-                          {u.muted
-                            ? <MicOff size={11} className="text-destructive shrink-0" />
-                            : <Mic size={11} className="text-muted-foreground/50 shrink-0" />
-                          }
-                        </div>
+                        <VoiceSidebarUser
+                          key={u.userId}
+                          user={u}
+                          isSelf={u.userId === user?.id}
+                          volume={voiceVolumes[u.userId] ?? 1}
+                          onVolumeChange={(v) => setVoiceVolume(u.userId, v)}
+                          onMention={() => triggerMention(u.displayName)}
+                          onOpenDm={(threadId) => setActiveDmThread(threadId)}
+                        />
                       ))}
                     </div>
                   )}
@@ -682,5 +715,133 @@ function UserProfilePanel({
         </div>
       </div>
     </div>
+  );
+}
+
+function VoiceSidebarUser({
+  user: u, isSelf, volume, onVolumeChange, onMention, onOpenDm,
+}: {
+  user: VoiceChannelUser;
+  isSelf: boolean;
+  volume: number;
+  onVolumeChange: (v: number) => void;
+  onMention: () => void;
+  onOpenDm: (threadId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dmLoading, setDmLoading] = useState(false);
+  const qc = useQueryClient();
+
+  const handleDm = async () => {
+    if (isSelf || dmLoading) return;
+    setDmLoading(true);
+    try {
+      const res = await fetch(`${BASE}api/dms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId: u.userId }),
+      });
+      if (!res.ok) throw new Error('Failed to open DM');
+      const thread = await res.json();
+      qc.setQueryData(getListDmThreadsQueryKey(), (old: any[]) => {
+        const existing = (old || []).filter((t: any) => t.id !== thread.id);
+        return [...existing, thread];
+      });
+      onOpenDm(thread.id);
+      setOpen(false);
+    } catch (err) {
+      console.error('[VoiceSidebarUser] DM open failed:', err);
+    } finally {
+      setDmLoading(false);
+    }
+  };
+
+  const handleMention = () => {
+    onMention();
+    setOpen(false);
+  };
+
+  const volumePct = Math.round(volume * 100);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-white/5 transition-colors group/vu">
+          <div className={cn(
+            'relative shrink-0 rounded-full transition-all duration-150',
+            u.speaking
+              ? 'ring-2 ring-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+              : 'ring-2 ring-transparent'
+          )}>
+            <Avatar className="h-5 w-5">
+              <AvatarImage src={u.avatarUrl || undefined} />
+              <AvatarFallback className="bg-primary text-white text-[9px]">
+                {getInitials(u.displayName)}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+          <span className="text-xs text-muted-foreground truncate flex-1">{u.displayName}</span>
+          {u.muted
+            ? <MicOff size={11} className="text-destructive shrink-0" />
+            : <Mic size={11} className="text-muted-foreground/50 shrink-0" />
+          }
+        </div>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="start" className="w-64 p-3 bg-[#111214] border-border/30">
+        <div className="flex items-center gap-2 mb-3">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={u.avatarUrl || undefined} />
+            <AvatarFallback className="bg-primary text-white text-sm">{getInitials(u.displayName)}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate">{u.displayName}</p>
+            <p className="text-xs text-muted-foreground truncate">@{u.username}</p>
+          </div>
+        </div>
+
+        {!isSelf && (
+          <>
+            {/* Volume slider */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Volume2 size={11} /> Volume
+                </span>
+                <span className="text-xs font-mono text-muted-foreground">{volumePct}%</span>
+              </div>
+              <Slider
+                min={0} max={2} step={0.01}
+                value={[volume]}
+                onValueChange={([v]) => onVolumeChange(v)}
+                className="w-full"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleDm}
+                disabled={dmLoading}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <MessageSquare size={12} />
+                Message
+              </button>
+              <button
+                onClick={handleMention}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <AtSign size={12} />
+                Mention
+              </button>
+            </div>
+          </>
+        )}
+
+        {isSelf && (
+          <p className="text-xs text-muted-foreground text-center">(You)</p>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
