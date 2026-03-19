@@ -127,7 +127,7 @@ export const useAppStore = create<AppState>()(
   inviteModalOpen: false,
   helpModalOpen: false,
 
-  memberListOpen: true,
+  memberListOpen: false,
   mobileSidebarOpen: false,
   pinnedPanelOpen: false,
 
