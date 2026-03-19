@@ -12,6 +12,7 @@ import { Slider } from '@/components/ui/slider';
 import { cn, getInitials } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGetMyProfile } from '@workspace/api-client-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function VoiceOverlay() {
   const { user } = useAuth();
@@ -31,6 +32,12 @@ export function VoiceOverlay() {
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const [watchingUserId, setWatchingUserId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+
+  // Responsive positioning: on mobile the sidebar is hidden so start from left edge;
+  // on desktop start after the 320px sidebar. Right offset ignores member list on mobile.
+  const panelLeft = isMobile ? 8 : 320;
+  const panelRight = isMobile ? 8 : (memberListOpen ? 256 : 32);
 
   // Measure expanded panel height so ChatArea can add matching spacer
   useEffect(() => {
@@ -96,7 +103,7 @@ export function VoiceOverlay() {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 40, opacity: 0 }}
           className="absolute bottom-28 bg-[#111214]/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex items-center gap-2 px-3 py-2"
-          style={{ right: memberListOpen ? 256 : 32 }}
+          style={{ left: panelLeft, right: panelRight }}
         >
           <div className="flex -space-x-1.5 mr-1">
             {channelUsers.slice(0, 4).map(u => (
@@ -282,8 +289,8 @@ export function VoiceOverlay() {
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="absolute bottom-8 left-[320px] bg-[#000000]/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
-        style={{ right: memberListOpen ? 256 : 32 }}
+        className="absolute bottom-8 bg-[#000000]/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
+        style={{ left: panelLeft, right: panelRight }}
         ref={panelRef}
       >
         {/* Title bar with minimize */}
