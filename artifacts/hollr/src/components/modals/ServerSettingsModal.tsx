@@ -4,6 +4,8 @@ import { useAppStore } from '@/store/use-app-store';
 import { useGetServer, useUpdateServer, getGetServerQueryKey, getListMyServersQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { getInitials } from '@/lib/utils';
+import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 
 export function ServerSettingsModal() {
   const { serverSettingsModalOpen, setServerSettingsModalOpen, activeServerId } = useAppStore();
@@ -16,11 +18,13 @@ export function ServerSettingsModal() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [iconUrl, setIconUrl] = useState('');
 
   useEffect(() => {
     if (server) {
       setName(server.name || '');
       setDescription(server.description || '');
+      setIconUrl(server.iconUrl || '');
     }
   }, [server, serverSettingsModalOpen]);
 
@@ -29,7 +33,14 @@ export function ServerSettingsModal() {
   const handleSave = () => {
     if (!activeServerId || !name.trim()) return;
     updateServer(
-      { serverId: activeServerId, data: { name: name.trim(), description: description.trim() || undefined } },
+      {
+        serverId: activeServerId,
+        data: {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          iconUrl: iconUrl || undefined,
+        },
+      },
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getGetServerQueryKey(activeServerId) });
@@ -68,7 +79,24 @@ export function ServerSettingsModal() {
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-5">
+          {/* Server Icon */}
+          <div>
+            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">
+              Server Icon
+            </label>
+            <ImageCropUploader
+              current={iconUrl}
+              shape="square"
+              onComplete={(url) => setIconUrl(url)}
+              placeholder={
+                <span className="text-foreground text-xl font-bold select-none">
+                  {getInitials(name || 'S')}
+                </span>
+              }
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
               Server Name
@@ -82,6 +110,7 @@ export function ServerSettingsModal() {
               placeholder="My Awesome Server"
             />
           </div>
+
           <div>
             <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
               Description
