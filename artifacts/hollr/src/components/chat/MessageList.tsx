@@ -257,15 +257,21 @@ export function MessageList({
 
               {/* Attachments */}
               {!isEditing && msg.attachments && msg.attachments.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex flex-col gap-2 mt-2">
                   {msg.attachments.map(att => {
                     const isImage = att.contentType.startsWith('image/');
-                    const url = `/api/storage/objects${att.objectPath}`;
+                    const url = `/api/storage${att.objectPath}`;
                     if (isImage) {
                       return (
-                        <div key={att.id} className="max-w-[400px] max-h-[400px] rounded-lg overflow-hidden border border-border/50 bg-black/20">
-                          <img src={url} alt={att.name} className="object-contain w-full h-full" loading="lazy" />
-                        </div>
+                        <a key={att.id} href={url} target="_blank" rel="noopener noreferrer"
+                          className="inline-block max-w-[400px] rounded-xl overflow-hidden border border-border/50 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity">
+                          <img
+                            src={url}
+                            alt={att.name}
+                            className="block max-w-full max-h-[350px] object-contain"
+                            loading="lazy"
+                          />
+                        </a>
                       );
                     }
                     return (

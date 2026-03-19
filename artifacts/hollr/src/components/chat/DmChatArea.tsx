@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useListDmMessages, useSendDmMessage } from '@workspace/api-client-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getInitials } from '@/lib/utils';
+import { getInitials, formatBytes } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Smile, Menu } from 'lucide-react';
+import { PlusCircle, Smile, Menu, FileText, Download } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 
 export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
@@ -105,6 +105,33 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
                 <div className="text-foreground text-[15px] leading-relaxed whitespace-pre-wrap break-words">
                   {msg.content}
                 </div>
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="flex flex-col gap-2 mt-2">
+                    {msg.attachments.map((att: any) => {
+                      const isImage = att.contentType.startsWith('image/');
+                      const url = `/api/storage${att.objectPath}`;
+                      if (isImage) {
+                        return (
+                          <a key={att.id} href={url} target="_blank" rel="noopener noreferrer"
+                            className="inline-block max-w-[400px] rounded-xl overflow-hidden border border-border/50 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity">
+                            <img src={url} alt={att.name} className="block max-w-full max-h-[350px] object-contain" loading="lazy" />
+                          </a>
+                        );
+                      }
+                      return (
+                        <a key={att.id} href={url} download target="_blank" rel="noreferrer"
+                          className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-lg hover:bg-secondary/80 transition-colors w-72">
+                          <div className="bg-primary/20 p-2 rounded-md"><FileText className="text-primary" size={24} /></div>
+                          <div className="flex flex-col overflow-hidden">
+                            <span className="text-sm font-medium text-primary hover:underline truncate">{att.name}</span>
+                            <span className="text-xs text-muted-foreground">{formatBytes(att.size)}</span>
+                          </div>
+                          <Download className="ml-auto text-muted-foreground hover:text-foreground" size={18} />
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           );
