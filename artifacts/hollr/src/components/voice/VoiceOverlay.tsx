@@ -73,7 +73,8 @@ export function VoiceOverlay() {
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 40, opacity: 0 }}
-          className="absolute bottom-20 right-8 bg-[#111214]/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex items-center gap-2 px-3 py-2"
+          className="absolute bottom-20 bg-[#111214]/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex items-center gap-2 px-3 py-2"
+          style={{ right: memberListOpen ? 256 : 32 }}
         >
           <div className="flex -space-x-1.5 mr-1">
             {channelUsers.slice(0, 4).map(u => (
