@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   Hash, Volume2, Plus, ChevronDown, Settings, Mic, MicOff, Headphones, VolumeX,
-  PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines
+  PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
+  Smile,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import {
