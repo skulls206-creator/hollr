@@ -60,7 +60,7 @@ export function Layout() {
   const showMemberList = !!(activeServerId && memberListOpen && !showThread && !pinnedPanelOpen);
 
   return (
-    <div className="flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
+    <div className="relative flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
 
       {/* Mobile sidebar backdrop */}
       {mobileSidebarOpen && (

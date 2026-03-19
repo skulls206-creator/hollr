@@ -57,7 +57,7 @@ export function VoiceOverlay() {
     ro.observe(el);
     setVoicePanelHeight(el.offsetHeight + BOTTOM_OFFSET);
     return () => ro.disconnect();
-  }, [voiceMinimized, voiceConnection.status, setVoicePanelHeight]);
+  }, [voiceMinimized, voiceConnection.status, isMobile, mobileSidebarOpen, memberListOpen, pinnedPanelOpen, setVoicePanelHeight]);
 
   const channelUsers = voiceConnection.channelId
     ? (voiceChannelUsers[voiceConnection.channelId] ?? [])
