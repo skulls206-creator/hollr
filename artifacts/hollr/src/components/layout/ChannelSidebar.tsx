@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Hash, Volume2, Plus, ChevronDown, Settings, Mic, MicOff, Headphones, VolumeX,
-  PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X
+  PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import {
@@ -474,13 +474,22 @@ function UserProfilePanel({
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
               <span className="text-xs font-semibold text-emerald-400">Voice Connected</span>
             </div>
-            <button
-              onClick={onLeaveVoice}
-              title="Leave voice"
-              className="text-muted-foreground hover:text-destructive transition-colors"
-            >
-              <PhoneOff size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              <div
+                title="Noise suppression active"
+                className="flex items-center gap-1 text-emerald-400/80 cursor-default"
+              >
+                <AudioLines size={13} />
+                <span className="text-[10px] font-semibold tracking-wide">NS</span>
+              </div>
+              <button
+                onClick={onLeaveVoice}
+                title="Leave voice"
+                className="text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <PhoneOff size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
