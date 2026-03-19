@@ -1,11 +1,12 @@
 import { useRef, useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { MessageSquare, AtSign, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/use-app-store';
+import { getListDmThreadsQueryKey } from '@workspace/api-client-react';
 
 function statusColor(status: string) {
   switch (status) {
@@ -43,6 +44,7 @@ interface Props {
 export function UserProfileCard({ userId, joinedAt, role, onClose, position }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [dmLoading, setDmLoading] = useState(false);
+  const qc = useQueryClient();
 
   const { activeChannelId, setActiveDmThread, triggerMention, closeProfileCard } = useAppStore();
 
@@ -78,6 +80,12 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
       });
       if (!res.ok) throw new Error('Failed to open DM');
       const thread = await res.json();
+      // Seed the DM threads cache immediately so Layout resolves the recipient name/avatar
+      // before the background refetch completes
+      qc.setQueryData(getListDmThreadsQueryKey(), (old: any[]) => {
+        const existing = (old || []).filter((t: any) => t.id !== thread.id);
+        return [...existing, thread];
+      });
       setActiveDmThread(thread.id);
       closeProfileCard();
     } catch (err) {
