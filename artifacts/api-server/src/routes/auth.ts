@@ -90,7 +90,9 @@ async function upsertUser(claims: Record<string, unknown>) {
     })
     .returning();
 
-  // Always keep the user profile in sync with OIDC claims
+  // On first login: seed displayName and avatarUrl from OIDC claims.
+  // On subsequent logins: only update status/timestamp — never overwrite
+  // display name or avatar that the user may have customised in settings.
   await db
     .insert(userProfilesTable)
     .values({
@@ -103,8 +105,6 @@ async function upsertUser(claims: Record<string, unknown>) {
     .onConflictDoUpdate({
       target: userProfilesTable.userId,
       set: {
-        displayName: deriveDisplayName(claims),
-        avatarUrl: userData.profileImageUrl,
         status: "online",
         updatedAt: new Date(),
       },
