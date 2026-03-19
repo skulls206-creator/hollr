@@ -262,7 +262,7 @@ export function VoiceOverlay() {
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="absolute bottom-20 left-[320px] bg-[#000000]/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
+        className="absolute bottom-[96px] left-[320px] bg-[#000000]/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
         style={{ right: memberListOpen ? 256 : 32 }}
       >
         {/* Title bar with minimize */}
