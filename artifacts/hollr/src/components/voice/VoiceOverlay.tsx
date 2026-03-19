@@ -477,25 +477,46 @@ function RemoteUserTile({
     if (videoRef.current && videoStream) videoRef.current.srcObject = videoStream;
   }, [videoStream]);
 
+  // Set srcObject and explicitly call play() — never rely solely on autoPlay
   useEffect(() => {
-    if (audioRef.current && stream) {
-      audioRef.current.srcObject = stream;
-      audioRef.current.volume = deafened ? 0 : volume;
+    const el = audioRef.current;
+    if (!el) return;
+    el.srcObject = stream ?? null;
+    if (stream) {
+      el.volume = deafened ? 0 : volume;
+      el.play().catch(err => console.warn('[Audio] play() blocked:', err));
     }
   }, [stream]);
 
+  // Sync volume / deafened without touching srcObject
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = deafened ? 0 : volume;
+    const el = audioRef.current;
+    if (!el) return;
+    el.volume = deafened ? 0 : volume;
+    // Resume if deafened was just turned off and element is paused
+    if (!deafened && stream && el.paused) {
+      el.play().catch(() => {});
     }
   }, [volume, deafened]);
+
+  // Auto-restart if browser silences the element unexpectedly
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const onPause = () => {
+      if (stream && !deafened) el.play().catch(() => {});
+    };
+    el.addEventListener('pause', onPause);
+    return () => el.removeEventListener('pause', onPause);
+  }, [stream, deafened]);
 
   return (
     <div className={cn(
       "relative aspect-video bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border group transition-colors",
       speaking ? "border-emerald-500/60" : "border-border/20"
     )}>
-      {stream && <audio ref={audioRef} autoPlay />}
+      {/* Always in DOM so it never remounts and loses srcObject */}
+      <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />
 
       {/* Video thumbnail if streaming */}
       {videoStream && (

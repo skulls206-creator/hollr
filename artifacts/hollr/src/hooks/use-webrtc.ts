@@ -121,15 +121,40 @@ export function useWebRTC(
     };
 
     peer.ontrack = (e) => {
-      const stream = e.streams[0] ?? new MediaStream([e.track]);
-      if (e.track.kind === 'audio') {
-        setRemoteStreams(prev => ({ ...prev, [peerId]: stream }));
-      } else if (e.track.kind === 'video') {
-        setRemoteVideoStreams(prev => ({ ...prev, [peerId]: stream }));
-        e.track.onended = () => {
+      const track = e.track;
+      if (track.kind === 'audio') {
+        setRemoteStreams(prev => {
+          const existing = prev[peerId];
+          if (existing) {
+            // Reuse existing stream; add track only if genuinely new
+            const ids = existing.getAudioTracks().map(t => t.id);
+            if (!ids.includes(track.id)) existing.addTrack(track);
+            // Return same reference so React doesn't re-render audio element
+            return prev[peerId] === existing ? prev : { ...prev, [peerId]: existing };
+          }
+          const newStream = e.streams[0] ?? new MediaStream([track]);
+          return { ...prev, [peerId]: newStream };
+        });
+      } else if (track.kind === 'video') {
+        const videoStream = e.streams[0] ?? new MediaStream([track]);
+        setRemoteVideoStreams(prev => ({ ...prev, [peerId]: videoStream }));
+        track.onended = () => {
           setRemoteVideoStreams(prev => { const n = { ...prev }; delete n[peerId]; return n; });
         };
       }
+    };
+
+    peer.oniceconnectionstatechange = () => {
+      const state = peer.iceConnectionState;
+      console.log(`[WebRTC] ICE ${peerId}:`, state);
+      if (state === 'failed') {
+        console.warn('[WebRTC] ICE failed — restarting ICE for', peerId);
+        peer.restartIce();
+      }
+    };
+
+    peer.onconnectionstatechange = () => {
+      console.log(`[WebRTC] Connection ${peerId}:`, peer.connectionState);
     };
 
     peer.onnegotiationneeded = async () => {
