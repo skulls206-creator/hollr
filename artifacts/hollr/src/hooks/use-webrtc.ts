@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { sendVoiceSignal, setVoiceSignalListener, setNewPeerHandler } from './use-realtime';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
+import { useGetMyProfile } from '@workspace/api-client-react';
 
 const SPEAKING_THRESHOLD = 18;
 const SPEAKING_DEBOUNCE_MS = 600;
@@ -14,6 +15,7 @@ const ICE_SERVERS = [
 export function useWebRTC(channelId: string | null) {
   const { user } = useAuth();
   const { micMuted, deafened } = useAppStore();
+  const { data: profile } = useGetMyProfile({ query: { enabled: !!user } });
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -40,12 +42,13 @@ export function useWebRTC(channelId: string | null) {
   const getDisplayInfo = () => {
     const firstName = user?.firstName ?? '';
     const lastName = user?.lastName ?? '';
-    const displayName = (user as any)?.displayName
+    const displayName = profile?.displayName
+      || (user as any)?.displayName
       || [firstName, lastName].filter(Boolean).join(' ')
       || (user as any)?.username
       || 'User';
     const username = displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32) || 'user';
-    const avatarUrl = user?.profileImageUrl ?? null;
+    const avatarUrl = profile?.avatarUrl ?? user?.profileImageUrl ?? null;
     return { displayName, username, avatarUrl };
   };
 

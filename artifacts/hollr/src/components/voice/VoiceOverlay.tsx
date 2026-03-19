@@ -286,7 +286,7 @@ export function VoiceOverlay() {
           </div>
         )}
 
-        <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 auto-rows-[120px]">
+        <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
           <LocalUserTile
             isMuted={micMuted}
             isDeafened={deafened}
@@ -411,7 +411,7 @@ function LocalUserTile({
   const label = displayName ?? 'You';
   return (
     <div className={cn(
-      "relative bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border transition-colors",
+      "relative aspect-video bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border transition-colors",
       isMuted ? "border-destructive/40" : speaking ? "border-emerald-500/60" : "border-border/20"
     )}>
       {streaming && (
@@ -473,7 +473,7 @@ function RemoteUserTile({
 
   return (
     <div className={cn(
-      "relative bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border group transition-colors",
+      "relative aspect-video bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border group transition-colors",
       speaking ? "border-emerald-500/60" : "border-border/20"
     )}>
       {stream && <audio autoPlay muted ref={(el) => { if (el) el.srcObject = stream; }} />}

@@ -155,6 +155,18 @@ export function initWebSocket(server: Server) {
               break;
             }
 
+            if (vtype === "profile_update") {
+              const { userId, displayName, avatarUrl } = payload;
+              if (!channelId || !userId) break;
+              const participant = voiceRooms.get(channelId)?.get(userId);
+              if (participant) {
+                if (displayName) participant.displayName = displayName;
+                if (avatarUrl !== undefined) participant.avatarUrl = avatarUrl ?? null;
+                broadcastAll({ type: "VOICE_USER_UPDATED", payload: { channelId, userId, displayName: participant.displayName, avatarUrl: participant.avatarUrl } });
+              }
+              break;
+            }
+
             // WebRTC signaling (offer/answer/ice) — relay to specific peer or broadcast
             if (targetId) {
               sendToUser(targetId, { type: "VOICE_SIGNAL", payload });

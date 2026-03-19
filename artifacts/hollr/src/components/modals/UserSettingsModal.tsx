@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { useGetMyProfile, useUpdateMyProfile } from '@workspace/api-client-react';
+import { sendVoiceSignal } from '@/hooks/use-realtime';
+import { useAuth } from '@workspace/replit-auth-web';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -243,7 +245,8 @@ function AvatarCropUploader({ current, onComplete }: {
 }
 
 export function UserSettingsModal() {
-  const { userSettingsModalOpen, setUserSettingsModalOpen } = useAppStore();
+  const { userSettingsModalOpen, setUserSettingsModalOpen, voiceConnection } = useAppStore();
+  const { user } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
   const updateProfile = useUpdateMyProfile();
   const qc = useQueryClient();
@@ -261,17 +264,29 @@ export function UserSettingsModal() {
   }, [profile]);
 
   const handleSave = () => {
+    const newDisplayName = displayName.trim() || undefined;
+    const newAvatarUrl = avatarUrl.trim() || undefined;
     updateProfile.mutate(
       {
         data: {
-          displayName: displayName.trim() || undefined,
+          displayName: newDisplayName,
           customStatus: customStatus.trim() || null,
-          avatarUrl: avatarUrl.trim() || undefined,
+          avatarUrl: newAvatarUrl,
         },
       },
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: ['/api/users/me'] });
+          // If in a voice channel, broadcast the updated profile to all participants
+          if (voiceConnection.channelId && user?.id) {
+            sendVoiceSignal({
+              type: 'profile_update',
+              channelId: voiceConnection.channelId,
+              userId: user.id,
+              displayName: newDisplayName,
+              avatarUrl: newAvatarUrl ?? null,
+            });
+          }
           setUserSettingsModalOpen(false);
         },
       }
