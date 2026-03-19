@@ -304,25 +304,70 @@ export function ChannelSidebar() {
               const isLive = channelUsers.length > 0;
               return (
                 <div key={channel.id}>
-                  <button
-                    onClick={() => isConnected ? leaveVoice() : joinVoice(channel.id)}
-                    className={cn(
-                      'w-full flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
-                      isConnected
-                        ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                        : isLive
-                          ? 'text-foreground hover:bg-secondary/50'
-                          : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                  <div className={cn(
+                    'group/vch flex items-center px-2 py-1.5 rounded-md transition-colors',
+                    isConnected
+                      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                      : isLive
+                        ? 'text-foreground hover:bg-secondary/50'
+                        : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                  )}>
+                    {editingChannelId === channel.id ? (
+                      <>
+                        <Volume2 size={18} className="mr-1.5 opacity-60 shrink-0" />
+                        <input
+                          autoFocus
+                          value={editChannelName}
+                          onChange={e => setEditChannelName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') saveChannelEdit(channel, e as any);
+                            if (e.key === 'Escape') setEditingChannelId(null);
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          className="flex-1 bg-[#1E1F22] text-foreground text-sm px-1.5 py-0.5 rounded outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <button onClick={e => saveChannelEdit(channel, e)} className="ml-1 text-primary hover:text-primary/80">
+                          <Check size={12} />
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); setEditingChannelId(null); }} className="ml-0.5 text-muted-foreground hover:text-foreground">
+                          <X size={12} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => isConnected ? leaveVoice() : joinVoice(channel.id)}
+                          className="flex items-center flex-1 min-w-0 text-left text-sm font-medium"
+                        >
+                          <Volume2 size={18} className="mr-1.5 opacity-60 shrink-0" />
+                          <span className="truncate flex-1">{channel.name}</span>
+                          {isLive && (
+                            <span className="text-[10px] font-bold bg-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded shrink-0 mr-1">
+                              LIVE
+                            </span>
+                          )}
+                        </button>
+                        {!editingChannelId && isOwnerOrAdmin && (
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover/vch:opacity-100 transition-opacity shrink-0 ml-1">
+                            <button
+                              onClick={e => startEditChannel(channel, e)}
+                              title="Rename channel"
+                              className="p-0.5 text-muted-foreground hover:text-foreground"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button
+                              onClick={e => handleDeleteChannel(channel, e)}
+                              title="Delete channel"
+                              className="p-0.5 text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
-                  >
-                    <Volume2 size={18} className="mr-1.5 opacity-60 shrink-0" />
-                    <span className="truncate flex-1 text-left">{channel.name}</span>
-                    {isLive && (
-                      <span className="text-[10px] font-bold bg-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded shrink-0">
-                        LIVE
-                      </span>
-                    )}
-                  </button>
+                  </div>
 
                   {/* Connected user list under channel */}
                   {channelUsers.length > 0 && (
