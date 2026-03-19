@@ -5,6 +5,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 import {
   Mic, MicOff, Headphones, VolumeX, MonitorUp, PhoneOff,
   Monitor, AppWindow, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Radio,
+  MessageSquare, AtSign, Volume2, Loader2,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,6 +14,8 @@ import { cn, getInitials } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGetMyProfile } from '@workspace/api-client-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getListDmThreadsQueryKey } from '@workspace/api-client-react';
 
 export function VoiceOverlay() {
   const { user } = useAuth();
@@ -30,9 +33,9 @@ export function VoiceOverlay() {
     setParticipantVolume, startScreenShare, stopScreenShare, screenStream,
   } = useWebRTC(voiceConnection.channelId, { displayName: profile?.displayName, avatarUrl: profile?.avatarUrl });
 
-  const [showVolumeFor, setShowVolumeFor] = useState<string | null>(null);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const [watchingUserId, setWatchingUserId] = useState<string | null>(null);
+  const [voiceCard, setVoiceCard] = useState<{ userId: string; x: number; y: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
 
@@ -350,8 +353,7 @@ export function VoiceOverlay() {
                 deafened={deafened}
                 isDeafened={u.deafened ?? false}
                 outputDeviceId={audioOutputDeviceId}
-                showVolume={showVolumeFor === u.userId}
-                onToggleVolume={() => setShowVolumeFor(showVolumeFor === u.userId ? null : u.userId)}
+                onOpenProfile={(x, y) => setVoiceCard({ userId: u.userId, x, y })}
                 onVolumeChange={(v) => setParticipantVolume(u.userId, v)}
                 onWatch={() => setWatchingUserId(u.userId)}
               />
@@ -424,6 +426,18 @@ export function VoiceOverlay() {
           </button>
         </div>
       </motion.div>
+
+      {/* Voice profile card */}
+      {voiceCard && (
+        <VoiceProfileCard
+          userId={voiceCard.userId}
+          x={voiceCard.x}
+          y={voiceCard.y}
+          volume={volumes[voiceCard.userId] ?? 1}
+          onVolumeChange={(v) => setParticipantVolume(voiceCard.userId, v)}
+          onClose={() => setVoiceCard(null)}
+        />
+      )}
     </AnimatePresence>
   );
 }
@@ -488,7 +502,7 @@ function LocalUserTile({
 
 function RemoteUserTile({
   displayName, avatarUrl, muted, speaking, streaming, stream, videoStream,
-  volume, deafened, isDeafened, outputDeviceId, showVolume, onToggleVolume, onVolumeChange, onWatch,
+  volume, deafened, isDeafened, outputDeviceId, onOpenProfile, onVolumeChange, onWatch,
 }: {
   peerId: string;
   displayName: string;
@@ -502,8 +516,7 @@ function RemoteUserTile({
   deafened: boolean;
   isDeafened: boolean;
   outputDeviceId: string | null;
-  showVolume: boolean;
-  onToggleVolume: () => void;
+  onOpenProfile: (x: number, y: number) => void;
   onVolumeChange: (v: number) => void;
   onWatch: () => void;
 }) {
@@ -575,7 +588,8 @@ function RemoteUserTile({
         />
       )}
 
-      <button onClick={onToggleVolume}
+      <button onClick={(e) => { e.stopPropagation(); onOpenProfile(e.clientX, e.clientY); }}
+        title="View profile"
         className="absolute inset-0 w-full h-full flex flex-col items-center justify-center hover:bg-black/20 transition-colors z-10">
         <SpeakingRing speaking={speaking}>
           <Avatar className="h-14 w-14 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
@@ -615,23 +629,222 @@ function RemoteUserTile({
         </div>
       )}
 
-      <AnimatePresence>
-        {showVolume && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="absolute inset-x-4 bottom-12 bg-[#2B2D31] p-4 rounded-lg shadow-xl border border-border/50 z-40 flex flex-col gap-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between text-xs font-semibold text-muted-foreground mb-1">
-              <span>Volume</span>
-              <span>{Math.round(volume * 100)}%</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Voice Profile Card — opens when clicking a participant tile
+// Shows profile info + DM + mention + per-participant volume
+// ---------------------------------------------------------------------------
+
+async function fetchUserProfile(userId: string) {
+  const base = import.meta.env.BASE_URL;
+  const res = await fetch(`${base}api/users/${userId}`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to load profile');
+  return res.json();
+}
+
+function vcStatusColor(status: string) {
+  switch (status) {
+    case 'online': return 'bg-emerald-500';
+    case 'idle':   return 'bg-yellow-400';
+    case 'dnd':    return 'bg-destructive';
+    default:       return 'bg-muted-foreground/40';
+  }
+}
+function vcStatusLabel(status: string) {
+  switch (status) {
+    case 'online': return 'Online';
+    case 'idle':   return 'Idle';
+    case 'dnd':    return 'Do Not Disturb';
+    default:       return 'Offline';
+  }
+}
+
+function VoiceProfileCard({
+  userId, x, y, volume, onVolumeChange, onClose,
+}: {
+  userId: string;
+  x: number;
+  y: number;
+  volume: number;
+  onVolumeChange: (v: number) => void;
+  onClose: () => void;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [dmLoading, setDmLoading] = useState(false);
+  const { activeChannelId, setActiveDmThread, triggerMention } = useAppStore();
+  const qc = useQueryClient();
+
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ['voice-profile', userId],
+    queryFn: () => fetchUserProfile(userId),
+    staleTime: 60_000,
+  });
+
+  // Close on outside click or Escape
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) onClose();
+    };
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [onClose]);
+
+  // Smart positioning: keep card inside viewport
+  const CARD_W = 280;
+  const CARD_H = 380;
+  const left = Math.min(x + 8, window.innerWidth - CARD_W - 8);
+  const top  = Math.min(y + 8, window.innerHeight - CARD_H - 8);
+
+  const handleMessage = async () => {
+    if (!profile || dmLoading) return;
+    setDmLoading(true);
+    try {
+      const base = import.meta.env.BASE_URL;
+      const res = await fetch(`${base}api/dms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error('Failed to open DM');
+      const thread = await res.json();
+      qc.setQueryData(getListDmThreadsQueryKey(), (old: any[]) => {
+        const existing = (old || []).filter((t: any) => t.id !== thread.id);
+        return [...existing, thread];
+      });
+      setActiveDmThread(thread.id);
+      onClose();
+    } catch (err) {
+      console.error('[VoiceProfileCard] DM open failed:', err);
+    } finally {
+      setDmLoading(false);
+    }
+  };
+
+  const handleMention = () => {
+    if (!profile) return;
+    triggerMention(profile.displayName || profile.username);
+    onClose();
+  };
+
+  return (
+    <div
+      ref={cardRef}
+      style={{ position: 'fixed', left, top, zIndex: 200 }}
+      className="w-[280px] bg-[#1E1F22] rounded-2xl shadow-2xl border border-border/20 overflow-hidden"
+    >
+      {/* Banner */}
+      <div className="h-14 bg-gradient-to-br from-indigo-600 to-purple-700" />
+
+      <div className="px-4 pb-4">
+        {/* Avatar + close */}
+        <div className="flex items-start justify-between -mt-7 mb-3">
+          <div className="relative">
+            <Avatar className="h-14 w-14 border-[4px] border-[#1E1F22] rounded-full">
+              <AvatarImage src={profile?.avatarUrl || undefined} />
+              <AvatarFallback className="bg-primary text-white text-lg">
+                {isLoading ? '…' : getInitials(profile?.displayName || profile?.username || '?')}
+              </AvatarFallback>
+            </Avatar>
+            {profile && (
+              <div className={cn(
+                'absolute -bottom-0.5 -right-0.5 rounded-full border-[3px] border-[#1E1F22]',
+                vcStatusColor(profile.status)
+              )} style={{ width: 16, height: 16 }} />
+            )}
+          </div>
+          <button onClick={onClose} className="mt-1 text-muted-foreground hover:text-foreground transition-colors">
+            <X size={15} />
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 size={20} className="animate-spin text-muted-foreground" />
+          </div>
+        ) : profile ? (
+          <div className="space-y-3">
+            <div>
+              <h3 className="font-bold text-foreground text-sm leading-tight">{profile.displayName}</h3>
+              <p className="text-xs text-muted-foreground">@{profile.username}</p>
             </div>
-            <Slider value={[volume]} max={2} step={0.05} onValueChange={(val) => onVolumeChange(val[0])} />
-          </motion.div>
+
+            {profile.customStatus && (
+              <p className="text-xs text-muted-foreground italic">{profile.customStatus}</p>
+            )}
+
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className={cn('w-2 h-2 rounded-full shrink-0', vcStatusColor(profile.status))} />
+              <span>{vcStatusLabel(profile.status)}</span>
+            </div>
+
+            <div className="h-px bg-border/20" />
+
+            {/* DM + Mention */}
+            <div className="flex gap-2">
+              <button
+                onClick={handleMessage}
+                disabled={dmLoading}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-secondary hover:bg-secondary/80 rounded-lg text-xs font-medium text-foreground transition-colors disabled:opacity-60"
+              >
+                {dmLoading ? <Loader2 size={12} className="animate-spin" /> : <MessageSquare size={12} />}
+                Message
+              </button>
+              <button
+                onClick={handleMention}
+                disabled={!activeChannelId}
+                title={!activeChannelId ? 'Open a text channel first' : 'Insert mention in composer'}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-secondary hover:bg-secondary/80 rounded-lg text-xs font-medium text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <AtSign size={12} />
+                Mention
+              </button>
+            </div>
+
+            <div className="h-px bg-border/20" />
+
+            {/* Volume slider */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Volume2 size={12} />
+                  Volume
+                </span>
+                <span className={cn(
+                  "font-bold tabular-nums",
+                  volume > 1 ? "text-yellow-400" : "text-foreground"
+                )}>
+                  {Math.round(volume * 100)}%
+                </span>
+              </div>
+              <Slider
+                value={[volume]}
+                min={0}
+                max={2}
+                step={0.01}
+                onValueChange={(val) => onVolumeChange(val[0])}
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground/60">
+                <span>0%</span>
+                <span className="text-muted-foreground/40">|</span>
+                <span>100%</span>
+                <span className="text-muted-foreground/40">|</span>
+                <span>200%</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground py-2">Profile not found.</p>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }
