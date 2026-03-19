@@ -122,7 +122,7 @@ export function UserSettingsModal() {
 
             <Button
               variant="ghost"
-              className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+              className="w-full justify-center gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={logout}
             >
               <LogOut size={16} />
