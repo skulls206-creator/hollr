@@ -39,7 +39,7 @@ export function ServerSidebar() {
         <TooltipContent side="right" className="font-semibold ml-2">Direct Messages</TooltipContent>
       </Tooltip>
 
-      <div className="w-8 h-[2px] bg-border/40 rounded-full my-1" />
+      <div className="w-8 h-[2px] bg-border/40 rounded-full my-3" />
 
       {/* Server List */}
       {servers.map((server) => (
