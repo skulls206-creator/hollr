@@ -49,7 +49,7 @@ export function InviteModal() {
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
               Server Invite Link
             </label>
-            <div className="flex items-center gap-2 bg-[#1E1F22] border border-border/30 rounded-lg p-3 min-w-0">
+            <div className="flex items-center gap-2 bg-[#1E1F22] border border-border/30 rounded-lg p-3 min-w-0 overflow-hidden">
               <Link size={16} className="text-muted-foreground shrink-0" />
               <span className="flex-1 min-w-0 text-sm text-foreground truncate font-mono">
                 {inviteLink || 'Loading…'}
