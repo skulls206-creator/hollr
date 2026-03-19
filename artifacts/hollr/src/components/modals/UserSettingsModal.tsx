@@ -28,8 +28,8 @@ function AvatarCropUploader({ current, onComplete }: {
   onComplete: (url: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const outputCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [crop, setCrop] = useState<CropState | null>(null);
   const [uploading, setUploading] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; startOffX: number; startOffY: number } | null>(null);
@@ -54,6 +54,28 @@ function AvatarCropUploader({ current, onComplete }: {
     e.target.value = '';
   };
 
+  // Redraw preview canvas whenever crop state changes
+  useEffect(() => {
+    if (!crop || !previewCanvasRef.current) return;
+    const canvas = previewCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, PREVIEW_SIZE, PREVIEW_SIZE);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(PREVIEW_SIZE / 2, PREVIEW_SIZE / 2, PREVIEW_SIZE / 2, 0, Math.PI * 2);
+    ctx.clip();
+
+    const scale = crop.baseScale * crop.zoom;
+    const imgW = crop.img.naturalWidth * scale;
+    const imgH = crop.img.naturalHeight * scale;
+    const x = PREVIEW_SIZE / 2 + crop.offsetX - imgW / 2;
+    const y = PREVIEW_SIZE / 2 + crop.offsetY - imgH / 2;
+    ctx.drawImage(crop.img, x, y, imgW, imgH);
+    ctx.restore();
+  }, [crop]);
+
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (!crop) return;
     e.preventDefault();
@@ -65,39 +87,45 @@ function AvatarCropUploader({ current, onComplete }: {
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
     const scale = crop.baseScale * crop.zoom;
+    const clamped = {
+      offsetX: dragRef.current.startOffX + dx,
+      offsetY: dragRef.current.startOffY + dy,
+    };
     const halfW = (crop.img.naturalWidth * scale) / 2;
     const halfH = (crop.img.naturalHeight * scale) / 2;
     const maxX = Math.max(0, halfW - PREVIEW_SIZE / 2);
     const maxY = Math.max(0, halfH - PREVIEW_SIZE / 2);
     setCrop(prev => prev ? {
       ...prev,
-      offsetX: Math.max(-maxX, Math.min(maxX, dragRef.current!.startOffX + dx)),
-      offsetY: Math.max(-maxY, Math.min(maxY, dragRef.current!.startOffY + dy)),
+      offsetX: Math.max(-maxX, Math.min(maxX, clamped.offsetX)),
+      offsetY: Math.max(-maxY, Math.min(maxY, clamped.offsetY)),
     } : prev);
   }, [crop]);
 
   const onMouseUp = useCallback(() => { dragRef.current = null; }, []);
 
-  const setZoom = (zoom: number) => {
-    if (!crop) return;
-    const scale = crop.baseScale * zoom;
-    const halfW = (crop.img.naturalWidth * scale) / 2;
-    const halfH = (crop.img.naturalHeight * scale) / 2;
-    const maxX = Math.max(0, halfW - PREVIEW_SIZE / 2);
-    const maxY = Math.max(0, halfH - PREVIEW_SIZE / 2);
-    setCrop(prev => prev ? {
-      ...prev,
-      zoom,
-      offsetX: Math.max(-maxX, Math.min(maxX, prev.offsetX)),
-      offsetY: Math.max(-maxY, Math.min(maxY, prev.offsetY)),
-    } : prev);
-  };
+  const setZoom = useCallback((zoom: number) => {
+    setCrop(prev => {
+      if (!prev) return prev;
+      const scale = prev.baseScale * zoom;
+      const halfW = (prev.img.naturalWidth * scale) / 2;
+      const halfH = (prev.img.naturalHeight * scale) / 2;
+      const maxX = Math.max(0, halfW - PREVIEW_SIZE / 2);
+      const maxY = Math.max(0, halfH - PREVIEW_SIZE / 2);
+      return {
+        ...prev,
+        zoom,
+        offsetX: Math.max(-maxX, Math.min(maxX, prev.offsetX)),
+        offsetY: Math.max(-maxY, Math.min(maxY, prev.offsetY)),
+      };
+    });
+  }, []);
 
   const handleConfirm = async () => {
-    if (!crop || !canvasRef.current) return;
+    if (!crop || !outputCanvasRef.current) return;
     setUploading(true);
     try {
-      const canvas = canvasRef.current;
+      const canvas = outputCanvasRef.current;
       canvas.width = OUTPUT_SIZE;
       canvas.height = OUTPUT_SIZE;
       const ctx = canvas.getContext('2d')!;
@@ -143,32 +171,22 @@ function AvatarCropUploader({ current, onComplete }: {
   };
 
   if (crop) {
-    const scale = crop.baseScale * crop.zoom;
-    const imgW = crop.img.naturalWidth * scale;
-    const imgH = crop.img.naturalHeight * scale;
-    const imgLeft = PREVIEW_SIZE / 2 + crop.offsetX - imgW / 2;
-    const imgTop = PREVIEW_SIZE / 2 + crop.offsetY - imgH / 2;
-
     return (
       <div className="flex flex-col items-center gap-4">
         <p className="text-sm text-muted-foreground">Drag to reposition · scroll or slide to zoom</p>
-        <div
-          ref={previewRef}
-          className="relative overflow-hidden cursor-grab active:cursor-grabbing select-none shrink-0"
-          style={{ width: PREVIEW_SIZE, height: PREVIEW_SIZE, borderRadius: '50%', border: '3px solid hsl(var(--primary))' }}
+
+        <canvas
+          ref={previewCanvasRef}
+          width={PREVIEW_SIZE}
+          height={PREVIEW_SIZE}
+          className="cursor-grab active:cursor-grabbing select-none shrink-0"
+          style={{ borderRadius: '50%', border: '3px solid hsl(var(--primary))', display: 'block' }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
           onWheel={(e) => { e.preventDefault(); setZoom(Math.max(1, Math.min(4, crop.zoom - e.deltaY * 0.002))); }}
-        >
-          <img
-            src={crop.src}
-            draggable={false}
-            style={{ position: 'absolute', left: imgLeft, top: imgTop, width: imgW, height: imgH, pointerEvents: 'none', userSelect: 'none' }}
-            alt="crop preview"
-          />
-        </div>
+        />
 
         <div className="w-full flex items-center gap-2">
           <ZoomIn size={16} className="text-muted-foreground shrink-0" />
@@ -176,7 +194,7 @@ function AvatarCropUploader({ current, onComplete }: {
             value={[crop.zoom]}
             min={1}
             max={4}
-            step={0.05}
+            step={0.01}
             onValueChange={([v]) => setZoom(v)}
             className="flex-1"
           />
@@ -195,7 +213,7 @@ function AvatarCropUploader({ current, onComplete }: {
           </Button>
         </div>
 
-        <canvas ref={canvasRef} className="hidden" />
+        <canvas ref={outputCanvasRef} className="hidden" />
       </div>
     );
   }

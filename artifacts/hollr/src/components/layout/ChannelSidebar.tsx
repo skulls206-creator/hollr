@@ -447,7 +447,7 @@ function UserProfilePanel({
             <button className="flex items-center hover:bg-white/10 rounded-md p-1 cursor-pointer transition-colors flex-1 min-w-0 text-left">
               <div className="relative shrink-0">
                 <Avatar className="h-8 w-8 rounded-full border border-border/50">
-                  <AvatarImage src={user.profileImageUrl || undefined} />
+                  <AvatarImage src={profile?.avatarUrl || user.profileImageUrl || undefined} />
                   <AvatarFallback className="bg-primary text-white text-xs">
                     {getInitials(displayName)}
                   </AvatarFallback>
