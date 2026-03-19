@@ -14,6 +14,7 @@ export interface VoiceChannelUser {
   avatarUrl: string | null;
   muted: boolean;
   speaking: boolean;
+  streaming: boolean;
 }
 
 interface AppState {
@@ -95,7 +96,7 @@ interface AppState {
   setVoiceRoomState: (channelId: string, users: VoiceChannelUser[]) => void;
   addVoiceChannelUser: (channelId: string, user: VoiceChannelUser) => void;
   removeVoiceChannelUser: (channelId: string, userId: string) => void;
-  updateVoiceChannelUser: (channelId: string, userId: string, update: Partial<Pick<VoiceChannelUser, 'muted' | 'speaking'>>) => void;
+  updateVoiceChannelUser: (channelId: string, userId: string, update: Partial<Pick<VoiceChannelUser, 'muted' | 'speaking' | 'streaming'>>) => void;
   clearVoiceChannelUsers: (channelId: string) => void;
 
   // Local audio toggle actions

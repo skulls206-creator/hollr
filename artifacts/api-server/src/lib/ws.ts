@@ -15,6 +15,7 @@ interface VoiceParticipant {
   avatarUrl: string | null;
   muted: boolean;
   speaking: boolean;
+  streaming: boolean;
 }
 
 // channelId → Map<userId, VoiceParticipant>
@@ -77,7 +78,7 @@ export function initWebSocket(server: Server) {
               const room = voiceRooms.get(channelId)!;
               const participant: VoiceParticipant = {
                 userId, displayName, username, avatarUrl: avatarUrl ?? null,
-                muted: false, speaking: false,
+                muted: false, speaking: false, streaming: false,
               };
               room.set(userId, participant);
               userVoiceChannel.set(userId, channelId);
@@ -128,6 +129,28 @@ export function initWebSocket(server: Server) {
               if (participant && participant.speaking) {
                 participant.speaking = false;
                 broadcastAll({ type: "VOICE_SPEAKING_STOP", payload: { channelId, userId } });
+              }
+              break;
+            }
+
+            if (vtype === "screen_share_start") {
+              const { userId } = payload;
+              if (!channelId || !userId) break;
+              const participant = voiceRooms.get(channelId)?.get(userId);
+              if (participant) {
+                participant.streaming = true;
+                broadcastAll({ type: "VOICE_USER_UPDATED", payload: { channelId, userId, streaming: true } });
+              }
+              break;
+            }
+
+            if (vtype === "screen_share_stop") {
+              const { userId } = payload;
+              if (!channelId || !userId) break;
+              const participant = voiceRooms.get(channelId)?.get(userId);
+              if (participant) {
+                participant.streaming = false;
+                broadcastAll({ type: "VOICE_USER_UPDATED", payload: { channelId, userId, streaming: false } });
               }
               break;
             }

@@ -7,12 +7,26 @@ import { useAppStore } from '@/store/use-app-store';
 // Module-level singleton so any module can send signals without creating a second WS connection
 let _sendSignal: ((payload: any) => void) | null = null;
 
+// Called by use-webrtc.ts to receive incoming WebRTC signaling messages
+let _onVoiceSignal: ((payload: any) => void) | null = null;
+
+// Called by use-webrtc.ts to be notified when a new peer joins the channel
+let _onNewPeer: ((userId: string) => void) | null = null;
+
 export function sendVoiceSignal(payload: any) {
   if (_sendSignal) {
     _sendSignal(payload);
   } else {
     console.warn('[WS] sendVoiceSignal called before WebSocket connected');
   }
+}
+
+export function setVoiceSignalListener(listener: ((payload: any) => void) | null) {
+  _onVoiceSignal = listener;
+}
+
+export function setNewPeerHandler(handler: ((userId: string) => void) | null) {
+  _onNewPeer = handler;
 }
 
 type WsEvent =
@@ -24,7 +38,7 @@ type WsEvent =
   | { type: 'VOICE_ROOM_STATE'; payload: { channelId: string; users: any[] } }
   | { type: 'VOICE_USER_JOINED'; payload: { channelId: string; user: any } }
   | { type: 'VOICE_USER_LEFT'; payload: { channelId: string; userId: string } }
-  | { type: 'VOICE_USER_UPDATED'; payload: { channelId: string; userId: string; muted: boolean } }
+  | { type: 'VOICE_USER_UPDATED'; payload: { channelId: string; userId: string; muted?: boolean; streaming?: boolean } }
   | { type: 'VOICE_SPEAKING_START'; payload: { channelId: string; userId: string } }
   | { type: 'VOICE_SPEAKING_STOP'; payload: { channelId: string; userId: string } }
   | { type: 'PRESENCE_UPDATE'; payload: { userId: string; status: string } }
@@ -49,7 +63,6 @@ export function useRealtime(userId?: string) {
 
     ws.current = new WebSocket(wsUrl);
 
-    // Expose sendSignal to module-level singleton
     const sendSignal = (payload: any) => {
       if (ws.current?.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({ type: 'VOICE_SIGNAL', payload }));
@@ -131,15 +144,27 @@ export function useRealtime(userId?: string) {
             break;
           }
 
+          case 'VOICE_SIGNAL': {
+            // Dispatch to WebRTC hook listener
+            if (_onVoiceSignal) _onVoiceSignal(data.payload);
+            break;
+          }
+
           case 'VOICE_ROOM_STATE': {
             const { channelId, users } = data.payload;
             setVoiceRoomState(channelId, users);
+            // Notify WebRTC hook about existing peers to connect to
+            users.forEach(u => {
+              if (u.userId !== userId && _onNewPeer) _onNewPeer(u.userId);
+            });
             break;
           }
 
           case 'VOICE_USER_JOINED': {
             const { channelId, user } = data.payload;
             addVoiceChannelUser(channelId, user);
+            // Notify WebRTC hook about new peer (everyone connects to the new joiner)
+            if (user.userId !== userId && _onNewPeer) _onNewPeer(user.userId);
             break;
           }
 
@@ -150,8 +175,8 @@ export function useRealtime(userId?: string) {
           }
 
           case 'VOICE_USER_UPDATED': {
-            const { channelId, userId: updatedId, muted } = data.payload;
-            updateVoiceChannelUser(channelId, updatedId, { muted });
+            const { channelId, userId: updatedId, ...update } = data.payload;
+            updateVoiceChannelUser(channelId, updatedId, update as any);
             break;
           }
 
