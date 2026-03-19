@@ -521,35 +521,77 @@ function RemoteUserTile({
   onWatch: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Audio is routed through Web Audio API (GainNode) so we can exceed 100% volume.
+  // The <audio> element is kept muted purely to hold the srcObject + enable setSinkId.
   const audioRef = useRef<HTMLAudioElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
   useEffect(() => {
     if (videoRef.current && videoStream) videoRef.current.srcObject = videoStream;
   }, [videoStream]);
 
-  // Set srcObject and explicitly call play() — never rely solely on autoPlay
+  // Build/rebuild the Web Audio graph whenever the remote stream changes
   useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    el.srcObject = stream ?? null;
-    if (stream) {
-      el.volume = deafened ? 0 : volume;
-      el.play().catch(err => console.warn('[Audio] play() blocked:', err));
+    // Tear down previous graph
+    sourceRef.current?.disconnect();
+    gainRef.current?.disconnect();
+    audioCtxRef.current?.close();
+    sourceRef.current = null;
+    gainRef.current = null;
+    audioCtxRef.current = null;
+
+    if (!stream) return;
+
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const src = ctx.createMediaStreamSource(stream);
+      const gain = ctx.createGain();
+      gain.gain.value = deafened ? 0 : volume;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      audioCtxRef.current = ctx;
+      gainRef.current = gain;
+      sourceRef.current = src;
+    } catch (err) {
+      console.warn('[RemoteAudio] Web Audio setup failed, falling back to <audio>:', err);
+      // Fallback: unmute the element and control volume directly
+      const el = audioRef.current;
+      if (el) {
+        el.muted = false;
+        el.srcObject = stream;
+        el.volume = Math.min(1, deafened ? 0 : volume);
+        el.play().catch(() => {});
+      }
     }
+
+    return () => {
+      sourceRef.current?.disconnect();
+      gainRef.current?.disconnect();
+      audioCtxRef.current?.close().catch(() => {});
+    };
+    // Only rebuild when stream identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream]);
 
-  // Sync volume / deafened without touching srcObject
+  // Sync gain value whenever volume or deafened changes — no need to rebuild graph
   useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    el.volume = deafened ? 0 : volume;
-    // Resume if deafened was just turned off and element is paused
-    if (!deafened && stream && el.paused) {
-      el.play().catch(() => {});
+    if (gainRef.current) {
+      gainRef.current.gain.value = deafened ? 0 : volume;
+    } else {
+      // Fallback path: clamp to [0,1] for the audio element
+      const el = audioRef.current;
+      if (el && !el.muted) {
+        el.volume = Math.min(1, deafened ? 0 : volume);
+        if (!deafened && stream && el.paused) el.play().catch(() => {});
+      }
     }
-  }, [volume, deafened]);
+  }, [volume, deafened, stream]);
 
-  // Apply output device (speaker) via setSinkId — supported in Chrome/Edge
+  // Apply output device (speaker) via setSinkId — Chrome/Edge only
   useEffect(() => {
     const el = audioRef.current as any;
     if (!el || !outputDeviceId) return;
@@ -560,12 +602,19 @@ function RemoteUserTile({
     }
   }, [outputDeviceId]);
 
-  // Auto-restart if browser silences the element unexpectedly
+  // Keep the <audio> element's srcObject synced (muted — audio goes through GainNode)
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.srcObject = stream ?? null;
+  }, [stream]);
+
+  // No-op pause handler needed since audio plays via AudioContext, not the element
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
     const onPause = () => {
-      if (stream && !deafened) el.play().catch(() => {});
+      // nothing — playback is via AudioContext
     };
     el.addEventListener('pause', onPause);
     return () => el.removeEventListener('pause', onPause);
@@ -576,8 +625,8 @@ function RemoteUserTile({
       "relative aspect-video bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border group transition-colors",
       speaking ? "border-emerald-500/60" : "border-border/20"
     )}>
-      {/* Always in DOM so it never remounts and loses srcObject */}
-      <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />
+      {/* Muted — actual playback is via AudioContext GainNode. Kept for setSinkId support. */}
+      <audio ref={audioRef} playsInline muted style={{ display: 'none' }} />
 
       {/* Video thumbnail if streaming */}
       {videoStream && (
