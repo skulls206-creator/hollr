@@ -82,6 +82,7 @@ export const messagesTable = pgTable("messages", {
   parentMessageId: varchar("parent_message_id"),
   replyCount: integer("reply_count").notNull().default(0),
   edited: boolean("edited").notNull().default(false),
+  deleted: boolean("deleted").notNull().default(false),
   pinned: boolean("pinned").notNull().default(false),
   pinnedBy: varchar("pinned_by"),
   mentions: text("mentions").default("[]"),

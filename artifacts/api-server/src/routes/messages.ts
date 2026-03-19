@@ -71,13 +71,14 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserI
 
   return {
     id: msg.id,
-    content: msg.content,
+    content: msg.deleted ? '' : msg.content,
     authorId: msg.authorId,
     channelId: msg.channelId,
     dmThreadId: msg.dmThreadId,
     parentMessageId: msg.parentMessageId ?? null,
     replyCount: msg.replyCount ?? 0,
     edited: msg.edited,
+    deleted: msg.deleted,
     pinned: msg.pinned,
     pinnedBy: msg.pinnedBy ?? null,
     mentions: mentionsList,
@@ -192,7 +193,7 @@ router.patch("/channels/:channelId/messages/:messageId", async (req, res) => {
   res.json(formatted);
 });
 
-// Delete message
+// Delete message (soft delete — replaces content with tombstone)
 router.delete("/channels/:channelId/messages/:messageId", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -200,9 +201,15 @@ router.delete("/channels/:channelId/messages/:messageId", async (req, res) => {
   if (!msg) { res.status(404).json({ error: "Not found" }); return; }
   if (msg.authorId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  await db.delete(messagesTable).where(eq(messagesTable.id, req.params.messageId));
-  broadcast({ type: "MESSAGE_DELETE", payload: { id: req.params.messageId, channelId: req.params.channelId } });
-  res.json({ success: true });
+  const [updated] = await db
+    .update(messagesTable)
+    .set({ deleted: true, edited: false })
+    .where(eq(messagesTable.id, req.params.messageId))
+    .returning();
+
+  const formatted = await formatMessage(updated, req.user.id);
+  broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
+  res.json(formatted);
 });
 
 // GET pinned messages

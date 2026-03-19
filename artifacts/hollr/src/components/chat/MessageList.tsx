@@ -114,7 +114,12 @@ export function MessageList({
 
   const handleDelete = (messageId: string) => {
     deleteMessage({ channelId, messageId }, {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getListMessagesQueryKey(channelId) }),
+      onSuccess: (updated: any) => {
+        // Soft delete: update message in cache to show tombstone
+        qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), old =>
+          old ? old.map(m => m.id === messageId ? { ...m, ...updated, deleted: true } : m) : old
+        );
+      },
       onError: () => toast({ title: 'Failed to delete message', variant: 'destructive' }),
     });
   };
@@ -165,6 +170,7 @@ export function MessageList({
         const isOwner = user?.id === msg.authorId;
         const isEditing = editingId === msg.id;
         const isHighlighted = highlightedMessageId === msg.id;
+        const isDeleted = !!(msg as any).deleted;
         const reactions = (msg as any).reactions || [];
         const replyCount = (msg as any).replyCount || 0;
 
@@ -223,7 +229,11 @@ export function MessageList({
                 </div>
               )}
 
-              {isEditing ? (
+              {isDeleted ? (
+                <div className="text-[14px] italic text-red-400/80 select-none">
+                  Message deleted
+                </div>
+              ) : isEditing ? (
                 <div className="flex flex-col gap-1">
                   <textarea
                     ref={editRef}
@@ -256,7 +266,7 @@ export function MessageList({
               )}
 
               {/* Attachments */}
-              {!isEditing && msg.attachments && msg.attachments.length > 0 && (
+              {!isEditing && !isDeleted && msg.attachments && msg.attachments.length > 0 && (
                 <div className="flex flex-col gap-2 mt-2">
                   {msg.attachments.map(att => {
                     const isImage = att.contentType.startsWith('image/');
@@ -290,7 +300,7 @@ export function MessageList({
               )}
 
               {/* Reactions */}
-              {!isEditing && (
+              {!isEditing && !isDeleted && (
                 <ReactionPills
                   reactions={reactions}
                   channelId={channelId}
@@ -300,7 +310,7 @@ export function MessageList({
               )}
 
               {/* Thread reply count */}
-              {!isEditing && replyCount > 0 && (
+              {!isEditing && !isDeleted && replyCount > 0 && (
                 <button
                   onClick={() => openThread(channelId, msg.id)}
                   className="mt-1 flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 hover:underline w-fit"
@@ -311,8 +321,8 @@ export function MessageList({
               )}
             </div>
 
-            {/* Hover action buttons */}
-            {!isEditing && (
+            {/* Hover action buttons — hidden entirely for deleted messages */}
+            {!isEditing && !isDeleted && (
               <div className="absolute right-4 top-0 -translate-y-1/2 bg-[#2B2D31] border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 {/* Add reaction */}
                 <button
