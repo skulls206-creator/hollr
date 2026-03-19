@@ -14,6 +14,7 @@ interface VoiceParticipant {
   username: string;
   avatarUrl: string | null;
   muted: boolean;
+  deafened: boolean;
   speaking: boolean;
   streaming: boolean;
 }
@@ -88,7 +89,7 @@ export function initWebSocket(server: Server) {
               const room = voiceRooms.get(channelId)!;
               const participant: VoiceParticipant = {
                 userId, displayName, username, avatarUrl: avatarUrl ?? null,
-                muted: false, speaking: false, streaming: false,
+                muted: false, deafened: false, speaking: false, streaming: false,
               };
               room.set(userId, participant);
               userVoiceChannel.set(userId, channelId);
@@ -117,6 +118,17 @@ export function initWebSocket(server: Server) {
               if (participant) {
                 participant.muted = !!muted;
                 broadcastAll({ type: "VOICE_USER_UPDATED", payload: { channelId, userId, muted: participant.muted } });
+              }
+              break;
+            }
+
+            if (vtype === "deafen_update") {
+              const { userId, deafened } = payload;
+              if (!channelId || !userId) break;
+              const participant = voiceRooms.get(channelId)?.get(userId);
+              if (participant) {
+                participant.deafened = !!deafened;
+                broadcastAll({ type: "VOICE_USER_UPDATED", payload: { channelId, userId, deafened: participant.deafened } });
               }
               break;
             }

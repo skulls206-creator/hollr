@@ -297,6 +297,13 @@ export function useWebRTC(
     }
   }, [micMuted, localStream]);
 
+  // Sync deafened state to all peers
+  useEffect(() => {
+    if (channelIdRef.current && userIdRef.current) {
+      sendVoiceSignal({ type: 'deafen_update', channelId: channelIdRef.current, userId: userIdRef.current, deafened });
+    }
+  }, [deafened]);
+
   const startScreenShare = async (displaySurface?: 'monitor' | 'window' | 'browser') => {
     try {
       const videoConstraints: MediaTrackConstraints & { displaySurface?: string } = {};

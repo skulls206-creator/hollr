@@ -14,6 +14,7 @@ export interface VoiceChannelUser {
   username: string;
   avatarUrl: string | null;
   muted: boolean;
+  deafened: boolean;
   speaking: boolean;
   streaming: boolean;
 }

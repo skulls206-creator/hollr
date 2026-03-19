@@ -347,6 +347,7 @@ export function VoiceOverlay() {
                 videoStream={videoStream ?? null}
                 volume={volumes[u.userId] ?? 1}
                 deafened={deafened}
+                isDeafened={u.deafened ?? false}
                 showVolume={showVolumeFor === u.userId}
                 onToggleVolume={() => setShowVolumeFor(showVolumeFor === u.userId ? null : u.userId)}
                 onVolumeChange={(v) => setParticipantVolume(u.userId, v)}
@@ -485,7 +486,7 @@ function LocalUserTile({
 
 function RemoteUserTile({
   displayName, avatarUrl, muted, speaking, streaming, stream, videoStream,
-  volume, deafened, showVolume, onToggleVolume, onVolumeChange, onWatch,
+  volume, deafened, isDeafened, showVolume, onToggleVolume, onVolumeChange, onWatch,
 }: {
   peerId: string;
   displayName: string;
@@ -497,6 +498,7 @@ function RemoteUserTile({
   videoStream: MediaStream | null;
   volume: number;
   deafened: boolean;
+  isDeafened: boolean;
   showVolume: boolean;
   onToggleVolume: () => void;
   onVolumeChange: (v: number) => void;
@@ -582,8 +584,15 @@ function RemoteUserTile({
 
       <div className="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm z-30 pointer-events-none flex items-center gap-1">
         {muted && <MicOff size={11} className="text-destructive shrink-0" />}
+        {isDeafened && <VolumeX size={11} className="text-destructive shrink-0" />}
         <span className="truncate max-w-[90px]">{displayName}</span>
       </div>
+
+      {isDeafened && (
+        <div className="absolute top-3 right-3 bg-destructive/90 p-1.5 rounded-full z-30 pointer-events-none">
+          <VolumeX size={13} className="text-white" />
+        </div>
+      )}
 
       {streaming && (
         <div className="absolute top-2 right-2 bg-emerald-500/90 rounded px-1.5 py-0.5 flex items-center gap-1 z-30 pointer-events-none">
