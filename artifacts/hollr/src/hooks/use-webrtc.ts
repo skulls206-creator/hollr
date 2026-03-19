@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { sendVoiceSignal } from './use-realtime';
 import { useAuth } from '@workspace/replit-auth-web';
+import { useAppStore } from '@/store/use-app-store';
 
 const SPEAKING_THRESHOLD = 18;       // RMS level 0-255
 const SPEAKING_DEBOUNCE_MS = 600;    // how long below threshold before stopping
 
 export function useWebRTC(channelId: string | null) {
   const { user } = useAuth();
+  const { micMuted, deafened } = useAppStore();
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
 
   // participantId -> MediaStream
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
@@ -120,7 +121,6 @@ export function useWebRTC(channelId: string | null) {
         return null;
       });
       setRemoteStreams({});
-      setIsMuted(false);
 
       stopSpeakingDetection();
       analyserRef.current = null;
@@ -144,7 +144,6 @@ export function useWebRTC(channelId: string | null) {
         });
 
         setLocalStream(stream);
-        setIsMuted(false);
 
         // Resume AudioContext if it was suspended (browser autoplay policy)
         if (ctx.state === 'suspended') await ctx.resume();
@@ -208,23 +207,28 @@ export function useWebRTC(channelId: string | null) {
     }
   };
 
-  const toggleMute = useCallback(() => {
+  // Sync store micMuted → localStream track.enabled + broadcast mute_update
+  useEffect(() => {
     if (!localStream) return;
-    const newMuted = !isMuted;
     localStream.getAudioTracks().forEach(track => {
-      track.enabled = !newMuted;
+      track.enabled = !micMuted;
     });
-    setIsMuted(newMuted);
-    // Notify others of mute state change
     if (channelIdRef.current && userIdRef.current) {
       sendVoiceSignal({
         type: 'mute_update',
         channelId: channelIdRef.current,
         userId: userIdRef.current,
-        muted: newMuted,
+        muted: micMuted,
       });
     }
-  }, [localStream, isMuted]);
+  }, [micMuted, localStream]);
+
+  // Sync store deafened → all remote gain nodes
+  useEffect(() => {
+    Object.entries(gainNodesRef.current).forEach(([peerId, gainNode]) => {
+      gainNode.gain.value = deafened ? 0 : (volumes[peerId] !== undefined ? volumes[peerId] : 1.0);
+    });
+  }, [deafened]);
 
   const startScreenShare = async () => {
     try {
@@ -253,9 +257,7 @@ export function useWebRTC(channelId: string | null) {
     screenStream,
     remoteStreams,
     volumes,
-    isMuted,
     setParticipantVolume,
-    toggleMute,
     startScreenShare,
     stopScreenShare,
   };

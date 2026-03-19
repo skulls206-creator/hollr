@@ -54,6 +54,13 @@ interface AppState {
   // Voice presence: which users are in each voice channel
   voiceChannelUsers: Record<string, VoiceChannelUser[]>;
 
+  // Local audio state (persisted across voice sessions)
+  micMuted: boolean;
+  deafened: boolean;
+
+  // Modals (additional)
+  userSettingsModalOpen: boolean;
+
   // Actions
   setActiveServer: (id: string | null) => void;
   setActiveChannel: (id: string | null) => void;
@@ -90,6 +97,13 @@ interface AppState {
   removeVoiceChannelUser: (channelId: string, userId: string) => void;
   updateVoiceChannelUser: (channelId: string, userId: string, update: Partial<Pick<VoiceChannelUser, 'muted' | 'speaking'>>) => void;
   clearVoiceChannelUsers: (channelId: string) => void;
+
+  // Local audio toggle actions
+  toggleMicMuted: () => void;
+  toggleDeafened: () => void;
+
+  // User settings modal
+  setUserSettingsModalOpen: (open: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -122,6 +136,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   voiceChannelUsers: {},
+
+  micMuted: false,
+  deafened: false,
+  userSettingsModalOpen: false,
 
   setActiveServer: (id) => set({ activeServerId: id, activeDmThreadId: null, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
   setActiveChannel: (id) => set({ activeChannelId: id, mobileSidebarOpen: false, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
@@ -204,4 +222,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     delete next[channelId];
     return { voiceChannelUsers: next };
   }),
+
+  toggleMicMuted: () => set((state) => ({ micMuted: !state.micMuted })),
+  toggleDeafened: () => set((state) => ({ deafened: !state.deafened })),
+  setUserSettingsModalOpen: (open) => set({ userSettingsModalOpen: open }),
 }));

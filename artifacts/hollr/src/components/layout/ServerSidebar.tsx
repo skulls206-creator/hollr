@@ -1,4 +1,4 @@
-import { Plus, Compass, Download, MessageSquare } from 'lucide-react';
+import { Plus, MessageSquare } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListMyServers } from '@workspace/api-client-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -86,16 +86,6 @@ export function ServerSidebar() {
         <TooltipContent side="right" className="font-semibold ml-2">Add a Server</TooltipContent>
       </Tooltip>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button className="relative group flex items-center justify-center w-12 h-12">
-            <div className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden bg-secondary text-emerald-500 rounded-[24px] group-hover:rounded-2xl group-hover:bg-emerald-500 group-hover:text-white">
-              <Compass size={24} />
-            </div>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="font-semibold ml-2">Explore Discoverable Servers</TooltipContent>
-      </Tooltip>
 
     </div>
   );

@@ -11,6 +11,7 @@ import { CreateChannelModal } from '@/components/modals/CreateChannelModal';
 import { InviteModal } from '@/components/modals/InviteModal';
 import { HelpModal } from '@/components/modals/HelpModal';
 import { ServerSettingsModal } from '@/components/modals/ServerSettingsModal';
+import { UserSettingsModal } from '@/components/modals/UserSettingsModal';
 import { ThreadSidebar } from '@/components/chat/ThreadSidebar';
 import { UserProfileCard } from '@/components/chat/UserProfileCard';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
@@ -112,6 +113,7 @@ export function Layout() {
       <InviteModal />
       <HelpModal />
       <ServerSettingsModal />
+      <UserSettingsModal />
 
       {/* User Profile Card */}
       {profileCard && (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Hash, Volume2, Plus, ChevronDown, Settings, Mic, MicOff, Headphones,
+  Hash, Volume2, Plus, ChevronDown, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
@@ -8,10 +8,12 @@ import {
   useGetServer, useListChannels, useListDmThreads,
   getGetServerQueryKey, getListChannelsQueryKey, getListDmThreadsQueryKey,
   useDeleteChannel, useUpdateChannel,
+  useGetMyProfile, useUpdateMyProfile,
 } from '@workspace/api-client-react';
 import { cn, getInitials } from '@/lib/utils';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import type { Channel } from '@workspace/api-client-react';
@@ -362,6 +364,33 @@ export function ChannelSidebar() {
   );
 }
 
+const STATUS_OPTIONS = [
+  { value: 'online',  label: 'Online',          color: 'bg-emerald-500' },
+  { value: 'idle',    label: 'Away',             color: 'bg-yellow-400' },
+  { value: 'dnd',     label: 'Do Not Disturb',   color: 'bg-red-500' },
+  { value: 'offline', label: 'Invisible',        color: 'bg-zinc-500' },
+] as const;
+
+function statusColor(status: string | undefined) {
+  switch (status) {
+    case 'online':  return 'bg-emerald-500';
+    case 'idle':    return 'bg-yellow-400';
+    case 'dnd':     return 'bg-red-500';
+    case 'offline': return 'bg-zinc-500';
+    default:        return 'bg-emerald-500';
+  }
+}
+
+function statusLabel(status: string | undefined) {
+  switch (status) {
+    case 'online':  return 'Online';
+    case 'idle':    return 'Away';
+    case 'dnd':     return 'Do Not Disturb';
+    case 'offline': return 'Invisible';
+    default:        return 'Online';
+  }
+}
+
 function UserProfilePanel({
   user,
   voiceConnection,
@@ -371,8 +400,25 @@ function UserProfilePanel({
   voiceConnection: { status: string; channelId: string | null };
   onLeaveVoice: () => void;
 }) {
+  const { micMuted, deafened, toggleMicMuted, toggleDeafened, setUserSettingsModalOpen } = useAppStore();
+  const { data: profile } = useGetMyProfile();
+  const updateProfile = useUpdateMyProfile();
+  const qcPanel = useQueryClient();
+  const [statusOpen, setStatusOpen] = useState(false);
+
   if (!user) return null;
   const inVoice = voiceConnection.status !== 'disconnected';
+  const currentStatus = profile?.status ?? 'online';
+
+  const handleStatusChange = (status: string) => {
+    updateProfile.mutate(
+      { data: { status: status as any } },
+      { onSuccess: () => qcPanel.invalidateQueries({ queryKey: ['/api/users/me'] }) },
+    );
+    setStatusOpen(false);
+  };
+
+  const displayName = user.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'You';
 
   return (
     <div className="shrink-0 bg-[#232428]">
@@ -395,33 +441,91 @@ function UserProfilePanel({
       )}
 
       <div className="h-[52px] flex items-center px-2 py-1.5 gap-2">
-        <div className="flex items-center hover:bg-white/10 rounded-md p-1 cursor-pointer transition-colors flex-1 min-w-0">
-          <div className="relative">
-            <Avatar className="h-8 w-8 rounded-full border border-border/50">
-              <AvatarImage src={user.profileImageUrl || undefined} />
-              <AvatarFallback className="bg-primary text-white text-xs">
-                {getInitials(user.displayName || user.firstName || 'U')}
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-[2.5px] border-[#232428] rounded-full" />
-          </div>
-          <div className="ml-2 flex flex-col overflow-hidden">
-            <span className="text-sm font-bold text-foreground truncate leading-tight">
-              {user.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'You'}
-            </span>
-            <span className="text-xs text-muted-foreground truncate leading-tight">
-              {inVoice ? 'In Voice' : 'Online'}
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors">
-            <Mic size={18} />
+        {/* Username area — click to pick status */}
+        <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+          <PopoverTrigger asChild>
+            <button className="flex items-center hover:bg-white/10 rounded-md p-1 cursor-pointer transition-colors flex-1 min-w-0 text-left">
+              <div className="relative shrink-0">
+                <Avatar className="h-8 w-8 rounded-full border border-border/50">
+                  <AvatarImage src={user.profileImageUrl || undefined} />
+                  <AvatarFallback className="bg-primary text-white text-xs">
+                    {getInitials(displayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className={cn(
+                  "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-[2.5px] border-[#232428] rounded-full",
+                  statusColor(inVoice ? 'online' : currentStatus)
+                )} />
+              </div>
+              <div className="ml-2 flex flex-col overflow-hidden">
+                <span className="text-sm font-bold text-foreground truncate leading-tight">
+                  {displayName}
+                </span>
+                <span className="text-xs text-muted-foreground truncate leading-tight">
+                  {inVoice ? 'In Voice' : statusLabel(currentStatus)}
+                </span>
+              </div>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            side="top"
+            align="start"
+            className="w-52 p-1.5 bg-[#111214] border-border/50"
+            sideOffset={8}
+          >
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-1 pb-1.5">
+              Set Status
+            </p>
+            {STATUS_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => handleStatusChange(opt.value)}
+                className={cn(
+                  "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10",
+                  currentStatus === opt.value && "bg-white/5 font-semibold"
+                )}
+              >
+                <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", opt.color)} />
+                <span>{opt.label}</span>
+                {currentStatus === opt.value && (
+                  <Check size={13} className="ml-auto text-primary" />
+                )}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={toggleMicMuted}
+            title={micMuted ? 'Unmute microphone' : 'Mute microphone'}
+            className={cn(
+              "p-1.5 rounded-md transition-colors",
+              micMuted
+                ? "text-destructive hover:bg-destructive/10"
+                : "text-muted-foreground hover:text-foreground hover:bg-white/10"
+            )}
+          >
+            {micMuted ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
-          <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors">
-            <Headphones size={18} />
+          <button
+            onClick={toggleDeafened}
+            title={deafened ? 'Undeafen' : 'Deafen (mute all audio)'}
+            className={cn(
+              "p-1.5 rounded-md transition-colors",
+              deafened
+                ? "text-destructive hover:bg-destructive/10"
+                : "text-muted-foreground hover:text-foreground hover:bg-white/10"
+            )}
+          >
+            {deafened ? <VolumeX size={18} /> : <Headphones size={18} />}
           </button>
-          <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors">
+          <button
+            onClick={() => setUserSettingsModalOpen(true)}
+            title="User Settings"
+            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
+          >
             <Settings size={18} />
           </button>
         </div>
