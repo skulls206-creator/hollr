@@ -69,6 +69,12 @@ interface AppState {
   micMuted: boolean;
   deafened: boolean;
 
+  // Audio device preferences (persisted)
+  audioInputDeviceId: string | null;
+  audioOutputDeviceId: string | null;
+  setAudioInputDeviceId: (id: string | null) => void;
+  setAudioOutputDeviceId: (id: string | null) => void;
+
   // Modals (additional)
   userSettingsModalOpen: boolean;
 
@@ -163,6 +169,10 @@ export const useAppStore = create<AppState>()(
 
   micMuted: false,
   deafened: false,
+  audioInputDeviceId: null,
+  audioOutputDeviceId: null,
+  setAudioInputDeviceId: (id) => set({ audioInputDeviceId: id }),
+  setAudioOutputDeviceId: (id) => set({ audioOutputDeviceId: id }),
   userSettingsModalOpen: false,
 
   setActiveServer: (id) => set({ activeServerId: id, activeDmThreadId: null, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
@@ -261,6 +271,8 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         activeServerId: state.activeServerId,
         activeChannelId: state.activeChannelId,
+        audioInputDeviceId: state.audioInputDeviceId,
+        audioOutputDeviceId: state.audioOutputDeviceId,
       }),
     }
   )

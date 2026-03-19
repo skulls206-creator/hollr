@@ -16,7 +16,7 @@ export function useWebRTC(
   profileData?: { displayName?: string | null; avatarUrl?: string | null },
 ) {
   const { user } = useAuth();
-  const { micMuted, deafened } = useAppStore();
+  const { micMuted, deafened, audioInputDeviceId } = useAppStore();
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -260,10 +260,13 @@ export function useWebRTC(
 
     const initLocalMedia = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true },
-          video: false,
-        });
+        const audioConstraints: MediaTrackConstraints = {
+          noiseSuppression: true,
+          echoCancellation: true,
+          autoGainControl: true,
+        };
+        if (audioInputDeviceId) audioConstraints.deviceId = { exact: audioInputDeviceId };
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
         stream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
         setLocalStream(stream);
         localStreamRef.current = stream;

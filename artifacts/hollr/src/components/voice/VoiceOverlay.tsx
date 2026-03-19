@@ -22,6 +22,7 @@ export function VoiceOverlay() {
     memberListOpen, mobileSidebarOpen, pinnedPanelOpen,
     voiceMinimized, setVoiceMinimized,
     setVoicePanelHeight,
+    audioOutputDeviceId,
   } = useAppStore();
   const { data: profile } = useGetMyProfile({ query: { enabled: !!user } });
   const {
@@ -348,6 +349,7 @@ export function VoiceOverlay() {
                 volume={volumes[u.userId] ?? 1}
                 deafened={deafened}
                 isDeafened={u.deafened ?? false}
+                outputDeviceId={audioOutputDeviceId}
                 showVolume={showVolumeFor === u.userId}
                 onToggleVolume={() => setShowVolumeFor(showVolumeFor === u.userId ? null : u.userId)}
                 onVolumeChange={(v) => setParticipantVolume(u.userId, v)}
@@ -486,7 +488,7 @@ function LocalUserTile({
 
 function RemoteUserTile({
   displayName, avatarUrl, muted, speaking, streaming, stream, videoStream,
-  volume, deafened, isDeafened, showVolume, onToggleVolume, onVolumeChange, onWatch,
+  volume, deafened, isDeafened, outputDeviceId, showVolume, onToggleVolume, onVolumeChange, onWatch,
 }: {
   peerId: string;
   displayName: string;
@@ -499,6 +501,7 @@ function RemoteUserTile({
   volume: number;
   deafened: boolean;
   isDeafened: boolean;
+  outputDeviceId: string | null;
   showVolume: boolean;
   onToggleVolume: () => void;
   onVolumeChange: (v: number) => void;
@@ -532,6 +535,17 @@ function RemoteUserTile({
       el.play().catch(() => {});
     }
   }, [volume, deafened]);
+
+  // Apply output device (speaker) via setSinkId — supported in Chrome/Edge
+  useEffect(() => {
+    const el = audioRef.current as any;
+    if (!el || !outputDeviceId) return;
+    if (typeof el.setSinkId === 'function') {
+      el.setSinkId(outputDeviceId).catch((err: unknown) => {
+        console.warn('[Audio] setSinkId failed:', err);
+      });
+    }
+  }, [outputDeviceId]);
 
   // Auto-restart if browser silences the element unexpectedly
   useEffect(() => {

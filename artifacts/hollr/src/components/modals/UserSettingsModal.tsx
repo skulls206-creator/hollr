@@ -8,20 +8,73 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 
+type Tab = 'profile' | 'audio';
+
+interface AudioDevice {
+  deviceId: string;
+  label: string;
+}
+
+function DeviceSelect({
+  label,
+  icon,
+  devices,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  devices: AudioDevice[];
+  value: string | null;
+  onChange: (id: string | null) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+        {icon}
+        {label}
+      </Label>
+      <select
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value || null)}
+        className="w-full rounded-md bg-[#1E1F22] border border-border/50 text-sm text-foreground px-3 py-2 focus:outline-none focus:border-primary appearance-none"
+      >
+        <option value="">{placeholder}</option>
+        {devices.map(d => (
+          <option key={d.deviceId} value={d.deviceId}>
+            {d.label || `Device ${d.deviceId.slice(0, 8)}`}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export function UserSettingsModal() {
-  const { userSettingsModalOpen, setUserSettingsModalOpen, voiceConnection } = useAppStore();
+  const {
+    userSettingsModalOpen, setUserSettingsModalOpen, voiceConnection,
+    audioInputDeviceId, audioOutputDeviceId,
+    setAudioInputDeviceId, setAudioOutputDeviceId,
+  } = useAppStore();
   const { user, logout } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
   const updateProfile = useUpdateMyProfile();
   const qc = useQueryClient();
 
+  const [tab, setTab] = useState<Tab>('profile');
   const [displayName, setDisplayName] = useState('');
   const [customStatus, setCustomStatus] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+
+  const [inputDevices, setInputDevices] = useState<AudioDevice[]>([]);
+  const [outputDevices, setOutputDevices] = useState<AudioDevice[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -30,6 +83,24 @@ export function UserSettingsModal() {
       setAvatarUrl(profile.avatarUrl ?? '');
     }
   }, [profile]);
+
+  // Enumerate audio devices when the Audio tab is opened
+  useEffect(() => {
+    if (!userSettingsModalOpen || tab !== 'audio') return;
+    setDevicesLoading(true);
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then(devs => {
+        setInputDevices(
+          devs.filter(d => d.kind === 'audioinput').map(d => ({ deviceId: d.deviceId, label: d.label }))
+        );
+        setOutputDevices(
+          devs.filter(d => d.kind === 'audiooutput').map(d => ({ deviceId: d.deviceId, label: d.label }))
+        );
+      })
+      .catch(() => {})
+      .finally(() => setDevicesLoading(false));
+  }, [userSettingsModalOpen, tab]);
 
   const handleSave = () => {
     const newDisplayName = displayName.trim() || undefined;
@@ -64,59 +135,134 @@ export function UserSettingsModal() {
     ? getInitials([user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || '?')
     : '?';
 
+  const TAB_BTN = (t: Tab, icon: React.ReactNode, label: string) => (
+    <button
+      onClick={() => setTab(t)}
+      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+        tab === t
+          ? 'bg-primary/20 text-primary'
+          : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+
   return (
     <Dialog open={userSettingsModalOpen} onOpenChange={setUserSettingsModalOpen}>
-      <DialogContent className="max-w-md bg-[#2B2D31] border-border/50">
+      <DialogContent className="max-w-lg w-[calc(100vw-2rem)] bg-[#2B2D31] border-border/50 overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">User Settings</DialogTitle>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 size={24} className="animate-spin text-muted-foreground" />
-          </div>
-        ) : (
+        {/* Tab bar */}
+        <div className="flex gap-1 border-b border-border/30 pb-2 -mt-1">
+          {TAB_BTN('profile', <User size={14} />, 'Profile')}
+          {TAB_BTN('audio', <Headphones size={14} />, 'Voice & Audio')}
+        </div>
+
+        {/* Profile tab */}
+        {tab === 'profile' && (
+          isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={24} className="animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-5">
+              <ImageCropUploader
+                current={avatarUrl}
+                shape="circle"
+                onComplete={(url) => setAvatarUrl(url)}
+                placeholder={<span className="text-white text-2xl font-bold">{displayNameFallback}</span>}
+              />
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="displayName" className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Display Name</Label>
+                <Input
+                  id="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Your display name"
+                  className="bg-[#1E1F22] border-border/50 focus:border-primary"
+                  maxLength={80}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="customStatus" className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Custom Status</Label>
+                <Input
+                  id="customStatus"
+                  value={customStatus}
+                  onChange={(e) => setCustomStatus(e.target.value)}
+                  placeholder="Set a custom status…"
+                  className="bg-[#1E1F22] border-border/50 focus:border-primary"
+                  maxLength={128}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" onClick={() => setUserSettingsModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} disabled={updateProfile.isPending}>
+                  {updateProfile.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
+                  Save Changes
+                </Button>
+              </div>
+
+              <div className="h-[1px] bg-border/30" />
+
+              <Button
+                variant="ghost"
+                className="w-full justify-center gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={logout}
+              >
+                <LogOut size={16} />
+                Sign Out
+              </Button>
+            </div>
+          )
+        )}
+
+        {/* Audio tab */}
+        {tab === 'audio' && (
           <div className="flex flex-col gap-5">
-            <ImageCropUploader
-              current={avatarUrl}
-              shape="circle"
-              onComplete={(url) => setAvatarUrl(url)}
-              placeholder={<span className="text-white text-2xl font-bold">{displayNameFallback}</span>}
-            />
+            {devicesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={20} className="animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <DeviceSelect
+                  label="Microphone (Input)"
+                  icon={<Mic size={12} />}
+                  devices={inputDevices}
+                  value={audioInputDeviceId}
+                  onChange={setAudioInputDeviceId}
+                  placeholder="System Default"
+                />
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="displayName" className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Display Name</Label>
-              <Input
-                id="displayName"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Your display name"
-                className="bg-[#1E1F22] border-border/50 focus:border-primary"
-                maxLength={80}
-              />
-            </div>
+                <DeviceSelect
+                  label="Speaker / Headset (Output)"
+                  icon={<Volume2 size={12} />}
+                  devices={outputDevices}
+                  value={audioOutputDeviceId}
+                  onChange={setAudioOutputDeviceId}
+                  placeholder="System Default"
+                />
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="customStatus" className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Custom Status</Label>
-              <Input
-                id="customStatus"
-                value={customStatus}
-                onChange={(e) => setCustomStatus(e.target.value)}
-                placeholder="Set a custom status…"
-                className="bg-[#1E1F22] border-border/50 focus:border-primary"
-                maxLength={128}
-              />
-            </div>
+                <p className="text-xs text-muted-foreground bg-[#1E1F22] rounded-lg px-3 py-2.5 leading-relaxed">
+                  Changes apply immediately to new voice connections. If you're currently in a voice channel, rejoin to switch your microphone. Speaker changes apply in real-time.
+                </p>
 
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={() => setUserSettingsModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={updateProfile.isPending}>
-                {updateProfile.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
-                Save Changes
-              </Button>
-            </div>
+                {outputDevices.length === 0 && inputDevices.length === 0 && (
+                  <p className="text-xs text-yellow-400/80 bg-yellow-500/10 rounded-lg px-3 py-2.5">
+                    No devices found. Grant microphone permission to see your audio devices.
+                  </p>
+                )}
+              </>
+            )}
 
             <div className="h-[1px] bg-border/30" />
 
