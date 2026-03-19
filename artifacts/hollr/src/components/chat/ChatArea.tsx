@@ -26,6 +26,7 @@ export function ChatArea() {
     toggleMemberList, toggleMobileSidebar, togglePinnedPanel, pinnedPanelOpen,
     isChannelMuted, toggleMuteChannel,
     setHelpModalOpen,
+    voicePanelHeight,
   } = useAppStore();
 
   const { data: channels = [] } = useListChannels(activeServerId || '', {
@@ -246,6 +247,11 @@ export function ChatArea() {
 
         {/* Composer */}
         <MessageComposer channelId={channel.id} />
+
+        {/* Spacer so voice panel doesn't cover the composer — height matches the overlay exactly */}
+        {voicePanelHeight > 0 && (
+          <div style={{ height: voicePanelHeight }} className="shrink-0" />
+        )}
       </div>
 
       {/* Pinned Messages Panel */}

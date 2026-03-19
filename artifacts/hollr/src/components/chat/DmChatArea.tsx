@@ -14,7 +14,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
 }) {
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
-  const { toggleMobileSidebar } = useAppStore();
+  const { toggleMobileSidebar, voicePanelHeight } = useAppStore();
   const { toast } = useToast();
   const [content, setContent] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -158,6 +158,11 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
           </button>
         </div>
       </div>
+
+      {/* Spacer so voice panel doesn't cover the composer */}
+      {voicePanelHeight > 0 && (
+        <div style={{ height: voicePanelHeight }} className="shrink-0" />
+      )}
     </div>
   );
 }

@@ -18,7 +18,8 @@ export function VoiceOverlay() {
   const {
     voiceConnection, setVoiceConnection, voiceChannelUsers,
     micMuted, deafened, toggleMicMuted, toggleDeafened,
-    memberListOpen,
+    memberListOpen, voiceMinimized, setVoiceMinimized,
+    setVoicePanelHeight,
   } = useAppStore();
   const { data: profile } = useGetMyProfile({ query: { enabled: !!user } });
   const {
@@ -28,8 +29,26 @@ export function VoiceOverlay() {
 
   const [showVolumeFor, setShowVolumeFor] = useState<string | null>(null);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
-  const [minimized, setMinimized] = useState(false);
   const [watchingUserId, setWatchingUserId] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Measure expanded panel height so ChatArea can add matching spacer
+  useEffect(() => {
+    if (voiceMinimized || voiceConnection.status === 'disconnected') {
+      setVoicePanelHeight(0);
+      return;
+    }
+    const el = panelRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setVoicePanelHeight(entry.contentRect.height);
+      }
+    });
+    ro.observe(el);
+    setVoicePanelHeight(el.offsetHeight);
+    return () => ro.disconnect();
+  }, [voiceMinimized, voiceConnection.status, setVoicePanelHeight]);
 
   const channelUsers = voiceConnection.channelId
     ? (voiceChannelUsers[voiceConnection.channelId] ?? [])
@@ -68,7 +87,7 @@ export function VoiceOverlay() {
   };
 
   // --- Minimized pill ---
-  if (minimized) {
+  if (voiceMinimized) {
     return (
       <AnimatePresence>
         <motion.div
@@ -123,7 +142,7 @@ export function VoiceOverlay() {
           <div className="w-px h-5 bg-border/50 mx-1" />
 
           <button
-            onClick={() => setMinimized(false)}
+            onClick={() => setVoiceMinimized(false)}
             title="Expand"
             className="w-7 h-7 rounded-full flex items-center justify-center bg-[#2B2D31] text-foreground hover:bg-[#383A40] transition-colors"
           >
@@ -262,8 +281,9 @@ export function VoiceOverlay() {
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="absolute bottom-[96px] left-[320px] bg-[#000000]/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
+        className="absolute bottom-0 left-[320px] bg-[#000000]/90 backdrop-blur-md rounded-t-2xl border-t border-x border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
         style={{ right: memberListOpen ? 256 : 32 }}
+        ref={panelRef}
       >
         {/* Title bar with minimize */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-border/20 shrink-0">
@@ -271,7 +291,7 @@ export function VoiceOverlay() {
             Voice · {channelUsers.length} connected
           </span>
           <button
-            onClick={() => setMinimized(true)}
+            onClick={() => setVoiceMinimized(true)}
             title="Minimize"
             className="w-7 h-7 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/15 transition-colors text-muted-foreground hover:text-foreground"
           >

@@ -56,6 +56,14 @@ interface AppState {
   // Voice presence: which users are in each voice channel
   voiceChannelUsers: Record<string, VoiceChannelUser[]>;
 
+  // Voice overlay minimized state (shared so ChatArea can add layout space)
+  voiceMinimized: boolean;
+  setVoiceMinimized: (v: boolean) => void;
+
+  // Height of the expanded voice panel (px) — measured by ResizeObserver; 0 when hidden
+  voicePanelHeight: number;
+  setVoicePanelHeight: (h: number) => void;
+
   // Local audio state (persisted across voice sessions)
   micMuted: boolean;
   deafened: boolean;
@@ -145,6 +153,12 @@ export const useAppStore = create<AppState>()(
   },
 
   voiceChannelUsers: {},
+
+  voiceMinimized: false,
+  setVoiceMinimized: (v) => set({ voiceMinimized: v }),
+
+  voicePanelHeight: 0,
+  setVoicePanelHeight: (h) => set({ voicePanelHeight: h }),
 
   micMuted: false,
   deafened: false,
