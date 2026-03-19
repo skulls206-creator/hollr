@@ -59,6 +59,16 @@ export function initWebSocket(server: Server) {
             if (userId) {
               userSockets.set(userId, ws);
               socketUsers.set(ws, userId);
+
+              // Send a full snapshot of all occupied voice rooms so the client
+              // can display presence immediately without having joined any channel
+              const rooms: { channelId: string; users: VoiceParticipant[] }[] = [];
+              for (const [channelId, room] of voiceRooms) {
+                if (room.size > 0) {
+                  rooms.push({ channelId, users: Array.from(room.values()) });
+                }
+              }
+              ws.send(JSON.stringify({ type: "VOICE_ROOMS_SNAPSHOT", payload: { rooms } }));
             }
             break;
           }

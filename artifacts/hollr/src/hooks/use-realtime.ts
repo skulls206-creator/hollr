@@ -36,6 +36,7 @@ type WsEvent =
   | { type: 'MESSAGE_DELETE'; payload: { id: string; channelId?: string; dmThreadId?: string } }
   | { type: 'THREAD_REPLY_CREATE'; payload: { reply: Message; parentMessageId: string } }
   | { type: 'VOICE_SIGNAL'; payload: any }
+  | { type: 'VOICE_ROOMS_SNAPSHOT'; payload: { rooms: { channelId: string; users: any[] }[] } }
   | { type: 'VOICE_ROOM_STATE'; payload: { channelId: string; users: any[] } }
   | { type: 'VOICE_USER_JOINED'; payload: { channelId: string; user: any } }
   | { type: 'VOICE_USER_LEFT'; payload: { channelId: string; userId: string } }
@@ -154,6 +155,14 @@ export function useRealtime(userId?: string) {
           case 'VOICE_SIGNAL': {
             // Dispatch to WebRTC hook listener
             if (_onVoiceSignal) _onVoiceSignal(data.payload);
+            break;
+          }
+
+          case 'VOICE_ROOMS_SNAPSHOT': {
+            // Seed all occupied voice rooms on connect — visible before ever joining
+            for (const room of data.payload.rooms) {
+              setVoiceRoomState(room.channelId, room.users);
+            }
             break;
           }
 
