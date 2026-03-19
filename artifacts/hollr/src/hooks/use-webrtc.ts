@@ -27,8 +27,13 @@ export function useWebRTC(
 
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  // Per-peer flag to prevent concurrent onnegotiationneeded races
+  const makingOfferRef = useRef<Record<string, boolean>>({});
+  // Per-peer senders added for screen share (so we can removeTrack on stop)
+  const screenSendersRef = useRef<Map<string, RTCRtpSender[]>>(new Map());
 
   const analyserRef = useRef<AnalyserNode | null>(null);
   const speakingRef = useRef(false);
@@ -110,6 +115,16 @@ export function useWebRTC(
       });
     }
 
+    // Add screen share tracks if sharing is already active
+    if (screenStreamRef.current) {
+      const s = screenStreamRef.current;
+      s.getTracks().forEach(track => {
+        const sender = peer.addTrack(track, s);
+        if (!screenSendersRef.current.has(peerId)) screenSendersRef.current.set(peerId, []);
+        screenSendersRef.current.get(peerId)!.push(sender);
+      });
+    }
+
     // Add local camera tracks if camera is active
     if (cameraStreamRef.current) {
       cameraStreamRef.current.getTracks().forEach(track => {
@@ -165,18 +180,34 @@ export function useWebRTC(
     };
 
     peer.onnegotiationneeded = async () => {
+      // Guard: skip if we're already in the middle of making an offer for this peer
+      if (makingOfferRef.current[peerId]) {
+        console.log(`[WebRTC] onnegotiationneeded skipped (already making offer) for ${peerId}`);
+        return;
+      }
+      makingOfferRef.current[peerId] = true;
       try {
+        // Only negotiate from a stable state
+        if (peer.signalingState !== 'stable') {
+          console.log(`[WebRTC] onnegotiationneeded skipped (signalingState=${peer.signalingState}) for ${peerId}`);
+          return;
+        }
         const offer = await peer.createOffer();
+        // Re-check state after async createOffer — it might have changed
+        if (peer.signalingState !== 'stable') return;
         await peer.setLocalDescription(offer);
         sendVoiceSignal({
           type: 'offer',
           channelId: channelIdRef.current,
           userId: userIdRef.current,
           targetId: peerId,
-          sdp: offer,
+          sdp: peer.localDescription,
         });
+        console.log(`[WebRTC] Sent renegotiation offer to ${peerId}`);
       } catch (err) {
         console.error('[WebRTC] onnegotiationneeded failed:', err);
+      } finally {
+        makingOfferRef.current[peerId] = false;
       }
     };
 
@@ -248,7 +279,11 @@ export function useWebRTC(
       peersRef.current = {};
 
       setLocalStream(prev => { prev?.getTracks().forEach(t => t.stop()); localStreamRef.current = null; return null; });
-      setScreenStream(prev => { prev?.getTracks().forEach(t => t.stop()); return null; });
+      // Use ref to avoid stale closure
+      if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(t => t.stop()); screenStreamRef.current = null; }
+      setScreenStream(null);
+      screenSendersRef.current.clear();
+      makingOfferRef.current = {};
       setCameraStream(prev => { prev?.getTracks().forEach(t => t.stop()); cameraStreamRef.current = null; return null; });
       setRemoteStreams({});
       setRemoteVideoStreams({});
@@ -362,7 +397,38 @@ export function useWebRTC(
     return () => clearInterval(id);
   }, []);
 
+  const stopScreenShare = useCallback(() => {
+    const stream = screenStreamRef.current;
+    if (!stream) return;
+
+    // Stop all tracks
+    stream.getTracks().forEach(t => t.stop());
+    screenStreamRef.current = null;
+    setScreenStream(null);
+
+    // Remove screen share senders from every peer → triggers renegotiation on remote
+    screenSendersRef.current.forEach((senders, peerId) => {
+      const peer = peersRef.current[peerId];
+      if (peer && peer.connectionState !== 'closed') {
+        senders.forEach(sender => {
+          try { peer.removeTrack(sender); } catch (e) {
+            console.warn('[WebRTC] removeTrack failed for', peerId, e);
+          }
+        });
+      }
+    });
+    screenSendersRef.current.clear();
+
+    if (channelIdRef.current && userIdRef.current) {
+      sendVoiceSignal({ type: 'screen_share_stop', channelId: channelIdRef.current, userId: userIdRef.current });
+    }
+    console.log('[WebRTC] Screen share stopped');
+  }, []);
+
   const startScreenShare = async (displaySurface?: 'monitor' | 'window' | 'browser') => {
+    // Stop any previous share first
+    if (screenStreamRef.current) stopScreenShare();
+
     try {
       const videoConstraints: MediaTrackConstraints & { displaySurface?: string } = {};
       if (displaySurface) videoConstraints.displaySurface = displaySurface;
@@ -370,29 +436,32 @@ export function useWebRTC(
         video: Object.keys(videoConstraints).length ? videoConstraints : true,
         audio: true,
       });
+
+      screenStreamRef.current = stream;
       setScreenStream(stream);
 
+      // Add every track to every peer, tracking the returned RTCRtpSender
       stream.getTracks().forEach(track => {
-        Object.values(peersRef.current).forEach(peer => {
-          peer.addTrack(track, stream);
+        Object.entries(peersRef.current).forEach(([peerId, peer]) => {
+          if (peer.connectionState === 'closed') return;
+          const sender = peer.addTrack(track, stream);
+          if (!screenSendersRef.current.has(peerId)) {
+            screenSendersRef.current.set(peerId, []);
+          }
+          screenSendersRef.current.get(peerId)!.push(sender);
         });
+        // Use the ref-based stopScreenShare so the closure is always fresh
         track.onended = () => stopScreenShare();
       });
 
       if (channelIdRef.current && userIdRef.current) {
         sendVoiceSignal({ type: 'screen_share_start', channelId: channelIdRef.current, userId: userIdRef.current });
       }
-    } catch (err) {
-      console.error('[WebRTC] Failed to share screen:', err);
-    }
-  };
-
-  const stopScreenShare = () => {
-    if (screenStream) {
-      screenStream.getTracks().forEach(t => t.stop());
-      setScreenStream(null);
-      if (channelIdRef.current && userIdRef.current) {
-        sendVoiceSignal({ type: 'screen_share_stop', channelId: channelIdRef.current, userId: userIdRef.current });
+      console.log('[WebRTC] Screen share started, peers notified');
+    } catch (err: any) {
+      // User cancelled the picker — not a real error
+      if (err?.name !== 'NotAllowedError') {
+        console.error('[WebRTC] Failed to share screen:', err);
       }
     }
   };
