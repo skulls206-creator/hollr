@@ -446,6 +446,7 @@ function UserProfilePanel({
   onLeaveVoice: () => void;
 }) {
   const { micMuted, deafened, toggleMicMuted, toggleDeafened, setUserSettingsModalOpen } = useAppStore();
+  const { logout } = useAuth();
   const { data: profile } = useGetMyProfile();
   const updateProfile = useUpdateMyProfile();
   const qcPanel = useQueryClient();
@@ -581,6 +582,13 @@ function UserProfilePanel({
             className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
           >
             <Settings size={18} />
+          </button>
+          <button
+            onClick={logout}
+            title="Sign Out"
+            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+          >
+            <LogOut size={18} />
           </button>
         </div>
       </div>
