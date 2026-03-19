@@ -23,6 +23,7 @@ export function useWebRTC(
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [remoteVideoStreams, setRemoteVideoStreams] = useState<Record<string, MediaStream>>({});
   const [volumes, setVolumes] = useState<Record<string, number>>({});
+  const [connectionTypes, setConnectionTypes] = useState<Record<string, 'lan' | 'stun' | 'relay' | 'connecting'>>({});
 
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -300,12 +301,65 @@ export function useWebRTC(
     }
   }, [micMuted, localStream]);
 
-  // Sync deafened state to all peers
+  // Sync deafened state to all peers — only when connected
   useEffect(() => {
-    if (channelIdRef.current && userIdRef.current) {
+    if (channelIdRef.current && userIdRef.current && localStream) {
       sendVoiceSignal({ type: 'deafen_update', channelId: channelIdRef.current, userId: userIdRef.current, deafened });
     }
-  }, [deafened]);
+  }, [deafened, localStream]);
+
+  // Poll ICE stats to determine connection path per peer (LAN / STUN / TURN)
+  useEffect(() => {
+    const poll = async () => {
+      const updates: Record<string, 'lan' | 'stun' | 'relay' | 'connecting'> = {};
+      for (const [peerId, peer] of Object.entries(peersRef.current)) {
+        if (peer.connectionState === 'closed') continue;
+        try {
+          const stats = await peer.getStats();
+          // Find the active transport's selected candidate pair
+          let selectedPairId: string | null = null;
+          stats.forEach((r: any) => {
+            if (r.type === 'transport' && r.selectedCandidatePairId) {
+              selectedPairId = r.selectedCandidatePairId;
+            }
+          });
+
+          if (!selectedPairId) { updates[peerId] = 'connecting'; continue; }
+
+          let localType: string | null = null;
+          let remoteType: string | null = null;
+          let pairFound = false;
+
+          stats.forEach((r: any) => {
+            if (r.type === 'candidate-pair' && r.id === selectedPairId) {
+              pairFound = true;
+              stats.forEach((c: any) => {
+                if (c.id === r.localCandidateId)  localType  = c.candidateType;
+                if (c.id === r.remoteCandidateId) remoteType = c.candidateType;
+              });
+            }
+          });
+
+          if (!pairFound) { updates[peerId] = 'connecting'; continue; }
+
+          if (localType === 'relay' || remoteType === 'relay') {
+            updates[peerId] = 'relay';
+          } else if (localType === 'host' && remoteType === 'host') {
+            updates[peerId] = 'lan';
+          } else {
+            updates[peerId] = 'stun';
+          }
+        } catch {
+          updates[peerId] = 'connecting';
+        }
+      }
+      if (Object.keys(updates).length > 0) setConnectionTypes(prev => ({ ...prev, ...updates }));
+    };
+
+    poll(); // run once immediately
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  }, []);
 
   const startScreenShare = async (displaySurface?: 'monitor' | 'window' | 'browser') => {
     try {
@@ -350,6 +404,7 @@ export function useWebRTC(
     remoteStreams,
     remoteVideoStreams,
     volumes,
+    connectionTypes,
     setParticipantVolume,
     startScreenShare,
     stopScreenShare,

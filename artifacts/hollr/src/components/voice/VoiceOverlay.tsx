@@ -5,7 +5,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 import {
   Mic, MicOff, Headphones, VolumeX, MonitorUp, PhoneOff,
   Monitor, AppWindow, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Radio,
-  MessageSquare, AtSign, Volume2, Loader2,
+  MessageSquare, AtSign, Volume2, Loader2, Wifi, Globe, Server,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -29,7 +29,7 @@ export function VoiceOverlay() {
   } = useAppStore();
   const { data: profile } = useGetMyProfile({ query: { enabled: !!user } });
   const {
-    localStream, remoteStreams, remoteVideoStreams, volumes,
+    localStream, remoteStreams, remoteVideoStreams, volumes, connectionTypes,
     setParticipantVolume, startScreenShare, stopScreenShare, screenStream,
   } = useWebRTC(voiceConnection.channelId, { displayName: profile?.displayName, avatarUrl: profile?.avatarUrl });
 
@@ -353,6 +353,7 @@ export function VoiceOverlay() {
                 deafened={deafened}
                 isDeafened={u.deafened ?? false}
                 outputDeviceId={audioOutputDeviceId}
+                connectionType={connectionTypes[u.userId] ?? null}
                 onOpenProfile={(x, y) => setVoiceCard({ userId: u.userId, x, y })}
                 onVolumeChange={(v) => setParticipantVolume(u.userId, v)}
                 onWatch={() => setWatchingUserId(u.userId)}
@@ -500,9 +501,38 @@ function LocalUserTile({
   );
 }
 
+function ConnectionBadge({ type }: { type: 'lan' | 'stun' | 'relay' | 'connecting' | null }) {
+  if (!type || type === 'connecting') return null;
+
+  const configs = {
+    lan:   { icon: Wifi,   label: 'LAN',   cls: 'bg-emerald-500/90 text-white' },
+    stun:  { icon: Globe,  label: 'P2P',   cls: 'bg-blue-500/90 text-white'    },
+    relay: { icon: Server, label: 'Relay', cls: 'bg-amber-500/90 text-white'   },
+  } as const;
+
+  const { icon: Icon, label, cls } = configs[type];
+
+  return (
+    <div
+      title={
+        type === 'lan'   ? 'Connected via local network (LAN)' :
+        type === 'stun'  ? 'Connected via direct internet (P2P)' :
+        'Connected via relay server (TURN)'
+      }
+      className={cn(
+        'absolute bottom-3 right-3 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold z-30 pointer-events-none',
+        cls,
+      )}
+    >
+      <Icon size={9} />
+      {label}
+    </div>
+  );
+}
+
 function RemoteUserTile({
   displayName, avatarUrl, muted, speaking, streaming, stream, videoStream,
-  volume, deafened, isDeafened, outputDeviceId, onOpenProfile, onVolumeChange, onWatch,
+  volume, deafened, isDeafened, outputDeviceId, connectionType, onOpenProfile, onVolumeChange, onWatch,
 }: {
   peerId: string;
   displayName: string;
@@ -516,6 +546,7 @@ function RemoteUserTile({
   deafened: boolean;
   isDeafened: boolean;
   outputDeviceId: string | null;
+  connectionType: 'lan' | 'stun' | 'relay' | 'connecting' | null;
   onOpenProfile: (x: number, y: number) => void;
   onVolumeChange: (v: number) => void;
   onWatch: () => void;
@@ -609,16 +640,6 @@ function RemoteUserTile({
     el.srcObject = stream ?? null;
   }, [stream]);
 
-  // No-op pause handler needed since audio plays via AudioContext, not the element
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    const onPause = () => {
-      // nothing — playback is via AudioContext
-    };
-    el.addEventListener('pause', onPause);
-    return () => el.removeEventListener('pause', onPause);
-  }, [stream, deafened]);
 
   return (
     <div className={cn(
@@ -677,6 +698,8 @@ function RemoteUserTile({
           <span className="text-[10px] text-white font-bold">LIVE</span>
         </div>
       )}
+
+      <ConnectionBadge type={connectionType} />
 
     </div>
   );
