@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface ProfileCardState {
   userId: string;
@@ -107,7 +108,9 @@ interface AppState {
   setUserSettingsModalOpen: (open: boolean) => void;
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
   activeServerId: null,
   activeChannelId: null,
   activeDmThreadId: null,
@@ -227,4 +230,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleMicMuted: () => set((state) => ({ micMuted: !state.micMuted })),
   toggleDeafened: () => set((state) => ({ deafened: !state.deafened })),
   setUserSettingsModalOpen: (open) => set({ userSettingsModalOpen: open }),
-}));
+    }),
+    {
+      name: 'hollr-nav',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        activeServerId: state.activeServerId,
+        activeChannelId: state.activeChannelId,
+      }),
+    }
+  )
+);
