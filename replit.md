@@ -94,7 +94,7 @@ pnpm --filter @workspace/db push
 - **User Profile Card**: Click avatar/username → floating profile card (no blocking overlay); Escape to close
 - **DMs**: Open direct message threads with any server member
 - **Voice/Video**: WebRTC mesh with per-participant volume control (0–200%); real-time user presence in sidebar; speaking detection via AnalyserNode; LIVE badge for any connected user
-- **Screen Share**: `getDisplayMedia` with track renegotiation
+- **Screen Share**: Dropdown in VoiceOverlay to choose Entire Screen / Application Window / Browser Tab; `getDisplayMedia` with `displaySurface` hint + track renegotiation
 - **File Upload**: Direct-to-GCS presigned URL flow, 100MB limit, progress bar
 - **Mobile**: Responsive layout with slide-in sidebar
 - **Presence**: Online/idle/dnd/offline status indicators

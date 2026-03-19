@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { useWebRTC } from '@/hooks/use-webrtc';
 import { useAuth } from '@workspace/replit-auth-web';
-import { Mic, MicOff, Headphones, VolumeX, MonitorUp, PhoneOff } from 'lucide-react';
+import { Mic, MicOff, Headphones, VolumeX, MonitorUp, PhoneOff, Monitor, AppWindow, ChevronDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Slider } from '@/components/ui/slider';
 import { cn, getInitials } from '@/lib/utils';
@@ -20,6 +21,7 @@ export function VoiceOverlay() {
   } = useWebRTC(voiceConnection.channelId);
 
   const [showVolumeFor, setShowVolumeFor] = useState<string | null>(null);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
 
   const channelUsers = voiceConnection.channelId
     ? (voiceChannelUsers[voiceConnection.channelId] ?? [])
@@ -40,9 +42,9 @@ export function VoiceOverlay() {
     setVoiceConnection({ status: 'disconnected', channelId: null, serverId: null });
   };
 
-  const handleScreenShare = () => {
-    if (screenStream) stopScreenShare();
-    else startScreenShare();
+  const handleShare = (surface: 'monitor' | 'window' | 'browser') => {
+    setShareMenuOpen(false);
+    startScreenShare(surface);
   };
 
   return (
@@ -114,16 +116,60 @@ export function VoiceOverlay() {
             {deafened ? <VolumeX size={22} /> : <Headphones size={22} />}
           </button>
 
-          <button
-            onClick={handleScreenShare}
-            title={screenStream ? 'Stop sharing' : 'Share screen'}
-            className={cn(
-              "w-12 h-12 rounded-full flex items-center justify-center transition-colors",
-              screenStream ? "bg-emerald-500 text-white" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]"
-            )}
-          >
-            <MonitorUp size={22} />
-          </button>
+          {screenStream ? (
+            <button
+              onClick={stopScreenShare}
+              title="Stop sharing"
+              className="w-12 h-12 rounded-full flex items-center justify-center transition-colors bg-emerald-500 text-white hover:bg-emerald-600"
+            >
+              <MonitorUp size={22} />
+            </button>
+          ) : (
+            <Popover open={shareMenuOpen} onOpenChange={setShareMenuOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  title="Share Screen"
+                  className="h-12 px-3 rounded-full flex items-center gap-1.5 transition-colors bg-[#2B2D31] text-foreground hover:bg-[#383A40]"
+                >
+                  <MonitorUp size={20} />
+                  <ChevronDown size={14} className="opacity-60" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="center" className="w-52 p-1.5 bg-[#111214] border-border/50" sideOffset={8}>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-1 pb-1.5">Share Your Screen</p>
+                <button
+                  onClick={() => handleShare('monitor')}
+                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm hover:bg-white/10 transition-colors"
+                >
+                  <Monitor size={16} className="text-primary shrink-0" />
+                  <div className="text-left">
+                    <div className="font-semibold">Entire Screen</div>
+                    <div className="text-[11px] text-muted-foreground">Share your full desktop</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleShare('window')}
+                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm hover:bg-white/10 transition-colors"
+                >
+                  <AppWindow size={16} className="text-primary shrink-0" />
+                  <div className="text-left">
+                    <div className="font-semibold">Application Window</div>
+                    <div className="text-[11px] text-muted-foreground">Share a specific app</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleShare('browser')}
+                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm hover:bg-white/10 transition-colors"
+                >
+                  <MonitorUp size={16} className="text-primary shrink-0" />
+                  <div className="text-left">
+                    <div className="font-semibold">Browser Tab</div>
+                    <div className="text-[11px] text-muted-foreground">Share a tab with audio</div>
+                  </div>
+                </button>
+              </PopoverContent>
+            </Popover>
+          )}
 
           <div className="w-[1px] h-8 bg-border/50 mx-1" />
 

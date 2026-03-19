@@ -230,9 +230,14 @@ export function useWebRTC(channelId: string | null) {
     });
   }, [deafened]);
 
-  const startScreenShare = async () => {
+  const startScreenShare = async (displaySurface?: 'monitor' | 'window' | 'browser') => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      const videoConstraints: MediaTrackConstraints & { displaySurface?: string } = {};
+      if (displaySurface) videoConstraints.displaySurface = displaySurface;
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: Object.keys(videoConstraints).length ? videoConstraints : true,
+        audio: true,
+      });
       setScreenStream(stream);
       stream.getTracks().forEach(track => {
         Object.values(peersRef.current).forEach(peer => {
