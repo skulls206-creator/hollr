@@ -452,6 +452,12 @@ function UserProfilePanel({
   const updateProfile = useUpdateMyProfile();
   const qcPanel = useQueryClient();
   const [statusOpen, setStatusOpen] = useState(false);
+  const [customStatusInput, setCustomStatusInput] = useState('');
+  const [editingCustom, setEditingCustom] = useState(false);
+
+  useEffect(() => {
+    setCustomStatusInput(profile?.customStatus ?? '');
+  }, [profile?.customStatus]);
 
   if (!user) return null;
   const inVoice = voiceConnection.status !== 'disconnected';
@@ -463,6 +469,26 @@ function UserProfilePanel({
       { onSuccess: () => qcPanel.invalidateQueries({ queryKey: ['/api/users/me'] }) },
     );
     setStatusOpen(false);
+  };
+
+  const handleSaveCustomStatus = () => {
+    updateProfile.mutate(
+      { data: { customStatus: customStatusInput.trim() || null } },
+      {
+        onSuccess: () => {
+          qcPanel.invalidateQueries({ queryKey: ['/api/users/me'] });
+          setEditingCustom(false);
+        },
+      },
+    );
+  };
+
+  const handleClearCustomStatus = () => {
+    setCustomStatusInput('');
+    updateProfile.mutate(
+      { data: { customStatus: null } },
+      { onSuccess: () => qcPanel.invalidateQueries({ queryKey: ['/api/users/me'] }) },
+    );
   };
 
   const displayName = user.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'You';
@@ -518,7 +544,11 @@ function UserProfilePanel({
                   {displayName}
                 </span>
                 <span className="text-xs text-muted-foreground truncate leading-tight">
-                  {inVoice ? 'In Voice' : statusLabel(currentStatus)}
+                  {inVoice
+                    ? 'In Voice'
+                    : profile?.customStatus
+                      ? profile.customStatus
+                      : statusLabel(currentStatus)}
                 </span>
               </div>
             </button>
@@ -548,6 +578,64 @@ function UserProfilePanel({
                 )}
               </button>
             ))}
+
+            {/* Custom status section */}
+            <div className="my-1 h-px bg-border/40" />
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-1 pb-1.5">
+              Custom Status
+            </p>
+
+            {!editingCustom ? (
+              <button
+                onClick={() => setEditingCustom(true)}
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10 text-left"
+              >
+                <Smile size={14} className="shrink-0 text-muted-foreground" />
+                <span className={profile?.customStatus ? 'text-foreground' : 'text-muted-foreground italic'}>
+                  {profile?.customStatus || 'Set a custom status…'}
+                </span>
+                {profile?.customStatus && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleClearCustomStatus(); }}
+                    className="ml-auto text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </button>
+            ) : (
+              <div className="px-2 pb-1.5 flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <input
+                  autoFocus
+                  value={customStatusInput}
+                  onChange={(e) => setCustomStatusInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveCustomStatus();
+                    if (e.key === 'Escape') setEditingCustom(false);
+                  }}
+                  maxLength={128}
+                  placeholder="What's your status?"
+                  className="w-full rounded-md bg-[#1a1b1e] border border-border/50 text-sm text-foreground px-2.5 py-1.5 focus:outline-none focus:border-primary placeholder:text-muted-foreground"
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={handleSaveCustomStatus}
+                    disabled={updateProfile.isPending}
+                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    <Check size={12} />
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingCustom(false)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-md bg-white/5 text-muted-foreground text-xs font-semibold hover:bg-white/10 transition-colors"
+                  >
+                    <X size={12} />
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </PopoverContent>
         </Popover>
 
