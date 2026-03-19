@@ -106,6 +106,11 @@ interface AppState {
 
   // User settings modal
   setUserSettingsModalOpen: (open: boolean) => void;
+
+  // Pending mention to insert into the active composer
+  pendingMention: string | null;
+  triggerMention: (displayName: string) => void;
+  clearPendingMention: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -230,6 +235,10 @@ export const useAppStore = create<AppState>()(
   toggleMicMuted: () => set((state) => ({ micMuted: !state.micMuted })),
   toggleDeafened: () => set((state) => ({ deafened: !state.deafened })),
   setUserSettingsModalOpen: (open) => set({ userSettingsModalOpen: open }),
+
+  pendingMention: null,
+  triggerMention: (displayName) => set({ pendingMention: displayName }),
+  clearPendingMention: () => set({ pendingMention: null }),
     }),
     {
       name: 'hollr-nav',

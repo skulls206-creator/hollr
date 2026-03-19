@@ -20,7 +20,17 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
-  const { activeServerId } = useAppStore();
+  const { activeServerId, pendingMention, clearPendingMention } = useAppStore();
+
+  useEffect(() => {
+    if (!pendingMention) return;
+    setContent(prev => {
+      const base = prev.trimEnd();
+      return base ? `${base} @${pendingMention} ` : `@${pendingMention} `;
+    });
+    clearPendingMention();
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [pendingMention]);
 
   const { mutate: sendMessage, isPending: isSending } = useSendMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
