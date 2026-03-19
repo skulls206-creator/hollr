@@ -19,7 +19,7 @@ export function VoiceOverlay() {
   const {
     voiceConnection, setVoiceConnection, voiceChannelUsers,
     micMuted, deafened, toggleMicMuted, toggleDeafened,
-    memberListOpen, mobileSidebarOpen,
+    memberListOpen, mobileSidebarOpen, pinnedPanelOpen,
     voiceMinimized, setVoiceMinimized,
     setVoicePanelHeight,
   } = useAppStore();
@@ -42,7 +42,7 @@ export function VoiceOverlay() {
 
   // Measure expanded panel height so ChatArea can add matching spacer
   useEffect(() => {
-    if (voiceMinimized || voiceConnection.status === 'disconnected' || (isMobile && mobileSidebarOpen)) {
+    if (voiceMinimized || voiceConnection.status === 'disconnected' || (isMobile && (mobileSidebarOpen || memberListOpen || pinnedPanelOpen))) {
       setVoicePanelHeight(0);
       return;
     }
@@ -80,8 +80,8 @@ export function VoiceOverlay() {
 
   if (voiceConnection.status === 'disconnected') return null;
 
-  // Hide the overlay while the mobile sidebar is open to avoid overlapping panels
-  if (isMobile && mobileSidebarOpen) return null;
+  // Hide while any mobile overlay panel is open to avoid stacking conflicts
+  if (isMobile && (mobileSidebarOpen || memberListOpen || pinnedPanelOpen)) return null;
 
   const handleToggleDeafen = () => {
     if (!deafened && !micMuted) toggleMicMuted();
