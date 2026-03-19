@@ -18,9 +18,8 @@ export function ServerSidebar() {
           <button
             onClick={() => {
               setActiveServer(null);
-              // setActiveDmThread logic handled by clicking specific DMs later
             }}
-            className="relative group flex items-center justify-center w-12 h-12"
+            className="relative group flex items-center justify-center w-full h-12"
           >
             <div className={cn(
               "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
@@ -47,7 +46,7 @@ export function ServerSidebar() {
           <TooltipTrigger asChild>
             <button
               onClick={() => setActiveServer(server.id)}
-              className="relative group flex items-center justify-center w-12 h-12"
+              className="relative group flex items-center justify-center w-full h-12"
             >
               <div className={cn(
                 "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
