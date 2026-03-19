@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Slider } from '@/components/ui/slider';
 import { cn, getInitials } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useGetMyProfile } from '@workspace/api-client-react';
 
 export function VoiceOverlay() {
   const { user } = useAuth();
@@ -19,10 +20,11 @@ export function VoiceOverlay() {
     micMuted, deafened, toggleMicMuted, toggleDeafened,
     memberListOpen,
   } = useAppStore();
+  const { data: profile } = useGetMyProfile({ query: { enabled: !!user } });
   const {
     localStream, remoteStreams, remoteVideoStreams, volumes,
     setParticipantVolume, startScreenShare, stopScreenShare, screenStream,
-  } = useWebRTC(voiceConnection.channelId);
+  } = useWebRTC(voiceConnection.channelId, { displayName: profile?.displayName, avatarUrl: profile?.avatarUrl });
 
   const [showVolumeFor, setShowVolumeFor] = useState<string | null>(null);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
@@ -312,6 +314,7 @@ export function VoiceOverlay() {
                 stream={stream ?? null}
                 videoStream={videoStream ?? null}
                 volume={volumes[u.userId] ?? 1}
+                deafened={deafened}
                 showVolume={showVolumeFor === u.userId}
                 onToggleVolume={() => setShowVolumeFor(showVolumeFor === u.userId ? null : u.userId)}
                 onVolumeChange={(v) => setParticipantVolume(u.userId, v)}
@@ -450,7 +453,7 @@ function LocalUserTile({
 
 function RemoteUserTile({
   displayName, avatarUrl, muted, speaking, streaming, stream, videoStream,
-  volume, showVolume, onToggleVolume, onVolumeChange, onWatch,
+  volume, deafened, showVolume, onToggleVolume, onVolumeChange, onWatch,
 }: {
   peerId: string;
   displayName: string;
@@ -461,22 +464,38 @@ function RemoteUserTile({
   stream: MediaStream | null;
   videoStream: MediaStream | null;
   volume: number;
+  deafened: boolean;
   showVolume: boolean;
   onToggleVolume: () => void;
   onVolumeChange: (v: number) => void;
   onWatch: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
   useEffect(() => {
     if (videoRef.current && videoStream) videoRef.current.srcObject = videoStream;
   }, [videoStream]);
+
+  useEffect(() => {
+    if (audioRef.current && stream) {
+      audioRef.current.srcObject = stream;
+      audioRef.current.volume = deafened ? 0 : volume;
+    }
+  }, [stream]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = deafened ? 0 : volume;
+    }
+  }, [volume, deafened]);
 
   return (
     <div className={cn(
       "relative aspect-video bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border group transition-colors",
       speaking ? "border-emerald-500/60" : "border-border/20"
     )}>
-      {stream && <audio autoPlay muted ref={(el) => { if (el) el.srcObject = stream; }} />}
+      {stream && <audio ref={audioRef} autoPlay />}
 
       {/* Video thumbnail if streaming */}
       {videoStream && (

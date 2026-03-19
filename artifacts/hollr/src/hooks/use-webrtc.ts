@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { sendVoiceSignal, setVoiceSignalListener, setNewPeerHandler } from './use-realtime';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
-import { useGetMyProfile } from '@workspace/api-client-react';
 
 const SPEAKING_THRESHOLD = 18;
 const SPEAKING_DEBOUNCE_MS = 600;
@@ -12,10 +11,12 @@ const ICE_SERVERS = [
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
-export function useWebRTC(channelId: string | null) {
+export function useWebRTC(
+  channelId: string | null,
+  profileData?: { displayName?: string | null; avatarUrl?: string | null },
+) {
   const { user } = useAuth();
   const { micMuted, deafened } = useAppStore();
-  const { data: profile } = useGetMyProfile({ query: { enabled: !!user } });
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -26,7 +27,6 @@ export function useWebRTC(channelId: string | null) {
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const gainNodesRef = useRef<Record<string, GainNode>>({});
 
   const analyserRef = useRef<AnalyserNode | null>(null);
   const speakingRef = useRef(false);
@@ -42,13 +42,13 @@ export function useWebRTC(channelId: string | null) {
   const getDisplayInfo = () => {
     const firstName = user?.firstName ?? '';
     const lastName = user?.lastName ?? '';
-    const displayName = profile?.displayName
+    const displayName = profileData?.displayName
       || (user as any)?.displayName
       || [firstName, lastName].filter(Boolean).join(' ')
       || (user as any)?.username
       || 'User';
     const username = displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32) || 'user';
-    const avatarUrl = profile?.avatarUrl ?? user?.profileImageUrl ?? null;
+    const avatarUrl = profileData?.avatarUrl ?? user?.profileImageUrl ?? null;
     return { displayName, username, avatarUrl };
   };
 
@@ -259,27 +259,8 @@ export function useWebRTC(channelId: string | null) {
     return () => { stopSpeakingDetection(); };
   }, [channelId]);
 
-  // Connect remote streams through GainNodes
-  useEffect(() => {
-    if (!audioContextRef.current) return;
-    const ctx = audioContextRef.current;
-    Object.entries(remoteStreams).forEach(([peerId, stream]) => {
-      if (!gainNodesRef.current[peerId] && stream.getAudioTracks().length > 0) {
-        const source = ctx.createMediaStreamSource(stream);
-        const gainNode = ctx.createGain();
-        gainNode.gain.value = deafened ? 0 : (volumes[peerId] !== undefined ? volumes[peerId] : 1.0);
-        source.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        gainNodesRef.current[peerId] = gainNode;
-      }
-    });
-  }, [remoteStreams]);
-
   const setParticipantVolume = (participantId: string, volume: number) => {
     setVolumes(prev => ({ ...prev, [participantId]: volume }));
-    if (gainNodesRef.current[participantId]) {
-      gainNodesRef.current[participantId].gain.value = volume;
-    }
   };
 
   // Sync micMuted
@@ -290,13 +271,6 @@ export function useWebRTC(channelId: string | null) {
       sendVoiceSignal({ type: 'mute_update', channelId: channelIdRef.current, userId: userIdRef.current, muted: micMuted });
     }
   }, [micMuted, localStream]);
-
-  // Sync deafened
-  useEffect(() => {
-    Object.entries(gainNodesRef.current).forEach(([peerId, gainNode]) => {
-      gainNode.gain.value = deafened ? 0 : (volumes[peerId] !== undefined ? volumes[peerId] : 1.0);
-    });
-  }, [deafened]);
 
   const startScreenShare = async (displaySurface?: 'monitor' | 'window' | 'browser') => {
     try {
