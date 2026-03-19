@@ -167,14 +167,26 @@ export function useWebRTC(
     peer.oniceconnectionstatechange = () => {
       const state = peer.iceConnectionState;
       console.log(`[WebRTC] ICE ${peerId}:`, state);
-      if (state === 'failed') {
-        console.warn('[WebRTC] ICE failed — restarting ICE for', peerId);
-        peer.restartIce();
+      if (state === 'failed' || state === 'closed') {
+        // Discard the stale peer entirely so a fresh one is created on rejoin.
+        // restartIce() would leave the peer stuck in have-local-offer with no
+        // remote side to answer, which breaks the next incoming offer.
+        console.warn(`[WebRTC] ICE ${state} — discarding stale peer for`, peerId);
+        peer.close();
+        delete peersRef.current[peerId];
+        screenVideoSenderRef.current.delete(peerId);
       }
     };
 
     peer.onconnectionstatechange = () => {
-      console.log(`[WebRTC] Connection ${peerId}:`, peer.connectionState);
+      const state = peer.connectionState;
+      console.log(`[WebRTC] Connection ${peerId}:`, state);
+      if (state === 'failed') {
+        console.warn('[WebRTC] Connection failed — discarding stale peer for', peerId);
+        peer.close();
+        delete peersRef.current[peerId];
+        screenVideoSenderRef.current.delete(peerId);
+      }
     };
 
     peer.onnegotiationneeded = async () => {
@@ -213,7 +225,20 @@ export function useWebRTC(
       try {
         if (vtype === 'offer') {
           let peer = peersRef.current[fromId];
-          if (!peer || peer.signalingState === 'closed') peer = createPeer(fromId);
+
+          // Recreate if missing, closed, or connection has failed
+          if (!peer || peer.signalingState === 'closed' || peer.connectionState === 'failed') {
+            peer = createPeer(fromId);
+          }
+
+          // Glare resolution: we sent an offer that was never answered (e.g. from a
+          // restartIce() attempt while the remote was offline). Roll it back so we
+          // can accept the incoming offer instead.
+          if (peer.signalingState === 'have-local-offer') {
+            console.warn('[WebRTC] Glare detected — rolling back local offer for', fromId);
+            await peer.setLocalDescription({ type: 'rollback' });
+          }
+
           await peer.setRemoteDescription(new RTCSessionDescription(sdp));
           const answer = await peer.createAnswer();
           await peer.setLocalDescription(answer);
@@ -273,6 +298,7 @@ export function useWebRTC(
       setCameraStream(prev => { prev?.getTracks().forEach(t => t.stop()); cameraStreamRef.current = null; return null; });
       setRemoteStreams({});
       setRemoteVideoStreams({});
+      setConnectionTypes({});
 
       stopSpeakingDetection();
       analyserRef.current = null;
