@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getListMessagesQueryKey, getListDmMessagesQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import type { Message } from '@workspace/api-client-react';
 import { useAppStore } from '@/store/use-app-store';
+import { playNotificationSound } from '@/lib/notification-sound';
 
 // Module-level singleton so any module can send signals without creating a second WS connection
 let _sendSignal: ((payload: any) => void) | null = null;
@@ -102,6 +103,12 @@ export function useRealtime(userId?: string) {
                 }
               );
               queryClient.invalidateQueries({ queryKey: getListDmThreadsQueryKey() });
+            }
+            // Play notification sound for messages from other users in non-muted channels/DMs
+            if (msg.authorId !== userId) {
+              const { isChannelMuted } = useAppStore.getState();
+              const isMuted = msg.channelId ? isChannelMuted(msg.channelId) : false;
+              if (!isMuted) playNotificationSound();
             }
             break;
           }
