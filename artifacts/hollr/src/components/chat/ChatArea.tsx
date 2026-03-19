@@ -126,7 +126,7 @@ export function ChatArea() {
             )}
           </div>
 
-          <div className="flex items-center gap-1 text-muted-foreground shrink-0 ml-4">
+          <div className="flex items-center gap-1 text-muted-foreground shrink-0 ml-2">
             {/* Bell — mute/unmute notifications */}
             <button
               onClick={() => activeChannelId && toggleMuteChannel(activeChannelId)}
@@ -164,8 +164,8 @@ export function ChatArea() {
               <Users size={20} />
             </button>
 
-            {/* Search */}
-            <div className="relative" ref={searchRef}>
+            {/* Search — hidden on mobile, visible on md+ */}
+            <div className="relative hidden md:block" ref={searchRef}>
               <div className="flex items-center bg-[#1E1F22] rounded-sm h-6 overflow-hidden focus-within:ring-1 focus-within:ring-primary transition-all">
                 <input
                   type="text"
@@ -230,11 +230,11 @@ export function ChatArea() {
               )}
             </div>
 
-            {/* Help — keyboard shortcuts */}
+            {/* Help — hidden on mobile */}
             <button
               onClick={() => setHelpModalOpen(true)}
               title="Keyboard shortcuts & help"
-              className="p-2 rounded-md hover:text-foreground hover:bg-secondary transition-colors"
+              className="hidden md:block p-2 rounded-md hover:text-foreground hover:bg-secondary transition-colors"
             >
               <HelpCircle size={20} />
             </button>

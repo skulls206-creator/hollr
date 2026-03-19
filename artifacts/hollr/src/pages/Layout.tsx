@@ -17,6 +17,7 @@ import { UserProfileCard } from '@/components/chat/UserProfileCard';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { Loader2 } from 'lucide-react';
+import { useEffect } from 'react';
 
 export function Layout() {
   const { user, isLoading } = useAuth();
@@ -24,8 +25,15 @@ export function Layout() {
     activeServerId, activeDmThreadId, memberListOpen, mobileSidebarOpen, setMobileSidebarOpen,
     threadMessageId, threadChannelId, closeThread,
     profileCard, closeProfileCard,
-    pinnedPanelOpen,
+    pinnedPanelOpen, toggleMemberList,
   } = useAppStore();
+
+  // Close mobile member list on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && memberListOpen) toggleMemberList(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [memberListOpen, toggleMemberList]);
 
   useRealtime(user?.id);
 
@@ -60,6 +68,19 @@ export function Layout() {
           className="fixed inset-0 bg-black/60 z-30 md:hidden"
           onClick={() => setMobileSidebarOpen(false)}
         />
+      )}
+
+      {/* Mobile member list backdrop + slide-in panel */}
+      {memberListOpen && activeServerId && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/60 z-30 lg:hidden"
+            onClick={toggleMemberList}
+          />
+          <div className="fixed right-0 top-0 h-full z-40 lg:hidden">
+            <MemberList serverId={activeServerId} />
+          </div>
+        </>
       )}
 
       {/* Left sidebar */}
