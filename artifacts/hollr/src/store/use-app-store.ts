@@ -7,6 +7,15 @@ interface ProfileCardState {
   position?: { x: number; y: number };
 }
 
+export interface VoiceChannelUser {
+  userId: string;
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  muted: boolean;
+  speaking: boolean;
+}
+
 interface AppState {
   activeServerId: string | null;
   activeChannelId: string | null;
@@ -42,6 +51,9 @@ interface AppState {
     status: 'disconnected' | 'connecting' | 'connected';
   };
 
+  // Voice presence: which users are in each voice channel
+  voiceChannelUsers: Record<string, VoiceChannelUser[]>;
+
   // Actions
   setActiveServer: (id: string | null) => void;
   setActiveChannel: (id: string | null) => void;
@@ -71,6 +83,13 @@ interface AppState {
   isChannelMuted: (channelId: string) => boolean;
 
   setVoiceConnection: (conn: Partial<AppState['voiceConnection']>) => void;
+
+  // Voice presence actions
+  setVoiceRoomState: (channelId: string, users: VoiceChannelUser[]) => void;
+  addVoiceChannelUser: (channelId: string, user: VoiceChannelUser) => void;
+  removeVoiceChannelUser: (channelId: string, userId: string) => void;
+  updateVoiceChannelUser: (channelId: string, userId: string, update: Partial<Pick<VoiceChannelUser, 'muted' | 'speaking'>>) => void;
+  clearVoiceChannelUsers: (channelId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -101,6 +120,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     serverId: null,
     status: 'disconnected',
   },
+
+  voiceChannelUsers: {},
 
   setActiveServer: (id) => set({ activeServerId: id, activeDmThreadId: null, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
   setActiveChannel: (id) => set({ activeChannelId: id, mobileSidebarOpen: false, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
@@ -141,4 +162,46 @@ export const useAppStore = create<AppState>((set, get) => ({
   setVoiceConnection: (conn) => set((state) => ({
     voiceConnection: { ...state.voiceConnection, ...conn },
   })),
+
+  setVoiceRoomState: (channelId, users) => set((state) => ({
+    voiceChannelUsers: { ...state.voiceChannelUsers, [channelId]: users },
+  })),
+
+  addVoiceChannelUser: (channelId, user) => set((state) => {
+    const existing = state.voiceChannelUsers[channelId] ?? [];
+    // Don't duplicate
+    if (existing.some(u => u.userId === user.userId)) {
+      return {
+        voiceChannelUsers: {
+          ...state.voiceChannelUsers,
+          [channelId]: existing.map(u => u.userId === user.userId ? user : u),
+        },
+      };
+    }
+    return {
+      voiceChannelUsers: { ...state.voiceChannelUsers, [channelId]: [...existing, user] },
+    };
+  }),
+
+  removeVoiceChannelUser: (channelId, userId) => set((state) => ({
+    voiceChannelUsers: {
+      ...state.voiceChannelUsers,
+      [channelId]: (state.voiceChannelUsers[channelId] ?? []).filter(u => u.userId !== userId),
+    },
+  })),
+
+  updateVoiceChannelUser: (channelId, userId, update) => set((state) => ({
+    voiceChannelUsers: {
+      ...state.voiceChannelUsers,
+      [channelId]: (state.voiceChannelUsers[channelId] ?? []).map(u =>
+        u.userId === userId ? { ...u, ...update } : u
+      ),
+    },
+  })),
+
+  clearVoiceChannelUsers: (channelId) => set((state) => {
+    const next = { ...state.voiceChannelUsers };
+    delete next[channelId];
+    return { voiceChannelUsers: next };
+  }),
 }));

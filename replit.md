@@ -93,7 +93,7 @@ pnpm --filter @workspace/db push
 - **Emoji Picker**: `emoji-picker-react` integrated in composer toolbar
 - **User Profile Card**: Click avatar/username → floating profile card (no blocking overlay); Escape to close
 - **DMs**: Open direct message threads with any server member
-- **Voice/Video**: WebRTC mesh with per-participant volume control (0–200%)
+- **Voice/Video**: WebRTC mesh with per-participant volume control (0–200%); real-time user presence in sidebar; speaking detection via AnalyserNode; LIVE badge for any connected user
 - **Screen Share**: `getDisplayMedia` with track renegotiation
 - **File Upload**: Direct-to-GCS presigned URL flow, 100MB limit, progress bar
 - **Mobile**: Responsive layout with slide-in sidebar
@@ -109,3 +109,7 @@ pnpm --filter @workspace/db push
 - Auth is handled entirely by `@workspace/replit-auth-web` (OpenID Connect, not the generated API client)
 - `UserProfileCard` uses mousedown-outside-click listener only (no full-screen backdrop overlay) to avoid blocking other interactions
 - Route order in `users.ts`: `/users/me` must be registered before `/users/:userId`
+- Voice signaling uses a module-level `sendVoiceSignal` singleton in `use-realtime.ts` to avoid creating duplicate WebSocket connections from `use-webrtc.ts`
+- Voice room state is tracked server-side in `voiceRooms: Map<channelId, Map<userId, VoiceParticipant>>` and `userVoiceChannel: Map<userId, channelId>` for disconnect cleanup
+- Speaking detection polls AnalyserNode every 80ms with RMS threshold=18 and 600ms debounce before `speaking_stop`
+- LIVE badge appears when `voiceChannelUsers[channelId].length > 0` (any user, not just self)

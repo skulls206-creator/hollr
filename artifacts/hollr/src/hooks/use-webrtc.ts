@@ -1,68 +1,190 @@
-import { useEffect, useRef, useState } from 'react';
-import { useRealtime } from './use-realtime';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { sendVoiceSignal } from './use-realtime';
 import { useAuth } from '@workspace/replit-auth-web';
 
-// Simplified WebRTC Mesh networking hook for Voice/Video/Screen sharing
+const SPEAKING_THRESHOLD = 18;       // RMS level 0-255
+const SPEAKING_DEBOUNCE_MS = 600;    // how long below threshold before stopping
+
 export function useWebRTC(channelId: string | null) {
   const { user } = useAuth();
-  const { sendSignal } = useRealtime(user?.id);
-  
+
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  
+  const [isMuted, setIsMuted] = useState(false);
+
   // participantId -> MediaStream
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   // participantId -> gain value (0 to 2.0)
   const [volumes, setVolumes] = useState<Record<string, number>>({});
-  
+
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodesRef = useRef<Record<string, GainNode>>({});
 
+  // Speaking detection
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const speakingRef = useRef(false);
+  const speakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speakingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const channelIdRef = useRef(channelId);
+  channelIdRef.current = channelId;
+
+  const userIdRef = useRef(user?.id);
+  userIdRef.current = user?.id;
+
+  // Derive display info from auth user
+  const getDisplayInfo = () => {
+    const firstName = user?.firstName ?? '';
+    const lastName = user?.lastName ?? '';
+    const displayName = [firstName, lastName].filter(Boolean).join(' ') || `User`;
+    const username = displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32) || 'user';
+    const avatarUrl = user?.profileImageUrl ?? null;
+    return { displayName, username, avatarUrl };
+  };
+
+  // Stop speaking detection interval
+  const stopSpeakingDetection = () => {
+    if (speakingIntervalRef.current) {
+      clearInterval(speakingIntervalRef.current);
+      speakingIntervalRef.current = null;
+    }
+    if (speakingTimerRef.current) {
+      clearTimeout(speakingTimerRef.current);
+      speakingTimerRef.current = null;
+    }
+    speakingRef.current = false;
+  };
+
+  // Start speaking detection on localStream
+  const startSpeakingDetection = (stream: MediaStream, ctx: AudioContext) => {
+    stopSpeakingDetection();
+    if (!stream.getAudioTracks().length) return;
+
+    try {
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      const source = ctx.createMediaStreamSource(stream);
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+
+      speakingIntervalRef.current = setInterval(() => {
+        const chId = channelIdRef.current;
+        const uid = userIdRef.current;
+        if (!chId || !uid) return;
+
+        analyser.getByteFrequencyData(data);
+        const rms = Math.sqrt(data.reduce((acc, v) => acc + v * v, 0) / data.length);
+
+        if (rms > SPEAKING_THRESHOLD) {
+          if (!speakingRef.current) {
+            speakingRef.current = true;
+            sendVoiceSignal({ type: 'speaking_start', channelId: chId, userId: uid });
+          }
+          // Reset debounce timer
+          if (speakingTimerRef.current) clearTimeout(speakingTimerRef.current);
+          speakingTimerRef.current = setTimeout(() => {
+            if (speakingRef.current) {
+              speakingRef.current = false;
+              sendVoiceSignal({ type: 'speaking_stop', channelId: chId, userId: uid });
+            }
+          }, SPEAKING_DEBOUNCE_MS);
+        }
+      }, 80);
+    } catch (err) {
+      console.warn('[WebRTC] Speaking detection setup failed:', err);
+    }
+  };
+
   useEffect(() => {
     if (!channelId) {
-      // Disconnected, clean up
+      // Disconnected — send leave signal and clean up
+      const uid = userIdRef.current;
+      if (uid) {
+        // Find channel we were in (we can't know which channel we left here, but
+        // the server tracks it by userId on disconnect anyway)
+        sendVoiceSignal({ type: 'leave', channelId: channelIdRef.current, userId: uid });
+      }
+
       Object.values(peersRef.current).forEach(p => p.close());
       peersRef.current = {};
-      localStream?.getTracks().forEach(t => t.stop());
-      screenStream?.getTracks().forEach(t => t.stop());
-      setLocalStream(null);
-      setScreenStream(null);
+
+      setLocalStream(prev => {
+        prev?.getTracks().forEach(t => t.stop());
+        return null;
+      });
+      setScreenStream(prev => {
+        prev?.getTracks().forEach(t => t.stop());
+        return null;
+      });
       setRemoteStreams({});
+      setIsMuted(false);
+
+      stopSpeakingDetection();
+      analyserRef.current = null;
       audioContextRef.current?.close();
       audioContextRef.current = null;
       return;
     }
 
-    // Initialize AudioContext for volume control
-    if (!audioContextRef.current) {
+    // Initialize AudioContext
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
 
+    const ctx = audioContextRef.current;
+
     const initLocalMedia = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
+        const stream = await navigator.mediaDevices.getUserMedia({
           audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true },
-          video: false // Start with voice only
+          video: false,
         });
+
         setLocalStream(stream);
-        // Announce join via WS (handled by server in real app, mocked logic here)
-        sendSignal({ action: 'join', channelId, userId: user?.id });
+        setIsMuted(false);
+
+        // Resume AudioContext if it was suspended (browser autoplay policy)
+        if (ctx.state === 'suspended') await ctx.resume();
+
+        // Start speaking detection
+        startSpeakingDetection(stream, ctx);
+
+        // Send join signal with user profile info
+        const { displayName, username, avatarUrl } = getDisplayInfo();
+        sendVoiceSignal({
+          type: 'join',
+          channelId,
+          userId: user?.id,
+          displayName,
+          username,
+          avatarUrl,
+        });
       } catch (err) {
-        console.error("Failed to access microphone", err);
+        console.error('[WebRTC] Failed to access microphone:', err);
+        // Still send join so we appear in the user list (muted)
+        const { displayName, username, avatarUrl } = getDisplayInfo();
+        sendVoiceSignal({
+          type: 'join',
+          channelId,
+          userId: user?.id,
+          displayName,
+          username,
+          avatarUrl,
+        });
       }
     };
 
     initLocalMedia();
-    
+
     return () => {
-      // Cleanup on unmount or channel change
-      localStream?.getTracks().forEach(t => t.stop());
-      screenStream?.getTracks().forEach(t => t.stop());
+      stopSpeakingDetection();
     };
   }, [channelId]);
 
-  // Handle incoming streams and volume
+  // Handle incoming streams and connect them through GainNodes
   useEffect(() => {
     if (!audioContextRef.current) return;
     const ctx = audioContextRef.current;
@@ -71,41 +193,43 @@ export function useWebRTC(channelId: string | null) {
       if (!gainNodesRef.current[peerId] && stream.getAudioTracks().length > 0) {
         const source = ctx.createMediaStreamSource(stream);
         const gainNode = ctx.createGain();
-        // Set initial volume
         gainNode.gain.value = volumes[peerId] !== undefined ? volumes[peerId] : 1.0;
-        
         source.connect(gainNode);
         gainNode.connect(ctx.destination);
         gainNodesRef.current[peerId] = gainNode;
-        
-        // Mute the actual HTMLAudioElement that renders this stream so we don't double play
-        // (UI must render <audio muted srcObject={stream} />)
       }
     });
   }, [remoteStreams]);
 
   const setParticipantVolume = (participantId: string, volume: number) => {
-    // volume is 0.0 to 2.0
     setVolumes(prev => ({ ...prev, [participantId]: volume }));
     if (gainNodesRef.current[participantId]) {
       gainNodesRef.current[participantId].gain.value = volume;
     }
   };
 
-  const toggleMute = () => {
-    if (localStream) {
-      localStream.getAudioTracks().forEach(track => {
-        track.enabled = !track.enabled;
+  const toggleMute = useCallback(() => {
+    if (!localStream) return;
+    const newMuted = !isMuted;
+    localStream.getAudioTracks().forEach(track => {
+      track.enabled = !newMuted;
+    });
+    setIsMuted(newMuted);
+    // Notify others of mute state change
+    if (channelIdRef.current && userIdRef.current) {
+      sendVoiceSignal({
+        type: 'mute_update',
+        channelId: channelIdRef.current,
+        userId: userIdRef.current,
+        muted: newMuted,
       });
     }
-  };
+  }, [localStream, isMuted]);
 
   const startScreenShare = async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       setScreenStream(stream);
-      
-      // Add tracks to all existing peers and listen for end
       stream.getTracks().forEach(track => {
         Object.values(peersRef.current).forEach(peer => {
           peer.addTrack(track, stream);
@@ -113,7 +237,7 @@ export function useWebRTC(channelId: string | null) {
         track.onended = () => stopScreenShare();
       });
     } catch (err) {
-      console.error("Failed to share screen", err);
+      console.error('[WebRTC] Failed to share screen:', err);
     }
   };
 
@@ -121,8 +245,6 @@ export function useWebRTC(channelId: string | null) {
     if (screenStream) {
       screenStream.getTracks().forEach(t => t.stop());
       setScreenStream(null);
-      // Remove tracks from peers (requires renegotiation)
-      // Implementation omitted for brevity
     }
   };
 
@@ -131,9 +253,10 @@ export function useWebRTC(channelId: string | null) {
     screenStream,
     remoteStreams,
     volumes,
+    isMuted,
     setParticipantVolume,
     toggleMute,
     startScreenShare,
-    stopScreenShare
+    stopScreenShare,
   };
 }

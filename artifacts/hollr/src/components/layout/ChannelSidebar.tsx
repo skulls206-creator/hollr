@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Hash, Volume2, Plus, ChevronDown, Settings, Mic, Headphones,
+  Hash, Volume2, Plus, ChevronDown, Settings, Mic, MicOff, Headphones,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
@@ -21,7 +21,7 @@ export function ChannelSidebar() {
     activeServerId, activeChannelId, activeDmThreadId,
     setActiveChannel, setActiveDmThread,
     setCreateChannelModalOpen, setInviteModalOpen, setServerSettingsModalOpen,
-    voiceConnection, setVoiceConnection,
+    voiceConnection, setVoiceConnection, voiceChannelUsers,
   } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -298,25 +298,59 @@ export function ChannelSidebar() {
           <div className="space-y-[2px]">
             {voiceChannels.map(channel => {
               const isConnected = voiceConnection.status !== 'disconnected' && voiceConnection.channelId === channel.id;
+              const channelUsers = voiceChannelUsers[channel.id] ?? [];
+              const isLive = channelUsers.length > 0;
               return (
-                <button
-                  key={channel.id}
-                  onClick={() => isConnected ? leaveVoice() : joinVoice(channel.id)}
-                  className={cn(
-                    'w-full flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
-                    isConnected
-                      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                      : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                <div key={channel.id}>
+                  <button
+                    onClick={() => isConnected ? leaveVoice() : joinVoice(channel.id)}
+                    className={cn(
+                      'w-full flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
+                      isConnected
+                        ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                        : isLive
+                          ? 'text-foreground hover:bg-secondary/50'
+                          : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                    )}
+                  >
+                    <Volume2 size={18} className="mr-1.5 opacity-60 shrink-0" />
+                    <span className="truncate flex-1 text-left">{channel.name}</span>
+                    {isLive && (
+                      <span className="text-[10px] font-bold bg-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded shrink-0">
+                        LIVE
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Connected user list under channel */}
+                  {channelUsers.length > 0 && (
+                    <div className="ml-4 mt-0.5 mb-1 space-y-0.5">
+                      {channelUsers.map(u => (
+                        <div key={u.userId} className="flex items-center gap-1.5 px-1 py-0.5 rounded">
+                          {/* Avatar with speaking ring */}
+                          <div className={cn(
+                            'relative shrink-0 rounded-full transition-all duration-150',
+                            u.speaking
+                              ? 'ring-2 ring-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+                              : 'ring-2 ring-transparent'
+                          )}>
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={u.avatarUrl || undefined} />
+                              <AvatarFallback className="bg-primary text-white text-[9px]">
+                                {getInitials(u.displayName)}
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
+                          <span className="text-xs text-muted-foreground truncate flex-1">{u.displayName}</span>
+                          {u.muted
+                            ? <MicOff size={11} className="text-destructive shrink-0" />
+                            : <Mic size={11} className="text-muted-foreground/50 shrink-0" />
+                          }
+                        </div>
+                      ))}
+                    </div>
                   )}
-                >
-                  <Volume2 size={18} className="mr-1.5 opacity-60 shrink-0" />
-                  <span className="truncate flex-1 text-left">{channel.name}</span>
-                  {isConnected && (
-                    <span className="text-[10px] font-bold bg-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded shrink-0">
-                      LIVE
-                    </span>
-                  )}
-                </button>
+                </div>
               );
             })}
           </div>

@@ -2,6 +2,18 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListMessagesQueryKey, getListDmMessagesQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import type { Message } from '@workspace/api-client-react';
+import { useAppStore } from '@/store/use-app-store';
+
+// Module-level singleton so any module can send signals without creating a second WS connection
+let _sendSignal: ((payload: any) => void) | null = null;
+
+export function sendVoiceSignal(payload: any) {
+  if (_sendSignal) {
+    _sendSignal(payload);
+  } else {
+    console.warn('[WS] sendVoiceSignal called before WebSocket connected');
+  }
+}
 
 type WsEvent =
   | { type: 'MESSAGE_CREATE'; payload: Message }
@@ -9,13 +21,25 @@ type WsEvent =
   | { type: 'MESSAGE_DELETE'; payload: { id: string; channelId?: string; dmThreadId?: string } }
   | { type: 'THREAD_REPLY_CREATE'; payload: { reply: Message; parentMessageId: string } }
   | { type: 'VOICE_SIGNAL'; payload: any }
+  | { type: 'VOICE_ROOM_STATE'; payload: { channelId: string; users: any[] } }
+  | { type: 'VOICE_USER_JOINED'; payload: { channelId: string; user: any } }
+  | { type: 'VOICE_USER_LEFT'; payload: { channelId: string; userId: string } }
+  | { type: 'VOICE_USER_UPDATED'; payload: { channelId: string; userId: string; muted: boolean } }
+  | { type: 'VOICE_SPEAKING_START'; payload: { channelId: string; userId: string } }
+  | { type: 'VOICE_SPEAKING_STOP'; payload: { channelId: string; userId: string } }
   | { type: 'PRESENCE_UPDATE'; payload: { userId: string; status: string } }
   | { type: 'CONNECTED' };
 
 export function useRealtime(userId?: string) {
   const queryClient = useQueryClient();
   const ws = useRef<WebSocket | null>(null);
-  const sendSignalRef = useRef<(payload: any) => void>(() => {});
+
+  const {
+    setVoiceRoomState,
+    addVoiceChannelUser,
+    removeVoiceChannelUser,
+    updateVoiceChannelUser,
+  } = useAppStore();
 
   useEffect(() => {
     if (!userId) return;
@@ -24,6 +48,14 @@ export function useRealtime(userId?: string) {
     const wsUrl = `${protocol}//${window.location.host}/api/ws`;
 
     ws.current = new WebSocket(wsUrl);
+
+    // Expose sendSignal to module-level singleton
+    const sendSignal = (payload: any) => {
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(JSON.stringify({ type: 'VOICE_SIGNAL', payload }));
+      }
+    };
+    _sendSignal = sendSignal;
 
     ws.current.onopen = () => {
       ws.current?.send(JSON.stringify({ type: 'IDENTIFY', payload: { userId } }));
@@ -96,12 +128,46 @@ export function useRealtime(userId?: string) {
           }
 
           case 'THREAD_REPLY_CREATE': {
-            // Thread sidebar will refetch; the parent message update is handled by MESSAGE_UPDATE
+            break;
+          }
+
+          case 'VOICE_ROOM_STATE': {
+            const { channelId, users } = data.payload;
+            setVoiceRoomState(channelId, users);
+            break;
+          }
+
+          case 'VOICE_USER_JOINED': {
+            const { channelId, user } = data.payload;
+            addVoiceChannelUser(channelId, user);
+            break;
+          }
+
+          case 'VOICE_USER_LEFT': {
+            const { channelId, userId: leftUserId } = data.payload;
+            removeVoiceChannelUser(channelId, leftUserId);
+            break;
+          }
+
+          case 'VOICE_USER_UPDATED': {
+            const { channelId, userId: updatedId, muted } = data.payload;
+            updateVoiceChannelUser(channelId, updatedId, { muted });
+            break;
+          }
+
+          case 'VOICE_SPEAKING_START': {
+            const { channelId, userId: speakingId } = data.payload;
+            updateVoiceChannelUser(channelId, speakingId, { speaking: true });
+            break;
+          }
+
+          case 'VOICE_SPEAKING_STOP': {
+            const { channelId, userId: speakingId } = data.payload;
+            updateVoiceChannelUser(channelId, speakingId, { speaking: false });
             break;
           }
 
           case 'PRESENCE_UPDATE': {
-            // Invalidate member lists so status dots update
             queryClient.invalidateQueries({ queryKey: ['server-members'] });
             break;
           }
@@ -112,6 +178,7 @@ export function useRealtime(userId?: string) {
     };
 
     return () => {
+      _sendSignal = null;
       ws.current?.send(JSON.stringify({ type: 'PRESENCE_UPDATE', payload: { userId, status: 'offline' } }));
       ws.current?.close();
     };
@@ -122,7 +189,6 @@ export function useRealtime(userId?: string) {
       ws.current.send(JSON.stringify({ type: 'VOICE_SIGNAL', payload }));
     }
   };
-  sendSignalRef.current = sendSignal;
 
   return { sendSignal };
 }
