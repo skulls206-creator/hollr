@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { PlusCircle, Smile, Music2, Slash } from 'lucide-react';
+import { PlusCircle, Smile, Music2, Slash, SendHorizonal } from 'lucide-react';
 import { useSendMessage, useRequestUploadUrl, useListServerMembers, getListServerMembersQueryKey } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn, formatBytes } from '@/lib/utils';
@@ -412,6 +412,19 @@ export function MessageComposer({ channelId }: { channelId: string }) {
               anchorRef={emojiButtonRef as any}
             />
           )}
+          <button
+            onClick={handleSend}
+            disabled={!content.trim() || isSending || cmdLoading}
+            className={cn(
+              'p-1.5 rounded-md transition-colors',
+              content.trim()
+                ? 'text-primary hover:bg-primary/20'
+                : 'text-muted-foreground/40 cursor-not-allowed'
+            )}
+            title="Send message"
+          >
+            <SendHorizonal size={20} />
+          </button>
         </div>
       </div>
     </div>

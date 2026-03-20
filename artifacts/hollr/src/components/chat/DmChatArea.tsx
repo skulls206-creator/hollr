@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Smile, Menu, FileText, Download } from 'lucide-react';
+import { PlusCircle, Smile, Menu, FileText, Download, SendHorizonal } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 
 export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
@@ -153,9 +153,19 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
             className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 h-[44px] min-h-[44px] max-h-[50vh] overflow-y-auto leading-normal"
             rows={1}
           />
-          <button className="p-1 ml-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors">
-            <Smile size={22} />
-          </button>
+          <div className="flex items-center gap-1 ml-2 shrink-0">
+            <button className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors">
+              <Smile size={22} />
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={!content.trim()}
+              className={`p-1.5 rounded-md transition-colors ${content.trim() ? 'text-primary hover:bg-primary/20' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+              title="Send message"
+            >
+              <SendHorizonal size={20} />
+            </button>
+          </div>
         </div>
       </div>
 
