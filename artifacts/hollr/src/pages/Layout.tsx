@@ -6,6 +6,7 @@ import { ChannelSidebar } from '@/components/layout/ChannelSidebar';
 import { ChatArea } from '@/components/chat/ChatArea';
 import { DmChatArea } from '@/components/chat/DmChatArea';
 import { MemberList } from '@/components/layout/MemberList';
+import { MusicControlBar } from '@/components/music/MusicControlBar';
 import { CreateServerModal } from '@/components/modals/CreateServerModal';
 import { CreateChannelModal } from '@/components/modals/CreateChannelModal';
 import { InviteModal } from '@/components/modals/InviteModal';
@@ -26,6 +27,7 @@ export function Layout() {
     threadMessageId, threadChannelId, closeThread,
     profileCard, closeProfileCard,
     pinnedPanelOpen, toggleMemberList,
+    voiceConnection,
   } = useAppStore();
 
   // Close mobile member list on Escape
@@ -60,7 +62,8 @@ export function Layout() {
   const showMemberList = !!(activeServerId && memberListOpen && !showThread && !pinnedPanelOpen);
 
   return (
-    <div className="relative flex h-screen w-full bg-background overflow-hidden font-sans text-foreground">
+    // Root: flex-col so music bar sits naturally at the bottom
+    <div className="flex flex-col h-screen w-full bg-background overflow-hidden font-sans text-foreground">
 
       {/* Mobile sidebar backdrop */}
       {mobileSidebarOpen && (
@@ -83,52 +86,63 @@ export function Layout() {
         </>
       )}
 
-      {/* Left sidebar */}
-      <div
-        className={[
-          'flex h-full z-40',
-          'md:relative md:translate-x-0 md:flex',
-          'fixed transition-transform duration-200',
-          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
-        ].join(' ')}
-      >
-        <ServerSidebar />
-        <ChannelSidebar />
-      </div>
+      {/* Content row — flex-1, relative so VoiceOverlay's absolute children are scoped here */}
+      <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden">
 
-      {/* Main area */}
-      <div className="flex flex-1 min-w-0 h-full">
-        {activeDmThreadId ? (
-          <DmChatArea
-            threadId={activeDmThreadId}
-            recipientName={dmRecipient?.displayName || dmRecipient?.username || 'Unknown'}
-            recipientAvatar={dmRecipient?.avatarUrl}
-          />
-        ) : (
-          <ChatArea />
-        )}
+        {/* Left sidebar */}
+        <div
+          className={[
+            'flex h-full z-40',
+            'md:relative md:translate-x-0 md:flex',
+            'fixed transition-transform duration-200',
+            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          ].join(' ')}
+        >
+          <ServerSidebar />
+          <ChannelSidebar />
+        </div>
 
-        {/* Thread sidebar */}
-        {showThread && threadChannelId && threadMessageId && (
-          <div className="hidden lg:flex">
-            <ThreadSidebar
-              channelId={threadChannelId}
-              messageId={threadMessageId}
-              onClose={closeThread}
+        {/* Main area */}
+        <div className="flex flex-1 min-w-0 h-full">
+          {activeDmThreadId ? (
+            <DmChatArea
+              threadId={activeDmThreadId}
+              recipientName={dmRecipient?.displayName || dmRecipient?.username || 'Unknown'}
+              recipientAvatar={dmRecipient?.avatarUrl}
             />
-          </div>
-        )}
+          ) : (
+            <ChatArea />
+          )}
 
-        {/* Member List — only when no thread sidebar */}
-        {showMemberList && (
-          <div className="hidden lg:flex">
-            <MemberList serverId={activeServerId!} />
-          </div>
-        )}
+          {/* Thread sidebar */}
+          {showThread && threadChannelId && threadMessageId && (
+            <div className="hidden lg:flex">
+              <ThreadSidebar
+                channelId={threadChannelId}
+                messageId={threadMessageId}
+                onClose={closeThread}
+              />
+            </div>
+          )}
+
+          {/* Member List — only when no thread sidebar */}
+          {showMemberList && (
+            <div className="hidden lg:flex">
+              <MemberList serverId={activeServerId!} />
+            </div>
+          )}
+        </div>
+
+        {/* VoiceOverlay lives INSIDE the content row so it can't overlap the music bar below */}
+        <VoiceOverlay />
       </div>
 
-      {/* Modals & Overlays */}
-      <VoiceOverlay />
+      {/* Global music bar — flex item at the very bottom, always visible when bot is active */}
+      {voiceConnection.channelId && (
+        <MusicControlBar voiceChannelId={voiceConnection.channelId} />
+      )}
+
+      {/* Modals */}
       <CreateServerModal />
       <CreateChannelModal />
       <InviteModal />

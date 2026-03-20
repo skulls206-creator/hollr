@@ -124,3 +124,5 @@ pnpm --filter @workspace/db push
 - Music bot uses `pickAudioFormat()` (manual bitrate sort on audio-only formats) NOT `ytdl.chooseFormat({ quality: 'highestaudio' })` which throws when YouTube format labels change
 - Music stream position timer broadcasts every 5s (not 1s) to reduce WS noise; frontend ticks up locally by 500ms intervals between broadcasts
 - `@workspace/api-zod` is a direct devDependency of `@workspace/hollr` (required for music types); added to tsconfig.json references and built with `tsc --build`
+- `pickAudioFormat()` must NOT filter by `f.url` — YouTube formats using signatureCipher have no `url` until `downloadFromInfo` deciphers them at download time; filtering by url removed all formats
+- `MusicControlBar` is rendered in `Layout.tsx` (NOT in `ChatArea.tsx`) as a global bottom flex-item; root Layout div is `flex-col` so the music bar sits below the content row; `VoiceOverlay` is rendered inside the `relative flex flex-1` content row so its `absolute bottom-X` positioning is scoped to the content area and never covers the music bar

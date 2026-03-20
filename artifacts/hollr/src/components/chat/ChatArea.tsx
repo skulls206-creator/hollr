@@ -4,7 +4,6 @@ import { useAppStore } from '@/store/use-app-store';
 import { useListChannels, getListChannelsQueryKey } from '@workspace/api-client-react';
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
-import { MusicControlBar } from '@/components/music/MusicControlBar';
 import { PinnedMessagesPanel } from './PinnedMessagesPanel';
 import type { Message } from '@workspace/api-client-react';
 import { format } from 'date-fns';
@@ -28,7 +27,6 @@ export function ChatArea() {
     isChannelMuted, toggleMuteChannel,
     setHelpModalOpen,
     voicePanelHeight,
-    voiceConnection,
   } = useAppStore();
 
   const { data: channels = [] } = useListChannels(activeServerId || '', {
@@ -250,12 +248,7 @@ export function ChatArea() {
         {/* Composer */}
         <MessageComposer channelId={channel.id} />
 
-        {/* Music control bar — shown when bot is active in connected voice channel */}
-        {voiceConnection.channelId && (
-          <MusicControlBar voiceChannelId={voiceConnection.channelId} />
-        )}
-
-        {/* Spacer so voice panel doesn't cover the composer — height matches the overlay exactly */}
+        {/* Spacer so the floating voice panel doesn't cover the composer */}
         {voicePanelHeight > 0 && (
           <div style={{ height: voicePanelHeight }} className="shrink-0" />
         )}

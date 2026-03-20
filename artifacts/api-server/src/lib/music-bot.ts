@@ -16,12 +16,15 @@ const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
  *  Avoids `ytdl.chooseFormat` quality strings that can throw when decipher
  *  function is unparseable; instead sorts by bitrate manually. */
 function pickAudioFormat(formats: ytdl.videoFormat[]): ytdl.videoFormat {
+  // NOTE: do NOT filter by f.url — many YouTube formats use signatureCipher
+  // and have an empty/missing url at this stage; downloadFromInfo handles deciphering.
   const audio = formats
-    .filter(f => f.hasAudio && !f.hasVideo && f.url)
+    .filter(f => f.hasAudio && !f.hasVideo)
     .sort((a, b) => (b.audioBitrate ?? 0) - (a.audioBitrate ?? 0));
   if (audio.length === 0) {
-    // Fall back to any format that has audio (including muxed)
-    const any = formats.filter(f => f.hasAudio && f.url)
+    // Fall back to any format that has audio (muxed video+audio)
+    const any = formats
+      .filter(f => f.hasAudio)
       .sort((a, b) => (b.audioBitrate ?? 0) - (a.audioBitrate ?? 0));
     if (any.length === 0) throw new Error('No playable audio format found for this video');
     return any[0];
