@@ -88,6 +88,19 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     ? SLASH_COMMANDS.filter(c => c.name.startsWith(slashQuery.toLowerCase()))
     : [];
 
+  // Auto-resize helper — collapses to 'auto' first so scrollHeight reflects content
+  const resizeTextarea = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  // Resize whenever content changes (catches programmatic updates like @mentions)
+  useEffect(() => {
+    resizeTextarea();
+  }, [content, resizeTextarea]);
+
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setContent(val);
@@ -211,12 +224,16 @@ export function MessageComposer({ channelId }: { channelId: string }) {
       if (isKnown) {
         await executeSlashCommand(trimmed);
         setContent('');
+        if (textareaRef.current) textareaRef.current.style.height = '44px';
         return;
       }
     }
 
     sendMessage({ channelId, data: { content: trimmed } }, {
-      onSuccess: () => setContent(''),
+      onSuccess: () => {
+        setContent('');
+        if (textareaRef.current) textareaRef.current.style.height = '44px';
+      },
       onError: () => toast({ title: "Failed to send", variant: "destructive" })
     });
   }, [content, isUploading, channelId, sendMessage, toast, executeSlashCommand]);
@@ -363,7 +380,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         </div>
       )}
 
-      <div className="bg-[#383A40] rounded-lg flex items-center px-4 py-2 relative overflow-visible shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
+      <div className="bg-[#383A40] rounded-lg flex items-end px-4 py-2 relative overflow-visible shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
 
         {isUploading && (
           <div className="absolute top-0 left-0 h-1 bg-primary transition-all duration-300 ease-out rounded-t-lg" style={{ width: `${uploadProgress}%` }} />
@@ -372,7 +389,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="p-1 mr-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0 disabled:opacity-50"
+          className="p-1 mr-2 mb-[2px] text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0 disabled:opacity-50"
         >
           <PlusCircle size={22} className="fill-muted-foreground/20" />
         </button>
@@ -389,11 +406,12 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Message… (type / for commands)"
-          className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 h-[44px] min-h-[44px] max-h-[50vh] overflow-y-auto leading-normal"
+          className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 min-h-[44px] max-h-[200px] overflow-y-auto leading-normal"
           rows={1}
+          style={{ height: '44px' }}
         />
 
-        <div className="flex items-center gap-1 ml-2 shrink-0 relative">
+        <div className="flex items-center gap-1 ml-2 mb-[2px] shrink-0 relative">
           <button
             ref={emojiButtonRef}
             onClick={() => setEmojiPickerOpen(v => !v)}

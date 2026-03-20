@@ -18,6 +18,12 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   const { toast } = useToast();
   const [content, setContent] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const resizeTextarea = (el: HTMLTextAreaElement) => {
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -28,7 +34,10 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
     sendMessage({ threadId, data: { content: content.trim() } }, {
       onSuccess: () => {
         setContent('');
-        // WebSocket handler appends DM messages — no manual invalidation needed
+        // Reset textarea height after clearing
+        if (textareaRef.current) {
+          textareaRef.current.style.height = '44px';
+        }
       },
       onError: () => toast({ title: 'Failed to send', variant: 'destructive' }),
     });
@@ -141,19 +150,24 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
 
       {/* Composer */}
       <div className="px-4 pb-6 pt-2 bg-[#313338]">
-        <div className="bg-[#383A40] rounded-lg flex items-center px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
-          <button className="p-1 mr-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0">
+        <div className="bg-[#383A40] rounded-lg flex items-end px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
+          <button className="p-1 mr-2 mb-[2px] text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0">
             <PlusCircle size={22} className="fill-muted-foreground/20" />
           </button>
           <textarea
+            ref={textareaRef}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(e) => {
+              setContent(e.target.value);
+              resizeTextarea(e.target);
+            }}
             onKeyDown={handleKeyDown}
             placeholder={`Message ${recipientName}`}
-            className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 h-[44px] min-h-[44px] max-h-[50vh] overflow-y-auto leading-normal"
+            className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 min-h-[44px] max-h-[200px] overflow-y-auto leading-normal"
             rows={1}
+            style={{ height: '44px' }}
           />
-          <div className="flex items-center gap-1 ml-2 shrink-0">
+          <div className="flex items-center gap-1 ml-2 mb-[2px] shrink-0">
             <button className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors">
               <Smile size={22} />
             </button>
