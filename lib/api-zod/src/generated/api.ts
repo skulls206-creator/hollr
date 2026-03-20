@@ -141,7 +141,7 @@ export const GetMyProfileResponse = zod.object({
   displayName: zod.string(),
   avatarUrl: zod.string().nullish(),
   status: zod
-    .enum(["online", "idle", "dnd", "offline"])
+    .enum(["online", "idle", "dnd", "offline", "invisible"])
     .default(getMyProfileResponseStatusDefault),
   customStatus: zod.string().nullish(),
   createdAt: zod.date(),
@@ -161,7 +161,7 @@ export const UpdateMyProfileBody = zod.object({
     .max(updateMyProfileBodyDisplayNameMax)
     .optional(),
   avatarUrl: zod.string().nullish(),
-  status: zod.enum(["online", "idle", "dnd", "offline"]).optional(),
+  status: zod.enum(["online", "idle", "dnd", "offline", "invisible"]).optional(),
   customStatus: zod.string().max(updateMyProfileBodyCustomStatusMax).nullish(),
 });
 
@@ -173,7 +173,7 @@ export const UpdateMyProfileResponse = zod.object({
   displayName: zod.string(),
   avatarUrl: zod.string().nullish(),
   status: zod
-    .enum(["online", "idle", "dnd", "offline"])
+    .enum(["online", "idle", "dnd", "offline", "invisible"])
     .default(updateMyProfileResponseStatusDefault),
   customStatus: zod.string().nullish(),
   createdAt: zod.date(),
@@ -328,7 +328,7 @@ export const ListServerMembersResponseItem = zod.object({
     displayName: zod.string(),
     avatarUrl: zod.string().nullish(),
     status: zod
-      .enum(["online", "idle", "dnd", "offline"])
+      .enum(["online", "idle", "dnd", "offline", "invisible"])
       .default(listServerMembersResponseUserStatusDefault),
     customStatus: zod.string().nullish(),
     createdAt: zod.date(),
@@ -461,7 +461,7 @@ export const ListMessagesResponseItem = zod.object({
     displayName: zod.string(),
     avatarUrl: zod.string().nullish(),
     status: zod
-      .enum(["online", "idle", "dnd", "offline"])
+      .enum(["online", "idle", "dnd", "offline", "invisible"])
       .default(listMessagesResponseAuthorStatusDefault),
     customStatus: zod.string().nullish(),
     createdAt: zod.date(),
@@ -539,7 +539,7 @@ export const EditMessageResponse = zod.object({
     displayName: zod.string(),
     avatarUrl: zod.string().nullish(),
     status: zod
-      .enum(["online", "idle", "dnd", "offline"])
+      .enum(["online", "idle", "dnd", "offline", "invisible"])
       .default(editMessageResponseAuthorStatusDefault),
     customStatus: zod.string().nullish(),
     createdAt: zod.date(),
@@ -598,7 +598,7 @@ export const SearchMessagesResponseItem = zod.object({
     displayName: zod.string(),
     avatarUrl: zod.string().nullish(),
     status: zod
-      .enum(["online", "idle", "dnd", "offline"])
+      .enum(["online", "idle", "dnd", "offline", "invisible"])
       .default(searchMessagesResponseAuthorStatusDefault),
     customStatus: zod.string().nullish(),
     createdAt: zod.date(),
@@ -624,7 +624,7 @@ export const ListDmThreadsResponseItem = zod.object({
       displayName: zod.string(),
       avatarUrl: zod.string().nullish(),
       status: zod
-        .enum(["online", "idle", "dnd", "offline"])
+        .enum(["online", "idle", "dnd", "offline", "invisible"])
         .default(listDmThreadsResponseParticipantsItemStatusDefault),
       customStatus: zod.string().nullish(),
       createdAt: zod.date(),
@@ -658,7 +658,7 @@ export const ListDmThreadsResponseItem = zod.object({
           displayName: zod.string(),
           avatarUrl: zod.string().nullish(),
           status: zod
-            .enum(["online", "idle", "dnd", "offline"])
+            .enum(["online", "idle", "dnd", "offline", "invisible"])
             .default(listDmThreadsResponseLastMessageOneAuthorStatusDefault),
           customStatus: zod.string().nullish(),
           createdAt: zod.date(),
@@ -693,7 +693,7 @@ export const OpenDmThreadResponse = zod.object({
       displayName: zod.string(),
       avatarUrl: zod.string().nullish(),
       status: zod
-        .enum(["online", "idle", "dnd", "offline"])
+        .enum(["online", "idle", "dnd", "offline", "invisible"])
         .default(openDmThreadResponseParticipantsItemStatusDefault),
       customStatus: zod.string().nullish(),
       createdAt: zod.date(),
@@ -727,7 +727,7 @@ export const OpenDmThreadResponse = zod.object({
           displayName: zod.string(),
           avatarUrl: zod.string().nullish(),
           status: zod
-            .enum(["online", "idle", "dnd", "offline"])
+            .enum(["online", "idle", "dnd", "offline", "invisible"])
             .default(openDmThreadResponseLastMessageOneAuthorStatusDefault),
           customStatus: zod.string().nullish(),
           createdAt: zod.date(),
@@ -787,7 +787,7 @@ export const ListDmMessagesResponseItem = zod.object({
     displayName: zod.string(),
     avatarUrl: zod.string().nullish(),
     status: zod
-      .enum(["online", "idle", "dnd", "offline"])
+      .enum(["online", "idle", "dnd", "offline", "invisible"])
       .default(listDmMessagesResponseAuthorStatusDefault),
     customStatus: zod.string().nullish(),
     createdAt: zod.date(),

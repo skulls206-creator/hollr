@@ -1,6 +1,9 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { IncomingMessage } from "http";
 import { Server } from "http";
+import { db } from "@workspace/db";
+import { userProfilesTable } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
 
 let wss: WebSocketServer | null = null;
 
@@ -45,13 +48,18 @@ function leaveVoiceRoom(userId: string) {
   broadcastAll({ type: "VOICE_USER_LEFT", payload: { channelId, userId } });
 }
 
+// Invisible users appear as offline to others
+function visibleStatus(status: string): string {
+  return status === "invisible" ? "offline" : status;
+}
+
 export function initWebSocket(server: Server) {
   wss = new WebSocketServer({ server, path: "/api/ws" });
 
   wss.on("connection", (ws: WebSocket, _req: IncomingMessage) => {
     clients.add(ws);
 
-    ws.on("message", (data) => {
+    ws.on("message", async (data) => {
       try {
         const msg = JSON.parse(data.toString());
 
@@ -61,6 +69,22 @@ export function initWebSocket(server: Server) {
             if (userId) {
               userSockets.set(userId, ws);
               socketUsers.set(ws, userId);
+
+              // Read the user's saved status preference from DB and broadcast it.
+              // Invisible users appear as offline to everyone else.
+              try {
+                const profile = await db.query.userProfilesTable.findFirst({
+                  where: eq(userProfilesTable.userId, userId),
+                  columns: { status: true },
+                });
+                const savedStatus = profile?.status ?? "online";
+                broadcastAll({
+                  type: "PRESENCE_UPDATE",
+                  payload: { userId, status: visibleStatus(savedStatus) },
+                });
+              } catch {
+                broadcastAll({ type: "PRESENCE_UPDATE", payload: { userId, status: "online" } });
+              }
 
               // Send a full snapshot of all occupied voice rooms so the client
               // can display presence immediately without having joined any channel
@@ -222,7 +246,25 @@ export function initWebSocket(server: Server) {
           }
 
           case "PRESENCE_UPDATE": {
-            broadcastAll({ type: "PRESENCE_UPDATE", payload: msg.payload });
+            const { userId: presenceUserId, status } = msg.payload ?? {};
+            const validStatuses = ["online", "idle", "dnd", "invisible"];
+
+            if (presenceUserId && status && validStatuses.includes(status)) {
+              // User-chosen status: persist to DB, broadcast the visible version
+              try {
+                await db
+                  .update(userProfilesTable)
+                  .set({ status })
+                  .where(eq(userProfilesTable.userId, presenceUserId));
+              } catch { /* non-fatal */ }
+              broadcastAll({
+                type: "PRESENCE_UPDATE",
+                payload: { userId: presenceUserId, status: visibleStatus(status) },
+              });
+            } else {
+              // Disconnect/offline signal — broadcast as-is, don't overwrite saved preference
+              broadcastAll({ type: "PRESENCE_UPDATE", payload: msg.payload });
+            }
             break;
           }
         }
@@ -236,6 +278,8 @@ export function initWebSocket(server: Server) {
         userSockets.delete(userId);
         socketUsers.delete(ws);
         leaveVoiceRoom(userId);
+        // Broadcast offline so all clients know this user is gone
+        broadcastAll({ type: "PRESENCE_UPDATE", payload: { userId, status: "offline" } });
       }
     };
 

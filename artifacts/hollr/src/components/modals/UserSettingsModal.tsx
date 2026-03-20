@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { useGetMyProfile, useUpdateMyProfile } from '@workspace/api-client-react';
-import { sendVoiceSignal } from '@/hooks/use-realtime';
+import { sendVoiceSignal, sendPresenceUpdate } from '@/hooks/use-realtime';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -11,13 +11,22 @@ import { getInitials } from '@/lib/utils';
 import { Loader2, LogOut, Mic, Volume2, User, Headphones } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
+import { cn } from '@/lib/utils';
 
 type Tab = 'profile' | 'audio';
+type UserStatus = 'online' | 'idle' | 'dnd' | 'invisible';
 
 interface AudioDevice {
   deviceId: string;
   label: string;
 }
+
+const STATUS_OPTIONS: { value: UserStatus; label: string; description: string; color: string }[] = [
+  { value: 'online',    label: 'Online',           description: 'Appear active to others',    color: 'bg-emerald-500' },
+  { value: 'idle',      label: 'Idle',             description: 'Appear away',                 color: 'bg-yellow-500' },
+  { value: 'dnd',       label: 'Do Not Disturb',   description: 'Mute notifications',          color: 'bg-destructive' },
+  { value: 'invisible', label: 'Invisible',         description: 'Appear offline to others',   color: 'bg-zinc-500' },
+];
 
 function DeviceSelect({
   label,
@@ -71,6 +80,8 @@ export function UserSettingsModal() {
   const [displayName, setDisplayName] = useState('');
   const [customStatus, setCustomStatus] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<UserStatus>('online');
+  const [statusSaving, setStatusSaving] = useState(false);
 
   const [inputDevices, setInputDevices] = useState<AudioDevice[]>([]);
   const [outputDevices, setOutputDevices] = useState<AudioDevice[]>([]);
@@ -81,6 +92,10 @@ export function UserSettingsModal() {
       setDisplayName(profile.displayName ?? '');
       setCustomStatus(profile.customStatus ?? '');
       setAvatarUrl(profile.avatarUrl ?? '');
+      const s = profile.status as UserStatus | undefined;
+      if (s && ['online', 'idle', 'dnd', 'invisible'].includes(s)) {
+        setSelectedStatus(s);
+      }
     }
   }, [profile]);
 
@@ -101,6 +116,20 @@ export function UserSettingsModal() {
       .catch(() => {})
       .finally(() => setDevicesLoading(false));
   }, [userSettingsModalOpen, tab]);
+
+  const handleStatusChange = async (newStatus: UserStatus) => {
+    if (!user?.id || statusSaving) return;
+    setSelectedStatus(newStatus);
+    setStatusSaving(true);
+    try {
+      await updateProfile.mutateAsync({ data: { status: newStatus } });
+      qc.invalidateQueries({ queryKey: ['/api/users/me'] });
+      // Broadcast status change in real-time — server will persist it and relay to all clients
+      sendPresenceUpdate(user.id, newStatus);
+    } catch { /* non-fatal */ } finally {
+      setStatusSaving(false);
+    }
+  };
 
   const handleSave = () => {
     const newDisplayName = displayName.trim() || undefined;
@@ -176,6 +205,40 @@ export function UserSettingsModal() {
                 onComplete={(url) => setAvatarUrl(url)}
                 placeholder={<span className="text-white text-2xl font-bold">{displayNameFallback}</span>}
               />
+
+              {/* Status picker */}
+              <div className="flex flex-col gap-2">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Status</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {STATUS_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => handleStatusChange(opt.value)}
+                      disabled={statusSaving}
+                      className={cn(
+                        'flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all',
+                        selectedStatus === opt.value
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border/30 bg-[#1E1F22] hover:border-border/60 hover:bg-[#252628]'
+                      )}
+                    >
+                      <span className={cn('w-3 h-3 rounded-full shrink-0', opt.color)} />
+                      <span className="flex flex-col min-w-0">
+                        <span className={cn(
+                          'text-sm font-medium truncate',
+                          selectedStatus === opt.value ? 'text-primary' : 'text-foreground'
+                        )}>
+                          {opt.label}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground truncate">{opt.description}</span>
+                      </span>
+                      {selectedStatus === opt.value && statusSaving && (
+                        <Loader2 size={12} className="animate-spin ml-auto text-muted-foreground shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="displayName" className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Display Name</Label>

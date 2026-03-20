@@ -3,7 +3,7 @@ import { boolean, integer, pgTable, text, timestamp, varchar, pgEnum, primaryKey
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const userStatusEnum = pgEnum("user_status", ["online", "idle", "dnd", "offline"]);
+export const userStatusEnum = pgEnum("user_status", ["online", "idle", "dnd", "offline", "invisible"]);
 export const channelTypeEnum = pgEnum("channel_type", ["text", "voice"]);
 export const memberRoleEnum = pgEnum("member_role", ["owner", "admin", "member"]);
 

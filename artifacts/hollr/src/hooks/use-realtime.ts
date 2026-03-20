@@ -7,6 +7,7 @@ import { playNotificationSound, playVoiceJoinSound, playVoiceLeaveSound } from '
 
 // Module-level singleton so any module can send signals without creating a second WS connection
 let _sendSignal: ((payload: any) => void) | null = null;
+let _sendRaw: ((msg: object) => void) | null = null;
 
 // Called by use-webrtc.ts to receive incoming WebRTC signaling messages
 let _onVoiceSignal: ((payload: any) => void) | null = null;
@@ -19,6 +20,12 @@ export function sendVoiceSignal(payload: any) {
     _sendSignal(payload);
   } else {
     console.warn('[WS] sendVoiceSignal called before WebSocket connected');
+  }
+}
+
+export function sendPresenceUpdate(userId: string, status: string) {
+  if (_sendRaw) {
+    _sendRaw({ type: 'PRESENCE_UPDATE', payload: { userId, status } });
   }
 }
 
@@ -98,11 +105,18 @@ export function useRealtime(userId?: string) {
         ws.current.send(JSON.stringify({ type: 'VOICE_SIGNAL', payload }));
       }
     };
+    const sendRaw = (msg: object) => {
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(JSON.stringify(msg));
+      }
+    };
     _sendSignal = sendSignal;
+    _sendRaw = sendRaw;
 
     ws.current.onopen = () => {
+      // Only identify — the server reads our saved status from DB and broadcasts it.
+      // No hardcoded "online" here, so the user's chosen status (idle/dnd/invisible) is preserved.
       ws.current?.send(JSON.stringify({ type: 'IDENTIFY', payload: { userId } }));
-      ws.current?.send(JSON.stringify({ type: 'PRESENCE_UPDATE', payload: { userId, status: 'online' } }));
     };
 
     ws.current.onmessage = (event) => {
