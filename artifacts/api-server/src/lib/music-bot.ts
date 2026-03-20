@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { ServerResponse } from 'http';
-import ytdl from '@distube/ytdl-core';
+import playdl from 'play-dl';
 import type { Track, MusicState } from '@workspace/api-zod';
 
 export const BOT_USER_ID = 'hollr-music-bot';
@@ -10,26 +10,121 @@ export const BOT_USERNAME = 'music-bot';
 
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── play-dl initialisation ────────────────────────────────────────────────────
 
-/** Pick the best audio-only format from a format list.
- *  Avoids `ytdl.chooseFormat` quality strings that can throw when decipher
- *  function is unparseable; instead sorts by bitrate manually. */
-function pickAudioFormat(formats: ytdl.videoFormat[]): ytdl.videoFormat {
-  // NOTE: do NOT filter by f.url — many YouTube formats use signatureCipher
-  // and have an empty/missing url at this stage; downloadFromInfo handles deciphering.
-  const audio = formats
-    .filter(f => f.hasAudio && !f.hasVideo)
-    .sort((a, b) => (b.audioBitrate ?? 0) - (a.audioBitrate ?? 0));
-  if (audio.length === 0) {
-    // Fall back to any format that has audio (muxed video+audio)
-    const any = formats
-      .filter(f => f.hasAudio)
-      .sort((a, b) => (b.audioBitrate ?? 0) - (a.audioBitrate ?? 0));
-    if (any.length === 0) throw new Error('No playable audio format found for this video');
-    return any[0];
+let playdlReady = false;
+
+async function ensurePlaydl() {
+  if (playdlReady) return;
+  try {
+    const clientId = await playdl.getFreeClientID();
+    await playdl.setToken({ soundcloud: { client_id: clientId } });
+    playdlReady = true;
+    console.log('[music] play-dl initialised with SoundCloud client ID');
+  } catch (err: any) {
+    console.error('[music] Failed to init play-dl:', err.message);
   }
-  return audio[0];
+}
+
+ensurePlaydl().catch(() => {});
+
+// ── Track resolution ──────────────────────────────────────────────────────────
+
+/** Resolved metadata + a SoundCloud URL to actually stream. */
+interface Resolved {
+  track: Omit<Track, 'requestedBy'>;
+  scUrl: string;
+}
+
+function isYouTubeUrl(input: string) {
+  return input.includes('youtube.com/') || input.includes('youtu.be/');
+}
+
+function isSoundCloudUrl(input: string) {
+  return input.includes('soundcloud.com/');
+}
+
+/** Remove common YouTube title noise like "(Official Visualizer)", "(Audio)", etc. */
+function cleanYouTubeTitle(title: string): string {
+  return title
+    .replace(/\(official\s*(music\s*)?video\)/gi, '')
+    .replace(/\(official\s*(audio|visualizer|lyric\s*video|version)\)/gi, '')
+    .replace(/\(lyric\s*video\)/gi, '')
+    .replace(/\(audio\)/gi, '')
+    .replace(/\(hd\)/gi, '')
+    .replace(/\[official\s*(music\s*)?video\]/gi, '')
+    .replace(/\[official\s*(audio|visualizer|lyric\s*video)\]/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/**
+ * Resolve any input (YouTube URL, SoundCloud URL, or search query) to a
+ * streamable SoundCloud track + metadata.
+ *
+ * Strategy:
+ *   - SoundCloud URL → fetch info directly, stream directly
+ *   - YouTube URL   → get YT metadata for title/duration/thumbnail, then
+ *                     search SoundCloud by title (closest duration match)
+ *   - Search query  → search SoundCloud directly
+ */
+export async function resolveTrack(input: string): Promise<Resolved> {
+  await ensurePlaydl();
+
+  // ── SoundCloud URL ─────────────────────────────────────────────────────────
+  if (isSoundCloudUrl(input)) {
+    const info = await playdl.soundcloud(input);
+    if (info.type !== 'track') throw new Error('Only SoundCloud track URLs are supported (not playlists)');
+    const t = info as playdl.SoundCloudTrack;
+    return {
+      track: {
+        url: input,
+        title: t.name,
+        durationMs: t.durationInSec * 1000,
+        thumbnail: t.thumbnail ?? null,
+      },
+      scUrl: input,
+    };
+  }
+
+  // ── YouTube URL ────────────────────────────────────────────────────────────
+  if (isYouTubeUrl(input)) {
+    // Try to get the video title so we can suggest a useful search query
+    let songHint = '';
+    try {
+      const ytInfo = await playdl.video_info(input);
+      const rawTitle = ytInfo.video_details.title ?? '';
+      const cleanTitle = cleanYouTubeTitle(rawTitle);
+      const dashIdx = cleanTitle.indexOf(' - ');
+      songHint = dashIdx > 0 ? cleanTitle.slice(dashIdx + 3).trim() : cleanTitle;
+    } catch { /* ignore */ }
+
+    const suggestion = songHint
+      ? `Try: /play ${songHint}`
+      : 'Try searching by song name: /play <song name>';
+
+    throw new Error(
+      `YouTube links can't be streamed from this server. ` +
+      `${suggestion}, or paste a SoundCloud link (soundcloud.com).`
+    );
+  }
+
+  // ── Search query ───────────────────────────────────────────────────────────
+  const results = await playdl.search(input, { source: { soundcloud: 'tracks' }, limit: 5 });
+  if (results.length === 0) {
+    throw new Error(`No results found for "${input}" on SoundCloud`);
+  }
+  const t = results[0] as playdl.SoundCloudTrack;
+  console.log(`[music] Search resolved to: "${t.name}" by ${t.user?.name}`);
+  return {
+    track: {
+      url: t.url,
+      title: t.name,
+      durationMs: t.durationInSec * 1000,
+      thumbnail: t.thumbnail ?? null,
+    },
+    scUrl: t.url,
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -44,8 +139,7 @@ class ChannelMusic extends EventEmitter {
   private playStartTime: number = 0;
   private pausedPositionMs: number = 0;
   private positionTimer: ReturnType<typeof setInterval> | null = null;
-  private currentInfo: Awaited<ReturnType<typeof ytdl.getInfo>> | null = null;
-  private currentUrl: string | null = null;
+  private currentScUrl: string | null = null;
 
   constructor(channelId: string) {
     super();
@@ -107,7 +201,7 @@ class ChannelMusic extends EventEmitter {
         );
         this.emit('stateChange', this.state);
       }
-    }, 5000); // Broadcast position every 5 seconds instead of every second (reduces WS noise)
+    }, 5000);
   }
 
   private stopPositionTimer() {
@@ -117,7 +211,7 @@ class ChannelMusic extends EventEmitter {
     }
   }
 
-  // ── ffmpeg ────────────────────────────────────────────────────────────────
+  // ── ffmpeg + play-dl stream ───────────────────────────────────────────────
 
   private stopStream() {
     if (this.ffmpegProc) {
@@ -130,26 +224,12 @@ class ChannelMusic extends EventEmitter {
     this.closeStreamClients();
   }
 
-  private async startFfmpeg(seekSecs: number = 0): Promise<void> {
-    if (!this.currentInfo || !this.currentUrl) {
-      throw new Error('No track loaded');
-    }
+  private async startFfmpeg(scUrl: string, seekSecs: number = 0): Promise<void> {
+    // Get a fresh play-dl stream from SoundCloud
+    const dlStream = await playdl.stream(scUrl, { quality: 1 });
+    console.log(`[music] play-dl stream type: ${dlStream.type} for channel ${this.channelId}`);
 
-    // Re-fetch info to get fresh URLs if the cached info is stale
-    let info = this.currentInfo;
-    try {
-      info = await ytdl.getInfo(this.currentUrl);
-      this.currentInfo = info;
-    } catch (refreshErr) {
-      console.warn('[music] Could not refresh track info, using cached:', (refreshErr as Error).message);
-    }
-
-    const audioFormat = pickAudioFormat(info.formats);
-    console.log(`[music] Selected format: ${audioFormat.mimeType} ${audioFormat.audioBitrate}kbps`);
-
-    const ytStream = ytdl.downloadFromInfo(info, { format: audioFormat });
-
-    const ffmpegArgs = [
+    const ffmpegArgs: string[] = [
       '-loglevel', 'warning',
       '-i', 'pipe:0',
       ...(seekSecs > 0 ? ['-ss', seekSecs.toFixed(3)] : []),
@@ -165,7 +245,6 @@ class ChannelMusic extends EventEmitter {
     const proc = spawn(FFMPEG, ffmpegArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
     this.ffmpegProc = proc;
 
-    // Pipe stderr for debugging
     let stderrBuf = '';
     proc.stderr!.on('data', (chunk: Buffer) => {
       stderrBuf += chunk.toString();
@@ -176,12 +255,12 @@ class ChannelMusic extends EventEmitter {
       }
     });
 
-    ytStream.on('error', (err) => {
-      console.error('[music] ytdl stream error:', err.message);
+    dlStream.stream.on('error', (err) => {
+      console.error('[music] play-dl stream error:', err.message);
       try { proc.stdin?.destroy(); } catch { /* ignore */ }
     });
 
-    ytStream.pipe(proc.stdin!);
+    dlStream.stream.pipe(proc.stdin!);
 
     proc.stdout!.on('data', (chunk: Buffer) => {
       this.broadcastAudio(chunk);
@@ -193,15 +272,14 @@ class ChannelMusic extends EventEmitter {
     });
 
     proc.on('close', (code) => {
-      if (proc !== this.ffmpegProc) return; // stale process
+      if (proc !== this.ffmpegProc) return;
       this.ffmpegProc = null;
       console.log(`[music] ffmpeg exited with code ${code} for channel ${this.channelId}`);
 
       if (code !== 0) {
-        console.error(`[music] ffmpeg failed (code ${code}) — stopping playback`);
+        console.error(`[music] ffmpeg failed (code ${code})`);
         this.handlePlaybackError('Playback failed (ffmpeg error)');
       } else if (this.state.isPlaying) {
-        // Track finished normally — advance queue
         this.advanceQueue();
       }
     });
@@ -258,30 +336,21 @@ class ChannelMusic extends EventEmitter {
       queue: [],
       botConnected: false,
     };
-    this.currentInfo = null;
-    this.currentUrl = null;
+    this.currentScUrl = null;
     this.emit('stateChange', this.state);
   }
 
-  async playTrack(url: string, requestedBy: string): Promise<Track> {
+  async playTrack(input: string, requestedBy: string): Promise<Track> {
     this.stopStream();
     this.stopPositionTimer();
 
-    console.log(`[music] Fetching info for: ${url}`);
-    const info = await ytdl.getInfo(url);
-    this.currentInfo = info;
-    this.currentUrl = url;
+    console.log(`[music] Resolving: ${input}`);
+    const { track: meta, scUrl } = await resolveTrack(input);
+    this.currentScUrl = scUrl;
 
-    const durationSec = parseInt(info.videoDetails.lengthSeconds, 10);
-    const track: Track = {
-      url,
-      title: info.videoDetails.title,
-      durationMs: isNaN(durationSec) ? 0 : durationSec * 1000,
-      requestedBy,
-      thumbnail: info.videoDetails.thumbnails?.[0]?.url ?? null,
-    };
+    const track: Track = { ...meta, requestedBy };
 
-    console.log(`[music] Playing "${track.title}" (${track.durationMs / 1000}s) in channel ${this.channelId}`);
+    console.log(`[music] Playing "${track.title}" (${track.durationMs / 1000}s) via SoundCloud in channel ${this.channelId}`);
 
     this.state.currentTrack = track;
     this.state.isPlaying = true;
@@ -291,11 +360,9 @@ class ChannelMusic extends EventEmitter {
     this.pausedPositionMs = 0;
     this.playStartTime = Date.now();
 
-    // Emit state BEFORE starting ffmpeg so UI updates immediately
     this.emit('stateChange', this.state);
 
-    // Start ffmpeg — don't throw here; handle errors in proc event handlers
-    this.startFfmpeg(0).catch((err) => {
+    this.startFfmpeg(scUrl, 0).catch((err) => {
       console.error('[music] startFfmpeg error:', err.message);
       this.handlePlaybackError(`Could not start playback: ${err.message}`);
     });
@@ -315,15 +382,15 @@ class ChannelMusic extends EventEmitter {
   }
 
   async resume(): Promise<void> {
-    if (this.state.isPlaying || !this.state.currentTrack || !this.currentUrl) return;
+    if (this.state.isPlaying || !this.state.currentTrack || !this.currentScUrl) return;
     console.log(`[music] Resuming channel ${this.channelId} from ${this.pausedPositionMs}ms`);
     const seekSecs = this.pausedPositionMs / 1000;
     this.state.isPlaying = true;
     this.state.error = undefined;
     this.playStartTime = Date.now();
     this.emit('stateChange', this.state);
-    this.startFfmpeg(seekSecs).catch((err) => {
-      console.error('[music] resume ffmpeg error:', err.message);
+    this.startFfmpeg(this.currentScUrl, seekSecs).catch((err) => {
+      console.error('[music] resume error:', err.message);
       this.handlePlaybackError(`Could not resume: ${err.message}`);
     });
     this.startPositionTimer();
@@ -348,12 +415,11 @@ class ChannelMusic extends EventEmitter {
     this.state.isPlaying = false;
     this.state.currentTrack = null;
     this.state.positionMs = 0;
-    this.currentInfo = null;
-    this.currentUrl = null;
+    this.currentScUrl = null;
     this.emit('stateChange', this.state);
   }
 
-  enqueue(track: Track): void {
+  enqueue(track: Track, scUrl: string): void {
     console.log(`[music] Queued "${track.title}" in channel ${this.channelId}`);
     this.state.queue.push(track);
     this.emit('stateChange', this.state);
@@ -397,24 +463,16 @@ class MusicBotManager {
     }
   }
 
-  async play(channelId: string, url: string, requestedBy: string): Promise<Track> {
+  async play(channelId: string, input: string, requestedBy: string): Promise<Track> {
     const ch = this.getOrCreate(channelId);
-    // If something is already playing, queue it
     if (ch.state.isPlaying && ch.state.currentTrack) {
-      console.log(`[music] Queueing track for channel ${channelId}`);
-      const info = await ytdl.getInfo(url);
-      const durationSec = parseInt(info.videoDetails.lengthSeconds, 10);
-      const track: Track = {
-        url,
-        title: info.videoDetails.title,
-        durationMs: isNaN(durationSec) ? 0 : durationSec * 1000,
-        requestedBy,
-        thumbnail: info.videoDetails.thumbnails?.[0]?.url ?? null,
-      };
-      ch.enqueue(track);
+      console.log(`[music] Resolving queued track for channel ${channelId}`);
+      const { track: meta, scUrl } = await resolveTrack(input);
+      const track: Track = { ...meta, requestedBy };
+      ch.enqueue(track, scUrl);
       return track;
     }
-    return ch.playTrack(url, requestedBy);
+    return ch.playTrack(input, requestedBy);
   }
 
   pause(channelId: string): void {

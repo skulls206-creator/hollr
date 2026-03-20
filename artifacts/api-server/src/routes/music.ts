@@ -101,37 +101,22 @@ router.post('/voice/:channelId/music/leave', async (req, res) => {
 router.post('/voice/:channelId/music/play', async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
   const { channelId } = req.params;
-  const { url } = req.body;
+  // Accept 'url' (legacy) or 'query' (search term / any URL)
+  const input: string = req.body.query ?? req.body.url ?? '';
 
-  if (!url || typeof url !== 'string') {
-    res.status(400).json({ error: 'url is required' });
-    return;
-  }
-
-  // Validate it looks like a YouTube URL
-  const isYouTube = url.includes('youtube.com/') || url.includes('youtu.be/');
-  if (!isYouTube) {
-    res.status(400).json({ error: 'Only YouTube URLs are supported' });
+  if (!input || typeof input !== 'string') {
+    res.status(400).json({ error: 'query or url is required' });
     return;
   }
 
   try {
     await ensureBotJoined(channelId);
-    const track = await musicBot.play(channelId, url, req.user!.id);
-    // Broadcast after play (also emitted inside via stateChange events)
+    const track = await musicBot.play(channelId, input.trim(), req.user!.id);
     broadcastMusicState(musicBot.getState(channelId));
     res.json({ ok: true, track, state: musicBot.getState(channelId) });
   } catch (err: any) {
     console.error('[music-route] play error:', err.message);
-    const message =
-      err.message?.includes('unavailable') || err.message?.includes('private')
-        ? 'This video is unavailable or private'
-        : err.message?.includes('age')
-        ? 'Age-restricted video — cannot play'
-        : err.message?.includes('No playable audio') || err.message?.includes('No such format')
-        ? 'No playable audio format found for this video'
-        : `Could not load track: ${err.message}`;
-    res.status(400).json({ error: message });
+    res.status(400).json({ error: err.message ?? 'Could not load track' });
   }
 });
 

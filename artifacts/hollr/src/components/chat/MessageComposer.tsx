@@ -19,7 +19,7 @@ interface SlashCommand {
 }
 
 const SLASH_COMMANDS: SlashCommand[] = [
-  { name: 'play',   description: 'Play a YouTube URL (queues if already playing)', hasArg: true, argPlaceholder: '<youtube-url>', requiresVoice: true },
+  { name: 'play',   description: 'Play a song (SoundCloud URL or search terms)', hasArg: true, argPlaceholder: '<song name or soundcloud-url>', requiresVoice: true },
   { name: 'pause',  description: 'Pause music playback', requiresVoice: true },
   { name: 'resume', description: 'Resume music playback', requiresVoice: true },
   { name: 'skip',   description: 'Skip the current track', requiresVoice: true },
@@ -164,10 +164,10 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         case 'stop':   return callMusicApi(voiceChannelId, 'stop');
         case 'play': {
           if (!arg) {
-            toast({ title: 'Usage: /play <youtube-url>', variant: 'destructive' });
+            toast({ title: 'Usage: /play <song name or soundcloud-url>', variant: 'destructive' });
             return null;
           }
-          return callMusicApi(voiceChannelId, 'play', 'POST', { url: arg });
+          return callMusicApi(voiceChannelId, 'play', 'POST', { query: arg });
         }
         case 'queue': {
           const state = await callMusicApi(voiceChannelId, 'queue', 'GET');

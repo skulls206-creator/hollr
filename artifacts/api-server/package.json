@@ -23,7 +23,9 @@
     "fluent-ffmpeg": "^2.1.3",
     "google-auth-library": "^10.6.2",
     "openid-client": "^6.8.2",
+    "play-dl": "^1.9.7",
     "ws": "^8.19.0",
+    "youtubei.js": "^17.0.1",
     "yt-dlp-exec": "^1.0.2"
   },
   "devDependencies": {
