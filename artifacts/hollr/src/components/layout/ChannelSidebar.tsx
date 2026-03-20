@@ -815,11 +815,16 @@ function VoiceSidebarUser({
                 <span className="text-xs font-mono text-muted-foreground">{volumePct}%</span>
               </div>
               <Slider
-                min={0} max={2} step={0.01}
+                min={0} max={1} step={0.01}
                 value={[volume]}
                 onValueChange={([v]) => onVolumeChange(v)}
                 className="w-full"
               />
+              <div className="flex justify-between text-[10px] text-muted-foreground/50 mt-1">
+                <span>0%</span>
+                <span>50%</span>
+                <span>100%</span>
+              </div>
             </div>
 
             <div className="flex gap-2">
