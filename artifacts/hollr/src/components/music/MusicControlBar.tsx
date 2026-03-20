@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
 import {
-  Play, Pause, SkipForward, Volume2, VolumeX, Music2, List, X, Loader2, AlertCircle,
+  Play, Pause, SkipForward, Volume2, VolumeX, Music2, List, X, Loader2, AlertCircle, Repeat,
 } from 'lucide-react';
 import { useMusicState } from '@/hooks/use-music-state';
 import type { Track } from '@workspace/api-zod';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useState } from 'react';
 
 function fmtMs(ms: number): string {
   if (!ms || ms < 0) return '0:00';
@@ -19,43 +19,19 @@ function fmtMs(ms: number): string {
 export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) {
   const {
     musicState,
+    audioPositionMs,
     musicVolume, setMusicVolume,
     error, loading,
+    loopEnabled, setLoopEnabled,
     pause, resume, skip, stop,
   } = useMusicState(voiceChannelId);
 
-  const [localPositionMs, setLocalPositionMs] = useState(0);
   const [showQueue, setShowQueue] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Sync local position with server state
-  useEffect(() => {
-    setLocalPositionMs(musicState.positionMs);
-  }, [musicState.positionMs]);
-
-  // Tick up locally between server position broadcasts
-  useEffect(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (musicState.isPlaying) {
-      timerRef.current = setInterval(() => {
-        setLocalPositionMs(prev => {
-          const next = prev + 500;
-          if (musicState.durationMs > 0 && next >= musicState.durationMs) {
-            clearInterval(timerRef.current!);
-            return musicState.durationMs;
-          }
-          return next;
-        });
-      }, 500);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [musicState.isPlaying, musicState.durationMs, musicState.positionMs]);
-
-  // Don't mount until the bot has connected (state fetched on mount in useMusicState)
   if (!musicState.botConnected && !loading) return null;
 
   const { currentTrack, isPlaying, queue, durationMs } = musicState;
-  const progress = durationMs > 0 ? Math.min((localPositionMs / durationMs) * 100, 100) : 0;
+  const progress = durationMs > 0 ? Math.min((audioPositionMs / durationMs) * 100, 100) : 0;
 
   return (
     <AnimatePresence mode="wait">
@@ -110,19 +86,22 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
               </div>
             ) : (
               <p className="text-[11px] text-muted-foreground">
-                {fmtMs(localPositionMs)}
+                {fmtMs(audioPositionMs)}
                 {durationMs > 0 && ` / ${fmtMs(durationMs)}`}
                 {!currentTrack && !loading && ' · Music Bot connected'}
+                {loopEnabled && currentTrack && (
+                  <span className="ml-1 text-primary">· loop</span>
+                )}
               </p>
             )}
           </div>
 
-          {/* Progress bar (larger screens) */}
+          {/* Progress bar */}
           {durationMs > 0 && !error && (
             <div className="flex-1 max-w-[200px] hidden sm:block">
               <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-primary rounded-full transition-[width] duration-500 ease-linear"
+                  className="h-full bg-primary rounded-full transition-[width] duration-200 ease-linear"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -149,6 +128,20 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
               title="Skip"
             >
               <SkipForward size={16} />
+            </button>
+
+            {/* Loop */}
+            <button
+              onClick={() => setLoopEnabled(!loopEnabled)}
+              className={cn(
+                'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
+                loopEnabled
+                  ? 'bg-primary/20 text-primary'
+                  : 'text-muted-foreground hover:bg-white/10 hover:text-foreground',
+              )}
+              title={loopEnabled ? 'Loop on — click to turn off' : 'Loop off — click to repeat track'}
+            >
+              <Repeat size={14} />
             </button>
 
             {/* Queue toggle */}

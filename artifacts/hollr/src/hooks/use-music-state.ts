@@ -20,12 +20,28 @@ export function useMusicState(voiceChannelId: string | null) {
   const [localError, setLocalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Loop mode — client-side only
+  const [loopEnabled, setLoopEnabled] = useState(false);
+  const loopRef = useRef(false);
+  loopRef.current = loopEnabled;
+
+  // Track the last played URL so loop can replay it
+  const lastTrackUrlRef = useRef<string | null>(null);
+
+  // Audio element — stable for the lifetime of the hook
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const trackSrcRef = useRef<string | null>(null); // tracks which stream URL is loaded
+  const trackSrcRef = useRef<string | null>(null);
 
-  // Fetch the current server-side state when mounting so we always have up-to-date info
+  // Seek offset: the server-side positionMs at the moment the current stream started.
+  // audio.currentTime is 0-based within that stream, so true position = offset + currentTime.
+  const seekOffsetMsRef = useRef(0);
+
+  // Live position read from the audio element (250 ms interval)
+  const [audioPositionMs, setAudioPositionMs] = useState(0);
+
+  // Fetch the current server-side state when mounting
   useEffect(() => {
     if (!voiceChannelId) {
       setMusicState(MUSIC_DEFAULT_STATE);
@@ -34,7 +50,7 @@ export function useMusicState(voiceChannelId: string | null) {
     fetch(`${BASE}api/voice/${voiceChannelId}/music/state`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setMusicState(data); })
-      .catch(() => {}); // not critical
+      .catch(() => {});
   }, [voiceChannelId]);
 
   // Subscribe to WS MUSIC_STATE_UPDATE events
@@ -46,9 +62,9 @@ export function useMusicState(voiceChannelId: string | null) {
     return () => setMusicStateListener(null);
   }, [voiceChannelId]);
 
-  // Create Audio element once and keep stable
+  // Create Audio element once
   useEffect(() => {
-    if (audioRef.current) return; // already created
+    if (audioRef.current) return;
     const audio = new Audio();
     audio.preload = 'none';
     audioRef.current = audio;
@@ -73,25 +89,41 @@ export function useMusicState(voiceChannelId: string | null) {
     };
   }, []);
 
+  // Poll audio.currentTime every 250 ms for a smooth, accurate progress bar
+  useEffect(() => {
+    const id = setInterval(() => {
+      const audio = audioRef.current;
+      if (!audio || !musicState.isPlaying) return;
+      const pos = Math.round(seekOffsetMsRef.current + audio.currentTime * 1000);
+      setAudioPositionMs(Math.min(pos, musicState.durationMs || Infinity));
+    }, 250);
+    return () => clearInterval(id);
+  }, [musicState.isPlaying, musicState.durationMs]);
+
+  // Reset audio position when track changes or stops
+  useEffect(() => {
+    if (!musicState.isPlaying || !musicState.currentTrack) {
+      setAudioPositionMs(musicState.positionMs);
+    }
+  }, [musicState.isPlaying, musicState.currentTrack, musicState.positionMs]);
+
   // Connect audio to stream when isPlaying / track changes
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !voiceChannelId) return;
 
     if (musicState.isPlaying && musicState.currentTrack) {
-      // Build stream URL — use track URL as cache key so we reconnect on new track or resume
       const streamUrl = `${BASE}api/voice/${voiceChannelId}/music/stream`;
       const trackKey = `${voiceChannelId}:${musicState.currentTrack.url}`;
 
       if (trackSrcRef.current !== trackKey) {
-        // New track or new stream needed — attach a fresh URL with timestamp to bust cache
+        // Capture seek offset at the moment the stream begins
+        seekOffsetMsRef.current = musicState.positionMs;
         trackSrcRef.current = trackKey;
         audio.src = `${streamUrl}?t=${Date.now()}`;
         audio.load();
       }
 
-      // Bootstrap Web Audio API for gain control (needs user gesture — safe here since
-      // the user just clicked play or issued a command)
       if (!audioCtxRef.current) {
         try {
           const ctx = new AudioContext();
@@ -113,7 +145,6 @@ export function useMusicState(voiceChannelId: string | null) {
 
       audio.play().catch((err) => {
         console.warn('[music-audio] play() rejected:', err.message);
-        // On autoplay policy failure, try on next user interaction
         const onInteraction = () => {
           audio.play().catch(() => {});
           document.removeEventListener('click', onInteraction);
@@ -123,7 +154,6 @@ export function useMusicState(voiceChannelId: string | null) {
         document.addEventListener('keydown', onInteraction, { once: true });
       });
     } else {
-      // Paused or stopped — pause audio and reset stream key so next play reconnects
       audio.pause();
       if (!musicState.isPlaying) {
         trackSrcRef.current = null;
@@ -136,10 +166,34 @@ export function useMusicState(voiceChannelId: string | null) {
     if (gainRef.current) {
       gainRef.current.gain.value = musicVolume / 100;
     } else if (audioRef.current) {
-      // Fall back to element volume if Web Audio isn't set up
       audioRef.current.volume = Math.min(musicVolume / 100, 1);
     }
   }, [musicVolume]);
+
+  // Save last track URL whenever a track is playing
+  useEffect(() => {
+    if (musicState.currentTrack?.url) {
+      lastTrackUrlRef.current = musicState.currentTrack.url;
+    }
+  }, [musicState.currentTrack?.url]);
+
+  // Loop: when track ends (currentTrack→null) and loop is enabled, replay last track
+  const prevCurrentTrackRef = useRef(musicState.currentTrack);
+  useEffect(() => {
+    const prev = prevCurrentTrackRef.current;
+    prevCurrentTrackRef.current = musicState.currentTrack;
+
+    if (prev !== null && musicState.currentTrack === null && loopRef.current && lastTrackUrlRef.current) {
+      const urlToReplay = lastTrackUrlRef.current;
+      console.log('[music-loop] Replaying:', urlToReplay);
+      // Slight delay so the state settles before we call play
+      setTimeout(() => {
+        if (loopRef.current) {
+          apiCallRef.current('play', 'POST', { url: urlToReplay }).catch(() => {});
+        }
+      }, 800);
+    }
+  }, [musicState.currentTrack]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -179,6 +233,10 @@ export function useMusicState(voiceChannelId: string | null) {
     }
   }, [voiceChannelId]);
 
+  // Keep a stable ref so the loop effect can call it without adding to its deps
+  const apiCallRef = useRef(apiCall);
+  apiCallRef.current = apiCall;
+
   const join   = useCallback(() => apiCall('join'), [apiCall]);
   const leave  = useCallback(() => apiCall('leave'), [apiCall]);
   const pause  = useCallback(() => apiCall('pause'), [apiCall]);
@@ -195,15 +253,17 @@ export function useMusicState(voiceChannelId: string | null) {
     return result;
   }, [apiCall]);
 
-  // Merged error: prefer server-side error from state, fallback to local HTTP error
   const error = musicState.error ?? localError;
 
   return {
     musicState,
+    audioPositionMs,
     musicVolume,
     setMusicVolume,
     error,
     loading,
+    loopEnabled,
+    setLoopEnabled,
     join,
     leave,
     play,

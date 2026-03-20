@@ -173,7 +173,10 @@ export function VoiceOverlay() {
   // --- Watch Stream full-screen view ---
   if (watchingUserId) {
     const isLocal = watchingUserId === myUserId;
-    const videoStream = isLocal ? screenStream : (remoteVideoStreams[watchingUserId] ?? null);
+    // For local: prefer screen share, fall back to camera
+    const videoStream = isLocal
+      ? (screenStream ?? cameraStream)
+      : (remoteVideoStreams[watchingUserId] ?? null);
     const watchUser = isLocal
       ? localUserData
       : channelUsers.find(u => u.userId === watchingUserId);
@@ -499,12 +502,12 @@ function LocalUserTile({
           className="absolute inset-0 w-full h-full object-cover"
         />
       )}
-      {streaming && (
+      {(streaming || !!cameraStream) && (
         <button onClick={onWatch}
           className="absolute inset-0 w-full h-full flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity z-10 cursor-pointer group">
           <div className="flex items-center gap-1.5 bg-black/70 px-3 py-1.5 rounded-lg">
             <Maximize2 size={14} className="text-white" />
-            <span className="text-xs text-white font-semibold">Watch</span>
+            <span className="text-xs text-white font-semibold">{streaming ? 'Watch' : 'Fullscreen'}</span>
           </div>
         </button>
       )}
@@ -690,33 +693,36 @@ function RemoteUserTile({
       {/* Muted — actual playback is via AudioContext GainNode. Kept for setSinkId support. */}
       <audio ref={audioRef} playsInline muted style={{ display: 'none' }} />
 
-      {/* Video thumbnail if streaming */}
+      {/* Video feed — camera or screen share */}
       {videoStream && (
         <video
           ref={videoRef}
           autoPlay playsInline muted
-          className="absolute inset-0 w-full h-full object-cover opacity-60"
+          className="absolute inset-0 w-full h-full object-cover"
         />
       )}
 
       <button onClick={(e) => { e.stopPropagation(); onOpenProfile(e.clientX, e.clientY); }}
         title="View profile"
         className="absolute inset-0 w-full h-full flex flex-col items-center justify-center hover:bg-black/20 transition-colors z-10">
-        <div className="relative">
-          <SpeakingRing speaking={speaking}>
-            <Avatar className="h-14 w-14 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
-              <AvatarImage src={avatarUrl || undefined} />
-              <AvatarFallback className={cn(isBot ? 'bg-violet-700' : 'bg-slate-700', 'text-white text-lg')}>
-                {isBot ? '♪' : getInitials(displayName)}
-              </AvatarFallback>
-            </Avatar>
-          </SpeakingRing>
-          {isBot && (
-            <span className="absolute -bottom-1 -right-1 bg-violet-500 rounded-full p-1 border-2 border-[#1E1F22]">
-              <Music2 size={8} className="text-white" />
-            </span>
-          )}
-        </div>
+        {/* Hide avatar when video is live — camera/screen fills the tile */}
+        {!videoStream && (
+          <div className="relative">
+            <SpeakingRing speaking={speaking}>
+              <Avatar className="h-14 w-14 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
+                <AvatarImage src={avatarUrl || undefined} />
+                <AvatarFallback className={cn(isBot ? 'bg-violet-700' : 'bg-slate-700', 'text-white text-lg')}>
+                  {isBot ? '♪' : getInitials(displayName)}
+                </AvatarFallback>
+              </Avatar>
+            </SpeakingRing>
+            {isBot && (
+              <span className="absolute -bottom-1 -right-1 bg-violet-500 rounded-full p-1 border-2 border-[#1E1F22]">
+                <Music2 size={8} className="text-white" />
+              </span>
+            )}
+          </div>
+        )}
       </button>
 
       {/* Watch hover overlay — shown when streaming */}

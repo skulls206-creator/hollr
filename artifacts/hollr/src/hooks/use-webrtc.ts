@@ -6,9 +6,22 @@ import { useAppStore } from '@/store/use-app-store';
 const SPEAKING_THRESHOLD = 18;
 const SPEAKING_DEBOUNCE_MS = 600;
 
-const ICE_SERVERS = [
+const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  // Free TURN relay — ensures connectivity through strict NAT, proxies, and
+  // environments like Replit's proxied iframe preview.
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:80?transport=tcp',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
 ];
 
 export function useWebRTC(
