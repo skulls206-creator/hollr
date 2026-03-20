@@ -87,26 +87,104 @@ export async function resolveTrack(input: string): Promise<Resolved> {
     };
   }
 
-  // ── YouTube URL ────────────────────────────────────────────────────────────
+  // ── YouTube URL → auto-switch to SoundCloud ────────────────────────────────
   if (isYouTubeUrl(input)) {
-    // Try to get the video title so we can suggest a useful search query
-    let songHint = '';
+    // Step 1: get YouTube metadata
+    let ytTitle = '';
+    let ytChannel = '';
+    let ytDurationSec = 0;
+    let ytThumbnail: string | null = null;
+
     try {
       const ytInfo = await playdl.video_info(input);
-      const rawTitle = ytInfo.video_details.title ?? '';
-      const cleanTitle = cleanYouTubeTitle(rawTitle);
-      const dashIdx = cleanTitle.indexOf(' - ');
-      songHint = dashIdx > 0 ? cleanTitle.slice(dashIdx + 3).trim() : cleanTitle;
-    } catch { /* ignore */ }
+      const d = ytInfo.video_details;
+      ytTitle = d.title ?? '';
+      ytChannel = d.channel?.name ?? '';
+      ytDurationSec = d.durationInSec ?? 0;
+      ytThumbnail = d.thumbnails?.[0]?.url ?? null;
+    } catch (metaErr: any) {
+      // Can't even get metadata — video is unavailable / private / region-blocked
+      throw new Error(
+        `That YouTube video is unavailable (private, deleted, or region-blocked). ` +
+        `Try a SoundCloud link or search: /play <song name>`
+      );
+    }
 
-    const suggestion = songHint
-      ? `Try: /play ${songHint}`
-      : 'Try searching by song name: /play <song name>';
+    const cleanTitle = cleanYouTubeTitle(ytTitle);
+    const dashIdx = cleanTitle.indexOf(' - ');
+    const songName = dashIdx > 0 ? cleanTitle.slice(dashIdx + 3).trim() : cleanTitle;
+    const artistName = dashIdx > 0 ? cleanTitle.slice(0, dashIdx).trim() : ytChannel;
 
-    throw new Error(
-      `YouTube links can't be streamed from this server. ` +
-      `${suggestion}, or paste a SoundCloud link (soundcloud.com).`
-    );
+    console.log(`[music] YouTube → SoundCloud auto-switch for: "${cleanTitle}" (${ytDurationSec}s)`);
+
+    // Step 2: search SoundCloud with multiple query strategies
+    const queries = [
+      `${songName} ${artistName}`.trim(),
+      `${songName} ${ytChannel}`.trim(),
+      songName,
+    ].filter((q, i, arr) => q && arr.indexOf(q) === i);
+
+    let scResults: playdl.SoundCloudTrack[] = [];
+    for (const q of queries) {
+      console.log(`[music] Searching SoundCloud: "${q}"`);
+      const found = await playdl.search(q, { source: { soundcloud: 'tracks' }, limit: 10 }) as playdl.SoundCloudTrack[];
+      if (found.length > 0) { scResults = found; break; }
+    }
+
+    if (scResults.length === 0) {
+      throw new Error(
+        `"${cleanTitle}" wasn't found on SoundCloud. ` +
+        `Try a SoundCloud link or search: /play ${songName}`
+      );
+    }
+
+    // Step 3: score candidates
+    // A good match: song name appears at START or END of result title, and duration is close
+    const songNameLower = songName.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+    const artistLower = artistName.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+
+    interface Candidate { r: playdl.SoundCloudTrack; score: number; diff: number; }
+    const candidates: Candidate[] = scResults.map(r => {
+      const rLower = r.name.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      const diff = Math.abs(r.durationInSec - ytDurationSec);
+
+      // Score: exact name match at boundary = 3, artist match = 2, any containment = 1
+      let score = 0;
+      if (rLower === songNameLower) score += 5;                          // exact title match
+      else if (rLower.startsWith(songNameLower + ' ') || rLower.endsWith(' ' + songNameLower)) score += 3;
+      else if (rLower.includes(songNameLower)) score += 1;
+
+      const rArtistLower = (r.user?.name ?? '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
+      if (artistLower && rArtistLower.includes(artistLower)) score += 2;  // artist match
+      if (diff <= 10) score += 2;                                          // very close duration
+      else if (diff <= 30) score += 1;                                     // close duration
+
+      return { r, score, diff };
+    });
+
+    // Pick best candidate: must have score > 0 and be within 60s duration
+    const best = candidates
+      .filter(c => c.score > 0 && c.diff <= 60)
+      .sort((a, b) => b.score - a.score || a.diff - b.diff)[0];
+
+    if (!best) {
+      throw new Error(
+        `"${cleanTitle}" isn't available on SoundCloud. ` +
+        `Try: /play ${songName}, or paste a SoundCloud link.`
+      );
+    }
+
+    console.log(`[music] Auto-matched SoundCloud: "${best.r.name}" by ${best.r.user?.name} (score=${best.score}, diff=${best.diff}s)`);
+
+    return {
+      track: {
+        url: input,               // keep YouTube URL for display
+        title: ytTitle,           // use YouTube title for display
+        durationMs: (ytDurationSec || best.r.durationInSec) * 1000,
+        thumbnail: ytThumbnail ?? best.r.thumbnail ?? null,
+      },
+      scUrl: best.r.url,
+    };
   }
 
   // ── Search query ───────────────────────────────────────────────────────────
