@@ -174,7 +174,7 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
                 <Slider
                   value={[musicVolume]}
                   min={0}
-                  max={200}
+                  max={100}
                   step={5}
                   onValueChange={([v]) => setMusicVolume(v)}
                 />

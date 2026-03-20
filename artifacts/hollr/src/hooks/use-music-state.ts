@@ -30,12 +30,9 @@ export function useMusicState(voiceChannelId: string | null) {
 
   // Audio element — stable for the lifetime of the hook
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const gainRef = useRef<GainNode | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const trackSrcRef = useRef<string | null>(null);
 
   // Seek offset: the server-side positionMs at the moment the current stream started.
-  // audio.currentTime is 0-based within that stream, so true position = offset + currentTime.
   const seekOffsetMsRef = useRef(0);
 
   // Live position read from the audio element (250 ms interval)
@@ -67,6 +64,7 @@ export function useMusicState(voiceChannelId: string | null) {
     if (audioRef.current) return;
     const audio = new Audio();
     audio.preload = 'none';
+    audio.volume = Math.min(musicVolume / 100, 1);
     audioRef.current = audio;
 
     audio.addEventListener('error', (e) => {
@@ -117,31 +115,14 @@ export function useMusicState(voiceChannelId: string | null) {
       const trackKey = `${voiceChannelId}:${musicState.currentTrack.url}`;
 
       if (trackSrcRef.current !== trackKey) {
-        // Capture seek offset at the moment the stream begins
         seekOffsetMsRef.current = musicState.positionMs;
         trackSrcRef.current = trackKey;
         audio.src = `${streamUrl}?t=${Date.now()}`;
         audio.load();
       }
 
-      if (!audioCtxRef.current) {
-        try {
-          const ctx = new AudioContext();
-          audioCtxRef.current = ctx;
-          const gain = ctx.createGain();
-          gainRef.current = gain;
-          gain.gain.value = musicVolume / 100;
-          const src = ctx.createMediaElementSource(audio);
-          src.connect(gain);
-          gain.connect(ctx.destination);
-        } catch (err) {
-          console.warn('[music-audio] AudioContext init failed:', err);
-        }
-      }
-
-      if (audioCtxRef.current?.state === 'suspended') {
-        audioCtxRef.current.resume().catch(() => {});
-      }
+      // Apply current volume before playing
+      audio.volume = Math.min(musicVolume / 100, 1);
 
       audio.play().catch((err) => {
         console.warn('[music-audio] play() rejected:', err.message);
@@ -161,11 +142,9 @@ export function useMusicState(voiceChannelId: string | null) {
     }
   }, [musicState.isPlaying, musicState.currentTrack?.url, voiceChannelId]);
 
-  // Volume changes
+  // Volume changes — set directly on the audio element, always reliable
   useEffect(() => {
-    if (gainRef.current) {
-      gainRef.current.gain.value = musicVolume / 100;
-    } else if (audioRef.current) {
+    if (audioRef.current) {
       audioRef.current.volume = Math.min(musicVolume / 100, 1);
     }
   }, [musicVolume]);
@@ -186,7 +165,6 @@ export function useMusicState(voiceChannelId: string | null) {
     if (prev !== null && musicState.currentTrack === null && loopRef.current && lastTrackUrlRef.current) {
       const urlToReplay = lastTrackUrlRef.current;
       console.log('[music-loop] Replaying:', urlToReplay);
-      // Slight delay so the state settles before we call play
       setTimeout(() => {
         if (loopRef.current) {
           apiCallRef.current('play', 'POST', { url: urlToReplay }).catch(() => {});
@@ -199,7 +177,6 @@ export function useMusicState(voiceChannelId: string | null) {
   useEffect(() => {
     return () => {
       audioRef.current?.pause();
-      audioCtxRef.current?.close().catch(() => {});
     };
   }, []);
 
@@ -233,7 +210,6 @@ export function useMusicState(voiceChannelId: string | null) {
     }
   }, [voiceChannelId]);
 
-  // Keep a stable ref so the loop effect can call it without adding to its deps
   const apiCallRef = useRef(apiCall);
   apiCallRef.current = apiCall;
 
