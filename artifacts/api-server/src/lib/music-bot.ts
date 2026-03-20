@@ -47,6 +47,8 @@ function isSoundCloudUrl(input: string) {
 /** Remove common YouTube title noise like "(Official Visualizer)", "(Audio)", etc. */
 function cleanYouTubeTitle(title: string): string {
   return title
+    // Normalize Unicode dashes (en-dash –, em-dash —, horizontal bar ―) to ASCII hyphen
+    .replace(/[\u2013\u2014\u2015]/g, '-')
     .replace(/\(official\s*(music\s*)?video\)/gi, '')
     .replace(/\(official\s*(audio|visualizer|lyric\s*video|version)\)/gi, '')
     .replace(/\(lyric\s*video\)/gi, '')
@@ -196,9 +198,10 @@ export async function resolveTrack(input: string): Promise<Resolved> {
       return { r, score, diff };
     });
 
-    // Pick best candidate: must have score > 0 and be within 60s duration
+    // Pick best candidate: must have score > 0.
+    // Only apply duration filter when we actually know the YT duration (> 0).
     const best = candidates
-      .filter(c => c.score > 0 && c.diff <= 60)
+      .filter(c => c.score > 0 && (ytDurationSec === 0 || c.diff <= 60))
       .sort((a, b) => b.score - a.score || a.diff - b.diff)[0];
 
     if (!best) {
