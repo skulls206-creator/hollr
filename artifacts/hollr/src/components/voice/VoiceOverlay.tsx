@@ -5,7 +5,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 import {
   Mic, MicOff, Headphones, VolumeX, MonitorUp, PhoneOff,
   Monitor, AppWindow, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Radio,
-  MessageSquare, AtSign, Volume2, Loader2, Wifi, Globe, Server, Video, VideoOff,
+  MessageSquare, AtSign, Volume2, Loader2, Wifi, Globe, Server, Video, VideoOff, Music2,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -356,6 +356,7 @@ export function VoiceOverlay() {
                 isDeafened={u.deafened ?? false}
                 outputDeviceId={audioOutputDeviceId}
                 connectionType={connectionTypes[u.userId] ?? null}
+                isBot={u.isBot}
                 onOpenProfile={(x, y) => setVoiceCard({ userId: u.userId, x, y })}
                 onVolumeChange={(v) => setVoiceVolume(u.userId, v)}
                 onWatch={() => setWatchingUserId(u.userId)}
@@ -571,7 +572,7 @@ function ConnectionBadge({ type }: { type: 'lan' | 'stun' | 'relay' | 'connectin
 
 function RemoteUserTile({
   displayName, avatarUrl, muted, speaking, streaming, stream, videoStream,
-  volume, deafened, isDeafened, outputDeviceId, connectionType, onOpenProfile, onVolumeChange, onWatch,
+  volume, deafened, isDeafened, outputDeviceId, connectionType, isBot, onOpenProfile, onVolumeChange, onWatch,
 }: {
   peerId: string;
   displayName: string;
@@ -586,6 +587,7 @@ function RemoteUserTile({
   isDeafened: boolean;
   outputDeviceId: string | null;
   connectionType: 'lan' | 'stun' | 'relay' | 'connecting' | null;
+  isBot?: boolean;
   onOpenProfile: (x: number, y: number) => void;
   onVolumeChange: (v: number) => void;
   onWatch: () => void;
@@ -700,12 +702,21 @@ function RemoteUserTile({
       <button onClick={(e) => { e.stopPropagation(); onOpenProfile(e.clientX, e.clientY); }}
         title="View profile"
         className="absolute inset-0 w-full h-full flex flex-col items-center justify-center hover:bg-black/20 transition-colors z-10">
-        <SpeakingRing speaking={speaking}>
-          <Avatar className="h-14 w-14 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
-            <AvatarImage src={avatarUrl || undefined} />
-            <AvatarFallback className="bg-slate-700 text-white text-lg">{getInitials(displayName)}</AvatarFallback>
-          </Avatar>
-        </SpeakingRing>
+        <div className="relative">
+          <SpeakingRing speaking={speaking}>
+            <Avatar className="h-14 w-14 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
+              <AvatarImage src={avatarUrl || undefined} />
+              <AvatarFallback className={cn(isBot ? 'bg-violet-700' : 'bg-slate-700', 'text-white text-lg')}>
+                {isBot ? '♪' : getInitials(displayName)}
+              </AvatarFallback>
+            </Avatar>
+          </SpeakingRing>
+          {isBot && (
+            <span className="absolute -bottom-1 -right-1 bg-violet-500 rounded-full p-1 border-2 border-[#1E1F22]">
+              <Music2 size={8} className="text-white" />
+            </span>
+          )}
+        </div>
       </button>
 
       {/* Watch hover overlay — shown when streaming */}

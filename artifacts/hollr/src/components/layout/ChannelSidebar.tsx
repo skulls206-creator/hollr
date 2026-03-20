@@ -776,10 +776,14 @@ function VoiceSidebarUser({
           )}>
             <Avatar className="h-5 w-5">
               <AvatarImage src={u.avatarUrl || undefined} />
-              <AvatarFallback className="bg-primary text-white text-[9px]">
-                {getInitials(u.displayName)}
+              <AvatarFallback className={cn('text-white text-[9px]', u.isBot ? 'bg-violet-600' : 'bg-primary')}>
+                {u.isBot ? '♪' : getInitials(u.displayName)}
               </AvatarFallback>
             </Avatar>
+            {u.isBot && (
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-violet-500 rounded-full border border-[#232428] flex items-center justify-center">
+              </span>
+            )}
           </div>
           <span className="text-xs text-muted-foreground truncate flex-1">{u.displayName}</span>
           {u.muted

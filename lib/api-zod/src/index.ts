@@ -16,3 +16,4 @@ export type { InviteCode } from "./generated/types/inviteCode";
 export type { UserStatus } from "./generated/types/userStatus";
 export type { MemberRole } from "./generated/types/memberRole";
 export type { ChannelType } from "./generated/types/channelType";
+export type { Track, MusicState, MusicStateUpdatePayload, MusicWsMessage } from "./music";

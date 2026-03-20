@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { PlusCircle, Smile, FileText, Download } from 'lucide-react';
+import { PlusCircle, Smile, Music2, Slash } from 'lucide-react';
 import { useSendMessage, useRequestUploadUrl, useListServerMembers, getListServerMembersQueryKey } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn, formatBytes } from '@/lib/utils';
@@ -7,6 +7,37 @@ import { useAppStore } from '@/store/use-app-store';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
+
+const BASE = import.meta.env.BASE_URL;
+
+interface SlashCommand {
+  name: string;
+  description: string;
+  hasArg?: boolean;
+  argPlaceholder?: string;
+  requiresVoice?: boolean;
+}
+
+const SLASH_COMMANDS: SlashCommand[] = [
+  { name: 'play',   description: 'Play a YouTube URL (queues if already playing)', hasArg: true, argPlaceholder: '<youtube-url>', requiresVoice: true },
+  { name: 'pause',  description: 'Pause music playback', requiresVoice: true },
+  { name: 'resume', description: 'Resume music playback', requiresVoice: true },
+  { name: 'skip',   description: 'Skip the current track', requiresVoice: true },
+  { name: 'stop',   description: 'Stop music and clear queue', requiresVoice: true },
+  { name: 'queue',  description: 'Show the current music queue', requiresVoice: true },
+  { name: 'join',   description: 'Add music bot to your voice channel', requiresVoice: true },
+  { name: 'leave',  description: 'Remove music bot from voice channel', requiresVoice: true },
+];
+
+async function callMusicApi(voiceChannelId: string, endpoint: string, method = 'POST', body?: object) {
+  const res = await fetch(`${BASE}api/voice/${voiceChannelId}/music/${endpoint}`, {
+    method,
+    credentials: 'include',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json().catch(() => ({}));
+}
 
 export function MessageComposer({ channelId }: { channelId: string }) {
   const [content, setContent] = useState('');
@@ -16,11 +47,15 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState<number>(0);
   const [selectedMentionIdx, setSelectedMentionIdx] = useState(0);
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [selectedSlashIdx, setSelectedSlashIdx] = useState(0);
+  const [cmdLoading, setCmdLoading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
-  const { activeServerId, pendingMention, clearPendingMention } = useAppStore();
+  const { activeServerId, pendingMention, clearPendingMention, voiceConnection } = useAppStore();
+  const voiceChannelId = voiceConnection.channelId;
 
   useEffect(() => {
     if (!pendingMention) return;
@@ -48,16 +83,34 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         .slice(0, 8)
     : [];
 
+  // Slash command filtering
+  const slashMatches = slashQuery !== null
+    ? SLASH_COMMANDS.filter(c => c.name.startsWith(slashQuery.toLowerCase()))
+    : [];
+
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setContent(val);
 
     const cursor = e.target.selectionStart || 0;
     const textBefore = val.slice(0, cursor);
-    const match = textBefore.match(/@(\w*)$/);
-    if (match) {
-      setMentionQuery(match[1]);
-      setMentionStart(cursor - match[0].length);
+
+    // Slash command: detect /command at start of input
+    const slashMatch = val.match(/^\/(\w*)$/);
+    if (slashMatch && cursor <= val.length) {
+      setSlashQuery(slashMatch[1]);
+      setSelectedSlashIdx(0);
+      setMentionQuery(null);
+      return;
+    } else {
+      setSlashQuery(null);
+    }
+
+    // @mention
+    const mentionMatch = textBefore.match(/@(\w*)$/);
+    if (mentionMatch) {
+      setMentionQuery(mentionMatch[1]);
+      setMentionStart(cursor - mentionMatch[0].length);
       setSelectedMentionIdx(0);
     } else {
       setMentionQuery(null);
@@ -79,15 +132,108 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     }, 0);
   }, [content, mentionStart]);
 
-  const handleSend = () => {
-    if (!content.trim() && !isUploading) return;
-    sendMessage({ channelId, data: { content: content.trim() } }, {
+  const selectSlashCommand = useCallback((cmd: SlashCommand) => {
+    if (cmd.hasArg) {
+      setContent(`/${cmd.name} `);
+      setSlashQuery(null);
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    } else {
+      setContent(`/${cmd.name}`);
+      setSlashQuery(null);
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    }
+  }, []);
+
+  const executeSlashCommand = useCallback(async (raw: string) => {
+    const trimmed = raw.trim();
+    const [cmdName, ...argParts] = trimmed.slice(1).split(/\s+/);
+    const arg = argParts.join(' ').trim();
+
+    if (!voiceChannelId) {
+      toast({ title: 'Join a voice channel first', description: 'Music commands require an active voice connection', variant: 'destructive' });
+      return;
+    }
+
+    const run = async () => {
+      switch (cmdName) {
+        case 'join':   return callMusicApi(voiceChannelId, 'join');
+        case 'leave':  return callMusicApi(voiceChannelId, 'leave');
+        case 'pause':  return callMusicApi(voiceChannelId, 'pause');
+        case 'resume': return callMusicApi(voiceChannelId, 'resume');
+        case 'skip':   return callMusicApi(voiceChannelId, 'skip');
+        case 'stop':   return callMusicApi(voiceChannelId, 'stop');
+        case 'play': {
+          if (!arg) {
+            toast({ title: 'Usage: /play <youtube-url>', variant: 'destructive' });
+            return null;
+          }
+          return callMusicApi(voiceChannelId, 'play', 'POST', { url: arg });
+        }
+        case 'queue': {
+          const state = await callMusicApi(voiceChannelId, 'queue', 'GET');
+          const queueLen = state?.queue?.length ?? 0;
+          const current = state?.currentTrack?.title;
+          toast({
+            title: current ? `Now playing: ${current}` : 'No track playing',
+            description: queueLen > 0 ? `${queueLen} track(s) in queue` : 'Queue is empty',
+          });
+          return state;
+        }
+        default:
+          toast({ title: `Unknown command: /${cmdName}`, variant: 'destructive' });
+          return null;
+      }
+    };
+
+    setCmdLoading(true);
+    try {
+      const result = await run();
+      if (result?.error) {
+        toast({ title: `/${cmdName} failed`, description: result.error, variant: 'destructive' });
+      } else if (result !== null && cmdName !== 'queue') {
+        toast({ title: `/${cmdName} executed` });
+      }
+    } catch {
+      toast({ title: 'Command failed', variant: 'destructive' });
+    } finally {
+      setCmdLoading(false);
+    }
+  }, [voiceChannelId, toast]);
+
+  const handleSend = useCallback(async () => {
+    const trimmed = content.trim();
+    if (!trimmed && !isUploading) return;
+
+    // Slash command interception
+    if (trimmed.startsWith('/')) {
+      const [cmdName] = trimmed.slice(1).split(/\s+/);
+      const isKnown = SLASH_COMMANDS.some(c => c.name === cmdName);
+      if (isKnown) {
+        await executeSlashCommand(trimmed);
+        setContent('');
+        return;
+      }
+    }
+
+    sendMessage({ channelId, data: { content: trimmed } }, {
       onSuccess: () => setContent(''),
       onError: () => toast({ title: "Failed to send", variant: "destructive" })
     });
-  };
+  }, [content, isUploading, channelId, sendMessage, toast, executeSlashCommand]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Slash command palette navigation
+    if (slashQuery !== null && slashMatches.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedSlashIdx(i => (i + 1) % slashMatches.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedSlashIdx(i => (i - 1 + slashMatches.length) % slashMatches.length); return; }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        selectSlashCommand(slashMatches[selectedSlashIdx]);
+        return;
+      }
+      if (e.key === 'Escape') { e.preventDefault(); setSlashQuery(null); return; }
+    }
+    // @mention navigation
     if (mentionQuery !== null && mentionMatches.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedMentionIdx(i => (i + 1) % mentionMatches.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedMentionIdx(i => (i - 1 + mentionMatches.length) % mentionMatches.length); return; }
@@ -151,6 +297,42 @@ export function MessageComposer({ channelId }: { channelId: string }) {
 
   return (
     <div className="px-4 pb-6 pt-2 w-full bg-[#313338] relative">
+      {/* Slash command palette */}
+      {slashQuery !== null && slashMatches.length > 0 && (
+        <div className="absolute bottom-full left-4 right-4 mb-2 bg-[#2B2D31] border border-border/20 rounded-xl shadow-2xl overflow-hidden z-50">
+          <div className="px-3 py-1.5 border-b border-border/10 flex items-center gap-2">
+            <Slash size={10} className="text-muted-foreground" />
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Commands</p>
+          </div>
+          {slashMatches.map((cmd, i) => (
+            <button
+              key={cmd.name}
+              onMouseDown={(e) => { e.preventDefault(); selectSlashCommand(cmd); }}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors',
+                i === selectedSlashIdx ? 'bg-primary/20' : 'hover:bg-secondary/50'
+              )}
+            >
+              <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                <Music2 size={12} className="text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-medium text-foreground">/{cmd.name}</span>
+                  {cmd.argPlaceholder && (
+                    <span className="text-xs text-primary/70">{cmd.argPlaceholder}</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{cmd.description}</p>
+              </div>
+              {cmd.requiresVoice && !voiceChannelId && (
+                <span className="text-[10px] text-yellow-400/80 shrink-0">need voice</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* @mention autocomplete */}
       {mentionQuery !== null && mentionMatches.length > 0 && (
         <div className="absolute bottom-full left-4 right-4 mb-2 bg-[#2B2D31] border border-border/20 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto z-50">
@@ -206,7 +388,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder=""
+          placeholder="Message… (type / for commands)"
           className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 h-[44px] min-h-[44px] max-h-[50vh] overflow-y-auto leading-normal"
           rows={1}
         />

@@ -1,0 +1,52 @@
+Server-Side Music Bot
+What & Why
+Add a server-side music bot to hollr.chat that joins voice channels, streams audio from YouTube URLs through the existing WebRTC voice infrastructure, and provides slash-command controls and a compact media control bar in the UI. Users can play, queue, skip, pause, resume, and stop music without any client pulling the source directly.
+
+Done looks like
+/join, /leave, /play <url>, /pause, /resume, /skip, /stop, /queue slash commands work in any text channel linked to a voice channel
+The bot appears as a participant in the voice channel member list (sidebar and overlay)
+All users connected to that voice channel hear the bot's audio stream as if it were another participant
+A compact media control bar appears below the chat input when the bot is active in that channel's linked voice channel, showing track title, play/pause toggle, skip, elapsed/total progress, and a per-track local volume slider
+All control bar buttons call the backend HTTP endpoints and the bar reflects live musicState from WebSocket pushes (isPlaying, currentTrack, positionMs, durationMs, queue, botConnected)
+Basic failure cases are handled gracefully: unsupported URL, yt-dlp/ffmpeg error, track end (auto-advance queue), bot disconnected/kicked
+Out of scope
+Sources other than YouTube at launch (architecture is generic but only YouTube is validated/tested)
+Server-side volume control (volume slider is client-side only via Web Audio gain node)
+Persistent queue across server restarts (in-memory queue is sufficient for now)
+Video streaming or screen-share from the bot
+Tasks
+Shared music types — Add Track, MusicState, and music-related WebSocket message payload types as hand-written exports in the shared lib/api-zod package (not generated; added to the manual exports in src/index.ts or a new src/music.ts). These types are consumed by both the backend service and the frontend hook.
+
+Backend: MusicBot service — Create artifacts/api-server/src/lib/music-bot.ts. This is a singleton manager (one instance per server process) that maintains a per-channel MusicQueue with state (isPlaying, currentTrack, positionMs, durationMs, queue, botConnected). It uses wrtc (node-webrtc) for a server-side RTCPeerConnection in sendonly mode, yt-dlp to validate and fetch audio streams, and fluent-ffmpeg (or a raw ffmpeg child process) to decode audio to raw signed-16-bit PCM at 48 kHz mono, fed into RTCAudioSource. It participates in the existing WebSocket signaling by calling the existing broadcast / sendToUser helpers in ws.ts using a synthetic bot userId (e.g. music-bot:{channelId}) and a VoiceParticipant entry for that channel's voiceRooms map. It broadcasts MUSIC_STATE_UPDATE WebSocket messages on every state change.
+
+Backend: WebSocket signaling for the bot — Extend artifacts/api-server/src/lib/ws.ts to handle bot join/leave in voiceRooms (the MusicBot service will call these helpers directly) and to relay WebRTC signals between the bot's server-side RTCPeerConnection and the real clients. Add a new VOICE_SIGNAL subtype bot_offer/bot_answer/bot_ice or reuse the existing signal relay with the bot's userId as targetId.
+
+Backend: HTTP music routes — Create artifacts/api-server/src/routes/music.ts with the following endpoints (all protected by the existing auth middleware):
+
+POST /voice/:channelId/music/join
+POST /voice/:channelId/music/leave
+POST /voice/:channelId/music/play (body: { url: string })
+POST /voice/:channelId/music/pause
+POST /voice/:channelId/music/resume
+POST /voice/:channelId/music/skip
+POST /voice/:channelId/music/stop
+GET /voice/:channelId/music/queue Register this router in artifacts/api-server/src/routes/index.ts.
+Frontend: useMusicState hook — Add artifacts/hollr/src/hooks/use-music-state.ts. It subscribes to MUSIC_STATE_UPDATE WebSocket messages via the existing useRealtime hook (same pattern as other message handlers) and exposes the current MusicState for a given channelId. Also expose helper functions that call the music HTTP endpoints (play, pause, resume, skip, stop).
+
+Frontend: slash command handling — Extend artifacts/hollr/src/components/chat/MessageComposer.tsx to detect when the user types a / command. Show a small command palette popup above the input listing the music commands (/join, /leave, /play, /pause, /resume, /skip, /stop, /queue). When a music command is submitted, intercept it (do not send as a chat message), call the appropriate music endpoint via useMusicState, and optionally echo a system-style message in the channel.
+
+Frontend: MusicControlBar component — Create artifacts/hollr/src/components/music/MusicControlBar.tsx. It renders below the MessageComposer (inside ChatArea) only when musicState.botConnected is true for the linked voice channel. It shows: track title + source label, play/pause toggle, skip button, a progress bar (elapsed/total updated by a local timer that advances positionMs), and a volume slider that applies a GainNode to the bot's incoming MediaStreamTrack via the Web Audio API. All buttons are disabled when not applicable (e.g. skip disabled with empty queue, pause disabled when not playing).
+
+Frontend: bot participant in voice UI — In ChannelSidebar.tsx and VoiceOverlay.tsx, ensure the bot's VoiceParticipant entry (received via existing VOICE_USER_JOINED / VOICE_ROOMS_SNAPSHOT messages) renders with a bot badge or musical note icon instead of a speaking ring, so users can see the bot is present.
+
+Relevant files
+artifacts/api-server/src/lib/ws.ts
+artifacts/api-server/src/routes/index.ts
+artifacts/api-server/src/routes/channels.ts
+artifacts/api-server/src/app.ts
+artifacts/hollr/src/hooks/use-webrtc.ts
+artifacts/hollr/src/hooks/use-realtime.ts
+artifacts/hollr/src/components/layout/ChannelSidebar.tsx
+artifacts/hollr/src/components/voice/VoiceOverlay.tsx
+lib/api-zod/src/index.ts
+lib/api-spec/openapi.yaml

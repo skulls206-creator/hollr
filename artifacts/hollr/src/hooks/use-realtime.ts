@@ -15,6 +15,13 @@ let _onVoiceSignal: ((payload: any) => void) | null = null;
 // Called by use-webrtc.ts to be notified when a new peer joins the channel
 let _onNewPeer: ((userId: string) => void) | null = null;
 
+// Music state listener — called whenever a MUSIC_STATE_UPDATE arrives
+let _onMusicStateUpdate: ((payload: any) => void) | null = null;
+
+export function setMusicStateListener(listener: ((payload: any) => void) | null) {
+  _onMusicStateUpdate = listener;
+}
+
 export function sendVoiceSignal(payload: any) {
   if (_sendSignal) {
     _sendSignal(payload);
@@ -280,6 +287,11 @@ export function useRealtime(userId?: string) {
             queryClient.invalidateQueries({ queryKey: ['server-members'] });
             break;
           }
+
+          case 'MUSIC_STATE_UPDATE': {
+            if (_onMusicStateUpdate) _onMusicStateUpdate(data.payload);
+            break;
+          }
         }
       } catch (e) {
         console.error('WebSocket message parse error', e);
@@ -288,6 +300,7 @@ export function useRealtime(userId?: string) {
 
     return () => {
       _sendSignal = null;
+      _sendRaw = null;
       ws.current?.send(JSON.stringify({ type: 'PRESENCE_UPDATE', payload: { userId, status: 'offline' } }));
       ws.current?.close();
     };

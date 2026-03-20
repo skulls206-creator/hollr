@@ -18,6 +18,7 @@ export interface VoiceChannelUser {
   speaking: boolean;
   streaming: boolean;
   hasCamera: boolean;
+  isBot?: boolean;
 }
 
 interface AppState {
