@@ -23,7 +23,7 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
     musicVolume, setMusicVolume,
     error, loading,
     loopEnabled, setLoopEnabled,
-    pause, resume, skip, stop,
+    pause, resume, skip, leave,
   } = useMusicState(voiceChannelId);
 
   const [showQueue, setShowQueue] = useState(false);
@@ -184,11 +184,11 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
               </span>
             </div>
 
-            {/* Stop */}
+            {/* Disconnect bot (closes bar for everyone) */}
             <button
-              onClick={() => stop()}
+              onClick={() => leave()}
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors ml-1"
-              title="Stop music and disconnect bot"
+              title="Disconnect music bot"
             >
               <X size={13} />
             </button>

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { musicBot, BOT_USER_ID, BOT_DISPLAY_NAME, BOT_USERNAME } from '../lib/music-bot';
-import { broadcast } from '../lib/ws';
+import { broadcast, addBotToVoiceRoom, removeBotFromVoiceRoom } from '../lib/ws';
 import type { MusicState } from '@workspace/api-zod';
 
 const router = Router();
@@ -9,28 +9,35 @@ function broadcastMusicState(state: MusicState) {
   broadcast({ type: 'MUSIC_STATE_UPDATE', payload: state });
 }
 
+const BOT_PARTICIPANT = {
+  userId: BOT_USER_ID,
+  displayName: BOT_DISPLAY_NAME,
+  username: BOT_USERNAME,
+  avatarUrl: null as null,
+  isBot: true as const,
+};
+
 function broadcastBotJoin(channelId: string) {
+  // Keep the bot in voiceRooms so VOICE_ROOMS_SNAPSHOT includes it on reconnect
+  addBotToVoiceRoom(channelId, BOT_PARTICIPANT);
   broadcast({
     type: 'VOICE_USER_JOINED',
     payload: {
       channelId,
       user: {
-        userId: BOT_USER_ID,
-        displayName: BOT_DISPLAY_NAME,
-        username: BOT_USERNAME,
-        avatarUrl: null,
+        ...BOT_PARTICIPANT,
         muted: false,
         deafened: false,
         speaking: false,
         streaming: false,
         hasCamera: false,
-        isBot: true,
       },
     },
   });
 }
 
 function broadcastBotLeave(channelId: string) {
+  removeBotFromVoiceRoom(channelId, BOT_USER_ID);
   broadcast({
     type: 'VOICE_USER_LEFT',
     payload: { channelId, userId: BOT_USER_ID },

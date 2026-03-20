@@ -21,6 +21,7 @@ interface VoiceParticipant {
   speaking: boolean;
   streaming: boolean;
   hasCamera: boolean;
+  isBot?: boolean;
 }
 
 // channelId → Map<userId, VoiceParticipant>
@@ -292,6 +293,25 @@ export function initWebSocket(server: Server) {
 
 export function broadcast(message: object) {
   broadcastAll(message);
+}
+
+/** Add a bot participant to voiceRooms so it survives in VOICE_ROOMS_SNAPSHOT on client reconnect. */
+export function addBotToVoiceRoom(channelId: string, participant: {
+  userId: string; displayName: string; username: string; avatarUrl: string | null; isBot: true;
+}) {
+  if (!voiceRooms.has(channelId)) voiceRooms.set(channelId, new Map());
+  voiceRooms.get(channelId)!.set(participant.userId, {
+    ...participant,
+    muted: false, deafened: false, speaking: false, streaming: false, hasCamera: false,
+  });
+}
+
+/** Remove a bot participant from voiceRooms (called when the bot leaves). */
+export function removeBotFromVoiceRoom(channelId: string, userId: string) {
+  const room = voiceRooms.get(channelId);
+  if (!room) return;
+  room.delete(userId);
+  if (room.size === 0) voiceRooms.delete(channelId);
 }
 
 export function sendToUser(userId: string, message: object) {
