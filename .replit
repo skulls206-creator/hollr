@@ -30,3 +30,4 @@ defaultBucketID = "replit-objstore-56e73a81-9377-411d-a41f-0c954bfadaa2"
 
 [nix]
 channel = "stable-25_05"
+packages = ["ffmpeg"]
