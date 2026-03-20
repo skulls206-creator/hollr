@@ -89,21 +89,55 @@ export async function resolveTrack(input: string): Promise<Resolved> {
 
   // ── YouTube URL → auto-switch to SoundCloud ────────────────────────────────
   if (isYouTubeUrl(input)) {
-    // Step 1: get YouTube metadata
+    // Step 1: get YouTube metadata — three-tier fallback so transient errors
+    // (rate-limits, PoToken, network blips) don't block playback.
     let ytTitle = '';
     let ytChannel = '';
     let ytDurationSec = 0;
     let ytThumbnail: string | null = null;
+    let metaOk = false;
 
-    try {
-      const ytInfo = await playdl.video_info(input);
-      const d = ytInfo.video_details;
-      ytTitle = d.title ?? '';
-      ytChannel = d.channel?.name ?? '';
-      ytDurationSec = d.durationInSec ?? 0;
-      ytThumbnail = d.thumbnails?.[0]?.url ?? null;
-    } catch (metaErr: any) {
-      // Can't even get metadata — video is unavailable / private / region-blocked
+    // Tier 1: play-dl video_info (tries twice before giving up)
+    for (let attempt = 1; attempt <= 2 && !metaOk; attempt++) {
+      try {
+        // Re-init play-dl on retry in case the SoundCloud token drifted
+        if (attempt === 2) { playdlReady = false; await ensurePlaydl(); }
+        const ytInfo = await playdl.video_info(input);
+        const d = ytInfo.video_details;
+        ytTitle = d.title ?? '';
+        ytChannel = d.channel?.name ?? '';
+        ytDurationSec = d.durationInSec ?? 0;
+        ytThumbnail = d.thumbnails?.[0]?.url ?? null;
+        metaOk = true;
+      } catch {
+        console.warn(`[music] video_info attempt ${attempt} failed for: ${input}`);
+        if (attempt < 2) await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+
+    // Tier 2: scrape YouTube's og:title via plain HTTPS fetch (no auth required)
+    if (!metaOk) {
+      try {
+        const res = await fetch(input, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
+          signal: AbortSignal.timeout(6000),
+        });
+        const html = await res.text();
+        const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
+                     ?? html.match(/<title>([^<]+)<\/title>/i)?.[1]
+                     ?? '';
+        if (ogTitle) {
+          ytTitle = ogTitle.replace(/ - YouTube$/, '').trim();
+          metaOk = true;
+          console.log(`[music] og:title fallback: "${ytTitle}"`);
+        }
+      } catch (fetchErr: any) {
+        console.warn('[music] og:title fetch failed:', fetchErr.message);
+      }
+    }
+
+    // Tier 3: truly no metadata — throw the user-facing error
+    if (!metaOk || !ytTitle) {
       throw new Error(
         `That YouTube video is unavailable (private, deleted, or region-blocked). ` +
         `Try a SoundCloud link or search: /play <song name>`
