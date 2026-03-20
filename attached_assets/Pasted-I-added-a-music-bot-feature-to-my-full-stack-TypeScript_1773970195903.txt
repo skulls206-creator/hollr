@@ -1,0 +1,139 @@
+I added a music bot feature to my full‑stack TypeScript monorepo (React frontend, Express backend), but it’s not actually working yet.
+
+Current symptoms:
+
+When I run the /play command or click whatever “play” action exists, I see a “play executed” log / response.
+
+Nothing changes visually in the UI (no now‑playing info, no media bar updates, no error message).
+
+I’m not sure if the backend is actually trying to play anything into the WebRTC voice channel.
+
+I need you to fully review and fix this feature so that it works like a Discord‑style music bot.
+
+1. Find all relevant code
+Search the repo for all code related to:
+
+music / audio bot / player
+
+endpoints or routes like: /play, /pause, /resume, /skip, /stop, /queue
+
+any music or player React components
+
+any WebRTC integration for a bot user (server‑side WebRTC, wrtc, RTCAudioSource, ffmpeg, yt-dlp, etc.)
+
+List the key files you find and briefly describe what each one is supposed to do.
+
+2. Backend: verify actual playback logic
+For the Express backend:
+
+Confirm there is a music service/module that:
+
+Accepts a URL (e.g., YouTube) from a /play endpoint or command.
+
+Uses a media pipeline (for example yt-dlp + ffmpeg) to fetch audio‑only and decode to PCM.
+
+Feeds that PCM into a WebRTC audio source (e.g., RTCAudioSource in Node with wrtc) that is attached to a sendonly audio track for the bot user’s connection into the voice channel.
+
+If any of those steps are missing or stubbed out (e.g., it only logs “play executed” but never starts the pipeline), implement them completely.
+
+Make sure the music bot actually joins the correct voice channel:
+
+It should use the same signaling mechanism as a normal client to connect to that voice channel.
+
+If the caller of /play is not in a voice channel, return a clear error.
+
+Implement or fix a per‑channel queue and state object:
+
+isPlaying, currentTrack, positionMs, durationMs, queue, botConnected, error.
+
+Make sure this state is updated as tracks start, progress, end, or fail.
+
+Add robust logging and error handling:
+
+Log when the bot joins/leaves a channel, when a track starts/ends, and when ffmpeg/yt-dlp fail.
+
+If there’s an error, return a meaningful error to the frontend and update state.
+
+3. Realtime state → frontend
+I need the frontend to actually know what’s happening.
+
+Implement a realtime music state broadcast (via our existing WebSocket / event system):
+
+Whenever music state changes for a channel (play, pause, resume, skip, stop, queue update, error), broadcast an event to all clients in that guild/channel, such as:
+
+music_state_update with the MusicState payload.
+
+On the frontend, subscribe to that event and store the state in a music store/context per channel.
+
+If no such broadcast exists right now, add it. If it exists but is never fired, wire it up where state changes.
+
+4. Frontend UI: actually show and react
+I want a media control bar under the message box in each text channel associated with a voice channel.
+
+Find the React component that renders the chat input / message box.
+
+Just below it, render a media bar component that:
+
+Shows only when musicState.botConnected === true or when there is an active track/queue for that channel.
+
+Displays currentTrack.title and source, and optionally the channel name.
+
+Shows:
+
+Play/Pause toggle button (mapped to /pause and /resume or a single toggle endpoint).
+
+Skip button.
+
+Stop button (optional).
+
+A progress indicator using positionMs and durationMs.
+
+A local volume slider that adjusts the volume of the bot audio track only on that client (via Web Audio gain node or track volume).
+
+Wire each button to call the correct backend endpoints and optimistically update UI while waiting for the server confirmation.
+
+If the backend returns an error (e.g., cannot join voice channel, cannot fetch media), display a user‑friendly message in the UI (toast or inline error area in the media bar).
+
+Right now the issue is: I get “play executed” but no visible change. Fix that by:
+
+Ensuring that the backend updates musicState and emits an update event when /play is called.
+
+Ensuring that the frontend listens for that event and updates the UI, so I can see the track and controls.
+
+5. WebRTC side: confirm the audio is actually being sent
+On the voice/WebRTC side:
+
+Make sure the bot user’s peer connection actually has an active audio track that is sending Opus encoded audio to the SFU/mesh / remote peers.
+
+Make sure clients subscribe to that track:
+
+When a new participant (the bot) joins, clients should create an HTMLAudioElement or Web Audio node for that track and play it.
+
+If this path is missing, implement it so the bot is treated exactly like any other user in the voice channel, just with a bot avatar/name.
+
+6. End‑to‑end manual test checklist
+Implement and verify the following flow works:
+
+Join a voice channel with two normal clients.
+
+Call /play <some URL> in the associated text channel.
+
+Expected behavior:
+
+Bot connects to that voice channel (visible in member list).
+
+Media bar appears under the message box showing the track as “playing.”
+
+Both clients hear the audio from the bot user.
+
+Play/Pause/Skip buttons work and update both audio and UI.
+
+If I disconnect the bot or call /stop, the audio stops and the media bar hides or shows idle state.
+
+If any step fails, add logs and fix until everything above works.
+
+Please:
+
+Show me the key code changes with explanations of what was wrong and how you fixed it.
+
+Do not just add more logging; ensure the feature becomes fully functional, both visually and in audio.

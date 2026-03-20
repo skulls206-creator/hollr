@@ -14,6 +14,7 @@ export interface MusicState {
   durationMs: number;
   queue: Track[];
   botConnected: boolean;
+  error?: string;
 }
 
 export type MusicStateUpdatePayload = MusicState;

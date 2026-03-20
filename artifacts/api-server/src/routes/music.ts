@@ -37,13 +37,32 @@ function broadcastBotLeave(channelId: string) {
   });
 }
 
-// GET /voice/:channelId/music/stream — chunked MP3 audio stream
+/** Ensure the bot has a stateChange listener registered for this channel.
+ *  Idempotent — safe to call multiple times. */
+async function ensureBotJoined(channelId: string): Promise<boolean> {
+  const state = musicBot.getState(channelId);
+  if (!state.botConnected) {
+    await musicBot.join(channelId, (s) => broadcastMusicState(s));
+    broadcastBotJoin(channelId);
+    return true; // newly joined
+  }
+  return false;
+}
+
+// GET /voice/:channelId/music/stream — chunked MP3 audio stream (no auth required)
 router.get('/voice/:channelId/music/stream', (req, res) => {
   const { channelId } = req.params;
+  console.log(`[music-route] New stream client for channel ${channelId}`);
   musicBot.addStreamClient(channelId, res);
 });
 
-// GET /voice/:channelId/music/queue
+// GET /voice/:channelId/music/state — current music state
+router.get('/voice/:channelId/music/state', (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  res.json(musicBot.getState(req.params.channelId));
+});
+
+// GET /voice/:channelId/music/queue — alias for state
 router.get('/voice/:channelId/music/queue', (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
   res.json(musicBot.getState(req.params.channelId));
@@ -54,10 +73,11 @@ router.post('/voice/:channelId/music/join', async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
   const { channelId } = req.params;
   try {
-    await musicBot.join(channelId, (state) => broadcastMusicState(state));
+    await musicBot.join(channelId, (s) => broadcastMusicState(s));
     broadcastBotJoin(channelId);
     res.json({ ok: true, state: musicBot.getState(channelId) });
   } catch (err: any) {
+    console.error('[music-route] join error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -72,6 +92,7 @@ router.post('/voice/:channelId/music/leave', async (req, res) => {
     broadcastMusicState(musicBot.getState(channelId));
     res.json({ ok: true });
   } catch (err: any) {
+    console.error('[music-route] leave error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -81,22 +102,35 @@ router.post('/voice/:channelId/music/play', async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
   const { channelId } = req.params;
   const { url } = req.body;
-  if (!url || typeof url !== 'string') { res.status(400).json({ error: 'url is required' }); return; }
+
+  if (!url || typeof url !== 'string') {
+    res.status(400).json({ error: 'url is required' });
+    return;
+  }
+
+  // Validate it looks like a YouTube URL
+  const isYouTube = url.includes('youtube.com/') || url.includes('youtu.be/');
+  if (!isYouTube) {
+    res.status(400).json({ error: 'Only YouTube URLs are supported' });
+    return;
+  }
 
   try {
-    const state = musicBot.getState(channelId);
-    if (!state.botConnected) {
-      await musicBot.join(channelId, (s) => broadcastMusicState(s));
-      broadcastBotJoin(channelId);
-    }
+    await ensureBotJoined(channelId);
     const track = await musicBot.play(channelId, url, req.user!.id);
+    // Broadcast after play (also emitted inside via stateChange events)
     broadcastMusicState(musicBot.getState(channelId));
     res.json({ ok: true, track, state: musicBot.getState(channelId) });
   } catch (err: any) {
-    const message = err.message?.includes('unavailable') || err.message?.includes('private')
-      ? 'This video is unavailable or private'
-      : err.message?.includes('age') ? 'Age-restricted video'
-      : `Could not load track: ${err.message}`;
+    console.error('[music-route] play error:', err.message);
+    const message =
+      err.message?.includes('unavailable') || err.message?.includes('private')
+        ? 'This video is unavailable or private'
+        : err.message?.includes('age')
+        ? 'Age-restricted video — cannot play'
+        : err.message?.includes('No playable audio') || err.message?.includes('No such format')
+        ? 'No playable audio format found for this video'
+        : `Could not load track: ${err.message}`;
     res.status(400).json({ error: message });
   }
 });
@@ -117,6 +151,7 @@ router.post('/voice/:channelId/music/resume', async (req, res) => {
     broadcastMusicState(musicBot.getState(req.params.channelId));
     res.json({ ok: true });
   } catch (err: any) {
+    console.error('[music-route] resume error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -129,6 +164,7 @@ router.post('/voice/:channelId/music/skip', async (req, res) => {
     broadcastMusicState(musicBot.getState(req.params.channelId));
     res.json({ ok: true });
   } catch (err: any) {
+    console.error('[music-route] skip error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -141,6 +177,7 @@ router.post('/voice/:channelId/music/stop', async (req, res) => {
     broadcastMusicState(musicBot.getState(req.params.channelId));
     res.json({ ok: true });
   } catch (err: any) {
+    console.error('[music-route] stop error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

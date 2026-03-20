@@ -29,10 +29,17 @@ lib/
 - **Object Storage** via GCS (presigned PUT URL flow)
   - 100MB file size limit enforced server-side
   - MIME type allowlist (images, video, audio, PDF, docs, archives)
-- **Routes**: `/api/users`, `/api/servers`, `/api/channels`, `/api/messages`, `/api/dms`, `/api/storage`
+- **Routes**: `/api/users`, `/api/servers`, `/api/channels`, `/api/messages`, `/api/dms`, `/api/storage`, `/api/voice/:channelId/music/*`
   - Reaction toggle: `PUT /api/channels/:channelId/messages/:messageId/reactions/:emojiId`
   - Thread replies: `GET|POST /api/channels/:channelId/messages/:messageId/thread`
   - User profile: `GET /api/users/:userId` (note: `/users/me` must be registered first)
+  - Music bot: `POST /join|leave|play|pause|resume|skip|stop`, `GET /state|stream`
+- **Music Bot** (`src/lib/music-bot.ts`):
+  - `@distube/ytdl-core` for YouTube audio extraction; `pickAudioFormat()` manually sorts audio-only formats by bitrate (avoids `ytdl.chooseFormat` which throws on YouTube format changes)
+  - `ffmpeg` transcodes stream → 128kbps MP3 → chunked HTTP response to all browser clients
+  - `MusicBotManager` singleton; per-channel `ChannelMusic` emits `stateChange` events → WS broadcast every 5s
+  - WebSocket event `MUSIC_STATE_UPDATE` carries `MusicState` to all clients
+  - Stream endpoint: `GET /api/voice/:channelId/music/stream` (no auth, chunked `audio/mpeg`)
 
 ### Frontend (artifacts/hollr)
 
@@ -95,6 +102,7 @@ pnpm --filter @workspace/db push
 - **DMs**: Open direct message threads with any server member
 - **Voice/Video**: WebRTC mesh with per-participant volume control (0–200%); real-time user presence in sidebar; speaking detection via AnalyserNode; LIVE badge for any connected user
 - **Screen Share**: Dropdown in VoiceOverlay to choose Entire Screen / Application Window / Browser Tab; `getDisplayMedia` with `displaySurface` hint + track renegotiation
+- **Music Bot**: Type `/play <youtube-url>` in any channel while in a voice channel; real-time `MusicControlBar` shows current track, progress, queue; `/pause`, `/resume`, `/skip`, `/stop` commands; bot avatar appears in voice sidebar; volume 0–200% via Web Audio gain node
 - **File Upload**: Direct-to-GCS presigned URL flow, 100MB limit, progress bar
 - **Mobile**: Responsive layout with slide-in sidebar
 - **Presence**: Online/idle/dnd/offline status indicators
@@ -113,3 +121,6 @@ pnpm --filter @workspace/db push
 - Voice room state is tracked server-side in `voiceRooms: Map<channelId, Map<userId, VoiceParticipant>>` and `userVoiceChannel: Map<userId, channelId>` for disconnect cleanup
 - Speaking detection polls AnalyserNode every 80ms with RMS threshold=18 and 600ms debounce before `speaking_stop`
 - LIVE badge appears when `voiceChannelUsers[channelId].length > 0` (any user, not just self)
+- Music bot uses `pickAudioFormat()` (manual bitrate sort on audio-only formats) NOT `ytdl.chooseFormat({ quality: 'highestaudio' })` which throws when YouTube format labels change
+- Music stream position timer broadcasts every 5s (not 1s) to reduce WS noise; frontend ticks up locally by 500ms intervals between broadcasts
+- `@workspace/api-zod` is a direct devDependency of `@workspace/hollr` (required for music types); added to tsconfig.json references and built with `tsc --build`

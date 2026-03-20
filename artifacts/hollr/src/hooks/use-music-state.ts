@@ -4,7 +4,7 @@ import type { MusicState } from '@workspace/api-zod';
 
 const BASE = import.meta.env.BASE_URL;
 
-const DEFAULT_STATE: MusicState = {
+export const MUSIC_DEFAULT_STATE: MusicState = {
   channelId: '',
   isPlaying: false,
   currentTrack: null,
@@ -15,30 +15,29 @@ const DEFAULT_STATE: MusicState = {
 };
 
 export function useMusicState(voiceChannelId: string | null) {
-  const [musicState, setMusicState] = useState<MusicState>(DEFAULT_STATE);
+  const [musicState, setMusicState] = useState<MusicState>(MUSIC_DEFAULT_STATE);
   const [musicVolume, setMusicVolume] = useState(100);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const ctxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
-  const srcNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const trackSrcRef = useRef<string | null>(null); // tracks which stream URL is loaded
 
-  // Create the audio element once
+  // Fetch the current server-side state when mounting so we always have up-to-date info
   useEffect(() => {
-    const audio = new Audio();
-    audio.crossOrigin = 'anonymous';
-    audio.preload = 'none';
-    audioRef.current = audio;
-    return () => {
-      audio.pause();
-      audio.src = '';
-      audioRef.current = null;
-    };
-  }, []);
+    if (!voiceChannelId) {
+      setMusicState(MUSIC_DEFAULT_STATE);
+      return;
+    }
+    fetch(`${BASE}api/voice/${voiceChannelId}/music/state`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setMusicState(data); })
+      .catch(() => {}); // not critical
+  }, [voiceChannelId]);
 
-  // Subscribe to music state WS updates
+  // Subscribe to WS MUSIC_STATE_UPDATE events
   useEffect(() => {
     setMusicStateListener((payload: MusicState) => {
       if (!voiceChannelId || payload.channelId !== voiceChannelId) return;
@@ -47,37 +46,88 @@ export function useMusicState(voiceChannelId: string | null) {
     return () => setMusicStateListener(null);
   }, [voiceChannelId]);
 
-  // Manage audio element when isPlaying / currentTrack changes
+  // Create Audio element once and keep stable
+  useEffect(() => {
+    if (audioRef.current) return; // already created
+    const audio = new Audio();
+    audio.preload = 'none';
+    audioRef.current = audio;
+
+    audio.addEventListener('error', (e) => {
+      console.warn('[music-audio] element error:', e);
+    });
+    audio.addEventListener('stalled', () => {
+      console.warn('[music-audio] stream stalled');
+    });
+    audio.addEventListener('waiting', () => {
+      console.log('[music-audio] buffering...');
+    });
+    audio.addEventListener('playing', () => {
+      console.log('[music-audio] playing');
+    });
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+      audioRef.current = null;
+    };
+  }, []);
+
+  // Connect audio to stream when isPlaying / track changes
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !voiceChannelId) return;
 
     if (musicState.isPlaying && musicState.currentTrack) {
-      // Reconnect to streaming endpoint (cache-bust so browser opens fresh connection)
-      const newSrc = `${BASE}api/voice/${voiceChannelId}/music/stream?t=${Date.now()}`;
-      if (audio.src !== newSrc) {
-        audio.src = newSrc;
+      // Build stream URL — use track URL as cache key so we reconnect on new track or resume
+      const streamUrl = `${BASE}api/voice/${voiceChannelId}/music/stream`;
+      const trackKey = `${voiceChannelId}:${musicState.currentTrack.url}`;
+
+      if (trackSrcRef.current !== trackKey) {
+        // New track or new stream needed — attach a fresh URL with timestamp to bust cache
+        trackSrcRef.current = trackKey;
+        audio.src = `${streamUrl}?t=${Date.now()}`;
+        audio.load();
       }
-      // Init Web Audio graph on first play (requires user gesture to have happened)
-      if (!ctxRef.current) {
+
+      // Bootstrap Web Audio API for gain control (needs user gesture — safe here since
+      // the user just clicked play or issued a command)
+      if (!audioCtxRef.current) {
         try {
           const ctx = new AudioContext();
-          ctxRef.current = ctx;
+          audioCtxRef.current = ctx;
           const gain = ctx.createGain();
           gainRef.current = gain;
           gain.gain.value = musicVolume / 100;
-          const srcNode = ctx.createMediaElementSource(audio);
-          srcNodeRef.current = srcNode;
-          srcNode.connect(gain);
+          const src = ctx.createMediaElementSource(audio);
+          src.connect(gain);
           gain.connect(ctx.destination);
-        } catch { /* AudioContext may not be available yet */ }
+        } catch (err) {
+          console.warn('[music-audio] AudioContext init failed:', err);
+        }
       }
-      if (ctxRef.current?.state === 'suspended') {
-        ctxRef.current.resume().catch(() => {});
+
+      if (audioCtxRef.current?.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
       }
-      audio.play().catch(() => {});
+
+      audio.play().catch((err) => {
+        console.warn('[music-audio] play() rejected:', err.message);
+        // On autoplay policy failure, try on next user interaction
+        const onInteraction = () => {
+          audio.play().catch(() => {});
+          document.removeEventListener('click', onInteraction);
+          document.removeEventListener('keydown', onInteraction);
+        };
+        document.addEventListener('click', onInteraction, { once: true });
+        document.addEventListener('keydown', onInteraction, { once: true });
+      });
     } else {
+      // Paused or stopped — pause audio and reset stream key so next play reconnects
       audio.pause();
+      if (!musicState.isPlaying) {
+        trackSrcRef.current = null;
+      }
     }
   }, [musicState.isPlaying, musicState.currentTrack?.url, voiceChannelId]);
 
@@ -85,6 +135,9 @@ export function useMusicState(voiceChannelId: string | null) {
   useEffect(() => {
     if (gainRef.current) {
       gainRef.current.gain.value = musicVolume / 100;
+    } else if (audioRef.current) {
+      // Fall back to element volume if Web Audio isn't set up
+      audioRef.current.volume = Math.min(musicVolume / 100, 1);
     }
   }, [musicVolume]);
 
@@ -92,15 +145,19 @@ export function useMusicState(voiceChannelId: string | null) {
   useEffect(() => {
     return () => {
       audioRef.current?.pause();
-      ctxRef.current?.close().catch(() => {});
+      audioCtxRef.current?.close().catch(() => {});
     };
   }, []);
 
-  // ── HTTP control functions ─────────────────────────────────────────────────
+  // ── HTTP control helpers ───────────────────────────────────────────────────
 
-  const api = useCallback(async (path: string, method = 'POST', body?: object) => {
-    if (!voiceChannelId) return;
-    setError(null);
+  const apiCall = useCallback(async (
+    path: string,
+    method = 'POST',
+    body?: object,
+  ): Promise<{ ok: boolean; error?: string; [k: string]: any }> => {
+    if (!voiceChannelId) return { ok: false, error: 'Not in a voice channel' };
+    setLocalError(null);
     try {
       const res = await fetch(`${BASE}api/voice/${voiceChannelId}/music/${path}`, {
         method,
@@ -109,30 +166,37 @@ export function useMusicState(voiceChannelId: string | null) {
         body: body ? JSON.stringify(body) : undefined,
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) setError(data.error ?? 'Request failed');
-      return data;
+      if (!res.ok) {
+        const msg = data?.error ?? `Request failed (${res.status})`;
+        setLocalError(msg);
+        return { ok: false, error: msg };
+      }
+      return { ok: true, ...data };
     } catch {
-      setError('Network error');
+      const msg = 'Network error — check your connection';
+      setLocalError(msg);
+      return { ok: false, error: msg };
     }
   }, [voiceChannelId]);
 
-  const join = useCallback(() => api('join'), [api]);
-  const leave = useCallback(() => api('leave'), [api]);
-  const pause = useCallback(() => api('pause'), [api]);
-  const resume = useCallback(() => api('resume'), [api]);
-  const skip = useCallback(() => api('skip'), [api]);
-  const stop = useCallback(() => api('stop'), [api]);
+  const join   = useCallback(() => apiCall('join'), [apiCall]);
+  const leave  = useCallback(() => apiCall('leave'), [apiCall]);
+  const pause  = useCallback(() => apiCall('pause'), [apiCall]);
+  const resume = useCallback(() => apiCall('resume'), [apiCall]);
+  const skip   = useCallback(() => apiCall('skip'), [apiCall]);
+  const stop   = useCallback(() => apiCall('stop'), [apiCall]);
 
   const play = useCallback(async (url: string) => {
     setLoading(true);
-    setError(null);
-    try {
-      const data = await api('play', 'POST', { url });
-      if (data?.error) setError(data.error);
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
+    setLocalError(null);
+    const result = await apiCall('play', 'POST', { url });
+    if (!result.ok && result.error) setLocalError(result.error);
+    setLoading(false);
+    return result;
+  }, [apiCall]);
+
+  // Merged error: prefer server-side error from state, fallback to local HTTP error
+  const error = musicState.error ?? localError;
 
   return {
     musicState,

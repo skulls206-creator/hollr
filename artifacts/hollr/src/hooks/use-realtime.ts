@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListMessagesQueryKey, getListDmMessagesQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import type { Message } from '@workspace/api-client-react';
+import type { MusicState } from '@workspace/api-zod';
 import { useAppStore } from '@/store/use-app-store';
 import { playNotificationSound, playVoiceJoinSound, playVoiceLeaveSound } from '@/lib/notification-sound';
 
@@ -16,9 +17,9 @@ let _onVoiceSignal: ((payload: any) => void) | null = null;
 let _onNewPeer: ((userId: string) => void) | null = null;
 
 // Music state listener — called whenever a MUSIC_STATE_UPDATE arrives
-let _onMusicStateUpdate: ((payload: any) => void) | null = null;
+let _onMusicStateUpdate: ((payload: MusicState) => void) | null = null;
 
-export function setMusicStateListener(listener: ((payload: any) => void) | null) {
+export function setMusicStateListener(listener: ((payload: MusicState) => void) | null) {
   _onMusicStateUpdate = listener;
 }
 
@@ -79,6 +80,7 @@ type WsEvent =
   | { type: 'VOICE_SPEAKING_START'; payload: { channelId: string; userId: string } }
   | { type: 'VOICE_SPEAKING_STOP'; payload: { channelId: string; userId: string } }
   | { type: 'PRESENCE_UPDATE'; payload: { userId: string; status: string } }
+  | { type: 'MUSIC_STATE_UPDATE'; payload: MusicState }
   | { type: 'CONNECTED' };
 
 export function useRealtime(userId?: string) {
@@ -170,7 +172,8 @@ export function useRealtime(userId?: string) {
                 // Check for @mention of current user
                 let mentionsList: string[] = [];
                 try {
-                  mentionsList = msg.mentions ? JSON.parse(msg.mentions as string) : [];
+                  const rawMentions = (msg as any).mentions;
+                  mentionsList = rawMentions ? JSON.parse(rawMentions as string) : [];
                 } catch {}
                 const isMentioned = mentionsList.includes(userId);
 

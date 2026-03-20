@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipForward, Volume2, VolumeX, Music2, List, X, Loader2 } from 'lucide-react';
+import {
+  Play, Pause, SkipForward, Volume2, VolumeX, Music2, List, X, Loader2, AlertCircle,
+} from 'lucide-react';
 import { useMusicState } from '@/hooks/use-music-state';
+import type { Track } from '@workspace/api-zod';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 
 function fmtMs(ms: number): string {
+  if (!ms || ms < 0) return '0:00';
   const totalSec = Math.floor(ms / 1000);
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
@@ -14,167 +18,186 @@ function fmtMs(ms: number): string {
 
 export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) {
   const {
-    musicState, musicVolume, setMusicVolume,
-    error, loading, pause, resume, skip, stop,
+    musicState,
+    musicVolume, setMusicVolume,
+    error, loading,
+    pause, resume, skip, stop,
   } = useMusicState(voiceChannelId);
 
   const [localPositionMs, setLocalPositionMs] = useState(0);
   const [showQueue, setShowQueue] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Sync local position with server state
   useEffect(() => {
     setLocalPositionMs(musicState.positionMs);
   }, [musicState.positionMs]);
 
+  // Tick up locally between server position broadcasts
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (musicState.isPlaying) {
       timerRef.current = setInterval(() => {
         setLocalPositionMs(prev => {
-          const next = prev + 250;
+          const next = prev + 500;
           if (musicState.durationMs > 0 && next >= musicState.durationMs) {
             clearInterval(timerRef.current!);
             return musicState.durationMs;
           }
           return next;
         });
-      }, 250);
+      }, 500);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [musicState.isPlaying, musicState.durationMs]);
+  }, [musicState.isPlaying, musicState.durationMs, musicState.positionMs]);
 
-  if (!musicState.botConnected) return null;
+  // Don't mount until the bot has connected (state fetched on mount in useMusicState)
+  if (!musicState.botConnected && !loading) return null;
 
   const { currentTrack, isPlaying, queue, durationMs } = musicState;
-  const progress = durationMs > 0 ? (localPositionMs / durationMs) * 100 : 0;
+  const progress = durationMs > 0 ? Math.min((localPositionMs / durationMs) * 100, 100) : 0;
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       <motion.div
         key="music-bar"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 8 }}
-        className="relative px-4 pt-2 pb-1 bg-[#232428] border-t border-border/20 select-none"
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        transition={{ duration: 0.2 }}
+        className="relative overflow-visible bg-[#1E1F22] border-t border-white/5"
       >
         {/* Queue popup */}
         {showQueue && queue.length > 0 && (
-          <div className="absolute bottom-full left-4 right-4 mb-2 bg-[#2B2D31] border border-border/20 rounded-xl shadow-2xl overflow-hidden max-h-48 overflow-y-auto z-50">
-            <div className="px-3 py-1.5 border-b border-border/10">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Up Next ({queue.length})</p>
+          <div className="absolute bottom-full left-0 right-0 bg-[#2B2D31] border border-border/20 rounded-t-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto z-50">
+            <div className="px-3 py-1.5 border-b border-border/10 flex items-center justify-between">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Up Next — {queue.length} track{queue.length !== 1 ? 's' : ''}
+              </p>
             </div>
-            {queue.map((t, i) => (
+            {queue.map((t: Track, i: number) => (
               <div key={i} className="flex items-center gap-2 px-3 py-2 hover:bg-white/5">
-                <Music2 size={12} className="text-muted-foreground shrink-0" />
+                <span className="text-[10px] text-muted-foreground w-4 text-right shrink-0">{i + 1}.</span>
+                <Music2 size={11} className="text-muted-foreground shrink-0" />
                 <p className="text-sm truncate flex-1">{t.title}</p>
-                <p className="text-xs text-muted-foreground">{fmtMs(t.durationMs)}</p>
+                <p className="text-xs text-muted-foreground shrink-0">{fmtMs(t.durationMs)}</p>
               </div>
             ))}
           </div>
         )}
 
-        <div className="flex items-center gap-3">
-          {/* Track info */}
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded bg-primary/20 flex items-center justify-center shrink-0">
-              {loading ? (
-                <Loader2 size={14} className="animate-spin text-primary" />
-              ) : (
-                <Music2 size={14} className="text-primary" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate leading-tight">
-                {currentTrack?.title ?? (loading ? 'Loading…' : 'No track')}
-              </p>
-              {error && <p className="text-[11px] text-destructive truncate">{error}</p>}
-              {!error && (
-                <p className="text-[11px] text-muted-foreground">
-                  {fmtMs(localPositionMs)}
-                  {durationMs > 0 && ` / ${fmtMs(durationMs)}`}
-                </p>
-              )}
-            </div>
+        <div className="px-4 py-2 flex items-center gap-3">
+          {/* Track thumbnail / icon */}
+          <div className="w-8 h-8 rounded-md bg-primary/20 flex items-center justify-center shrink-0">
+            {loading ? (
+              <Loader2 size={14} className="animate-spin text-primary" />
+            ) : currentTrack?.thumbnail ? (
+              <img src={currentTrack.thumbnail} alt="" className="w-full h-full object-cover rounded-md" />
+            ) : (
+              <Music2 size={14} className={cn('text-primary', isPlaying && 'animate-pulse')} />
+            )}
           </div>
 
-          {/* Progress bar */}
-          {durationMs > 0 && (
-            <div className="flex-1 max-w-xs hidden sm:block">
+          {/* Track info */}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium leading-tight truncate">
+              {loading ? 'Loading…' : currentTrack?.title ?? (error ? 'Error' : 'Idle')}
+            </p>
+            {error ? (
+              <div className="flex items-center gap-1">
+                <AlertCircle size={10} className="text-destructive shrink-0" />
+                <p className="text-[11px] text-destructive truncate">{error}</p>
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                {fmtMs(localPositionMs)}
+                {durationMs > 0 && ` / ${fmtMs(durationMs)}`}
+                {!currentTrack && !loading && ' · Music Bot connected'}
+              </p>
+            )}
+          </div>
+
+          {/* Progress bar (larger screens) */}
+          {durationMs > 0 && !error && (
+            <div className="flex-1 max-w-[200px] hidden sm:block">
               <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-primary rounded-full transition-[width] duration-250 ease-linear"
-                  style={{ width: `${Math.min(progress, 100)}%` }}
+                  className="h-full bg-primary rounded-full transition-[width] duration-500 ease-linear"
+                  style={{ width: `${progress}%` }}
                 />
               </div>
             </div>
           )}
 
           {/* Controls */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0">
+            {/* Play / Pause */}
             <button
               onClick={isPlaying ? pause : resume}
-              disabled={!currentTrack && !isPlaying}
+              disabled={(!currentTrack && !isPlaying) || loading}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 text-foreground disabled:opacity-40 transition-colors"
               title={isPlaying ? 'Pause' : 'Resume'}
             >
               {isPlaying ? <Pause size={16} /> : <Play size={16} />}
             </button>
 
+            {/* Skip */}
             <button
               onClick={() => skip()}
-              disabled={!currentTrack}
+              disabled={!currentTrack || loading}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 text-foreground disabled:opacity-40 transition-colors"
               title="Skip"
             >
               <SkipForward size={16} />
             </button>
 
+            {/* Queue toggle */}
             {queue.length > 0 && (
               <button
                 onClick={() => setShowQueue(v => !v)}
                 className={cn(
                   'w-8 h-8 flex items-center justify-center rounded-lg transition-colors relative',
-                  showQueue ? 'bg-primary/20 text-primary' : 'hover:bg-white/10 text-muted-foreground'
+                  showQueue ? 'bg-primary/20 text-primary' : 'hover:bg-white/10 text-muted-foreground',
                 )}
                 title="Show queue"
               >
-                <List size={16} />
-                <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary rounded-full text-[8px] font-bold text-white flex items-center justify-center">
+                <List size={15} />
+                <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary rounded-full text-[8px] font-bold text-white flex items-center justify-center leading-none">
                   {queue.length}
                 </span>
               </button>
             )}
 
             {/* Volume */}
-            <div className="flex items-center gap-1.5 ml-1">
+            <div className="flex items-center gap-1 ml-1">
               <button
-                onClick={() => setMusicVolume(musicVolume === 0 ? 100 : 0)}
+                onClick={() => setMusicVolume(musicVolume === 0 ? 80 : 0)}
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 title={musicVolume === 0 ? 'Unmute' : 'Mute'}
               >
-                {musicVolume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                {musicVolume === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}
               </button>
-              <div className="w-20 hidden sm:block">
+              <div className="w-16 hidden sm:block">
                 <Slider
                   value={[musicVolume]}
                   min={0}
                   max={200}
-                  step={1}
+                  step={5}
                   onValueChange={([v]) => setMusicVolume(v)}
                 />
               </div>
-              <span className="text-[11px] text-muted-foreground w-8 hidden sm:inline">
+              <span className="text-[11px] text-muted-foreground w-7 hidden sm:inline tabular-nums">
                 {musicVolume}%
               </span>
             </div>
 
-            {/* Stop / disconnect */}
+            {/* Stop */}
             <button
               onClick={() => stop()}
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors ml-1"
               title="Stop music and disconnect bot"
             >
-              <X size={14} />
+              <X size={13} />
             </button>
           </div>
         </div>
