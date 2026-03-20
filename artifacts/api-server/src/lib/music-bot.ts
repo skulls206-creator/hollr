@@ -218,6 +218,7 @@ class ChannelMusic extends EventEmitter {
   private pausedPositionMs: number = 0;
   private positionTimer: ReturnType<typeof setInterval> | null = null;
   private currentScUrl: string | null = null;
+  private playbackEndTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(channelId: string) {
     super();
@@ -292,6 +293,11 @@ class ChannelMusic extends EventEmitter {
   // ── ffmpeg + play-dl stream ───────────────────────────────────────────────
 
   private stopStream() {
+    // Cancel any pending end-of-track timer
+    if (this.playbackEndTimer) {
+      clearTimeout(this.playbackEndTimer);
+      this.playbackEndTimer = null;
+    }
     if (this.ffmpegProc) {
       const proc = this.ffmpegProc;
       this.ffmpegProc = null;
@@ -357,7 +363,28 @@ class ChannelMusic extends EventEmitter {
       if (code !== 0) {
         console.error(`[music] ffmpeg failed (code ${code})`);
         this.handlePlaybackError('Playback failed (ffmpeg error)');
-      } else if (this.state.isPlaying) {
+        return;
+      }
+
+      if (!this.state.isPlaying) return; // was paused or stopped externally
+
+      // SoundCloud often delivers ALL audio as an instant burst, so ffmpeg
+      // exits immediately even though the browser is still playing the buffered
+      // audio.  Calculate how much time remains and wait before advancing the
+      // queue so the frontend doesn't see isPlaying→false too early.
+      const elapsed = Date.now() - this.playStartTime + this.pausedPositionMs;
+      const durationMs = this.state.durationMs || 0;
+      const remaining = durationMs - elapsed;
+
+      if (remaining > 2000) {
+        console.log(`[music] ffmpeg burst-processed; delaying queue advance by ${Math.round(remaining / 1000)}s`);
+        this.playbackEndTimer = setTimeout(() => {
+          this.playbackEndTimer = null;
+          if (this.state.isPlaying) {
+            this.advanceQueue();
+          }
+        }, remaining);
+      } else {
         this.advanceQueue();
       }
     });
