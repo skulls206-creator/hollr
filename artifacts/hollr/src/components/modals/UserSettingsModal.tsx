@@ -106,12 +106,15 @@ export function UserSettingsModal() {
     navigator.mediaDevices
       .enumerateDevices()
       .then(devs => {
-        setInputDevices(
+        const rank = (id: string) => id === 'default' ? 0 : id === 'communications' ? 1 : 2;
+        const sortDevices = (arr: AudioDevice[]) =>
+          arr.sort((a, b) => rank(a.deviceId) - rank(b.deviceId));
+        setInputDevices(sortDevices(
           devs.filter(d => d.kind === 'audioinput').map(d => ({ deviceId: d.deviceId, label: d.label }))
-        );
-        setOutputDevices(
+        ));
+        setOutputDevices(sortDevices(
           devs.filter(d => d.kind === 'audiooutput').map(d => ({ deviceId: d.deviceId, label: d.label }))
-        );
+        ));
       })
       .catch(() => {})
       .finally(() => setDevicesLoading(false));

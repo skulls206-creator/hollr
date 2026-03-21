@@ -506,18 +506,29 @@ function UserProfilePanel({
       s.getTracks().forEach(t => t.stop());
     } catch {}
     const devs = await navigator.mediaDevices.enumerateDevices();
-    setInputDevices(devs.filter(d => d.kind === 'audioinput').map(d => ({
+    const mapped = devs.filter(d => d.kind === 'audioinput').map(d => ({
       deviceId: d.deviceId,
       label: d.label || `Microphone ${d.deviceId.slice(0, 6)}`,
-    })));
+    }));
+    // Sort so 'default' and 'communications' show first
+    mapped.sort((a, b) => {
+      const rank = (id: string) => id === 'default' ? 0 : id === 'communications' ? 1 : 2;
+      return rank(a.deviceId) - rank(b.deviceId);
+    });
+    setInputDevices(mapped);
   };
 
   const enumerateOutputDevices = async () => {
     const devs = await navigator.mediaDevices.enumerateDevices();
-    setOutputDevices(devs.filter(d => d.kind === 'audiooutput').map(d => ({
+    const mapped = devs.filter(d => d.kind === 'audiooutput').map(d => ({
       deviceId: d.deviceId,
       label: d.label || `Speaker ${d.deviceId.slice(0, 6)}`,
-    })));
+    }));
+    mapped.sort((a, b) => {
+      const rank = (id: string) => id === 'default' ? 0 : id === 'communications' ? 1 : 2;
+      return rank(a.deviceId) - rank(b.deviceId);
+    });
+    setOutputDevices(mapped);
   };
 
   useEffect(() => {
@@ -778,11 +789,11 @@ function UserProfilePanel({
                     key={dev.deviceId}
                     onClick={() => { setAudioInputDeviceId(dev.deviceId); setMicPickerOpen(false); }}
                     className={cn(
-                      "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2",
+                      "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2 min-w-0",
                       isSelected ? "text-foreground bg-white/10" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                     )}
                   >
-                    <span className="truncate flex-1">{dev.label}</span>
+                    <span className="truncate flex-1 min-w-0">{dev.label}</span>
                     {isSelected && <Check size={12} className="shrink-0 text-primary" />}
                   </button>
                 );
@@ -835,11 +846,11 @@ function UserProfilePanel({
                     key={dev.deviceId}
                     onClick={() => { setAudioOutputDeviceId(dev.deviceId); setOutputPickerOpen(false); }}
                     className={cn(
-                      "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2",
+                      "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2 min-w-0",
                       isSelected ? "text-foreground bg-white/10" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                     )}
                   >
-                    <span className="truncate flex-1">{dev.label}</span>
+                    <span className="truncate flex-1 min-w-0">{dev.label}</span>
                     {isSelected && <Check size={12} className="shrink-0 text-primary" />}
                   </button>
                 );
