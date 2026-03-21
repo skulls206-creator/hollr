@@ -744,13 +744,16 @@ function UserProfilePanel({
           >
             <Settings size={18} />
           </button>
-          <button
-            onClick={logout}
-            title="Sign Out"
-            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-          >
-            <LogOut size={18} />
-          </button>
+          {/* Sign out — slides in on hover, same as install button */}
+          <div className="overflow-hidden w-0 opacity-0 group-hover/profile:w-7 group-hover/profile:opacity-100 transition-all duration-200 ease-out shrink-0 flex items-center">
+            <button
+              onClick={logout}
+              title="Sign Out"
+              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
