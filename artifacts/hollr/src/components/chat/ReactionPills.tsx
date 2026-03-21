@@ -97,6 +97,7 @@ export function ReactionPills({
               onEmojiClick={(emoji) => toggle(emoji)}
               onClose={() => setPickerOpen(false)}
               anchorRef={addBtnRef as any}
+              align="left"
             />
           )}
         </div>

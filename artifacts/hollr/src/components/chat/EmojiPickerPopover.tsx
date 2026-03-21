@@ -5,9 +5,12 @@ interface Props {
   onEmojiClick: (emoji: string) => void;
   onClose: () => void;
   anchorRef?: React.RefObject<HTMLElement | null>;
+  /** Which edge to anchor to. Default 'right' keeps right edge pinned (for toolbar buttons on the right).
+   *  'left' keeps the left edge pinned so the picker opens rightward (for reaction pills on the left). */
+  align?: 'left' | 'right';
 }
 
-export function EmojiPickerPopover({ onEmojiClick, onClose, anchorRef }: Props) {
+export function EmojiPickerPopover({ onEmojiClick, onClose, anchorRef, align = 'right' }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,7 +41,7 @@ export function EmojiPickerPopover({ onEmojiClick, onClose, anchorRef }: Props) 
     <div
       ref={containerRef}
       className="absolute z-50"
-      style={{ bottom: '100%', right: 0, marginBottom: '8px' }}
+      style={{ bottom: '100%', [align]: 0, marginBottom: '8px' }}
     >
       <EmojiPicker
         onEmojiClick={handleEmojiClick}
