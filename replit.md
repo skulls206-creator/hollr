@@ -28,7 +28,7 @@ lib/
 - **WebSocket** server attached to the same HTTP server at `/api/ws`
   - Real-time events: `MESSAGE_CREATE`, `MESSAGE_UPDATE`, `MESSAGE_DELETE`, `CHANNEL_UPDATE`, `VOICE_SIGNAL`, `PRESENCE_UPDATE`, `THREAD_REPLY_CREATE`
   - WS broadcast module: `src/lib/ws.ts`
-- **Object Storage** via GCS (presigned PUT URL flow)
+- **Object Storage** via Cloudflare R2 (S3-compatible presigned PUT URL flow)
   - 100MB file size limit enforced server-side
   - MIME type allowlist (images, video, audio, PDF, docs, archives)
 - **Routes**: `/api/users`, `/api/servers`, `/api/channels`, `/api/messages`, `/api/dms`, `/api/storage`, `/api/voice/:channelId/music/*`
@@ -58,7 +58,7 @@ lib/
   - `AudioContext` + `GainNode` per participant for 0–200% volume control
 - **File Upload** in `MessageComposer.tsx`:
   - 100MB client-side check before requesting presigned URL
-  - Direct PUT to GCS presigned URL with progress bar
+  - Direct PUT to R2 presigned URL with progress bar
   - Attachments stored as `objectPath` in messages
 
 ### Push Notifications (api-server + hollr)
@@ -97,7 +97,10 @@ pnpm --filter @workspace/db push
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | GCS bucket ID for Replit object storage |
+| `R2_ENDPOINT` | Cloudflare R2 endpoint URL |
+| `R2_ACCESS_KEY_ID` | R2 access key ID |
+| `R2_SECRET_ACCESS_KEY` | R2 secret access key |
+| `R2_BUCKET_NAME` | R2 bucket name |
 | `PRIVATE_OBJECT_DIR` | Private object storage path prefix |
 | `PUBLIC_OBJECT_SEARCH_PATHS` | Public object search paths |
 | `SESSION_SECRET` | Express session secret (set in Replit secrets) |
@@ -118,7 +121,7 @@ pnpm --filter @workspace/db push
 - **Voice/Video**: WebRTC mesh with per-participant volume control (0–200%); real-time user presence in sidebar; speaking detection via AnalyserNode; LIVE badge for any connected user
 - **Screen Share**: Dropdown in VoiceOverlay to choose Entire Screen / Application Window / Browser Tab; `getDisplayMedia` with `displaySurface` hint + track renegotiation
 - **Music Bot**: Type `/play <youtube-url>` in any channel while in a voice channel; real-time `MusicControlBar` shows current track, progress, queue; `/pause`, `/resume`, `/skip`, `/stop` commands; bot avatar appears in voice sidebar; volume 0–200% via Web Audio gain node
-- **File Upload**: Direct-to-GCS presigned URL flow, 100MB limit, progress bar
+- **File Upload**: Direct-to-R2 presigned URL flow, 100MB limit, progress bar
 - **Push Notifications**: Web Push (VAPID); per-device subscription; mute DMs globally; mute individual channels via right-click context menu; Notifications tab in User Settings
 - **Mobile**: Responsive layout with slide-in sidebar
 - **Presence**: Online/idle/dnd/offline status indicators
@@ -129,7 +132,7 @@ pnpm --filter @workspace/db push
 - Voice uses a **mesh WebRTC topology** (no SFU needed for small teams)
 - Volume control uses the **Web Audio API GainNode** (0.0–2.0 range = 0–200%)
 - Screen sharing uses `getDisplayMedia` + `RTCPeerConnection.addTrack` renegotiation
-- File uploads go directly to GCS (bypasses the API server for large files)
+- File uploads go directly to Cloudflare R2 via presigned URLs (bypasses the API server for large files)
 - Auth is handled entirely by `@workspace/replit-auth-web` (OpenID Connect, not the generated API client)
 - `UserProfileCard` uses mousedown-outside-click listener only (no full-screen backdrop overlay) to avoid blocking other interactions
 - Route order in `users.ts`: `/users/me` must be registered before `/users/:userId`

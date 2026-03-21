@@ -1,6 +1,13 @@
-import { File } from "@google-cloud/storage";
+import {
+  HeadObjectCommand,
+  CopyObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getR2Client } from "./r2Client";
 
-const ACL_POLICY_METADATA_KEY = "custom:aclPolicy";
+export interface R2Object {
+  key: string;
+  bucket: string;
+}
 
 // Can be flexibly defined according to the use case.
 //
@@ -29,7 +36,7 @@ export interface ObjectAclRule {
   permission: ObjectPermission;
 }
 
-// Stored as object custom metadata under "custom:aclPolicy" (JSON string).
+// Stored as object custom metadata under "aclpolicy" (JSON string).
 export interface ObjectAclPolicy {
   owner: string;
   visibility: "public" | "private";
@@ -68,30 +75,61 @@ function createObjectAccessGroup(
 }
 
 export async function setObjectAclPolicy(
-  objectFile: File,
+  obj: R2Object,
   aclPolicy: ObjectAclPolicy,
 ): Promise<void> {
-  const [exists] = await objectFile.exists();
-  if (!exists) {
-    throw new Error(`Object not found: ${objectFile.name}`);
-  }
+  const client = getR2Client();
 
-  await objectFile.setMetadata({
-    metadata: {
-      [ACL_POLICY_METADATA_KEY]: JSON.stringify(aclPolicy),
-    },
-  });
+  const head = await client.send(
+    new HeadObjectCommand({ Bucket: obj.bucket, Key: obj.key })
+  );
+
+  const existingMeta = head.Metadata || {};
+  const updatedMeta = {
+    ...existingMeta,
+    aclpolicy: JSON.stringify(aclPolicy),
+  };
+
+  const copySource = `${obj.bucket}/${encodeURIComponent(obj.key).replace(/%2F/g, "/")}`;
+
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: obj.bucket,
+      Key: obj.key,
+      CopySource: copySource,
+      Metadata: updatedMeta,
+      MetadataDirective: "REPLACE",
+      ContentType: head.ContentType,
+      ContentDisposition: head.ContentDisposition,
+      ContentEncoding: head.ContentEncoding,
+      ContentLanguage: head.ContentLanguage,
+      CacheControl: head.CacheControl,
+    })
+  );
 }
 
 export async function getObjectAclPolicy(
-  objectFile: File,
+  obj: R2Object,
 ): Promise<ObjectAclPolicy | null> {
-  const [metadata] = await objectFile.getMetadata();
-  const aclPolicy = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
+  const client = getR2Client();
+
+  let head;
+  try {
+    head = await client.send(
+      new HeadObjectCommand({ Bucket: obj.bucket, Key: obj.key })
+    );
+  } catch (err: any) {
+    if (err?.name === "NotFound" || err?.$metadata?.httpStatusCode === 404) {
+      return null;
+    }
+    throw err;
+  }
+
+  const aclPolicy = head.Metadata?.["aclpolicy"];
   if (!aclPolicy) {
     return null;
   }
-  return JSON.parse(aclPolicy as string);
+  return JSON.parse(aclPolicy);
 }
 
 export async function canAccessObject({
@@ -100,7 +138,7 @@ export async function canAccessObject({
   requestedPermission,
 }: {
   userId?: string;
-  objectFile: File;
+  objectFile: R2Object;
   requestedPermission: ObjectPermission;
 }): Promise<boolean> {
   const aclPolicy = await getObjectAclPolicy(objectFile);
