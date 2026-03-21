@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, Link, RefreshCw, Clock, Users, ChevronDown, Loader2 } from 'lucide-react';
+import { Check, Copy, Link, RefreshCw, Clock, Users, ChevronDown, Loader2, Share2 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
@@ -60,6 +60,8 @@ export function InviteModal() {
   const inviteMaxUses = (server as any)?.inviteMaxUses ?? null;
   const inviteExpiresAt = (server as any)?.inviteExpiresAt ?? null;
 
+  const canShare = typeof navigator !== 'undefined' && !!navigator.share;
+
   const handleCopy = async () => {
     if (!inviteLink) return;
     try {
@@ -68,6 +70,22 @@ export function InviteModal() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast({ title: 'Failed to copy', variant: 'destructive' });
+    }
+  };
+
+  const handleShare = async () => {
+    if (!inviteLink || !canShare) return;
+    try {
+      await navigator.share({
+        title: `Join ${server?.name} on hollr`,
+        text: `You're invited to join ${server?.name} on hollr.chat!`,
+        url: inviteLink,
+      });
+    } catch (err: any) {
+      // AbortError = user cancelled — that's fine; don't show an error
+      if (err?.name !== 'AbortError') {
+        toast({ title: 'Share failed', variant: 'destructive' });
+      }
     }
   };
 
@@ -135,13 +153,25 @@ export function InviteModal() {
               </p>
             )}
 
-            <button
-              onClick={handleCopy}
-              disabled={!inviteLink || isExpired}
-              className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {copied ? <><Check size={15} /> Copied!</> : <><Copy size={15} /> Copy Link</>}
-            </button>
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={handleCopy}
+                disabled={!inviteLink || isExpired}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 ${canShare ? 'flex-1' : 'w-full'}`}
+              >
+                {copied ? <><Check size={15} /> Copied!</> : <><Copy size={15} /> Copy Link</>}
+              </button>
+              {canShare && (
+                <button
+                  onClick={handleShare}
+                  disabled={!inviteLink || isExpired}
+                  title="Share via system share sheet"
+                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-border/30 text-sm font-medium hover:bg-white/10 transition-colors disabled:opacity-50"
+                >
+                  <Share2 size={15} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Regenerate section */}

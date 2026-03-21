@@ -165,6 +165,9 @@ export const pushSubscriptionsTable = pgTable("push_subscriptions", {
   endpoint: text("endpoint").notNull().unique(),
   p256dh: text("p256dh").notNull(),
   auth: text("auth").notNull(),
+  // Per-device settings
+  label: varchar("label", { length: 64 }),      // user-chosen nickname for this device
+  quiet: boolean("quiet").notNull().default(false), // silent notifications (no sound/vibration)
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("idx_push_subs_user_id").on(t.userId)]);
 

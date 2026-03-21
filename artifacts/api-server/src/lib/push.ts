@@ -1,7 +1,7 @@
 import webpush from "web-push";
 import { db } from "@workspace/db";
 import { pushSubscriptionsTable, notificationPrefsTable } from "@workspace/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 const publicKey = process.env.VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
@@ -24,6 +24,7 @@ export interface PushPayload {
   url?: string;
   tag?: string;
   nav?: PushNav;
+  // Note: `quiet` is NOT set by callers — it is injected per-device from the DB
 }
 
 async function removeSub(id: string) {
@@ -42,9 +43,11 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   await Promise.allSettled(
     subs.map(async (sub) => {
       try {
+        // Merge the per-device quiet flag into the payload so the SW can honour it
+        const devicePayload = { ...payload, quiet: sub.quiet };
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify(payload),
+          JSON.stringify(devicePayload),
         );
       } catch (err: any) {
         if (err.statusCode === 410 || err.statusCode === 404) {

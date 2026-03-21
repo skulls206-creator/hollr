@@ -15,11 +15,17 @@ self.addEventListener("push", (event) => {
     badge: "/images/icon-192.png",
     tag: data.tag || "hollr-message",
     renotify: true,
+    silent: !!data.quiet,                // per-device quiet mode — no sound/vibration
+    vibrate: data.quiet ? [] : [100, 50, 100],
     data: {
       url: data.url || "/app",
       nav: data.nav || null,
     },
-    vibrate: [100, 50, 100],
+    // Action buttons — "Open" to jump directly, "Dismiss" to close quietly
+    actions: [
+      { action: "open",    title: "Open" },
+      { action: "dismiss", title: "Dismiss" },
+    ],
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -27,6 +33,11 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+
+  // "dismiss" action just closes — nothing more to do
+  if (event.action === "dismiss") return;
+
+  // "open" action or clicking the notification body both navigate
   const notifData = event.notification.data || {};
   const targetUrl = notifData.url || "/app";
   const nav = notifData.nav || null;
@@ -38,10 +49,8 @@ self.addEventListener("notificationclick", (event) => {
         const existing = windowClients.find((c) => c.url.includes(self.location.origin));
         if (existing) {
           existing.focus();
-          // Send rich navigation data — no page reload needed
           existing.postMessage({ type: "NOTIFICATION_NAVIGATE", nav, url: targetUrl });
         } else {
-          // App was closed — open it with nav params encoded in URL
           self.clients.openWindow(targetUrl);
         }
       })

@@ -11,18 +11,18 @@ router.get("/push/vapid-public-key", (_req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY ?? null });
 });
 
-// Save a push subscription
+// Save a push subscription (registers this device)
 router.post("/push/subscribe", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { endpoint, keys } = req.body ?? {};
+  const { endpoint, keys, label } = req.body ?? {};
   if (!endpoint || !keys?.p256dh || !keys?.auth) {
     res.status(400).json({ error: "Invalid subscription object" }); return;
   }
 
   await db
     .insert(pushSubscriptionsTable)
-    .values({ userId: req.user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth })
+    .values({ userId: req.user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth, label: label ?? null })
     .onConflictDoUpdate({
       target: pushSubscriptionsTable.endpoint,
       set: { userId: req.user.id, p256dh: keys.p256dh, auth: keys.auth },
@@ -31,7 +31,7 @@ router.post("/push/subscribe", async (req, res) => {
   res.json({ ok: true });
 });
 
-// Remove a push subscription
+// Remove a push subscription (unregisters this device)
 router.delete("/push/subscribe", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -40,6 +40,57 @@ router.delete("/push/subscribe", async (req, res) => {
 
   await db.delete(pushSubscriptionsTable).where(
     and(eq(pushSubscriptionsTable.userId, req.user.id), eq(pushSubscriptionsTable.endpoint, endpoint))
+  );
+
+  res.json({ ok: true });
+});
+
+// List all registered devices for this user (returns safe subset — no keys)
+router.get("/push/devices", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const subs = await db.query.pushSubscriptionsTable.findMany({
+    where: eq(pushSubscriptionsTable.userId, req.user.id),
+    columns: { id: true, label: true, quiet: true, createdAt: true, endpoint: true },
+  });
+
+  // Return endpoint as a short fingerprint to avoid leaking full URLs,
+  // but include enough for the frontend to match "this device"
+  res.json(subs.map(s => ({
+    id: s.id,
+    label: s.label ?? null,
+    quiet: s.quiet,
+    createdAt: s.createdAt,
+    endpointHint: s.endpoint.slice(-16), // last 16 chars — unique enough for matching
+    endpoint: s.endpoint,                // full endpoint for "is this device?" check
+  })));
+});
+
+// Update per-device settings (label / quiet mode)
+router.patch("/push/devices/:id", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { label, quiet } = req.body ?? {};
+  const updates: Record<string, unknown> = {};
+  if (label !== undefined) updates.label = typeof label === "string" ? label.slice(0, 64) : null;
+  if (quiet !== undefined) updates.quiet = !!quiet;
+
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+
+  await db
+    .update(pushSubscriptionsTable)
+    .set(updates)
+    .where(and(eq(pushSubscriptionsTable.id, req.params.id), eq(pushSubscriptionsTable.userId, req.user.id)));
+
+  res.json({ ok: true });
+});
+
+// Remove a specific device by id
+router.delete("/push/devices/:id", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  await db.delete(pushSubscriptionsTable).where(
+    and(eq(pushSubscriptionsTable.id, req.params.id), eq(pushSubscriptionsTable.userId, req.user.id))
   );
 
   res.json({ ok: true });
@@ -84,7 +135,6 @@ router.put("/push/preferences", async (req, res) => {
 });
 
 // Test endpoint — fires a push to yourself so you can verify click-to-navigate works
-// POST /api/push/test  body: { navType: "channel"|"dm", serverId?, channelId?, threadId? }
 router.post("/push/test", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -103,7 +153,7 @@ router.post("/push/test", async (req, res) => {
 
   await sendPushToUser(req.user.id, {
     title: "hollr.chat — Test Notification",
-    body: nav ? `Click to navigate to your ${navType === "dm" ? "DM" : "channel"}` : "This is a test push notification from hollr.",
+    body: nav ? `Click to navigate to your ${navType === "dm" ? "DM" : "channel"}` : "Test push notification from hollr.",
     url,
     tag: "push-test",
     nav,

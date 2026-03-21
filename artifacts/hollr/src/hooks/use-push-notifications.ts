@@ -8,14 +8,28 @@ export interface NotificationPrefs {
   mutedChannelIds: string[];
 }
 
+export interface PushDevice {
+  id: string;
+  label: string | null;
+  quiet: boolean;
+  createdAt: string;
+  endpoint: string;        // full endpoint — used to identify "this device"
+  endpointHint: string;    // last 16 chars for display
+}
+
 export interface UsePushNotifications {
   permission: NotificationPermission | "unsupported";
   isSubscribed: boolean;
   isLoading: boolean;
   prefs: NotificationPrefs;
+  devices: PushDevice[];
+  currentEndpoint: string | null;   // endpoint of this browser's active subscription
   subscribe: () => Promise<void>;
   unsubscribe: () => Promise<void>;
   updatePrefs: (prefs: Partial<NotificationPrefs>) => Promise<void>;
+  updateDevice: (id: string, patch: { label?: string | null; quiet?: boolean }) => Promise<void>;
+  removeDevice: (id: string) => Promise<void>;
+  refreshDevices: () => Promise<void>;
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -23,6 +37,21 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = atob(base64);
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+// Guess a friendly device name from the browser user-agent
+function guessDeviceLabel(): string {
+  const ua = navigator.userAgent;
+  if (/iPhone/i.test(ua)) return "iPhone";
+  if (/iPad/i.test(ua)) return "iPad";
+  if (/Android/i.test(ua)) {
+    if (/Mobile/i.test(ua)) return "Android Phone";
+    return "Android Tablet";
+  }
+  if (/Macintosh/i.test(ua)) return "Mac";
+  if (/Windows/i.test(ua)) return "Windows PC";
+  if (/Linux/i.test(ua)) return "Linux";
+  return "Browser";
 }
 
 export function usePushNotifications(): UsePushNotifications {
@@ -34,6 +63,7 @@ export function usePushNotifications(): UsePushNotifications {
   const [isLoading, setIsLoading] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPrefs>({ muteDms: false, mutedChannelIds: [] });
   const [vapidKey, setVapidKey] = useState<string | null>(null);
+  const [devices, setDevices] = useState<PushDevice[]>([]);
 
   // Load VAPID public key
   useEffect(() => {
@@ -53,14 +83,23 @@ export function usePushNotifications(): UsePushNotifications {
     });
   }, []);
 
-  // Load notification preferences from backend when logged in
+  const refreshDevices = useCallback(async () => {
+    if (!user) return;
+    try {
+      const r = await fetch(`${BASE}api/push/devices`, { credentials: "include" });
+      if (r.ok) setDevices(await r.json());
+    } catch {}
+  }, [user]);
+
+  // Load notification preferences + device list when logged in
   useEffect(() => {
     if (!user) return;
     fetch(`${BASE}api/push/preferences`, { credentials: "include" })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) setPrefs(d); })
       .catch(() => {});
-  }, [user]);
+    refreshDevices();
+  }, [user, refreshDevices]);
 
   const subscribe = useCallback(async () => {
     if (!vapidKey || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
@@ -82,14 +121,19 @@ export function usePushNotifications(): UsePushNotifications {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
+        body: JSON.stringify({
+          endpoint: json.endpoint,
+          keys: json.keys,
+          label: guessDeviceLabel(),
+        }),
       });
+      await refreshDevices();
     } catch (err) {
       console.error("[push] subscribe failed:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [vapidKey]);
+  }, [vapidKey, refreshDevices]);
 
   const unsubscribe = useCallback(async () => {
     if (!subscription) return;
@@ -104,12 +148,13 @@ export function usePushNotifications(): UsePushNotifications {
         credentials: "include",
         body: JSON.stringify({ endpoint }),
       });
+      await refreshDevices();
     } catch (err) {
       console.error("[push] unsubscribe failed:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [subscription]);
+  }, [subscription, refreshDevices]);
 
   const updatePrefs = useCallback(async (partial: Partial<NotificationPrefs>) => {
     const next = { ...prefs, ...partial };
@@ -122,13 +167,36 @@ export function usePushNotifications(): UsePushNotifications {
     }).catch(() => {});
   }, [prefs]);
 
+  const updateDevice = useCallback(async (id: string, patch: { label?: string | null; quiet?: boolean }) => {
+    setDevices((prev) => prev.map((d) => d.id === id ? { ...d, ...patch } : d));
+    await fetch(`${BASE}api/push/devices/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(patch),
+    }).catch(() => {});
+  }, []);
+
+  const removeDevice = useCallback(async (id: string) => {
+    setDevices((prev) => prev.filter((d) => d.id !== id));
+    await fetch(`${BASE}api/push/devices/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    }).catch(() => {});
+  }, []);
+
   return {
     permission,
     isSubscribed: !!subscription,
     isLoading,
     prefs,
+    devices,
+    currentEndpoint: subscription?.endpoint ?? null,
     subscribe,
     unsubscribe,
     updatePrefs,
+    updateDevice,
+    removeDevice,
+    refreshDevices,
   };
 }

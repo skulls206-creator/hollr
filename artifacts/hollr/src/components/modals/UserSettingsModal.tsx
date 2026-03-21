@@ -8,11 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
-import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { usePushNotifications, PushDevice } from '@/hooks/use-push-notifications';
 
 type Tab = 'profile' | 'audio' | 'notifications';
 type UserStatus = 'online' | 'idle' | 'dnd' | 'invisible';
@@ -62,6 +62,88 @@ function DeviceSelect({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function DeviceRow({
+  device,
+  isCurrent,
+  onUpdate,
+  onRemove,
+}: {
+  device: PushDevice;
+  isCurrent: boolean;
+  onUpdate: (id: string, patch: { label?: string | null; quiet?: boolean }) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(device.label ?? '');
+
+  const isMobile = /iPhone|iPad|Android|Mobile/i.test(device.label ?? '');
+  const DeviceIcon = isMobile ? Smartphone : Monitor;
+
+  const commitLabel = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed !== (device.label ?? '')) {
+      onUpdate(device.id, { label: trimmed || null });
+    }
+  };
+
+  return (
+    <div className={cn(
+      'flex items-center gap-3 px-3 py-2.5 rounded-lg border',
+      isCurrent ? 'border-primary/30 bg-primary/5' : 'border-border/20 bg-[#1E1F22]'
+    )}>
+      <DeviceIcon size={16} className={isCurrent ? 'text-primary shrink-0' : 'text-muted-foreground shrink-0'} />
+
+      <div className="flex flex-col flex-1 min-w-0">
+        {editing ? (
+          <input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitLabel}
+            onKeyDown={(e) => { if (e.key === 'Enter') commitLabel(); if (e.key === 'Escape') setEditing(false); }}
+            className="bg-transparent border-b border-primary text-sm text-foreground outline-none w-full"
+            maxLength={64}
+          />
+        ) : (
+          <button
+            onClick={() => { setDraft(device.label ?? ''); setEditing(true); }}
+            className="flex items-center gap-1.5 text-sm font-medium text-foreground text-left hover:text-primary transition-colors group"
+          >
+            {device.label || <span className="text-muted-foreground italic">Unnamed device</span>}
+            <Pencil size={11} className="opacity-0 group-hover:opacity-60 transition-opacity" />
+          </button>
+        )}
+        <span className="text-[10px] text-muted-foreground mt-0.5">
+          {isCurrent ? 'This device · ' : ''}
+          Added {new Date(device.createdAt).toLocaleDateString()}
+        </span>
+      </div>
+
+      {/* Quiet mode toggle */}
+      <button
+        title={device.quiet ? 'Quiet mode on — no sound/vibration' : 'Quiet mode off — click to silence'}
+        onClick={() => onUpdate(device.id, { quiet: !device.quiet })}
+        className={cn(
+          'p-1.5 rounded-md transition-colors',
+          device.quiet ? 'text-muted-foreground hover:text-foreground' : 'text-primary hover:text-primary/80'
+        )}
+      >
+        {device.quiet ? <VolumeX size={14} /> : <Volume size={14} />}
+      </button>
+
+      {/* Remove device */}
+      <button
+        title="Remove this device"
+        onClick={() => onRemove(device.id)}
+        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive transition-colors"
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 }
@@ -355,17 +437,17 @@ export function UserSettingsModal() {
               </p>
             ) : (
               <>
-                {/* Subscribe / unsubscribe */}
+                {/* Subscribe / unsubscribe this device */}
                 <div className="flex items-start justify-between gap-4 bg-[#1E1F22] rounded-lg px-4 py-3">
                   <div className="flex flex-col gap-0.5">
                     <p className="text-sm font-semibold text-foreground flex items-center gap-2">
                       {push.isSubscribed ? <BellRing size={15} className="text-primary" /> : <Bell size={15} />}
-                      {push.isSubscribed ? 'Notifications on' : 'Enable notifications'}
+                      {push.isSubscribed ? 'This device is subscribed' : 'Enable notifications'}
                     </p>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {push.isSubscribed
-                        ? 'You\'ll receive notifications for new messages when the app is in the background.'
-                        : 'Get notified of new messages and DMs even when hollr is not open.'}
+                        ? 'You\'ll receive push notifications on this device when hollr is in the background.'
+                        : 'Get notified of new messages even when hollr is not open.'}
                     </p>
                     {push.permission === 'denied' && (
                       <p className="text-xs text-yellow-400/80 mt-1">
@@ -380,13 +462,7 @@ export function UserSettingsModal() {
                     onClick={push.isSubscribed ? push.unsubscribe : push.subscribe}
                     className="shrink-0"
                   >
-                    {push.isLoading ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : push.isSubscribed ? (
-                      'Turn off'
-                    ) : (
-                      'Enable'
-                    )}
+                    {push.isLoading ? <Loader2 size={14} className="animate-spin" /> : push.isSubscribed ? 'Turn off' : 'Enable'}
                   </Button>
                 </div>
 
@@ -394,18 +470,14 @@ export function UserSettingsModal() {
                 {push.isSubscribed && (
                   <>
                     <div className="h-[1px] bg-border/30" />
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-                      Preferences
-                    </p>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Preferences</p>
 
                     {/* Mute DMs */}
                     <button
                       onClick={() => push.updatePrefs({ muteDms: !push.prefs.muteDms })}
                       className={cn(
                         'flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all',
-                        push.prefs.muteDms
-                          ? 'border-border/30 bg-[#1E1F22]'
-                          : 'border-primary/30 bg-primary/5'
+                        push.prefs.muteDms ? 'border-border/30 bg-[#1E1F22]' : 'border-primary/30 bg-primary/5'
                       )}
                     >
                       <MessageSquare size={15} className={push.prefs.muteDms ? 'text-muted-foreground' : 'text-primary'} />
@@ -415,14 +487,33 @@ export function UserSettingsModal() {
                           {push.prefs.muteDms ? 'Notifications muted' : 'Notifying you on new DMs'}
                         </span>
                       </div>
-                      {!push.prefs.muteDms && <Check size={14} className="text-primary shrink-0" />}
-                      {push.prefs.muteDms && (
-                        <BellOff size={14} className="text-muted-foreground shrink-0" />
-                      )}
+                      {!push.prefs.muteDms ? <Check size={14} className="text-primary shrink-0" /> : <BellOff size={14} className="text-muted-foreground shrink-0" />}
                     </button>
 
                     <p className="text-xs text-muted-foreground leading-relaxed bg-[#1E1F22] rounded-lg px-3 py-2.5">
                       To mute a specific channel, right-click it in the channel list and choose <span className="text-foreground font-medium">Mute channel</span>.
+                    </p>
+                  </>
+                )}
+
+                {/* Device list — visible even if this device isn't subscribed, so you can manage other devices */}
+                {push.devices.length > 0 && (
+                  <>
+                    <div className="h-[1px] bg-border/30" />
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Registered Devices</p>
+                    <div className="flex flex-col gap-2">
+                      {push.devices.map((device) => (
+                        <DeviceRow
+                          key={device.id}
+                          device={device}
+                          isCurrent={device.endpoint === push.currentEndpoint}
+                          onUpdate={push.updateDevice}
+                          onRemove={push.removeDevice}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Each device you subscribe on is listed here. Use <span className="text-foreground font-medium">Quiet mode</span> to silence sound and vibration on specific devices without unsubscribing.
                     </p>
                   </>
                 )}
