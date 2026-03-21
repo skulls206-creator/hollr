@@ -7,6 +7,10 @@ import router from "./routes";
 
 const app: Express = express();
 
+// Replit runs behind a proxy — trust the first forwarded IP so rate limiting
+// keys by the real client IP rather than the proxy's address
+app.set('trust proxy', 1);
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
   : null;
