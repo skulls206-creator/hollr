@@ -45,6 +45,7 @@ export function ChannelSidebar() {
     setCreateChannelModalOpen, setInviteModalOpen, setServerSettingsModalOpen,
     voiceConnection, setVoiceConnection, voiceChannelUsers,
     unreadCounts, setUnreadCount, clearUnreadCount,
+    dmUnreadCounts, clearDmUnreadCount,
     voiceVolumes, setVoiceVolume,
     triggerMention,
   } = useAppStore();
@@ -165,14 +166,17 @@ export function ChannelSidebar() {
           )}
           {dmThreads.map(thread => {
             const other = thread.participants?.find((p: any) => p.id !== user?.id) ?? thread.participants?.[0];
+            const dmUnread = dmUnreadCounts[thread.id] ?? 0;
             return (
               <button
                 key={thread.id}
-                onClick={() => setActiveDmThread(thread.id)}
+                onClick={() => { setActiveDmThread(thread.id); clearDmUnreadCount(thread.id); }}
                 className={cn(
                   'w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
                   activeDmThreadId === thread.id
                     ? 'bg-secondary text-foreground'
+                    : dmUnread > 0
+                    ? 'text-foreground hover:bg-secondary/50'
                     : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
                 )}
               >
@@ -186,11 +190,20 @@ export function ChannelSidebar() {
                   <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-[#2B2D31] rounded-full" />
                 </div>
                 <div className="flex-1 min-w-0 text-left">
-                  <p className="truncate text-sm font-medium">{other?.displayName || other?.username || 'Unknown'}</p>
+                  <p className={cn("truncate text-sm", dmUnread > 0 ? "font-bold" : "font-medium")}>
+                    {other?.displayName || other?.username || 'Unknown'}
+                  </p>
                   {thread.lastMessage && (
-                    <p className="text-[11px] text-muted-foreground truncate">{thread.lastMessage.content}</p>
+                    <p className={cn("text-[11px] truncate", dmUnread > 0 ? "text-foreground" : "text-muted-foreground")}>
+                      {thread.lastMessage.content}
+                    </p>
                   )}
                 </div>
+                {dmUnread > 0 && (
+                  <span className="shrink-0 min-w-[18px] h-[18px] px-1 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {dmUnread > 99 ? '99+' : dmUnread}
+                  </span>
+                )}
               </button>
             );
           })}

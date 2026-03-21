@@ -94,6 +94,7 @@ export function useRealtime(userId?: string) {
     updateVoiceChannelUser,
     incrementUnreadCount,
     clearUnreadCount,
+    incrementDmUnreadCount,
   } = useAppStore();
 
   // Request notification permission early
@@ -158,7 +159,7 @@ export function useRealtime(userId?: string) {
             }
 
             if (msg.authorId !== userId) {
-              const { isChannelMuted, activeChannelId } = useAppStore.getState();
+              const { isChannelMuted, activeChannelId, activeDmThreadId } = useAppStore.getState();
               const isMuted = msg.channelId ? isChannelMuted(msg.channelId) : false;
 
               if (!isMuted) {
@@ -167,6 +168,11 @@ export function useRealtime(userId?: string) {
                 // Unread badge: increment if not the active channel
                 if (msg.channelId && msg.channelId !== activeChannelId) {
                   incrementUnreadCount(msg.channelId);
+                }
+
+                // DM unread badge: increment if not the active DM thread
+                if (msg.dmThreadId && msg.dmThreadId !== activeDmThreadId) {
+                  incrementDmUnreadCount(msg.dmThreadId);
                 }
 
                 // Check for @mention of current user

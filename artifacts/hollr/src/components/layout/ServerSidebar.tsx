@@ -6,8 +6,9 @@ import { cn, getInitials } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
 export function ServerSidebar() {
-  const { activeServerId, setActiveServer, setActiveDmThread, setCreateServerModalOpen } = useAppStore();
+  const { activeServerId, setActiveServer, setActiveDmThread, setCreateServerModalOpen, dmUnreadCounts } = useAppStore();
   const { data: servers = [] } = useListMyServers();
+  const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="w-[72px] bg-[#1E1F22] shrink-0 flex flex-col items-center py-3 gap-2 overflow-y-auto overflow-x-hidden no-scrollbar border-r border-border/10 z-20">
@@ -33,6 +34,11 @@ export function ServerSidebar() {
             )}>
               <MessageSquare size={24} />
             </div>
+            {totalDmUnread > 0 && activeServerId !== null && (
+              <span className="absolute bottom-0.5 right-1 min-w-[16px] h-4 px-1 bg-destructive text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none">
+                {totalDmUnread > 99 ? '99+' : totalDmUnread}
+              </span>
+            )}
           </button>
         </TooltipTrigger>
         <TooltipContent side="right" className="font-semibold ml-2">Direct Messages</TooltipContent>

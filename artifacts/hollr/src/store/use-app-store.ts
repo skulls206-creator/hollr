@@ -130,6 +130,11 @@ interface AppState {
   incrementUnreadCount: (channelId: string) => void;
   clearUnreadCount: (channelId: string) => void;
 
+  // Unread DM counts per thread
+  dmUnreadCounts: Record<string, number>;
+  incrementDmUnreadCount: (threadId: string) => void;
+  clearDmUnreadCount: (threadId: string) => void;
+
   // Per-participant voice volumes (shared between VoiceOverlay + sidebar)
   voiceVolumes: Record<string, number>;
   setVoiceVolume: (userId: string, volume: number) => void;
@@ -277,6 +282,10 @@ export const useAppStore = create<AppState>()(
   setUnreadCount: (channelId, count) => set((state) => ({ unreadCounts: { ...state.unreadCounts, [channelId]: count } })),
   incrementUnreadCount: (channelId) => set((state) => ({ unreadCounts: { ...state.unreadCounts, [channelId]: (state.unreadCounts[channelId] ?? 0) + 1 } })),
   clearUnreadCount: (channelId) => set((state) => { const n = { ...state.unreadCounts }; delete n[channelId]; return { unreadCounts: n }; }),
+
+  dmUnreadCounts: {},
+  incrementDmUnreadCount: (threadId) => set((state) => ({ dmUnreadCounts: { ...state.dmUnreadCounts, [threadId]: (state.dmUnreadCounts[threadId] ?? 0) + 1 } })),
+  clearDmUnreadCount: (threadId) => set((state) => { const n = { ...state.dmUnreadCounts }; delete n[threadId]; return { dmUnreadCounts: n }; }),
 
   voiceVolumes: {},
   setVoiceVolume: (userId, volume) => set((state) => ({ voiceVolumes: { ...state.voiceVolumes, [userId]: volume } })),
