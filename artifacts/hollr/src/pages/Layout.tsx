@@ -17,6 +17,7 @@ import { ThreadSidebar } from '@/components/chat/ThreadSidebar';
 import { UserProfileCard } from '@/components/chat/UserProfileCard';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
+import { MobileDmList } from '@/components/layout/MobileDmList';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { pendingNav, applyNav } from '@/lib/notification-nav';
@@ -120,6 +121,18 @@ export function Layout() {
               recipientName={dmRecipient?.displayName || dmRecipient?.username || 'Unknown'}
               recipientAvatar={dmRecipient?.avatarUrl}
             />
+          ) : !activeServerId ? (
+            // DM lobby — no thread selected yet
+            // Mobile: show the DM list as the full-screen main content
+            // Desktop: sidebar already shows the DM list, so show the ChatArea placeholder
+            <>
+              <div className="flex md:hidden flex-1 h-full min-w-0">
+                <MobileDmList />
+              </div>
+              <div className="hidden md:flex flex-1 h-full min-w-0">
+                <ChatArea />
+              </div>
+            </>
           ) : (
             <ChatArea />
           )}

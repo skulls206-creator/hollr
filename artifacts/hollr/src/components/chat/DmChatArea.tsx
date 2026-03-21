@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Smile, Menu, FileText, Download, SendHorizonal } from 'lucide-react';
+import { PlusCircle, Smile, ChevronLeft, FileText, Download, SendHorizonal } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 
 export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
@@ -14,7 +14,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
 }) {
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
-  const { toggleMobileSidebar, voicePanelHeight } = useAppStore();
+  const { setActiveDmThread, voicePanelHeight } = useAppStore();
   const { toast } = useToast();
   const [content, setContent] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -57,12 +57,13 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
     <div className="flex-1 bg-[#313338] flex flex-col h-full min-w-0">
       {/* Header */}
       <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 shadow-sm z-10 bg-[#313338]">
+        {/* Back to DM list on mobile — on desktop the sidebar is always visible */}
         <button
-          onClick={toggleMobileSidebar}
-          className="md:hidden mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0"
-          title="Open sidebar"
+          onClick={() => setActiveDmThread(null)}
+          className="md:hidden mr-2 -ml-1 p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors shrink-0 rounded-md"
+          title="Back to Direct Messages"
         >
-          <Menu size={22} />
+          <ChevronLeft size={24} />
         </button>
         <Avatar className="h-7 w-7 mr-2.5">
           <AvatarImage src={recipientAvatar || undefined} />
