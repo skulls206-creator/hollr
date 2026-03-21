@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
 
-type Tab = 'profile' | 'audio';
+type Tab = 'profile' | 'audio' | 'notifications';
 type UserStatus = 'online' | 'idle' | 'dnd' | 'invisible';
 
 interface AudioDevice {
@@ -86,6 +87,8 @@ export function UserSettingsModal() {
   const [inputDevices, setInputDevices] = useState<AudioDevice[]>([]);
   const [outputDevices, setOutputDevices] = useState<AudioDevice[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
+
+  const push = usePushNotifications();
 
   useEffect(() => {
     if (profile) {
@@ -192,6 +195,7 @@ export function UserSettingsModal() {
         <div className="flex gap-1 border-b border-border/30 pb-2 -mt-1">
           {TAB_BTN('profile', <User size={14} />, 'Profile')}
           {TAB_BTN('audio', <Headphones size={14} />, 'Voice & Audio')}
+          {TAB_BTN('notifications', <Bell size={14} />, 'Notifications')}
         </div>
 
         {/* Profile tab */}
@@ -332,6 +336,100 @@ export function UserSettingsModal() {
 
             <div className="h-[1px] bg-border/30" />
 
+            <Button
+              variant="ghost"
+              className="w-full justify-center gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={logout}
+            >
+              <LogOut size={16} />
+              Sign Out
+            </Button>
+          </div>
+        )}
+        {/* Notifications tab */}
+        {tab === 'notifications' && (
+          <div className="flex flex-col gap-4">
+            {push.permission === 'unsupported' ? (
+              <p className="text-sm text-muted-foreground bg-[#1E1F22] rounded-lg px-3 py-3">
+                Push notifications are not supported in this browser.
+              </p>
+            ) : (
+              <>
+                {/* Subscribe / unsubscribe */}
+                <div className="flex items-start justify-between gap-4 bg-[#1E1F22] rounded-lg px-4 py-3">
+                  <div className="flex flex-col gap-0.5">
+                    <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      {push.isSubscribed ? <BellRing size={15} className="text-primary" /> : <Bell size={15} />}
+                      {push.isSubscribed ? 'Notifications on' : 'Enable notifications'}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {push.isSubscribed
+                        ? 'You\'ll receive notifications for new messages when the app is in the background.'
+                        : 'Get notified of new messages and DMs even when hollr is not open.'}
+                    </p>
+                    {push.permission === 'denied' && (
+                      <p className="text-xs text-yellow-400/80 mt-1">
+                        Permission was denied. Enable notifications in your browser settings and reload.
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={push.isSubscribed ? 'outline' : 'default'}
+                    disabled={push.isLoading || push.permission === 'denied'}
+                    onClick={push.isSubscribed ? push.unsubscribe : push.subscribe}
+                    className="shrink-0"
+                  >
+                    {push.isLoading ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : push.isSubscribed ? (
+                      'Turn off'
+                    ) : (
+                      'Enable'
+                    )}
+                  </Button>
+                </div>
+
+                {/* Preferences (only shown when subscribed) */}
+                {push.isSubscribed && (
+                  <>
+                    <div className="h-[1px] bg-border/30" />
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+                      Preferences
+                    </p>
+
+                    {/* Mute DMs */}
+                    <button
+                      onClick={() => push.updatePrefs({ muteDms: !push.prefs.muteDms })}
+                      className={cn(
+                        'flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all',
+                        push.prefs.muteDms
+                          ? 'border-border/30 bg-[#1E1F22]'
+                          : 'border-primary/30 bg-primary/5'
+                      )}
+                    >
+                      <MessageSquare size={15} className={push.prefs.muteDms ? 'text-muted-foreground' : 'text-primary'} />
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="text-sm font-medium text-foreground">Direct Messages</span>
+                        <span className="text-xs text-muted-foreground">
+                          {push.prefs.muteDms ? 'Notifications muted' : 'Notifying you on new DMs'}
+                        </span>
+                      </div>
+                      {!push.prefs.muteDms && <Check size={14} className="text-primary shrink-0" />}
+                      {push.prefs.muteDms && (
+                        <BellOff size={14} className="text-muted-foreground shrink-0" />
+                      )}
+                    </button>
+
+                    <p className="text-xs text-muted-foreground leading-relaxed bg-[#1E1F22] rounded-lg px-3 py-2.5">
+                      To mute a specific channel, right-click it in the channel list and choose <span className="text-foreground font-medium">Mute channel</span>.
+                    </p>
+                  </>
+                )}
+              </>
+            )}
+
+            <div className="h-[1px] bg-border/30" />
             <Button
               variant="ghost"
               className="w-full justify-center gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"

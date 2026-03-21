@@ -31,3 +31,10 @@ defaultBucketID = "replit-objstore-56e73a81-9377-411d-a41f-0c954bfadaa2"
 [nix]
 channel = "stable-25_05"
 packages = ["ffmpeg"]
+
+[userenv]
+
+[userenv.shared]
+VAPID_PUBLIC_KEY = "BNqzON4Ww5zMvo6y9fpZ26uXjPzYSVicmzpDom4pYBjW9QR281oGVjwc0wBpBBWrWboCTOKgMKFV4vDFZkR85Uo"
+VAPID_PRIVATE_KEY = "XrJoCAl5lq9lcpeSYbZi77PU0WPdEesQWwYMwiVqzlw"
+VAPID_SUBJECT = "mailto:admin@hollr.chat"

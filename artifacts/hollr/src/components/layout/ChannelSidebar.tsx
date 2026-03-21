@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react';
 import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
-  Smile, MessageSquare, AtSign, MonitorDown, Share2,
+  Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff,
 } from 'lucide-react';
+import {
+  ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { usePwaInstall } from '@/hooks/use-pwa-install';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { useAppStore } from '@/store/use-app-store';
 import {
   useGetServer, useListChannels, useListDmThreads,
@@ -260,8 +264,9 @@ export function ChannelSidebar() {
           </div>
           <div className="space-y-[2px]">
             {textChannels.map(channel => (
+              <ContextMenu key={channel.id}>
+              <ContextMenuTrigger asChild>
               <div
-                key={channel.id}
                 className={cn(
                   'group/ch flex items-center px-2 py-1.5 rounded-md transition-colors',
                   activeChannelId === channel.id
@@ -325,6 +330,45 @@ export function ChannelSidebar() {
                   </div>
                 )}
               </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="bg-[#1E1F22] border-border/50 text-sm">
+                {push.isSubscribed && (
+                  <ContextMenuItem
+                    onSelect={() => {
+                      const isMuted = push.prefs.mutedChannelIds.includes(channel.id);
+                      push.updatePrefs({
+                        mutedChannelIds: isMuted
+                          ? push.prefs.mutedChannelIds.filter((id: string) => id !== channel.id)
+                          : [...push.prefs.mutedChannelIds, channel.id],
+                      });
+                    }}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    {push.prefs.mutedChannelIds.includes(channel.id) ? (
+                      <><Bell size={13} /> Unmute notifications</>
+                    ) : (
+                      <><BellOff size={13} /> Mute notifications</>
+                    )}
+                  </ContextMenuItem>
+                )}
+                {isOwnerOrAdmin && (
+                  <>
+                    <ContextMenuItem
+                      onSelect={() => startEditChannel(channel, { stopPropagation: () => {} } as any)}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Pencil size={13} /> Rename channel
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onSelect={() => handleDeleteChannel(channel, { stopPropagation: () => {} } as any)}
+                      className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
+                    >
+                      <Trash2 size={13} /> Delete channel
+                    </ContextMenuItem>
+                  </>
+                )}
+              </ContextMenuContent>
+              </ContextMenu>
             ))}
           </div>
         </div>
@@ -493,6 +537,7 @@ function UserProfilePanel({
   const [editingCustom, setEditingCustom] = useState(false);
   const [iosInstallOpen, setIosInstallOpen] = useState(false);
   const { canInstall, isIOS, promptInstall } = usePwaInstall();
+  const push = usePushNotifications();
 
   // Device picker state
   const [micPickerOpen, setMicPickerOpen] = useState(false);

@@ -61,9 +61,20 @@ lib/
   - Direct PUT to GCS presigned URL with progress bar
   - Attachments stored as `objectPath` in messages
 
+### Push Notifications (api-server + hollr)
+
+- **VAPID keys**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` in env; `web-push` library sends payloads
+- **Backend lib**: `src/lib/push.ts` — `sendPushToUser(userId, payload)` + `getNotifPrefs(userId)` to check per-channel/DM mutes
+- **Routes** (`/api/push`): `GET /vapid-key`, `POST /subscribe`, `POST /unsubscribe`, `GET|PUT /prefs` (muteDms, mutedChannelIds[])
+- **Fire-and-forget**: `messages.ts` and `dms.ts` broadcast WS first, then call push async (no HTTP delay)
+- **Service worker**: `public/sw.js` — handles `push` event → `showNotification`; `notificationclick` → focuses/navigates; registered in `main.tsx` at `BASE_URL + "sw.js"`
+- **Frontend hook**: `use-push-notifications.ts` — manages permission, subscription, prefs sync; exposed in `UserSettingsModal` (Notifications tab) + `ChannelSidebar` (context menu per-channel mute)
+- **Notifications tab** in `UserSettingsModal`: subscribe/unsubscribe toggle, DM mute toggle, hint for per-channel muting
+- **Channel context menu**: Right-click any text channel → Mute/Unmute notifications (when subscribed); also has Rename/Delete for admins
+
 ### Database (lib/db)
 
-Tables: `user_profiles`, `servers`, `server_members`, `channels`, `dm_threads`, `dm_participants`, `messages`, `attachments`, `message_reactions`
+Tables: `user_profiles`, `servers`, `server_members`, `channels`, `dm_threads`, `dm_participants`, `messages`, `attachments`, `message_reactions`, `push_subscriptions`, `notification_prefs`
 
 New columns on `messages`: `parentMessageId`, `replyCount`, `mentions` (text array)
 
@@ -108,6 +119,7 @@ pnpm --filter @workspace/db push
 - **Screen Share**: Dropdown in VoiceOverlay to choose Entire Screen / Application Window / Browser Tab; `getDisplayMedia` with `displaySurface` hint + track renegotiation
 - **Music Bot**: Type `/play <youtube-url>` in any channel while in a voice channel; real-time `MusicControlBar` shows current track, progress, queue; `/pause`, `/resume`, `/skip`, `/stop` commands; bot avatar appears in voice sidebar; volume 0–200% via Web Audio gain node
 - **File Upload**: Direct-to-GCS presigned URL flow, 100MB limit, progress bar
+- **Push Notifications**: Web Push (VAPID); per-device subscription; mute DMs globally; mute individual channels via right-click context menu; Notifications tab in User Settings
 - **Mobile**: Responsive layout with slide-in sidebar
 - **Presence**: Online/idle/dnd/offline status indicators
 

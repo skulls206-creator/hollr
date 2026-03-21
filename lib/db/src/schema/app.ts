@@ -157,3 +157,24 @@ export const channelReadsTable = pgTable("channel_reads", {
 }, (t) => [primaryKey({ columns: [t.userId, t.channelId] })]);
 
 export type ChannelRead = typeof channelReadsTable.$inferSelect;
+
+// Push notification subscriptions (one row per browser/device per user)
+export const pushSubscriptionsTable = pgTable("push_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("idx_push_subs_user_id").on(t.userId)]);
+
+// Per-user notification preferences (one row per user, upserted on change)
+export const notificationPrefsTable = pgTable("notification_prefs", {
+  userId: varchar("user_id").primaryKey().notNull(),
+  muteDms: boolean("mute_dms").notNull().default(false),
+  // JSON array of channelIds the user has muted
+  mutedChannelIds: text("muted_channel_ids").notNull().default("[]"),
+});
+
+export type PushSubscription = typeof pushSubscriptionsTable.$inferSelect;
+export type NotificationPrefs = typeof notificationPrefsTable.$inferSelect;

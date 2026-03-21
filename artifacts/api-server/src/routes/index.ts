@@ -8,6 +8,7 @@ import channelsRouter from "./channels";
 import messagesRouter from "./messages";
 import dmsRouter from "./dms";
 import musicRouter from "./music";
+import pushRouter from "./push";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(channelsRouter);
 router.use(messagesRouter);
 router.use(dmsRouter);
 router.use(musicRouter);
+router.use(pushRouter);
 
 export default router;

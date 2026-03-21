@@ -4,6 +4,7 @@ import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, u
 import { eq, and, lt, inArray } from "drizzle-orm";
 import { OpenDmThreadBody, SendMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
+import { sendPushToUser, getNotifPrefs } from "../lib/push";
 
 const router: IRouter = Router();
 
@@ -193,6 +194,36 @@ router.post("/dms/:threadId/messages", async (req, res) => {
   const formatted = await formatMessage(msg);
   broadcast({ type: "MESSAGE_CREATE", payload: formatted });
   res.status(201).json(formatted);
+
+  // Fire-and-forget push notifications to other DM participants
+  (async () => {
+    try {
+      const participants = await db.query.dmParticipantsTable.findMany({
+        where: eq(dmParticipantsTable.threadId, req.params.threadId),
+      });
+      const senderProfile = await db.query.userProfilesTable.findFirst({
+        where: eq(userProfilesTable.userId, req.user.id),
+      });
+      const senderName = senderProfile?.displayName || senderProfile?.username || "Someone";
+      const body = parsed.data.content ? parsed.data.content.slice(0, 100) : "Sent a message";
+
+      await Promise.allSettled(
+        participants
+          .filter((p) => p.userId !== req.user.id)
+          .map(async (p) => {
+            const prefs = await getNotifPrefs(p.userId);
+            if (prefs.muteDms) return;
+            await sendPushToUser(p.userId, {
+              title: `${senderName} (DM)`,
+              body,
+              icon: senderProfile?.avatarUrl || "/images/icon-192.png",
+              url: `/app`,
+              tag: `dm-${req.params.threadId}`,
+            });
+          })
+      );
+    } catch {}
+  })();
 });
 
 export default router;

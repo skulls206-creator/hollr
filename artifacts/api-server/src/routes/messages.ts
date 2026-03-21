@@ -4,6 +4,7 @@ import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, use
 import { eq, and, lt, desc, sql as drizzleSql } from "drizzle-orm";
 import { SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
+import { sendPushToUser, getNotifPrefs } from "../lib/push";
 
 const router: IRouter = Router();
 const MAX_LIMIT = 50;
@@ -169,6 +170,38 @@ router.post("/channels/:channelId/messages", async (req, res) => {
   const formatted = await formatMessage(msg, req.user.id);
   broadcast({ type: "MESSAGE_CREATE", payload: formatted });
   res.status(201).json(formatted);
+
+  // Fire-and-forget push notifications to other server members
+  (async () => {
+    try {
+      const members = await db.query.serverMembersTable.findMany({
+        where: eq(serverMembersTable.serverId, channel.serverId),
+      });
+      const senderProfile = await db.query.userProfilesTable.findFirst({
+        where: eq(userProfilesTable.userId, req.user.id),
+      });
+      const senderName = senderProfile?.displayName || senderProfile?.username || "Someone";
+      const body = parsed.data.content
+        ? parsed.data.content.slice(0, 100)
+        : "Sent an attachment";
+
+      await Promise.allSettled(
+        members
+          .filter((m) => m.userId !== req.user.id)
+          .map(async (m) => {
+            const prefs = await getNotifPrefs(m.userId);
+            if (prefs.mutedChannelIds.includes(req.params.channelId)) return;
+            await sendPushToUser(m.userId, {
+              title: `${senderName} in #${channel.name}`,
+              body,
+              icon: senderProfile?.avatarUrl || "/images/icon-192.png",
+              url: `/app`,
+              tag: `channel-${req.params.channelId}`,
+            });
+          })
+      );
+    } catch {}
+  })();
 });
 
 // Edit message
