@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
@@ -252,33 +252,48 @@ export function UserSettingsModal() {
     ? getInitials([user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || '?')
     : '?';
 
-  const TAB_BTN = (t: Tab, icon: React.ReactNode, label: string) => (
+  const TAB_BTN = (t: Tab, icon: React.ReactNode, label: string, shortLabel?: string) => (
     <button
       onClick={() => setTab(t)}
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+      className={cn(
+        'flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
         tab === t
           ? 'bg-primary/20 text-primary'
           : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-      }`}
+      )}
     >
       {icon}
-      {label}
+      <span className="hidden sm:inline">{label}</span>
+      <span className="sm:hidden">{shortLabel ?? label}</span>
     </button>
   );
 
   return (
     <Dialog open={userSettingsModalOpen} onOpenChange={setUserSettingsModalOpen}>
-      <DialogContent className="max-w-lg w-[calc(100vw-2rem)] bg-[#2B2D31] border-border/50 overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-bold">User Settings</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-lg w-[calc(100vw-2rem)] bg-[#2B2D31] border-border/50 overflow-hidden max-h-[92dvh] flex flex-col p-0 gap-0 [&>button:last-child]:hidden">
+        {/* Header with title + close button */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-3 shrink-0">
+          <DialogHeader className="p-0">
+            <DialogTitle className="text-lg font-bold">User Settings</DialogTitle>
+          </DialogHeader>
+          <button
+            onClick={() => setUserSettingsModalOpen(false)}
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 active:bg-white/10 transition-colors shrink-0 -mr-1"
+            title="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 border-b border-border/30 pb-2 -mt-1">
+        <div className="flex gap-1 border-b border-border/30 pb-2 px-4 shrink-0">
           {TAB_BTN('profile', <User size={14} />, 'Profile')}
-          {TAB_BTN('audio', <Headphones size={14} />, 'Voice & Audio')}
-          {TAB_BTN('notifications', <Bell size={14} />, 'Notifications')}
+          {TAB_BTN('audio', <Headphones size={14} />, 'Voice & Audio', 'Audio')}
+          {TAB_BTN('notifications', <Bell size={14} />, 'Notifications', 'Alerts')}
         </div>
+
+        {/* Scrollable tab content */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4 no-scrollbar">
 
         {/* Profile tab */}
         {tab === 'profile' && (
@@ -531,6 +546,8 @@ export function UserSettingsModal() {
             </Button>
           </div>
         )}
+
+        </div>{/* end scrollable content */}
       </DialogContent>
     </Dialog>
   );
