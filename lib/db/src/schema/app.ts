@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, integer, pgTable, text, timestamp, varchar, pgEnum, primaryKey } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp, varchar, pgEnum, primaryKey, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -29,6 +29,9 @@ export const serversTable = pgTable("servers", {
   iconUrl: text("icon_url"),
   ownerId: varchar("owner_id").notNull(),
   inviteCode: varchar("invite_code", { length: 32 }).unique(),
+  inviteExpiresAt: timestamp("invite_expires_at", { withTimezone: true }),
+  inviteMaxUses: integer("invite_max_uses"),
+  inviteUseCount: integer("invite_use_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -42,9 +45,26 @@ export const serverMembersTable = pgTable("server_members", {
   serverId: varchar("server_id").notNull(),
   role: memberRoleEnum("role").notNull().default("member"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("server_members_server_id_idx").on(t.serverId),
+  index("server_members_user_id_idx").on(t.userId),
+]);
 
 export type ServerMember = typeof serverMembersTable.$inferSelect;
+
+export const serverBansTable = pgTable("server_bans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serverId: varchar("server_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  bannedBy: varchar("banned_by").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("server_bans_server_id_idx").on(t.serverId),
+  index("server_bans_user_id_idx").on(t.userId),
+]);
+
+export type ServerBan = typeof serverBansTable.$inferSelect;
 
 export const channelsTable = pgTable("channels", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -55,7 +75,9 @@ export const channelsTable = pgTable("channels", {
   position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("channels_server_id_idx").on(t.serverId),
+]);
 
 export const insertChannelSchema = createInsertSchema(channelsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
@@ -71,7 +93,10 @@ export type DmThread = typeof dmThreadsTable.$inferSelect;
 export const dmParticipantsTable = pgTable("dm_participants", {
   threadId: varchar("thread_id").notNull(),
   userId: varchar("user_id").notNull(),
-});
+}, (t) => [
+  index("dm_participants_user_id_idx").on(t.userId),
+  index("dm_participants_thread_id_idx").on(t.threadId),
+]);
 
 export const messagesTable = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -88,7 +113,12 @@ export const messagesTable = pgTable("messages", {
   mentions: text("mentions").default("[]"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("messages_channel_id_idx").on(t.channelId),
+  index("messages_author_id_idx").on(t.authorId),
+  index("messages_dm_thread_id_idx").on(t.dmThreadId),
+  index("messages_created_at_idx").on(t.createdAt),
+]);
 
 export const insertMessageSchema = createInsertSchema(messagesTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
@@ -102,7 +132,9 @@ export const attachmentsTable = pgTable("attachments", {
   contentType: varchar("content_type", { length: 128 }).notNull(),
   size: integer("size").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("attachments_message_id_idx").on(t.messageId),
+]);
 
 export type Attachment = typeof attachmentsTable.$inferSelect;
 
@@ -112,7 +144,9 @@ export const messageReactionsTable = pgTable("message_reactions", {
   userId: varchar("user_id").notNull(),
   emojiId: varchar("emoji_id", { length: 64 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("message_reactions_message_id_idx").on(t.messageId),
+]);
 
 export type MessageReaction = typeof messageReactionsTable.$inferSelect;
 

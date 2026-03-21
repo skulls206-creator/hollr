@@ -233,7 +233,7 @@ router.get("/channels/:channelId/pinned-messages", async (req, res) => {
   res.json(formatted);
 });
 
-// PIN message
+// PIN message (admin/owner only)
 router.put("/channels/:channelId/messages/:messageId/pin", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -244,6 +244,10 @@ router.put("/channels/:channelId/messages/:messageId/pin", async (req, res) => {
     where: and(eq(serverMembersTable.serverId, channel.serverId), eq(serverMembersTable.userId, req.user.id)),
   });
   if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (member.role !== "owner" && member.role !== "admin") {
+    res.status(403).json({ error: "Only admins and the server owner can pin messages" });
+    return;
+  }
 
   const msg = await db.query.messagesTable.findFirst({
     where: and(eq(messagesTable.id, req.params.messageId), eq(messagesTable.channelId, req.params.channelId)),
@@ -261,7 +265,7 @@ router.put("/channels/:channelId/messages/:messageId/pin", async (req, res) => {
   res.json(formatted);
 });
 
-// UNPIN message
+// UNPIN message (admin/owner only)
 router.delete("/channels/:channelId/messages/:messageId/pin", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -272,6 +276,10 @@ router.delete("/channels/:channelId/messages/:messageId/pin", async (req, res) =
     where: and(eq(serverMembersTable.serverId, channel.serverId), eq(serverMembersTable.userId, req.user.id)),
   });
   if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (member.role !== "owner" && member.role !== "admin") {
+    res.status(403).json({ error: "Only admins and the server owner can unpin messages" });
+    return;
+  }
 
   const msg = await db.query.messagesTable.findFirst({
     where: and(eq(messagesTable.id, req.params.messageId), eq(messagesTable.channelId, req.params.channelId)),

@@ -1,9 +1,19 @@
+import { useState } from 'react';
 import { useListServerMembers, getListServerMembersQueryKey } from '@workspace/api-client-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
-import { Crown, ShieldCheck } from 'lucide-react';
+import { Crown, ShieldCheck, MoreVertical, UserX, Ban, Loader2 } from 'lucide-react';
 import type { Member } from '@workspace/api-client-react';
 import { useAppStore } from '@/store/use-app-store';
+import { useAuth } from '@workspace/replit-auth-web';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+const BASE = import.meta.env.BASE_URL;
 
 function statusColor(status: string) {
   switch (status) {
@@ -14,9 +24,30 @@ function statusColor(status: string) {
   }
 }
 
-function MemberRow({ member }: { member: Member }) {
+function MemberRow({
+  member,
+  serverId,
+  canModerate,
+  actorRole,
+}: {
+  member: Member;
+  serverId: string;
+  canModerate: boolean;
+  actorRole: string;
+}) {
   const { openProfileCard } = useAppStore();
+  const { user: me } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const isOnline = member.user.status !== 'offline';
+  const isSelf = member.userId === me?.id;
+
+  const canActOn =
+    canModerate &&
+    !isSelf &&
+    member.role !== 'owner' &&
+    !(actorRole === 'admin' && member.role === 'admin');
 
   const handleClick = (e: React.MouseEvent) => {
     openProfileCard({
@@ -27,40 +58,99 @@ function MemberRow({ member }: { member: Member }) {
     });
   };
 
+  const doAction = async (action: 'kick' | 'ban') => {
+    setBusy(true);
+    try {
+      const url = action === 'kick'
+        ? `${BASE}api/servers/${serverId}/members/${member.userId}`
+        : `${BASE}api/servers/${serverId}/bans/${member.userId}`;
+      const method = action === 'kick' ? 'DELETE' : 'POST';
+      const res = await fetch(url, { method, credentials: 'include' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed to ${action}`);
+      }
+      toast({ title: action === 'kick' ? 'Member kicked' : 'Member banned' });
+      qc.invalidateQueries({ queryKey: getListServerMembersQueryKey(serverId) });
+    } catch (err: any) {
+      toast({ title: err.message, variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <button
-      onClick={handleClick}
-      className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-secondary/50 transition-colors cursor-pointer group text-left ${!isOnline ? 'opacity-50' : ''}`}
-    >
-      <div className="relative shrink-0">
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={member.user.avatarUrl || undefined} />
-          <AvatarFallback className="bg-primary text-white text-xs">
-            {getInitials(member.user.displayName || member.user.username)}
-          </AvatarFallback>
-        </Avatar>
-        <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[2.5px] border-[#2B2D31] ${statusColor(member.user.status)}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1">
-          <span className="text-sm font-medium text-foreground truncate">
-            {member.user.displayName || member.user.username}
-          </span>
-          {member.role === 'owner' && <Crown size={12} className="text-yellow-400 shrink-0" />}
-          {member.role === 'admin' && <ShieldCheck size={12} className="text-primary shrink-0" />}
+    <div className={`flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-secondary/50 transition-colors group ${!isOnline ? 'opacity-50' : ''}`}>
+      <button
+        onClick={handleClick}
+        className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
+      >
+        <div className="relative shrink-0">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={member.user.avatarUrl || undefined} />
+            <AvatarFallback className="bg-primary text-white text-xs">
+              {getInitials(member.user.displayName || member.user.username)}
+            </AvatarFallback>
+          </Avatar>
+          <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[2.5px] border-[#2B2D31] ${statusColor(member.user.status)}`} />
         </div>
-        {member.user.customStatus && (
-          <p className="text-xs text-muted-foreground truncate">{member.user.customStatus}</p>
-        )}
-      </div>
-    </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-medium text-foreground truncate">
+              {member.user.displayName || member.user.username}
+            </span>
+            {member.role === 'owner' && <Crown size={12} className="text-yellow-400 shrink-0" />}
+            {member.role === 'admin' && <ShieldCheck size={12} className="text-primary shrink-0" />}
+          </div>
+          {member.user.customStatus && (
+            <p className="text-xs text-muted-foreground truncate">{member.user.customStatus}</p>
+          )}
+        </div>
+      </button>
+
+      {canActOn && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded transition-all shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              disabled={busy}
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={14} />}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40 bg-[#111214] border-border/50">
+            <DropdownMenuItem
+              onClick={() => doAction('kick')}
+              className="text-sm cursor-pointer gap-2"
+            >
+              <UserX size={14} className="text-muted-foreground" />
+              Kick member
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-border/30" />
+            <DropdownMenuItem
+              onClick={() => doAction('ban')}
+              className="text-sm text-destructive focus:text-destructive cursor-pointer gap-2"
+            >
+              <Ban size={14} />
+              Ban member
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
   );
 }
 
 export function MemberList({ serverId }: { serverId: string }) {
+  const { user: me } = useAuth();
   const { data: members = [], isLoading } = useListServerMembers(serverId, {
     query: { queryKey: getListServerMembersQueryKey(serverId) },
   });
+
+  const myMembership = members.find(m => m.userId === me?.id);
+  const myRole = myMembership?.role ?? 'member';
+  const canModerate = myRole === 'owner' || myRole === 'admin';
 
   const online = members.filter(m => m.user.status !== 'offline');
   const offline = members.filter(m => m.user.status === 'offline');
@@ -73,6 +163,16 @@ export function MemberList({ serverId }: { serverId: string }) {
     );
   }
 
+  const renderMember = (m: Member) => (
+    <MemberRow
+      key={m.userId}
+      member={m}
+      serverId={serverId}
+      canModerate={canModerate}
+      actorRole={myRole}
+    />
+  );
+
   return (
     <div className="w-[240px] bg-[#2B2D31] shrink-0 flex flex-col h-full border-l border-border/5 overflow-hidden">
       <div className="flex-1 overflow-y-auto p-3 space-y-4 no-scrollbar">
@@ -83,7 +183,7 @@ export function MemberList({ serverId }: { serverId: string }) {
               Online — {online.length}
             </p>
             <div className="space-y-[2px]">
-              {online.map(m => <MemberRow key={m.userId} member={m} />)}
+              {online.map(renderMember)}
             </div>
           </div>
         )}
@@ -94,7 +194,7 @@ export function MemberList({ serverId }: { serverId: string }) {
               Offline — {offline.length}
             </p>
             <div className="space-y-[2px]">
-              {offline.map(m => <MemberRow key={m.userId} member={m} />)}
+              {offline.map(renderMember)}
             </div>
           </div>
         )}

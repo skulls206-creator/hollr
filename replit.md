@@ -22,6 +22,8 @@ lib/
 ### Backend (artifacts/api-server)
 
 - **Express** HTTP server with session middleware (PostgreSQL-backed via `connect-pg-simple`)
+- **Rate limiting** via `express-rate-limit`: auth (20/15min IP), general API (500/15min IP), message send (60/min per user ID post-auth)
+- **CORS**: strict origin allowlist via `ALLOWED_ORIGINS` env var (comma-separated); fails open (allow-all) when not set in dev
 - **Replit Auth** via OpenID Connect (PKCE flow) — `/api/auth/*` routes
 - **WebSocket** server attached to the same HTTP server at `/api/ws`
   - Real-time events: `MESSAGE_CREATE`, `MESSAGE_UPDATE`, `MESSAGE_DELETE`, `CHANNEL_UPDATE`, `VOICE_SIGNAL`, `PRESENCE_UPDATE`, `THREAD_REPLY_CREATE`
@@ -34,6 +36,8 @@ lib/
   - Thread replies: `GET|POST /api/channels/:channelId/messages/:messageId/thread`
   - User profile: `GET /api/users/:userId` (note: `/users/me` must be registered first)
   - Music bot: `POST /join|leave|play|pause|resume|skip|stop`, `GET /state|stream`
+  - Moderation: `DELETE /api/servers/:id/members/:uid` (kick), `POST/DELETE /api/servers/:id/bans/:uid` (ban/unban), `GET /api/servers/:id/bans`
+  - Invite with expiry: `POST /api/servers/:id/invite` accepts `{ expiresInHours, maxUses }`; ban + expiry + max-uses checked on both join paths
 - **Music Bot** (`src/lib/music-bot.ts`):
   - `@distube/ytdl-core` for YouTube audio extraction; `pickAudioFormat()` manually sorts audio-only formats by bitrate (avoids `ytdl.chooseFormat` which throws on YouTube format changes)
   - `ffmpeg` transcodes stream → 128kbps MP3 → chunked HTTP response to all browser clients
