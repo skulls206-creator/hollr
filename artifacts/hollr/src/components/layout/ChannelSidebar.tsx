@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import {
   Hash, Volume2, Plus, ChevronDown, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
-  Smile, MessageSquare, AtSign,
+  Smile, MessageSquare, AtSign, MonitorDown, Share2,
 } from 'lucide-react';
+import { usePwaInstall } from '@/hooks/use-pwa-install';
 import { useAppStore } from '@/store/use-app-store';
 import {
   useGetServer, useListChannels, useListDmThreads,
@@ -487,6 +488,8 @@ function UserProfilePanel({
   const [statusOpen, setStatusOpen] = useState(false);
   const [customStatusInput, setCustomStatusInput] = useState('');
   const [editingCustom, setEditingCustom] = useState(false);
+  const [iosInstallOpen, setIosInstallOpen] = useState(false);
+  const { canInstall, isIOS, promptInstall } = usePwaInstall();
 
   useEffect(() => {
     setCustomStatusInput(profile?.customStatus ?? '');
@@ -674,6 +677,40 @@ function UserProfilePanel({
 
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 shrink-0">
+          {/* Install app button — only shown when installable or on iOS */}
+          {canInstall && (
+            isIOS ? (
+              <Popover open={iosInstallOpen} onOpenChange={setIosInstallOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    title="Add to Home Screen"
+                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
+                  >
+                    <Share2 size={18} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="top"
+                  align="end"
+                  className="w-56 p-3 bg-[#111214] border-border/50 text-sm"
+                  sideOffset={8}
+                >
+                  <p className="font-semibold text-foreground mb-1">Add to Home Screen</p>
+                  <p className="text-muted-foreground text-xs leading-relaxed">
+                    Tap the <span className="font-semibold text-foreground">Share</span> button in Safari, then choose <span className="font-semibold text-foreground">Add to Home Screen</span>.
+                  </p>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <button
+                onClick={promptInstall}
+                title="Install app"
+                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
+              >
+                <MonitorDown size={18} />
+              </button>
+            )
+          )}
           <button
             onClick={toggleMicMuted}
             title={micMuted ? 'Unmute microphone' : 'Mute microphone'}
