@@ -304,7 +304,9 @@ export function useRealtime(userId?: string) {
     return () => {
       _sendSignal = null;
       _sendRaw = null;
-      ws.current?.send(JSON.stringify({ type: 'PRESENCE_UPDATE', payload: { userId, status: 'offline' } }));
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(JSON.stringify({ type: 'PRESENCE_UPDATE', payload: { userId, status: 'offline' } }));
+      }
       ws.current?.close();
     };
   }, [userId, queryClient]);
