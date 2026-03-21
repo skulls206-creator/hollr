@@ -558,7 +558,7 @@ function UserProfilePanel({
         </div>
       )}
 
-      <div className="h-[52px] flex items-center px-2 py-1.5 gap-2">
+      <div className="h-[52px] flex items-center px-2 py-1.5 gap-2 group/profile">
         {/* Username area — click to pick status */}
         <Popover open={statusOpen} onOpenChange={setStatusOpen}>
           <PopoverTrigger asChild>
@@ -677,39 +677,41 @@ function UserProfilePanel({
 
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 shrink-0">
-          {/* Install app button — only shown when installable or on iOS */}
+          {/* Install app — slides in when hovering the profile strip */}
           {canInstall && (
-            isIOS ? (
-              <Popover open={iosInstallOpen} onOpenChange={setIosInstallOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    title="Add to Home Screen"
-                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
+            <div className="overflow-hidden w-0 opacity-0 group-hover/profile:w-7 group-hover/profile:opacity-100 transition-all duration-200 ease-out shrink-0 flex items-center">
+              {isIOS ? (
+                <Popover open={iosInstallOpen} onOpenChange={setIosInstallOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      title="Add to Home Screen"
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
+                    >
+                      <Share2 size={18} />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="top"
+                    align="end"
+                    className="w-56 p-3 bg-[#111214] border-border/50 text-sm"
+                    sideOffset={8}
                   >
-                    <Share2 size={18} />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  side="top"
-                  align="end"
-                  className="w-56 p-3 bg-[#111214] border-border/50 text-sm"
-                  sideOffset={8}
+                    <p className="font-semibold text-foreground mb-1">Add to Home Screen</p>
+                    <p className="text-muted-foreground text-xs leading-relaxed">
+                      Tap the <span className="font-semibold text-foreground">Share</span> button in Safari, then choose <span className="font-semibold text-foreground">Add to Home Screen</span>.
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <button
+                  onClick={promptInstall}
+                  title="Install app"
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
                 >
-                  <p className="font-semibold text-foreground mb-1">Add to Home Screen</p>
-                  <p className="text-muted-foreground text-xs leading-relaxed">
-                    Tap the <span className="font-semibold text-foreground">Share</span> button in Safari, then choose <span className="font-semibold text-foreground">Add to Home Screen</span>.
-                  </p>
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <button
-                onClick={promptInstall}
-                title="Install app"
-                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
-              >
-                <MonitorDown size={18} />
-              </button>
-            )
+                  <MonitorDown size={18} />
+                </button>
+              )}
+            </div>
           )}
           <button
             onClick={toggleMicMuted}
