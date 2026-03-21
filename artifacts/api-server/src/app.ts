@@ -33,6 +33,8 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // --- IP-based limiters run first (before auth, to stop DDoS before hitting DB) ---
+// Rate limiting is only enforced in production — dev reloads/tests would exhaust limits instantly.
+const isDev = process.env.NODE_ENV !== 'production';
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -40,6 +42,7 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many auth attempts, please try again later." },
+  skip: () => isDev,
 });
 
 const generalLimiter = rateLimit({
@@ -48,6 +51,7 @@ const generalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests, please slow down." },
+  skip: () => isDev,
 });
 
 app.use("/api/auth", authLimiter);
@@ -65,6 +69,7 @@ const messageLimiter = rateLimit({
   message: { error: "Slow down — you're sending messages too fast." },
   keyGenerator: (req) => (req as any).user?.id ?? req.ip ?? "anon",
   validate: { keyGeneratorIpFallback: false },
+  skip: () => isDev,
 });
 
 app.use("/api/channels/:channelId/messages", (req, _res, next) => {
