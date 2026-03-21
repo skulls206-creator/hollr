@@ -13,12 +13,17 @@ if (publicKey && privateKey) {
   console.warn("[push] VAPID keys not set — push notifications disabled");
 }
 
+export type PushNav =
+  | { type: "channel"; serverId: string; channelId: string }
+  | { type: "dm"; threadId: string };
+
 export interface PushPayload {
   title: string;
   body: string;
   icon?: string;
   url?: string;
   tag?: string;
+  nav?: PushNav;
 }
 
 async function removeSub(id: string) {

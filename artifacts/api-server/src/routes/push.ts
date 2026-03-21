@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { pushSubscriptionsTable, notificationPrefsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
+import { sendPushToUser } from "../lib/push";
 
 const router = Router();
 
@@ -78,6 +79,35 @@ router.put("/push/preferences", async (req, res) => {
         mutedChannelIds: JSON.stringify(Array.isArray(mutedChannelIds) ? mutedChannelIds : []),
       },
     });
+
+  res.json({ ok: true });
+});
+
+// Test endpoint — fires a push to yourself so you can verify click-to-navigate works
+// POST /api/push/test  body: { navType: "channel"|"dm", serverId?, channelId?, threadId? }
+router.post("/push/test", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { navType, serverId, channelId, threadId } = req.body ?? {};
+
+  let nav: any = null;
+  let url = "/app";
+
+  if (navType === "channel" && serverId && channelId) {
+    nav = { type: "channel", serverId, channelId };
+    url = `/app?navType=channel&serverId=${serverId}&channelId=${channelId}`;
+  } else if (navType === "dm" && threadId) {
+    nav = { type: "dm", threadId };
+    url = `/app?navType=dm&threadId=${threadId}`;
+  }
+
+  await sendPushToUser(req.user.id, {
+    title: "hollr.chat — Test Notification",
+    body: nav ? `Click to navigate to your ${navType === "dm" ? "DM" : "channel"}` : "This is a test push notification from hollr.",
+    url,
+    tag: "push-test",
+    nav,
+  });
 
   res.json({ ok: true });
 });

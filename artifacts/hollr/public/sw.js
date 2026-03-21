@@ -15,7 +15,10 @@ self.addEventListener("push", (event) => {
     badge: "/images/icon-192.png",
     tag: data.tag || "hollr-message",
     renotify: true,
-    data: { url: data.url || "/" },
+    data: {
+      url: data.url || "/app",
+      nav: data.nav || null,
+    },
     vibrate: [100, 50, 100],
   };
 
@@ -24,18 +27,21 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || "/";
+  const notifData = event.notification.data || {};
+  const targetUrl = notifData.url || "/app";
+  const nav = notifData.nav || null;
 
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((windowClients) => {
-        // If the app is already open, focus it and post a navigation message
         const existing = windowClients.find((c) => c.url.includes(self.location.origin));
         if (existing) {
           existing.focus();
-          existing.postMessage({ type: "NOTIFICATION_NAVIGATE", url: targetUrl });
+          // Send rich navigation data — no page reload needed
+          existing.postMessage({ type: "NOTIFICATION_NAVIGATE", nav, url: targetUrl });
         } else {
+          // App was closed — open it with nav params encoded in URL
           self.clients.openWindow(targetUrl);
         }
       })

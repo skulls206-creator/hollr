@@ -18,7 +18,8 @@ import { UserProfileCard } from '@/components/chat/UserProfileCard';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { Loader2 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { pendingNav, applyNav } from '@/lib/notification-nav';
 
 export function Layout() {
   const { user, isLoading } = useAuth();
@@ -29,6 +30,15 @@ export function Layout() {
     pinnedPanelOpen, toggleMemberList,
     voiceConnection,
   } = useAppStore();
+
+  // Apply any navigation queued from a push notification click (URL params captured before React mounted)
+  const navApplied = useRef(false);
+  useEffect(() => {
+    if (!isLoading && user && !navApplied.current && pendingNav) {
+      navApplied.current = true;
+      applyNav(pendingNav);
+    }
+  }, [isLoading, user]);
 
   // Close mobile member list on Escape
   useEffect(() => {

@@ -191,12 +191,18 @@ router.post("/channels/:channelId/messages", async (req, res) => {
           .map(async (m) => {
             const prefs = await getNotifPrefs(m.userId);
             if (prefs.mutedChannelIds.includes(req.params.channelId)) return;
+            const navParams = new URLSearchParams({
+              navType: "channel",
+              serverId: channel.serverId,
+              channelId: req.params.channelId,
+            });
             await sendPushToUser(m.userId, {
               title: `${senderName} in #${channel.name}`,
               body,
               icon: senderProfile?.avatarUrl || "/images/icon-192.png",
-              url: `/app`,
+              url: `/app?${navParams.toString()}`,
               tag: `channel-${req.params.channelId}`,
+              nav: { type: "channel", serverId: channel.serverId, channelId: req.params.channelId },
             });
           })
       );

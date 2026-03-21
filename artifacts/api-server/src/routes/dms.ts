@@ -213,12 +213,17 @@ router.post("/dms/:threadId/messages", async (req, res) => {
           .map(async (p) => {
             const prefs = await getNotifPrefs(p.userId);
             if (prefs.muteDms) return;
+            const navParams = new URLSearchParams({
+              navType: "dm",
+              threadId: req.params.threadId,
+            });
             await sendPushToUser(p.userId, {
               title: `${senderName} (DM)`,
               body,
               icon: senderProfile?.avatarUrl || "/images/icon-192.png",
-              url: `/app`,
+              url: `/app?${navParams.toString()}`,
               tag: `dm-${req.params.threadId}`,
+              nav: { type: "dm", threadId: req.params.threadId },
             });
           })
       );
