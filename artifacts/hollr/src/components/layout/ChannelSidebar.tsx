@@ -80,6 +80,7 @@ export function ChannelSidebar() {
 
   const { mutate: deleteChannel } = useDeleteChannel();
   const { mutate: updateChannel } = useUpdateChannel();
+  const push = usePushNotifications();
 
   const textChannels = channels.filter(c => c.type === 'text');
   const voiceChannels = channels.filter(c => c.type === 'voice');
@@ -537,7 +538,6 @@ function UserProfilePanel({
   const [editingCustom, setEditingCustom] = useState(false);
   const [iosInstallOpen, setIosInstallOpen] = useState(false);
   const { canInstall, isIOS, promptInstall } = usePwaInstall();
-  const push = usePushNotifications();
 
   // Device picker state
   const [micPickerOpen, setMicPickerOpen] = useState(false);
