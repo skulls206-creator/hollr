@@ -520,7 +520,8 @@ function LocalUserTile({
         </SpeakingRing>
       )}
       <div className="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm flex items-center gap-1 z-20">
-        {isMuted && <MicOff size={12} className="text-destructive" />}
+        {isDeafened && <VolumeX size={12} className="text-destructive shrink-0" />}
+        {isMuted && !isDeafened && <MicOff size={12} className="text-destructive shrink-0" />}
         <span className="truncate max-w-[90px]">{label} (You)</span>
       </div>
       {streaming && (
@@ -533,11 +534,6 @@ function LocalUserTile({
         <div className="absolute top-2 left-2 bg-blue-500/90 rounded px-1.5 py-0.5 flex items-center gap-1 z-20">
           <Video size={9} className="text-white" />
           <span className="text-[10px] text-white font-bold">CAM</span>
-        </div>
-      )}
-      {isDeafened && (
-        <div className="absolute top-3 right-3 bg-destructive/90 p-1.5 rounded-full z-20">
-          <VolumeX size={16} className="text-white" />
         </div>
       )}
     </div>
