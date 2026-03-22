@@ -18,6 +18,8 @@ import { UserProfileCard } from '@/components/chat/UserProfileCard';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { MobileDmList } from '@/components/layout/MobileDmList';
+import { DockBar } from '@/components/layout/DockBar';
+import { DmFab } from '@/components/layout/DmFab';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { pendingNav, applyNav } from '@/lib/notification-nav';
@@ -29,7 +31,7 @@ export function Layout() {
     threadMessageId, threadChannelId, closeThread,
     profileCard, closeProfileCard,
     pinnedPanelOpen, toggleMemberList,
-    voiceConnection,
+    voiceConnection, layoutMode,
   } = useAppStore();
 
   // Apply any navigation queued from a push notification click (URL params captured before React mounted)
@@ -109,7 +111,7 @@ export function Layout() {
             mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
           ].join(' ')}
         >
-          <ServerSidebar />
+          {layoutMode === 'classic' && <ServerSidebar />}
           <ChannelSidebar />
         </div>
 
@@ -159,6 +161,16 @@ export function Layout() {
         {/* VoiceOverlay lives INSIDE the content row so it can't overlap the music bar below */}
         <VoiceOverlay />
       </div>
+
+      {/* Dock mode — server switcher row, sits naturally above the music bar */}
+      {layoutMode === 'dock' && (
+        <div className="relative flex items-end justify-center shrink-0 px-4 pb-3 pt-1 overflow-visible">
+          <div className="absolute bottom-3 left-4 z-10">
+            <DmFab />
+          </div>
+          <DockBar />
+        </div>
+      )}
 
       {/* Global music bar — flex item at the very bottom, always visible when bot is active */}
       {voiceConnection.channelId && (

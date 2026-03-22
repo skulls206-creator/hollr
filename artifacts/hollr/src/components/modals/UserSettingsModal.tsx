@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
@@ -153,6 +153,7 @@ export function UserSettingsModal() {
     userSettingsModalOpen, setUserSettingsModalOpen, voiceConnection,
     audioInputDeviceId, audioOutputDeviceId,
     setAudioInputDeviceId, setAudioOutputDeviceId,
+    layoutMode, setLayoutMode,
   } = useAppStore();
   const { user, logout } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
@@ -376,6 +377,44 @@ export function UserSettingsModal() {
                   {updateProfile.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
                   Save Changes
                 </Button>
+              </div>
+
+              <div className="h-[1px] bg-border/30" />
+
+              {/* Appearance */}
+              <div className="flex flex-col gap-2">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                  <Layers size={12} />
+                  Layout Style
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setLayoutMode('classic')}
+                    className={cn(
+                      'flex flex-col items-center gap-2 px-3 py-3 rounded-lg border transition-all text-sm',
+                      layoutMode === 'classic'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border/30 bg-[#1E1F22] text-muted-foreground hover:border-border/60 hover:bg-[#252628] hover:text-foreground'
+                    )}
+                  >
+                    <Layers size={18} />
+                    <span className="font-medium">Classic</span>
+                    <span className="text-[11px] opacity-70 leading-tight text-center">Side panel with servers &amp; channels</span>
+                  </button>
+                  <button
+                    onClick={() => setLayoutMode('dock')}
+                    className={cn(
+                      'flex flex-col items-center gap-2 px-3 py-3 rounded-lg border transition-all text-sm',
+                      layoutMode === 'dock'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border/30 bg-[#1E1F22] text-muted-foreground hover:border-border/60 hover:bg-[#252628] hover:text-foreground'
+                    )}
+                  >
+                    <LayoutPanelTop size={18} />
+                    <span className="font-medium">Dock</span>
+                    <span className="text-[11px] opacity-70 leading-tight text-center">macOS-style server bar at the bottom</span>
+                  </button>
+                </div>
               </div>
 
               <div className="h-[1px] bg-border/30" />

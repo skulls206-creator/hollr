@@ -125,6 +125,7 @@ pnpm --filter @workspace/db push
 - **Push Notifications**: Web Push (VAPID); per-device subscription; mute DMs globally; mute individual channels via right-click context menu; Notifications tab in User Settings
 - **Mobile**: Responsive layout with slide-in sidebar
 - **Presence**: Online/idle/dnd/offline status indicators
+- **Dock Mode**: Toggleable layout in User Settings (Profile tab → Layout Style); macOS Dock-style server switcher at the bottom with framer-motion mouse-proximity magnification; DM FAB pinned bottom-left; `layoutMode` persisted to localStorage via Zustand
 
 ## Key Design Decisions
 

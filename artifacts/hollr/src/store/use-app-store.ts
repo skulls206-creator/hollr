@@ -143,6 +143,10 @@ interface AppState {
   pendingMention: string | null;
   triggerMention: (displayName: string) => void;
   clearPendingMention: () => void;
+
+  // Layout mode
+  layoutMode: 'classic' | 'dock';
+  setLayoutMode: (mode: 'classic' | 'dock') => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -293,6 +297,9 @@ export const useAppStore = create<AppState>()(
   pendingMention: null,
   triggerMention: (displayName) => set({ pendingMention: displayName }),
   clearPendingMention: () => set({ pendingMention: null }),
+
+  layoutMode: 'classic',
+  setLayoutMode: (mode) => set({ layoutMode: mode }),
     }),
     {
       name: 'hollr-nav',
@@ -302,6 +309,7 @@ export const useAppStore = create<AppState>()(
         activeChannelId: state.activeChannelId,
         audioInputDeviceId: state.audioInputDeviceId,
         audioOutputDeviceId: state.audioOutputDeviceId,
+        layoutMode: state.layoutMode,
       }),
     }
   )
