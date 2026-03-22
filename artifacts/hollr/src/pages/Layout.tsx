@@ -165,7 +165,7 @@ export function Layout() {
       {/* Dock mode — server switcher row, sits naturally above the music bar */}
       {layoutMode === 'dock' && (
         <div className="relative flex items-end justify-center shrink-0 px-4 pb-2 pt-0 overflow-visible">
-          <div className="absolute bottom-2 left-4 z-10">
+          <div className="absolute inset-y-0 left-4 flex items-center z-10">
             <DmFab />
           </div>
           <DockBar />
