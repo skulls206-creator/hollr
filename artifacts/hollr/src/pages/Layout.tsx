@@ -103,10 +103,18 @@ export function Layout() {
         </>
       )}
 
-      {/* ── Main row: sidebar + right column ── */}
+      {/*
+        ── Main row ──
+        Three-column layout (Discord-style):
+          Left:   ChannelSidebar — full height from top
+          Middle: flex-col — music bar (spans only chat width) + chat content
+          Right:  MemberList — full height from top (mirrors left sidebar)
+        Both sidebars are siblings to the middle column so they are never
+        pushed down by the music bar.
+      */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* Left sidebar — spans full height of this row, from the top */}
+        {/* ── Left sidebar — full height ── */}
         <div
           className={[
             'flex h-full z-40 shrink-0',
@@ -119,13 +127,11 @@ export function Layout() {
           <ChannelSidebar />
         </div>
 
-        {/* Right column: music bar on top, then chat+members row */}
+        {/* ── Middle column — music bar + chat ── */}
         <div className="flex flex-col flex-1 min-w-0">
-
           {/*
-            Music bar — sits at the very top of the right column only,
-            aligned with the channel header ("#general") below it.
-            Queue/mixer popups open downward (into the chat area).
+            Music bar lives here — spans only the chat column,
+            NOT the left or right sidebars.
           */}
           {voiceConnection.channelId && (
             <MusicControlBar
@@ -134,7 +140,7 @@ export function Layout() {
             />
           )}
 
-          {/* Chat + member list row — fills remaining height */}
+          {/* Chat + thread panel — fills remaining height */}
           <div className="flex flex-1 min-h-0 overflow-hidden relative">
             {activeDmThreadId ? (
               <DmChatArea
@@ -165,15 +171,16 @@ export function Layout() {
               </div>
             )}
 
-            {showMemberList && (
-              <div className="hidden lg:flex">
-                <MemberList serverId={activeServerId!} />
-              </div>
-            )}
-
             <VoiceOverlay />
           </div>
         </div>
+
+        {/* ── Right sidebar: MemberList — full height, mirrors left sidebar ── */}
+        {showMemberList && (
+          <div className="hidden lg:flex h-full shrink-0">
+            <MemberList serverId={activeServerId!} />
+          </div>
+        )}
       </div>
 
       {/* Dock bar — always at the bottom in dock mode */}
