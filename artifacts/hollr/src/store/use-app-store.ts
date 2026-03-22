@@ -149,8 +149,8 @@ interface AppState {
   setLayoutMode: (mode: 'classic' | 'dock') => void;
 
   // Theme
-  theme: 'midnight' | 'slate' | 'light';
-  setTheme: (theme: 'midnight' | 'slate' | 'light') => void;
+  theme: 'midnight' | 'slate' | 'light' | 'abyss' | 'forest';
+  setTheme: (theme: 'midnight' | 'slate' | 'light' | 'abyss' | 'forest') => void;
 
   // Music bot volume (0–100), persisted so it never resets on rejoin
   musicVolume: number;

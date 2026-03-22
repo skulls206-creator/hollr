@@ -388,8 +388,10 @@ export function UserSettingsModal() {
                 <div className="grid grid-cols-3 gap-2">
                   {([
                     { id: 'midnight', label: 'Midnight', desc: 'Deep blue-black', swatches: ['#0A0D14', '#1E1F22', '#2B2D31'] },
-                    { id: 'slate', label: 'Slate', desc: 'Warm charcoal', swatches: ['#2C2F33', '#36393F', '#40444B'] },
-                    { id: 'light', label: 'Snow', desc: 'Clean & bright', swatches: ['#ffffff', '#f2f3f5', '#e3e5e8'] },
+                    { id: 'abyss',    label: 'Abyss',    desc: 'Darker indigo',   swatches: ['#060710', '#111215', '#191B1F'] },
+                    { id: 'slate',    label: 'Slate',    desc: 'Warm charcoal',   swatches: ['#2C2F33', '#36393F', '#40444B'] },
+                    { id: 'forest',   label: 'Forest',   desc: 'Deep emerald',    swatches: ['#060E08', '#101612', '#16201B'] },
+                    { id: 'light',    label: 'Snow',     desc: 'Clean & bright',  swatches: ['#ffffff', '#f2f3f5', '#e3e5e8'] },
                   ] as const).map(opt => (
                     <button
                       key={opt.id}
