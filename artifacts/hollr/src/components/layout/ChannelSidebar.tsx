@@ -627,7 +627,7 @@ function UserProfilePanel({
   const displayName = user.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'You';
 
   return (
-    <div className="shrink-0 bg-surface-2">
+    <div className="shrink-0 bg-surface-2 relative">
       {inVoice && (
         <div className="px-2 pt-2 pb-1">
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
@@ -654,6 +654,88 @@ function UserProfilePanel({
           </div>
         </div>
       )}
+
+      {/* Backdrop — closes either picker on outside click */}
+      {(micPickerOpen || outputPickerOpen) && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => { setMicPickerOpen(false); setOutputPickerOpen(false); }}
+        />
+      )}
+
+      {/* Input device picker — rolls up flush with sidebar left edge */}
+      <div
+        className={cn(
+          "absolute bottom-full left-0 w-full bg-[#111214] border-t border-x border-border/50 rounded-t-lg p-2 z-50 transition-all duration-200 origin-bottom",
+          micPickerOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"
+        )}
+      >
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-1">Input Device</p>
+        {inputDevices.length === 0 ? (
+          <p className="text-xs text-muted-foreground px-1 py-1">No devices found</p>
+        ) : inputDevices.map(dev => {
+          const isSelected = audioInputDeviceId === dev.deviceId || (!audioInputDeviceId && dev.deviceId === 'default');
+          return (
+            <button
+              key={dev.deviceId}
+              onClick={() => { setAudioInputDeviceId(dev.deviceId); setMicPickerOpen(false); }}
+              className={cn(
+                "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2 min-w-0",
+                isSelected ? "text-foreground bg-white/10" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+              )}
+            >
+              <span className="truncate flex-1 min-w-0">{dev.label}</span>
+              {isSelected && <Check size={12} className="shrink-0 text-primary" />}
+            </button>
+          );
+        })}
+        <div className="border-t border-border/30 mt-1.5 pt-1.5">
+          <button
+            onClick={() => { setUserSettingsModalOpen(true); setMicPickerOpen(false); }}
+            className="w-full text-left text-sm px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center gap-2"
+          >
+            <Settings size={12} />
+            Voice Settings
+          </button>
+        </div>
+      </div>
+
+      {/* Output device picker — rolls up flush with sidebar left edge */}
+      <div
+        className={cn(
+          "absolute bottom-full left-0 w-full bg-[#111214] border-t border-x border-border/50 rounded-t-lg p-2 z-50 transition-all duration-200 origin-bottom",
+          outputPickerOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"
+        )}
+      >
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-1">Output Device</p>
+        {outputDevices.length === 0 ? (
+          <p className="text-xs text-muted-foreground px-1 py-1">No devices found</p>
+        ) : outputDevices.map(dev => {
+          const isSelected = audioOutputDeviceId === dev.deviceId || (!audioOutputDeviceId && dev.deviceId === 'default');
+          return (
+            <button
+              key={dev.deviceId}
+              onClick={() => { setAudioOutputDeviceId(dev.deviceId); setOutputPickerOpen(false); }}
+              className={cn(
+                "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2 min-w-0",
+                isSelected ? "text-foreground bg-white/10" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+              )}
+            >
+              <span className="truncate flex-1 min-w-0">{dev.label}</span>
+              {isSelected && <Check size={12} className="shrink-0 text-primary" />}
+            </button>
+          );
+        })}
+        <div className="border-t border-border/30 mt-1.5 pt-1.5">
+          <button
+            onClick={() => { setUserSettingsModalOpen(true); setOutputPickerOpen(false); }}
+            className="w-full text-left text-sm px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center gap-2"
+          >
+            <Settings size={12} />
+            Voice Settings
+          </button>
+        </div>
+      </div>
 
       <div className="h-[52px] flex items-center px-2 py-1.5 gap-2 group/profile">
         {/* Username area — click to pick status */}
@@ -811,118 +893,50 @@ function UserProfilePanel({
             </div>
           )}
           {/* Mic toggle + input device picker */}
-          <Popover open={micPickerOpen} onOpenChange={setMicPickerOpen}>
-            <div className="flex items-center rounded-md">
-              <button
-                onClick={toggleMicMuted}
-                title={micMuted ? 'Unmute microphone' : 'Mute microphone'}
-                className={cn(
-                  "p-1.5 rounded-l-md transition-colors",
-                  micMuted
-                    ? "text-destructive hover:bg-destructive/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/10"
-                )}
-              >
-                {micMuted ? <MicOff size={18} /> : <Mic size={18} />}
-              </button>
-              <PopoverTrigger asChild>
-                <button
-                  title="Choose microphone"
-                  onClick={enumerateInputDevices}
-                  className="py-2 px-0.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-r-md transition-colors"
-                >
-                  <ChevronUp size={10} />
-                </button>
-              </PopoverTrigger>
-            </div>
-            <PopoverContent side="top" align="center" sideOffset={8} className="w-60 p-2 bg-[#111214] border-border/50">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-1">Input Device</p>
-              {inputDevices.length === 0 ? (
-                <p className="text-xs text-muted-foreground px-1 py-1">No devices found</p>
-              ) : inputDevices.map(dev => {
-                const isSelected = audioInputDeviceId === dev.deviceId || (!audioInputDeviceId && dev.deviceId === 'default');
-                return (
-                  <button
-                    key={dev.deviceId}
-                    onClick={() => { setAudioInputDeviceId(dev.deviceId); setMicPickerOpen(false); }}
-                    className={cn(
-                      "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2 min-w-0",
-                      isSelected ? "text-foreground bg-white/10" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                    )}
-                  >
-                    <span className="truncate flex-1 min-w-0">{dev.label}</span>
-                    {isSelected && <Check size={12} className="shrink-0 text-primary" />}
-                  </button>
-                );
-              })}
-              <div className="border-t border-border/30 mt-1.5 pt-1.5">
-                <button
-                  onClick={() => { setUserSettingsModalOpen(true); setMicPickerOpen(false); }}
-                  className="w-full text-left text-sm px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center gap-2"
-                >
-                  <Settings size={12} />
-                  Voice Settings
-                </button>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <div className="flex items-center rounded-md">
+            <button
+              onClick={toggleMicMuted}
+              title={micMuted ? 'Unmute microphone' : 'Mute microphone'}
+              className={cn(
+                "p-1.5 rounded-l-md transition-colors",
+                micMuted
+                  ? "text-destructive hover:bg-destructive/10"
+                  : "text-muted-foreground hover:text-foreground hover:bg-white/10"
+              )}
+            >
+              {micMuted ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
+            <button
+              title="Choose microphone"
+              onClick={() => { enumerateInputDevices(); setMicPickerOpen(o => !o); setOutputPickerOpen(false); }}
+              className="py-2 px-0.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-r-md transition-colors"
+            >
+              <ChevronUp size={10} />
+            </button>
+          </div>
 
           {/* Headset toggle + output device picker */}
-          <Popover open={outputPickerOpen} onOpenChange={setOutputPickerOpen}>
-            <div className="flex items-center rounded-md">
-              <button
-                onClick={toggleDeafened}
-                title={deafened ? 'Undeafen' : 'Deafen (mute all audio)'}
-                className={cn(
-                  "p-1.5 rounded-l-md transition-colors",
-                  deafened
-                    ? "text-destructive hover:bg-destructive/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/10"
-                )}
-              >
-                {deafened ? <VolumeX size={18} /> : <Headphones size={18} />}
-              </button>
-              <PopoverTrigger asChild>
-                <button
-                  title="Choose speaker / headset"
-                  onClick={enumerateOutputDevices}
-                  className="py-2 px-0.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-r-md transition-colors"
-                >
-                  <ChevronUp size={10} />
-                </button>
-              </PopoverTrigger>
-            </div>
-            <PopoverContent side="top" align="center" sideOffset={8} className="w-60 p-2 bg-[#111214] border-border/50">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-1">Output Device</p>
-              {outputDevices.length === 0 ? (
-                <p className="text-xs text-muted-foreground px-1 py-1">No devices found</p>
-              ) : outputDevices.map(dev => {
-                const isSelected = audioOutputDeviceId === dev.deviceId || (!audioOutputDeviceId && dev.deviceId === 'default');
-                return (
-                  <button
-                    key={dev.deviceId}
-                    onClick={() => { setAudioOutputDeviceId(dev.deviceId); setOutputPickerOpen(false); }}
-                    className={cn(
-                      "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2 min-w-0",
-                      isSelected ? "text-foreground bg-white/10" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                    )}
-                  >
-                    <span className="truncate flex-1 min-w-0">{dev.label}</span>
-                    {isSelected && <Check size={12} className="shrink-0 text-primary" />}
-                  </button>
-                );
-              })}
-              <div className="border-t border-border/30 mt-1.5 pt-1.5">
-                <button
-                  onClick={() => { setUserSettingsModalOpen(true); setOutputPickerOpen(false); }}
-                  className="w-full text-left text-sm px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center gap-2"
-                >
-                  <Settings size={12} />
-                  Voice Settings
-                </button>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <div className="flex items-center rounded-md">
+            <button
+              onClick={toggleDeafened}
+              title={deafened ? 'Undeafen' : 'Deafen (mute all audio)'}
+              className={cn(
+                "p-1.5 rounded-l-md transition-colors",
+                deafened
+                  ? "text-destructive hover:bg-destructive/10"
+                  : "text-muted-foreground hover:text-foreground hover:bg-white/10"
+              )}
+            >
+              {deafened ? <VolumeX size={18} /> : <Headphones size={18} />}
+            </button>
+            <button
+              title="Choose speaker / headset"
+              onClick={() => { enumerateOutputDevices(); setOutputPickerOpen(o => !o); setMicPickerOpen(false); }}
+              className="py-2 px-0.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-r-md transition-colors"
+            >
+              <ChevronUp size={10} />
+            </button>
+          </div>
           <button
             onClick={() => setUserSettingsModalOpen(true)}
             title="User Settings"
