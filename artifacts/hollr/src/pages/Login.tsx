@@ -1,6 +1,6 @@
 import { useAuth } from '@workspace/replit-auth-web';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, Shield, Zap } from 'lucide-react';
+import { MessageSquare, Shield, Lock, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export function Login() {
@@ -46,7 +46,8 @@ export function Login() {
         </Button>
 
         <div className="flex items-center justify-center gap-6 mt-10 text-xs text-muted-foreground/60 font-medium">
-          <span className="flex items-center"><Shield size={14} className="mr-1" /> End-to-end Encrypted</span>
+          <span className="flex items-center gap-1"><Shield size={14} /> Encrypted at rest</span>
+          <span className="flex items-center gap-1"><Lock size={14} /> Never sold or shared</span>
         </div>
       </motion.div>
     </div>
