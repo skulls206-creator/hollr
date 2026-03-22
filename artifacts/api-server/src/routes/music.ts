@@ -174,4 +174,24 @@ router.post('/voice/:channelId/music/stop', async (req, res) => {
   }
 });
 
+// GET /voice/:channelId/music/effects — get current effects
+router.get('/voice/:channelId/music/effects', (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  res.json(musicBot.getEffects(req.params.channelId));
+});
+
+// POST /voice/:channelId/music/effects — apply new effects (restarts ffmpeg chain)
+router.post('/voice/:channelId/music/effects', async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  const { bassBoost = false, nightcore = false, normalize = false } = req.body ?? {};
+  try {
+    await musicBot.applyEffects(req.params.channelId, { bassBoost, nightcore, normalize });
+    console.log(`[music-route] effects applied for ${req.params.channelId}:`, { bassBoost, nightcore, normalize });
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error('[music-route] effects error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

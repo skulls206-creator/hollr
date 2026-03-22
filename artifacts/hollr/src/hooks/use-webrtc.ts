@@ -29,7 +29,7 @@ export function useWebRTC(
   profileData?: { displayName?: string | null; avatarUrl?: string | null },
 ) {
   const { user } = useAuth();
-  const { micMuted, deafened, audioInputDeviceId } = useAppStore();
+  const { micMuted, deafened, audioInputDeviceId, micGain } = useAppStore();
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -43,6 +43,8 @@ export function useWebRTC(
   const screenStreamRef = useRef<MediaStream | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const rawStreamRef = useRef<MediaStream | null>(null);
   // Per-peer video sender for screen share — used so replaceTrack avoids renegotiation
   const screenVideoSenderRef = useRef<Map<string, RTCRtpSender>>(new Map());
 
@@ -305,6 +307,10 @@ export function useWebRTC(
       peersRef.current = {};
 
       setLocalStream(prev => { prev?.getTracks().forEach(t => t.stop()); localStreamRef.current = null; return null; });
+      rawStreamRef.current?.getTracks().forEach(t => t.stop());
+      rawStreamRef.current = null;
+      gainNodeRef.current?.disconnect();
+      gainNodeRef.current = null;
       if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(t => t.stop()); screenStreamRef.current = null; }
       setScreenStream(null);
       screenVideoSenderRef.current.clear();
@@ -333,13 +339,27 @@ export function useWebRTC(
           autoGainControl: true,
         };
         if (audioInputDeviceId) audioConstraints.deviceId = { exact: audioInputDeviceId };
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
-        stream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
-        setLocalStream(stream);
-        localStreamRef.current = stream;
+        const rawStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
+        rawStream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
+        rawStreamRef.current = rawStream;
 
         if (ctx.state === 'suspended') await ctx.resume();
-        startSpeakingDetection(stream, ctx);
+
+        // Build gain chain: rawStream → GainNode → MediaStreamDestination
+        const source = ctx.createMediaStreamSource(rawStream);
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = micGain / 100;
+        gainNodeRef.current = gainNode;
+        const destination = ctx.createMediaStreamDestination();
+        source.connect(gainNode);
+        gainNode.connect(destination);
+
+        // Peers receive the gain-processed stream; raw stream is kept for mute/detection
+        const processedStream = destination.stream;
+        setLocalStream(processedStream);
+        localStreamRef.current = processedStream;
+
+        startSpeakingDetection(rawStream, ctx);
 
         const { displayName, username, avatarUrl } = getDisplayInfo();
         sendVoiceSignal({ type: 'join', channelId, userId: user?.id, displayName, username, avatarUrl });
@@ -354,10 +374,18 @@ export function useWebRTC(
     return () => { stopSpeakingDetection(); };
   }, [channelId]);
 
-  // Sync micMuted
+  // Live-update GainNode when micGain changes without reinitializing the stream
+  useEffect(() => {
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = micGain / 100;
+    }
+  }, [micGain]);
+
+  // Sync micMuted — mute the raw stream so the gain chain produces silence
   useEffect(() => {
     if (!localStream) return;
-    localStream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
+    const raw = rawStreamRef.current;
+    (raw ?? localStream).getAudioTracks().forEach(t => { t.enabled = !micMuted; });
     if (channelIdRef.current && userIdRef.current) {
       sendVoiceSignal({ type: 'mute_update', channelId: channelIdRef.current, userId: userIdRef.current, muted: micMuted });
     }

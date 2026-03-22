@@ -220,6 +220,10 @@ export function useMusicState(voiceChannelId: string | null) {
   const skip   = useCallback(() => apiCall('skip'), [apiCall]);
   const stop   = useCallback(() => apiCall('stop'), [apiCall]);
 
+  const setEffects = useCallback(async (effects: { bassBoost: boolean; nightcore: boolean; normalize: boolean }) => {
+    return apiCall('effects', 'POST', effects);
+  }, [apiCall]);
+
   const play = useCallback(async (url: string) => {
     setLoading(true);
     setLocalError(null);
@@ -247,5 +251,6 @@ export function useMusicState(voiceChannelId: string | null) {
     resume,
     skip,
     stop,
+    setEffects,
   };
 }

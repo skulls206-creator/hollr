@@ -1,5 +1,5 @@
 import {
-  Play, Pause, SkipForward, Volume2, VolumeX, Music2, List, X, Loader2, AlertCircle, Repeat,
+  Play, Pause, SkipForward, Volume2, VolumeX, Music2, List, X, Loader2, AlertCircle, Repeat, SlidersHorizontal,
 } from 'lucide-react';
 import { useMusicState } from '@/hooks/use-music-state';
 import type { Track } from '@workspace/api-zod';
@@ -7,6 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
+import { MixerPanel } from './MixerPanel';
 
 function fmtMs(ms: number): string {
   if (!ms || ms < 0) return '0:00';
@@ -18,7 +19,7 @@ function fmtMs(ms: number): string {
 
 interface MusicControlBarProps {
   voiceChannelId: string;
-  /** Where the queue popup should open — 'down' when bar is at top, 'up' when bar is at bottom */
+  /** Where the queue/mixer popup should open — 'down' when bar is at top, 'up' when bar is at bottom */
   queueDirection?: 'up' | 'down';
 }
 
@@ -30,20 +31,25 @@ export function MusicControlBar({ voiceChannelId, queueDirection = 'down' }: Mus
     error, loading,
     loopEnabled, setLoopEnabled,
     pause, resume, skip, leave,
+    setEffects,
   } = useMusicState(voiceChannelId);
 
   const [showQueue, setShowQueue] = useState(false);
+  const [showMixer, setShowMixer] = useState(false);
 
   if (!musicState.botConnected && !loading) return null;
 
   const { currentTrack, isPlaying, queue, durationMs } = musicState;
   const progress = durationMs > 0 ? Math.min((audioPositionMs / durationMs) * 100, 100) : 0;
 
-  const queuePopupClass = queueDirection === 'up'
+  const isUp = queueDirection === 'up';
+  const queuePopupClass = isUp
     ? 'absolute bottom-full left-0 right-0 rounded-t-xl'
     : 'absolute top-full left-0 right-0 rounded-b-xl';
-
-  const borderClass = queueDirection === 'up' ? 'border-t border-border/20' : 'border-b border-border/20';
+  const mixerPanelClass = isUp
+    ? 'absolute bottom-full left-0 right-0 rounded-t-xl'
+    : 'absolute top-full left-0 right-0 rounded-b-xl';
+  const borderClass = isUp ? 'border-t border-border/20' : 'border-b border-border/20';
 
   return (
     <AnimatePresence mode="wait">
@@ -76,6 +82,15 @@ export function MusicControlBar({ voiceChannelId, queueDirection = 'down' }: Mus
             ))}
           </div>
         )}
+
+        {/* Mixer panel */}
+        <MixerPanel
+          open={showMixer}
+          musicVolume={musicVolume}
+          setMusicVolume={setMusicVolume}
+          onSetEffects={setEffects}
+          panelClass={mixerPanelClass}
+        />
 
         <div className="px-4 py-2 flex items-center gap-3">
           {/* Track thumbnail / icon */}
@@ -158,7 +173,7 @@ export function MusicControlBar({ voiceChannelId, queueDirection = 'down' }: Mus
 
             {queue.length > 0 && (
               <button
-                onClick={() => setShowQueue(v => !v)}
+                onClick={() => { setShowQueue(v => !v); setShowMixer(false); }}
                 className={cn(
                   'w-8 h-8 flex items-center justify-center rounded-lg transition-colors relative',
                   showQueue ? 'bg-primary/20 text-primary' : 'hover:bg-white/10 text-muted-foreground',
@@ -171,6 +186,20 @@ export function MusicControlBar({ voiceChannelId, queueDirection = 'down' }: Mus
                 </span>
               </button>
             )}
+
+            {/* Mixer toggle */}
+            <button
+              onClick={() => { setShowMixer(v => !v); setShowQueue(false); }}
+              className={cn(
+                'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
+                showMixer
+                  ? 'bg-primary/20 text-primary'
+                  : 'text-muted-foreground hover:bg-white/10 hover:text-foreground',
+              )}
+              title="Audio mixer"
+            >
+              <SlidersHorizontal size={13} />
+            </button>
 
             <div className="flex items-center gap-1 ml-1">
               <button

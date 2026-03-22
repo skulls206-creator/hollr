@@ -245,9 +245,25 @@ export async function resolveTrack(input: string): Promise<Resolved> {
 // ──────────────────────────────────────────────────────────────────────────────
 // Per-channel music session
 // ──────────────────────────────────────────────────────────────────────────────
+export interface MusicEffects {
+  bassBoost: boolean;
+  nightcore: boolean;
+  normalize: boolean;
+}
+
+function buildAudioFilter(effects: MusicEffects): string[] {
+  const filters: string[] = [];
+  if (effects.bassBoost) filters.push('bass=g=8');
+  if (effects.nightcore) filters.push('asetrate=53900,aresample=44100');
+  if (effects.normalize) filters.push('loudnorm=I=-16:LRA=11:TP=-1.5');
+  if (filters.length === 0) return [];
+  return ['-af', filters.join(',')];
+}
+
 class ChannelMusic extends EventEmitter {
   readonly channelId: string;
   state: MusicState;
+  effects: MusicEffects = { bassBoost: false, nightcore: false, normalize: false };
 
   private streamClients = new Set<ServerResponse>();
   private ffmpegProc: ChildProcess | null = null;
@@ -355,6 +371,7 @@ class ChannelMusic extends EventEmitter {
       '-i', 'pipe:0',
       ...(seekSecs > 0 ? ['-ss', seekSecs.toFixed(3)] : []),
       '-vn',
+      ...buildAudioFilter(this.effects),
       '-c:a', 'libmp3lame',
       '-b:a', '128k',
       '-ar', '44100',
@@ -538,6 +555,19 @@ class ChannelMusic extends EventEmitter {
     this.startPositionTimer();
   }
 
+  async applyEffects(effects: MusicEffects): Promise<void> {
+    this.effects = { ...effects };
+    if (!this.state.isPlaying || !this.currentScUrl) return;
+    console.log(`[music] Re-applying effects for channel ${this.channelId}:`, effects);
+    const seekSecs = this.state.positionMs / 1000;
+    this.stopStream();
+    this.playStartTime = Date.now();
+    this.pausedPositionMs = this.state.positionMs;
+    this.startFfmpeg(this.currentScUrl, seekSecs).catch((err) => {
+      console.error('[music] applyEffects restart error:', err.message);
+    });
+  }
+
   async skip(): Promise<void> {
     console.log(`[music] Skipping in channel ${this.channelId}`);
     this.stopStream();
@@ -631,6 +661,14 @@ class MusicBotManager {
 
   async stop(channelId: string): Promise<void> {
     await this.channels.get(channelId)?.stop();
+  }
+
+  async applyEffects(channelId: string, effects: MusicEffects): Promise<void> {
+    await this.channels.get(channelId)?.applyEffects(effects);
+  }
+
+  getEffects(channelId: string): MusicEffects {
+    return this.channels.get(channelId)?.effects ?? { bassBoost: false, nightcore: false, normalize: false };
   }
 
   getState(channelId: string): MusicState {

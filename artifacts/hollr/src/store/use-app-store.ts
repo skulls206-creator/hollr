@@ -151,6 +151,14 @@ interface AppState {
   // Theme
   theme: 'midnight' | 'slate' | 'light';
   setTheme: (theme: 'midnight' | 'slate' | 'light') => void;
+
+  // Mic gain (0–200, default 100 = unity)
+  micGain: number;
+  setMicGain: (gain: number) => void;
+
+  // Music bot EQ effects
+  musicEffects: { bassBoost: boolean; nightcore: boolean; normalize: boolean };
+  setMusicEffect: (effect: 'bassBoost' | 'nightcore' | 'normalize', enabled: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -307,6 +315,14 @@ export const useAppStore = create<AppState>()(
 
   theme: 'midnight',
   setTheme: (theme) => set({ theme }),
+
+  micGain: 100,
+  setMicGain: (gain) => set({ micGain: gain }),
+
+  musicEffects: { bassBoost: false, nightcore: false, normalize: false },
+  setMusicEffect: (effect, enabled) => set((state) => ({
+    musicEffects: { ...state.musicEffects, [effect]: enabled },
+  })),
     }),
     {
       name: 'hollr-nav',
@@ -318,6 +334,8 @@ export const useAppStore = create<AppState>()(
         audioOutputDeviceId: state.audioOutputDeviceId,
         layoutMode: state.layoutMode,
         theme: state.theme,
+        micGain: state.micGain,
+        musicEffects: state.musicEffects,
       }),
     }
   )
