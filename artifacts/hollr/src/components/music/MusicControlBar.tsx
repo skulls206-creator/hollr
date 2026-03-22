@@ -16,7 +16,13 @@ function fmtMs(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) {
+interface MusicControlBarProps {
+  voiceChannelId: string;
+  /** Where the queue popup should open — 'down' when bar is at top, 'up' when bar is at bottom */
+  queueDirection?: 'up' | 'down';
+}
+
+export function MusicControlBar({ voiceChannelId, queueDirection = 'down' }: MusicControlBarProps) {
   const {
     musicState,
     audioPositionMs,
@@ -33,6 +39,12 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
   const { currentTrack, isPlaying, queue, durationMs } = musicState;
   const progress = durationMs > 0 ? Math.min((audioPositionMs / durationMs) * 100, 100) : 0;
 
+  const queuePopupClass = queueDirection === 'up'
+    ? 'absolute bottom-full left-0 right-0 rounded-t-xl'
+    : 'absolute top-full left-0 right-0 rounded-b-xl';
+
+  const borderClass = queueDirection === 'up' ? 'border-t border-border/20' : 'border-b border-border/20';
+
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -41,11 +53,14 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
         animate={{ opacity: 1, height: 'auto' }}
         exit={{ opacity: 0, height: 0 }}
         transition={{ duration: 0.2 }}
-        className="relative overflow-visible bg-surface-0 border-t border-white/5"
+        className={cn('relative overflow-visible bg-surface-0 shrink-0', borderClass)}
       >
         {/* Queue popup */}
         {showQueue && queue.length > 0 && (
-          <div className="absolute bottom-full left-0 right-0 bg-surface-1 border border-border/20 rounded-t-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto z-50">
+          <div className={cn(
+            'bg-surface-1 border border-border/20 shadow-2xl overflow-hidden max-h-52 overflow-y-auto z-50',
+            queuePopupClass,
+          )}>
             <div className="px-3 py-1.5 border-b border-border/10 flex items-center justify-between">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Up Next — {queue.length} track{queue.length !== 1 ? 's' : ''}
@@ -110,7 +125,6 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
 
           {/* Controls */}
           <div className="flex items-center gap-0.5 shrink-0">
-            {/* Play / Pause */}
             <button
               onClick={isPlaying ? pause : resume}
               disabled={(!currentTrack && !isPlaying) || loading}
@@ -120,7 +134,6 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
               {isPlaying ? <Pause size={16} /> : <Play size={16} />}
             </button>
 
-            {/* Skip */}
             <button
               onClick={() => skip()}
               disabled={!currentTrack || loading}
@@ -130,7 +143,6 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
               <SkipForward size={16} />
             </button>
 
-            {/* Loop */}
             <button
               onClick={() => setLoopEnabled(!loopEnabled)}
               className={cn(
@@ -144,7 +156,6 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
               <Repeat size={14} />
             </button>
 
-            {/* Queue toggle */}
             {queue.length > 0 && (
               <button
                 onClick={() => setShowQueue(v => !v)}
@@ -161,7 +172,6 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
               </button>
             )}
 
-            {/* Volume */}
             <div className="flex items-center gap-1 ml-1">
               <button
                 onClick={() => setMusicVolume(musicVolume === 0 ? 80 : 0)}
@@ -184,7 +194,6 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
               </span>
             </div>
 
-            {/* Disconnect bot (closes bar for everyone) */}
             <button
               onClick={() => leave()}
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors ml-1"

@@ -74,8 +74,11 @@ export function Layout() {
   const showThread = !!(threadMessageId && threadChannelId);
   const showMemberList = !!(activeServerId && memberListOpen && !showThread && !pinnedPanelOpen);
 
+  // Detect mobile viewport for queue direction (updates on resize)
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   return (
-    // Root: flex-col so music bar sits naturally at the bottom
+    // Root: flex-col with order-based music bar positioning
     <div className="flex flex-col h-screen w-full bg-background overflow-hidden font-sans text-foreground">
 
       {/* Mobile sidebar backdrop */}
@@ -99,8 +102,8 @@ export function Layout() {
         </>
       )}
 
-      {/* Content row — flex-1, relative so VoiceOverlay's absolute children are scoped here */}
-      <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden">
+      {/* Content row — always order-2; music bar slots in before or after via order */}
+      <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden order-2">
 
         {/* Left sidebar */}
         <div
@@ -162,9 +165,9 @@ export function Layout() {
         <VoiceOverlay />
       </div>
 
-      {/* Dock mode — server switcher row, sits naturally above the music bar */}
+      {/* Dock mode — order-4 so it's always last */}
       {layoutMode === 'dock' && (
-        <div className="relative flex items-end justify-center shrink-0 px-4 pb-2 pt-0 overflow-visible">
+        <div className="relative flex items-end justify-center shrink-0 px-4 pb-2 pt-0 overflow-visible order-4">
           <div className="absolute inset-y-0 left-4 flex items-center z-10">
             <DmFab />
           </div>
@@ -172,9 +175,20 @@ export function Layout() {
         </div>
       )}
 
-      {/* Global music bar — flex item at the very bottom, always visible when bot is active */}
+      {/*
+        Music bar positioning via flex order:
+          • Desktop (md+): always order-1 → sits above the content row (top of screen)
+          • Mobile + dock mode: order-3 → between content (order-2) and dock (order-4)
+          • Mobile + classic: order-1 → top of screen, same as desktop
+        Queue popup direction flips to match: down when at top, up when above dock on mobile.
+      */}
       {voiceConnection.channelId && (
-        <MusicControlBar voiceChannelId={voiceConnection.channelId} />
+        <div className={layoutMode === 'dock' ? 'order-3 md:order-1' : 'order-1'}>
+          <MusicControlBar
+            voiceChannelId={voiceConnection.channelId}
+            queueDirection={layoutMode === 'dock' && isMobile ? 'up' : 'down'}
+          />
+        </div>
       )}
 
       {/* Modals */}
