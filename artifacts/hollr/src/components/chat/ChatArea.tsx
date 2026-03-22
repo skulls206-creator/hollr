@@ -87,8 +87,8 @@ export function ChatArea() {
 
   if (!activeChannelId || !channel) {
     return (
-      <div className="flex-1 bg-[#313338] flex flex-col min-w-0 h-full">
-        <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 md:hidden bg-[#313338]">
+      <div className="flex-1 bg-surface-3 flex flex-col min-w-0 h-full">
+        <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 md:hidden bg-surface-3">
           <button onClick={toggleMobileSidebar} className="text-muted-foreground hover:text-foreground transition-colors" title="Open sidebar">
             <Menu size={22} />
           </button>
@@ -106,9 +106,9 @@ export function ChatArea() {
 
   return (
     <div className="flex flex-1 min-w-0 h-full">
-      <div className="flex-1 bg-[#313338] flex flex-col h-full min-w-0">
+      <div className="flex-1 bg-surface-3 flex flex-col h-full min-w-0">
         {/* Top Header */}
-        <div className="h-12 border-b border-border/10 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-[#313338]">
+        <div className="h-12 border-b border-border/10 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-surface-3">
           <div className="flex items-center min-w-0">
             <button
               onClick={toggleMobileSidebar}
@@ -167,7 +167,7 @@ export function ChatArea() {
 
             {/* Search — hidden on mobile, visible on md+ */}
             <div className="relative hidden md:block" ref={searchRef}>
-              <div className="flex items-center bg-[#1E1F22] rounded-sm h-6 overflow-hidden focus-within:ring-1 focus-within:ring-primary transition-all">
+              <div className="flex items-center bg-surface-0 rounded-sm h-6 overflow-hidden focus-within:ring-1 focus-within:ring-primary transition-all">
                 <input
                   type="text"
                   placeholder="Search"
@@ -190,7 +190,7 @@ export function ChatArea() {
 
               {/* Search results dropdown */}
               {searchOpen && searchResults.length > 0 && (
-                <div className="absolute right-0 top-8 w-80 bg-[#232428] border border-border/20 rounded-xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto no-scrollbar">
+                <div className="absolute right-0 top-8 w-80 bg-surface-2 border border-border/20 rounded-xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto no-scrollbar">
                   <div className="px-3 py-2 border-b border-border/10">
                     <p className="text-xs font-semibold text-muted-foreground">
                       {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
@@ -225,7 +225,7 @@ export function ChatArea() {
               )}
 
               {searchOpen && searchQuery.trim() && searchResults.length === 0 && (
-                <div className="absolute right-0 top-8 w-60 bg-[#232428] border border-border/20 rounded-xl shadow-2xl p-4 z-50 text-center">
+                <div className="absolute right-0 top-8 w-60 bg-surface-2 border border-border/20 rounded-xl shadow-2xl p-4 z-50 text-center">
                   <p className="text-xs text-muted-foreground">No messages found for "{searchQuery}"</p>
                 </div>
               )}

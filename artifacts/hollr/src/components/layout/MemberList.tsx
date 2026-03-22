@@ -157,7 +157,7 @@ export function MemberList({ serverId }: { serverId: string }) {
 
   if (isLoading) {
     return (
-      <div className="w-[240px] bg-[#2B2D31] shrink-0 flex items-center justify-center border-l border-border/5">
+      <div className="w-[240px] bg-surface-1 shrink-0 flex items-center justify-center border-l border-border/5">
         <p className="text-xs text-muted-foreground">Loading members…</p>
       </div>
     );
@@ -174,7 +174,7 @@ export function MemberList({ serverId }: { serverId: string }) {
   );
 
   return (
-    <div className="w-[240px] bg-[#2B2D31] shrink-0 flex flex-col h-full border-l border-border/5 overflow-hidden">
+    <div className="w-[240px] bg-surface-1 shrink-0 flex flex-col h-full border-l border-border/5 overflow-hidden">
       <div className="flex-1 overflow-y-auto p-3 space-y-4 no-scrollbar">
 
         {online.length > 0 && (

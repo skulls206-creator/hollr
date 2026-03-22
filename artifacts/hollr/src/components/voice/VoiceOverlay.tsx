@@ -131,7 +131,7 @@ export function VoiceOverlay() {
             title={micMuted ? 'Unmute' : 'Mute'}
             className={cn(
               "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
-              micMuted ? "bg-destructive/80 text-white" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]"
+              micMuted ? "bg-destructive/80 text-white" : "bg-surface-1 text-foreground hover:bg-[#383A40]"
             )}
           >
             {micMuted ? <MicOff size={13} /> : <Mic size={13} />}
@@ -142,7 +142,7 @@ export function VoiceOverlay() {
             title={deafened ? 'Undeafen' : 'Deafen'}
             className={cn(
               "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
-              deafened ? "bg-destructive/80 text-white" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]"
+              deafened ? "bg-destructive/80 text-white" : "bg-surface-1 text-foreground hover:bg-[#383A40]"
             )}
           >
             {deafened ? <VolumeX size={13} /> : <Headphones size={13} />}
@@ -161,7 +161,7 @@ export function VoiceOverlay() {
           <button
             onClick={() => setVoiceMinimized(false)}
             title="Expand"
-            className="w-7 h-7 rounded-full flex items-center justify-center bg-[#2B2D31] text-foreground hover:bg-[#383A40] transition-colors"
+            className="w-7 h-7 rounded-full flex items-center justify-center bg-surface-1 text-foreground hover:bg-[#383A40] transition-colors"
           >
             <ChevronUp size={14} />
           </button>
@@ -259,7 +259,7 @@ export function VoiceOverlay() {
                   style={{ width: 80, height: 54 }}
                   title={u.displayName}
                 >
-                  <div className="w-full h-full bg-[#1E1F22] flex items-center justify-center">
+                  <div className="w-full h-full bg-surface-0 flex items-center justify-center">
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={u.avatarUrl || undefined} />
                       <AvatarFallback className="bg-indigo-600 text-white text-sm">{getInitials(u.displayName)}</AvatarFallback>
@@ -279,12 +279,12 @@ export function VoiceOverlay() {
             <div className="flex items-center gap-2 shrink-0">
               <button onClick={toggleMicMuted} title={micMuted ? 'Unmute' : 'Mute'}
                 className={cn("w-9 h-9 rounded-full flex items-center justify-center transition-colors",
-                  micMuted ? "bg-destructive text-white" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]")}>
+                  micMuted ? "bg-destructive text-white" : "bg-surface-1 text-foreground hover:bg-[#383A40]")}>
                 {micMuted ? <MicOff size={16} /> : <Mic size={16} />}
               </button>
               <button onClick={handleToggleDeafen} title={deafened ? 'Undeafen' : 'Deafen'}
                 className={cn("w-9 h-9 rounded-full flex items-center justify-center transition-colors",
-                  deafened ? "bg-destructive text-white" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]")}>
+                  deafened ? "bg-destructive text-white" : "bg-surface-1 text-foreground hover:bg-[#383A40]")}>
                 {deafened ? <VolumeX size={16} /> : <Headphones size={16} />}
               </button>
             </div>
@@ -368,16 +368,16 @@ export function VoiceOverlay() {
           })}
         </div>
 
-        <div className="h-16 bg-[#1E1F22] border-t border-border/20 flex items-center justify-center gap-3 px-6 shrink-0">
+        <div className="h-16 bg-surface-0 border-t border-border/20 flex items-center justify-center gap-3 px-6 shrink-0">
           <button onClick={toggleMicMuted} title={micMuted ? 'Unmute' : 'Mute'}
             className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors",
-              micMuted ? "bg-destructive text-white hover:bg-destructive/90" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]")}>
+              micMuted ? "bg-destructive text-white hover:bg-destructive/90" : "bg-surface-1 text-foreground hover:bg-[#383A40]")}>
             {micMuted ? <MicOff size={22} /> : <Mic size={22} />}
           </button>
 
           <button onClick={handleToggleDeafen} title={deafened ? 'Undeafen' : 'Deafen'}
             className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors",
-              deafened ? "bg-destructive text-white hover:bg-destructive/90" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]")}>
+              deafened ? "bg-destructive text-white hover:bg-destructive/90" : "bg-surface-1 text-foreground hover:bg-[#383A40]")}>
             {deafened ? <VolumeX size={22} /> : <Headphones size={22} />}
           </button>
 
@@ -386,7 +386,7 @@ export function VoiceOverlay() {
             onClick={cameraStream ? stopCamera : startCamera}
             title={cameraStream ? 'Turn off camera' : 'Turn on camera'}
             className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors",
-              cameraStream ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-[#2B2D31] text-foreground hover:bg-[#383A40]"
+              cameraStream ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-surface-1 text-foreground hover:bg-[#383A40]"
             )}
           >
             {cameraStream ? <Video size={22} /> : <VideoOff size={22} />}
@@ -401,7 +401,7 @@ export function VoiceOverlay() {
             <Popover open={shareMenuOpen} onOpenChange={setShareMenuOpen}>
               <PopoverTrigger asChild>
                 <button title="Share Screen"
-                  className="h-12 px-3 rounded-full flex items-center gap-1.5 transition-colors bg-[#2B2D31] text-foreground hover:bg-[#383A40]">
+                  className="h-12 px-3 rounded-full flex items-center gap-1.5 transition-colors bg-surface-1 text-foreground hover:bg-[#383A40]">
                   <MonitorUp size={20} />
                   <ChevronDown size={14} className="opacity-60" />
                 </button>
@@ -491,7 +491,7 @@ function LocalUserTile({
 
   return (
     <div className={cn(
-      "relative aspect-video bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border transition-colors",
+      "relative aspect-video bg-surface-0 rounded-xl flex items-center justify-center overflow-hidden border transition-colors",
       isMuted ? "border-destructive/40" : speaking ? "border-emerald-500/60" : "border-border/20"
     )}>
       {/* Local camera feed */}
@@ -636,7 +636,7 @@ function RemoteUserTile({
 
   return (
     <div className={cn(
-      "relative aspect-video bg-[#1E1F22] rounded-xl flex items-center justify-center overflow-hidden border group transition-colors",
+      "relative aspect-video bg-surface-0 rounded-xl flex items-center justify-center overflow-hidden border group transition-colors",
       speaking ? "border-emerald-500/60" : "border-border/20"
     )}>
       <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />
@@ -815,7 +815,7 @@ function VoiceProfileCard({
     <div
       ref={cardRef}
       style={{ position: 'fixed', left, top, zIndex: 200 }}
-      className="w-[280px] bg-[#1E1F22] rounded-2xl shadow-2xl border border-border/20 overflow-hidden"
+      className="w-[280px] bg-surface-0 rounded-2xl shadow-2xl border border-border/20 overflow-hidden"
     >
       {/* Banner */}
       <div className="h-14 bg-gradient-to-br from-indigo-600 to-purple-700" />

@@ -54,9 +54,9 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   const sorted = messages;
 
   return (
-    <div className="flex-1 bg-[#313338] flex flex-col h-full min-w-0">
+    <div className="flex-1 bg-surface-3 flex flex-col h-full min-w-0">
       {/* Header */}
-      <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 shadow-sm z-10 bg-[#313338]">
+      <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 shadow-sm z-10 bg-surface-3">
         {/* Back to DM list on mobile — on desktop the sidebar is always visible */}
         <button
           onClick={() => setActiveDmThread(null)}
@@ -150,7 +150,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
       </div>
 
       {/* Composer */}
-      <div className="px-4 pb-6 pt-2 bg-[#313338]">
+      <div className="px-4 pb-6 pt-2 bg-surface-3">
         <div className="bg-[#383A40] rounded-lg flex items-end px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
           <button className="p-1 mr-2 mb-[2px] text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0">
             <PlusCircle size={22} className="fill-muted-foreground/20" />

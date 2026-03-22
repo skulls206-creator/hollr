@@ -129,7 +129,7 @@ export function InviteModal() {
               Server Invite Link
             </label>
 
-            <div className={`flex items-center gap-2 bg-[#1E1F22] border rounded-lg px-3 py-2.5 min-w-0 overflow-hidden ${isExpired ? 'border-destructive/50' : 'border-border/30'}`}>
+            <div className={`flex items-center gap-2 bg-surface-0 border rounded-lg px-3 py-2.5 min-w-0 overflow-hidden ${isExpired ? 'border-destructive/50' : 'border-border/30'}`}>
               <Link size={15} className={`shrink-0 ${isExpired ? 'text-destructive' : 'text-muted-foreground'}`} />
               <input
                 readOnly
@@ -183,7 +183,7 @@ export function InviteModal() {
             <div className="flex gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex-1 flex items-center justify-between gap-1 px-3 py-2 rounded-md bg-[#1E1F22] border border-border/30 text-sm hover:bg-white/5 transition-colors">
+                  <button className="flex-1 flex items-center justify-between gap-1 px-3 py-2 rounded-md bg-surface-0 border border-border/30 text-sm hover:bg-white/5 transition-colors">
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <Clock size={13} />
                       {expiryLabel}
@@ -206,7 +206,7 @@ export function InviteModal() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex-1 flex items-center justify-between gap-1 px-3 py-2 rounded-md bg-[#1E1F22] border border-border/30 text-sm hover:bg-white/5 transition-colors">
+                  <button className="flex-1 flex items-center justify-between gap-1 px-3 py-2 rounded-md bg-surface-0 border border-border/30 text-sm hover:bg-white/5 transition-colors">
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <Users size={13} />
                       {maxUsesLabel}

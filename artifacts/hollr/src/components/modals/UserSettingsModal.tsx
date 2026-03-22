@@ -53,7 +53,7 @@ function DeviceSelect({
       <select
         value={value ?? ''}
         onChange={e => onChange(e.target.value || null)}
-        className="w-full rounded-md bg-[#1E1F22] border border-border/50 text-sm text-foreground px-3 py-2 focus:outline-none focus:border-primary appearance-none"
+        className="w-full rounded-md bg-surface-0 border border-border/50 text-sm text-foreground px-3 py-2 focus:outline-none focus:border-primary appearance-none"
       >
         <option value="">{placeholder}</option>
         {devices.map(d => (
@@ -94,7 +94,7 @@ function DeviceRow({
   return (
     <div className={cn(
       'flex items-center gap-3 px-3 py-2.5 rounded-lg border',
-      isCurrent ? 'border-primary/30 bg-primary/5' : 'border-border/20 bg-[#1E1F22]'
+      isCurrent ? 'border-primary/30 bg-primary/5' : 'border-border/20 bg-surface-0'
     )}>
       <DeviceIcon size={16} className={isCurrent ? 'text-primary shrink-0' : 'text-muted-foreground shrink-0'} />
 
@@ -154,6 +154,7 @@ export function UserSettingsModal() {
     audioInputDeviceId, audioOutputDeviceId,
     setAudioInputDeviceId, setAudioOutputDeviceId,
     layoutMode, setLayoutMode,
+    theme, setTheme,
   } = useAppStore();
   const { user, logout } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
@@ -271,7 +272,7 @@ export function UserSettingsModal() {
 
   return (
     <Dialog open={userSettingsModalOpen} onOpenChange={setUserSettingsModalOpen}>
-      <DialogContent className="max-w-lg w-[calc(100vw-2rem)] bg-[#2B2D31] border-border/50 overflow-hidden max-h-[92dvh] flex flex-col p-0 gap-0 [&>button:last-child]:hidden">
+      <DialogContent className="max-w-lg w-[calc(100vw-2rem)] bg-surface-1 border-border/50 overflow-hidden max-h-[92dvh] flex flex-col p-0 gap-0 [&>button:last-child]:hidden">
         {/* Header with title + close button */}
         <div className="flex items-center justify-between px-6 pt-6 pb-3 shrink-0">
           <DialogHeader className="p-0">
@@ -324,7 +325,7 @@ export function UserSettingsModal() {
                         'flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all',
                         selectedStatus === opt.value
                           ? 'border-primary bg-primary/10'
-                          : 'border-border/30 bg-[#1E1F22] hover:border-border/60 hover:bg-[#252628]'
+                          : 'border-border/30 bg-surface-0 hover:border-border/60 hover:bg-surface-2'
                       )}
                     >
                       <span className={cn('w-3 h-3 rounded-full shrink-0', opt.color)} />
@@ -352,7 +353,7 @@ export function UserSettingsModal() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Your display name"
-                  className="bg-[#1E1F22] border-border/50 focus:border-primary"
+                  className="bg-surface-0 border-border/50 focus:border-primary"
                   maxLength={80}
                 />
               </div>
@@ -364,7 +365,7 @@ export function UserSettingsModal() {
                   value={customStatus}
                   onChange={(e) => setCustomStatus(e.target.value)}
                   placeholder="Set a custom status…"
-                  className="bg-[#1E1F22] border-border/50 focus:border-primary"
+                  className="bg-surface-0 border-border/50 focus:border-primary"
                   maxLength={128}
                 />
               </div>
@@ -381,6 +382,38 @@ export function UserSettingsModal() {
 
               <div className="h-[1px] bg-border/30" />
 
+              {/* Theme */}
+              <div className="flex flex-col gap-2">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Theme</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { id: 'midnight', label: 'Midnight', desc: 'Deep blue-black', swatches: ['#0A0D14', '#1E1F22', '#2B2D31'] },
+                    { id: 'slate', label: 'Slate', desc: 'Warm charcoal', swatches: ['#2C2F33', '#36393F', '#40444B'] },
+                    { id: 'light', label: 'Snow', desc: 'Clean & bright', swatches: ['#ffffff', '#f2f3f5', '#e3e5e8'] },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setTheme(opt.id)}
+                      className={cn(
+                        'flex flex-col items-center gap-2 px-2 py-3 rounded-lg border transition-all text-sm',
+                        theme === opt.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border/30 bg-surface-0 hover:border-border/60 hover:bg-surface-2'
+                      )}
+                    >
+                      <div className="flex gap-0.5 rounded-md overflow-hidden w-full h-6 shadow-sm">
+                        {opt.swatches.map((c, i) => (
+                          <div key={i} className="flex-1" style={{ background: c }} />
+                        ))}
+                      </div>
+                      <span className={cn('font-medium text-xs', theme === opt.id ? 'text-primary' : 'text-foreground')}>
+                        {opt.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Appearance */}
               <div className="flex flex-col gap-2">
                 <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
@@ -394,7 +427,7 @@ export function UserSettingsModal() {
                       'flex flex-col items-center gap-2 px-3 py-3 rounded-lg border transition-all text-sm',
                       layoutMode === 'classic'
                         ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border/30 bg-[#1E1F22] text-muted-foreground hover:border-border/60 hover:bg-[#252628] hover:text-foreground'
+                        : 'border-border/30 bg-surface-0 text-muted-foreground hover:border-border/60 hover:bg-surface-2 hover:text-foreground'
                     )}
                   >
                     <Layers size={18} />
@@ -407,7 +440,7 @@ export function UserSettingsModal() {
                       'flex flex-col items-center gap-2 px-3 py-3 rounded-lg border transition-all text-sm',
                       layoutMode === 'dock'
                         ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border/30 bg-[#1E1F22] text-muted-foreground hover:border-border/60 hover:bg-[#252628] hover:text-foreground'
+                        : 'border-border/30 bg-surface-0 text-muted-foreground hover:border-border/60 hover:bg-surface-2 hover:text-foreground'
                     )}
                   >
                     <LayoutPanelTop size={18} />
@@ -458,7 +491,7 @@ export function UserSettingsModal() {
                   placeholder="System Default"
                 />
 
-                <p className="text-xs text-muted-foreground bg-[#1E1F22] rounded-lg px-3 py-2.5 leading-relaxed">
+                <p className="text-xs text-muted-foreground bg-surface-0 rounded-lg px-3 py-2.5 leading-relaxed">
                   Changes apply immediately to new voice connections. If you're currently in a voice channel, rejoin to switch your microphone. Speaker changes apply in real-time.
                 </p>
 
@@ -486,13 +519,13 @@ export function UserSettingsModal() {
         {tab === 'notifications' && (
           <div className="flex flex-col gap-4">
             {push.permission === 'unsupported' ? (
-              <p className="text-sm text-muted-foreground bg-[#1E1F22] rounded-lg px-3 py-3">
+              <p className="text-sm text-muted-foreground bg-surface-0 rounded-lg px-3 py-3">
                 Push notifications are not supported in this browser.
               </p>
             ) : (
               <>
                 {/* Subscribe / unsubscribe this device */}
-                <div className="flex items-start justify-between gap-4 bg-[#1E1F22] rounded-lg px-4 py-3">
+                <div className="flex items-start justify-between gap-4 bg-surface-0 rounded-lg px-4 py-3">
                   <div className="flex flex-col gap-0.5">
                     <p className="text-sm font-semibold text-foreground flex items-center gap-2">
                       {push.isSubscribed ? <BellRing size={15} className="text-primary" /> : <Bell size={15} />}
@@ -531,7 +564,7 @@ export function UserSettingsModal() {
                       onClick={() => push.updatePrefs({ muteDms: !push.prefs.muteDms })}
                       className={cn(
                         'flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all',
-                        push.prefs.muteDms ? 'border-border/30 bg-[#1E1F22]' : 'border-primary/30 bg-primary/5'
+                        push.prefs.muteDms ? 'border-border/30 bg-surface-0' : 'border-primary/30 bg-primary/5'
                       )}
                     >
                       <MessageSquare size={15} className={push.prefs.muteDms ? 'text-muted-foreground' : 'text-primary'} />
@@ -544,7 +577,7 @@ export function UserSettingsModal() {
                       {!push.prefs.muteDms ? <Check size={14} className="text-primary shrink-0" /> : <BellOff size={14} className="text-muted-foreground shrink-0" />}
                     </button>
 
-                    <p className="text-xs text-muted-foreground leading-relaxed bg-[#1E1F22] rounded-lg px-3 py-2.5">
+                    <p className="text-xs text-muted-foreground leading-relaxed bg-surface-0 rounded-lg px-3 py-2.5">
                       To mute a specific channel, right-click it in the channel list and choose <span className="text-foreground font-medium">Mute channel</span>.
                     </p>
                   </>

@@ -54,7 +54,7 @@ export function JoinServer({ code }: { code: string }) {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-[#313338] flex items-center justify-center">
+      <div className="min-h-screen bg-surface-3 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading invite…</p>
@@ -65,8 +65,8 @@ export function JoinServer({ code }: { code: string }) {
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-[#313338] flex items-center justify-center p-4">
-        <div className="bg-[#2B2D31] rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl border border-border/20">
+      <div className="min-h-screen bg-surface-3 flex items-center justify-center p-4">
+        <div className="bg-surface-1 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl border border-border/20">
           <ServerCrash className="w-16 h-16 text-destructive mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-foreground mb-2">Invite Invalid</h1>
           <p className="text-muted-foreground mb-6">{errorMsg}</p>
@@ -82,8 +82,8 @@ export function JoinServer({ code }: { code: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#313338] flex items-center justify-center p-4">
-      <div className="bg-[#2B2D31] rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl border border-border/20">
+    <div className="min-h-screen bg-surface-3 flex items-center justify-center p-4">
+      <div className="bg-surface-1 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl border border-border/20">
         {serverPreview?.iconUrl ? (
           <img
             src={serverPreview.iconUrl}

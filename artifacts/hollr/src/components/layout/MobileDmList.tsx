@@ -22,9 +22,9 @@ export function MobileDmList() {
   });
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#2B2D31]">
+    <div className="flex flex-col h-full w-full bg-surface-1">
       {/* Header */}
-      <div className="h-12 border-b border-border/10 flex items-center px-3 shrink-0 shadow-sm bg-[#2B2D31] z-10 gap-2">
+      <div className="h-12 border-b border-border/10 flex items-center px-3 shrink-0 shadow-sm bg-surface-1 z-10 gap-2">
         <button
           onClick={toggleMobileSidebar}
           className="p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors rounded-md shrink-0"

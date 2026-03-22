@@ -20,7 +20,7 @@ export function DmFab() {
             'relative flex items-center justify-center w-12 h-12 rounded-2xl shadow-lg transition-colors duration-200',
             isActive
               ? 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background'
-              : 'bg-[#1E1F22]/90 backdrop-blur-xl border border-white/10 text-foreground hover:bg-primary hover:text-primary-foreground'
+              : 'bg-surface-0/90 backdrop-blur-xl border border-white/10 text-foreground hover:bg-primary hover:text-primary-foreground'
           )}
         >
           <MessageSquare size={22} />

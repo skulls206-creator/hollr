@@ -128,7 +128,7 @@ export function ThreadSidebar({
   };
 
   return (
-    <div className="w-[340px] shrink-0 bg-[#2B2D31] border-l border-border/10 flex flex-col h-full">
+    <div className="w-[340px] shrink-0 bg-surface-1 border-l border-border/10 flex flex-col h-full">
       {/* Header */}
       <div className="h-12 flex items-center justify-between px-4 border-b border-border/10 shrink-0">
         <span className="font-bold text-foreground text-sm">Thread</span>

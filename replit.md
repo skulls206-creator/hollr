@@ -126,6 +126,7 @@ pnpm --filter @workspace/db push
 - **Mobile**: Responsive layout with slide-in sidebar
 - **Presence**: Online/idle/dnd/offline status indicators
 - **Dock Mode**: Toggleable layout in User Settings (Profile tab → Layout Style); macOS Dock-style server switcher at the bottom with framer-motion mouse-proximity magnification; DM FAB pinned bottom-left; `layoutMode` persisted to localStorage via Zustand
+- **Themes**: Three user-selectable themes in User Settings (Profile tab → Theme): Midnight (deep blue-black, default), Slate (warmer charcoal gray), Snow (light/white). Applied via `data-theme` on `<html>` element; no-flash via blocking inline script in index.html; all 85 hardcoded hex surface colors replaced with CSS-var-backed Tailwind `bg-surface-{0-3}` classes; `theme` persisted to localStorage via Zustand
 
 ## Key Design Decisions
 

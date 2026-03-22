@@ -41,11 +41,11 @@ export function MusicControlBar({ voiceChannelId }: { voiceChannelId: string }) 
         animate={{ opacity: 1, height: 'auto' }}
         exit={{ opacity: 0, height: 0 }}
         transition={{ duration: 0.2 }}
-        className="relative overflow-visible bg-[#1E1F22] border-t border-white/5"
+        className="relative overflow-visible bg-surface-0 border-t border-white/5"
       >
         {/* Queue popup */}
         {showQueue && queue.length > 0 && (
-          <div className="absolute bottom-full left-0 right-0 bg-[#2B2D31] border border-border/20 rounded-t-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto z-50">
+          <div className="absolute bottom-full left-0 right-0 bg-surface-1 border border-border/20 rounded-t-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto z-50">
             <div className="px-3 py-1.5 border-b border-border/10 flex items-center justify-between">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Up Next — {queue.length} track{queue.length !== 1 ? 's' : ''}

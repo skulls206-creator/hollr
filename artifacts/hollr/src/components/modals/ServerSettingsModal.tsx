@@ -61,7 +61,7 @@ export function ServerSettingsModal() {
       onClick={() => setServerSettingsModalOpen(false)}
     >
       <div
-        className="bg-[#313338] rounded-xl shadow-2xl w-full max-w-md"
+        className="bg-surface-3 rounded-xl shadow-2xl w-full max-w-md"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -106,7 +106,7 @@ export function ServerSettingsModal() {
               value={name}
               onChange={e => setName(e.target.value)}
               maxLength={100}
-              className="w-full bg-[#1E1F22] text-foreground rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary border border-border/20"
+              className="w-full bg-surface-0 text-foreground rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary border border-border/20"
               placeholder="My Awesome Server"
             />
           </div>
@@ -120,7 +120,7 @@ export function ServerSettingsModal() {
               onChange={e => setDescription(e.target.value)}
               maxLength={500}
               rows={3}
-              className="w-full bg-[#1E1F22] text-foreground rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary border border-border/20 resize-none"
+              className="w-full bg-surface-0 text-foreground rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary border border-border/20 resize-none"
               placeholder="What's this server about?"
             />
           </div>

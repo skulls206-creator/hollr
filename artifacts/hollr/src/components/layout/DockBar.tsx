@@ -47,7 +47,7 @@ function DockItem({ mouseX, label, isActive, unreadCount, onClick, children }: D
               'w-full h-full flex items-center justify-center rounded-[24px] transition-all duration-200 overflow-hidden shadow-lg',
               isActive
                 ? 'rounded-2xl ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary text-primary-foreground'
-                : 'bg-[#2B2D31] text-foreground hover:rounded-2xl hover:bg-primary hover:text-primary-foreground'
+                : 'bg-surface-1 text-foreground hover:rounded-2xl hover:bg-primary hover:text-primary-foreground'
             )}
           >
             {children}
@@ -85,7 +85,7 @@ export function DockBar() {
       <motion.div
         animate={{ opacity: isVisible ? 1 : 0.55, y: isVisible ? 0 : 4 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className="flex items-end gap-2.5 bg-[#1E1F22]/90 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl px-4 py-3"
+        className="flex items-end gap-2.5 bg-surface-0/90 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl px-4 py-3"
         style={{ overflow: 'visible' }}
       >
         {servers.map((server) => {

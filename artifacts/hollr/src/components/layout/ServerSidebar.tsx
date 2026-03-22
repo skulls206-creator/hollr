@@ -11,7 +11,7 @@ export function ServerSidebar() {
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="w-[72px] bg-[#1E1F22] shrink-0 flex flex-col items-center py-3 gap-2 overflow-y-auto overflow-x-hidden no-scrollbar border-r border-border/10 z-20">
+    <div className="w-[72px] bg-surface-0 shrink-0 flex flex-col items-center py-3 gap-2 overflow-y-auto overflow-x-hidden no-scrollbar border-r border-border/10 z-20">
       
       {/* Direct Messages Button */}
       <Tooltip>

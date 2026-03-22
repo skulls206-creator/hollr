@@ -323,7 +323,7 @@ export function MessageList({
 
             {/* Hover action buttons — hidden entirely for deleted messages */}
             {!isEditing && !isDeleted && (
-              <div className="absolute right-4 top-0 -translate-y-1/2 bg-[#2B2D31] border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+              <div className="absolute right-4 top-0 -translate-y-1/2 bg-surface-1 border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 {/* Add reaction */}
                 <button
                   onClick={() => setEmojiHoverMsg(v => v === msg.id ? null : msg.id)}

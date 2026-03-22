@@ -51,7 +51,7 @@ export function HelpModal() {
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setHelpModalOpen(false)}>
       <div
-        className="bg-[#313338] rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+        className="bg-surface-3 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -82,7 +82,7 @@ export function HelpModal() {
                     <div className="flex items-center gap-1.5 shrink-0 ml-4">
                       {item.keys.map((key, ki) => (
                         <span key={ki}>
-                          <kbd className="bg-[#1E1F22] border border-border/40 text-foreground text-xs font-mono px-2 py-0.5 rounded shadow-sm">
+                          <kbd className="bg-surface-0 border border-border/40 text-foreground text-xs font-mono px-2 py-0.5 rounded shadow-sm">
                             {key}
                           </kbd>
                           {ki < item.keys.length - 1 && (
@@ -100,7 +100,7 @@ export function HelpModal() {
 
         <div className="px-6 py-3 border-t border-border/10 shrink-0">
           <p className="text-xs text-muted-foreground text-center">
-            Press <kbd className="bg-[#1E1F22] border border-border/40 text-foreground text-xs font-mono px-1.5 py-0.5 rounded">Esc</kbd> to close
+            Press <kbd className="bg-surface-0 border border-border/40 text-foreground text-xs font-mono px-1.5 py-0.5 rounded">Esc</kbd> to close
           </p>
         </div>
       </div>

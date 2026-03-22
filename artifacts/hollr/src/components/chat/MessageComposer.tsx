@@ -313,10 +313,10 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   };
 
   return (
-    <div className="px-4 pb-6 pt-2 w-full bg-[#313338] relative">
+    <div className="px-4 pb-6 pt-2 w-full bg-surface-3 relative">
       {/* Slash command palette */}
       {slashQuery !== null && slashMatches.length > 0 && (
-        <div className="absolute bottom-full left-4 right-4 mb-2 bg-[#2B2D31] border border-border/20 rounded-xl shadow-2xl overflow-hidden z-50">
+        <div className="absolute bottom-full left-4 right-4 mb-2 bg-surface-1 border border-border/20 rounded-xl shadow-2xl overflow-hidden z-50">
           <div className="px-3 py-1.5 border-b border-border/10 flex items-center gap-2">
             <Slash size={10} className="text-muted-foreground" />
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Commands</p>
@@ -352,7 +352,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
 
       {/* @mention autocomplete */}
       {mentionQuery !== null && mentionMatches.length > 0 && (
-        <div className="absolute bottom-full left-4 right-4 mb-2 bg-[#2B2D31] border border-border/20 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto z-50">
+        <div className="absolute bottom-full left-4 right-4 mb-2 bg-surface-1 border border-border/20 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto z-50">
           <div className="px-3 py-1.5 border-b border-border/10">
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Members</p>
           </div>

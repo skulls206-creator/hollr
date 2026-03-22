@@ -7,6 +7,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { Layout } from "@/pages/Layout";
 import { Login } from "@/pages/Login";
 import { JoinServer } from "@/pages/JoinServer";
+import { useAppStore } from "@/store/use-app-store";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -71,14 +72,24 @@ function Router() {
   );
 }
 
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const { theme } = useAppStore();
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WouterRouter base={import.meta.env.BASE_URL}>
-        <TooltipProvider>
-          <Router />
-          <Toaster />
-        </TooltipProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            <Router />
+            <Toaster />
+          </TooltipProvider>
+        </ThemeProvider>
       </WouterRouter>
     </QueryClientProvider>
   );

@@ -115,7 +115,7 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
     <div
       ref={cardRef}
       style={style}
-      className="w-72 bg-[#1E1F22] rounded-2xl shadow-2xl border border-border/20 overflow-hidden z-[101]"
+      className="w-72 bg-surface-0 rounded-2xl shadow-2xl border border-border/20 overflow-hidden z-[101]"
     >
         {/* Color banner */}
         <div className="h-16 bg-gradient-to-br from-indigo-600 to-purple-700" />

@@ -33,7 +33,7 @@ export function PinnedMessagesPanel({ channelId }: { channelId: string }) {
   });
 
   return (
-    <div className="w-[340px] shrink-0 bg-[#2B2D31] border-l border-border/10 flex flex-col h-full">
+    <div className="w-[340px] shrink-0 bg-surface-1 border-l border-border/10 flex flex-col h-full">
       {/* Header */}
       <div className="h-12 flex items-center justify-between px-4 border-b border-border/10 shrink-0">
         <div className="flex items-center gap-2">
@@ -68,7 +68,7 @@ export function PinnedMessagesPanel({ channelId }: { channelId: string }) {
         {pinned.map((msg) => (
           <div
             key={msg.id}
-            className="bg-[#313338] rounded-lg p-3 border border-border/10 hover:border-border/30 transition-colors"
+            className="bg-surface-3 rounded-lg p-3 border border-border/10 hover:border-border/30 transition-colors"
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2 min-w-0">

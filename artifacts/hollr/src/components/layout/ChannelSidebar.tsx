@@ -150,7 +150,7 @@ export function ChannelSidebar() {
 
   if (!activeServerId) {
     return (
-      <div className="w-[240px] bg-[#2B2D31] shrink-0 flex flex-col h-full border-r border-border/5">
+      <div className="w-[240px] bg-surface-1 shrink-0 flex flex-col h-full border-r border-border/5">
         <div className="h-12 border-b border-border/10 flex items-center px-4 font-bold text-foreground shadow-sm">
           Direct Messages
         </div>
@@ -214,7 +214,7 @@ export function ChannelSidebar() {
   }
 
   return (
-    <div className="w-[240px] bg-[#2B2D31] shrink-0 flex flex-col h-full border-r border-border/5">
+    <div className="w-[240px] bg-surface-1 shrink-0 flex flex-col h-full border-r border-border/5">
       {/* Server Header with dropdown */}
       <div className="relative">
         <button
@@ -300,7 +300,7 @@ export function ChannelSidebar() {
                         if (e.key === 'Escape') setEditingChannelId(null);
                       }}
                       onClick={e => e.stopPropagation()}
-                      className="flex-1 bg-[#1E1F22] text-foreground text-sm px-1.5 py-0.5 rounded outline-none focus:ring-1 focus:ring-primary"
+                      className="flex-1 bg-surface-0 text-foreground text-sm px-1.5 py-0.5 rounded outline-none focus:ring-1 focus:ring-primary"
                     />
                     <button onClick={e => saveChannelEdit(channel, e)} className="ml-1 text-primary hover:text-primary/80">
                       <Check size={12} />
@@ -345,7 +345,7 @@ export function ChannelSidebar() {
                 )}
               </div>
               </ContextMenuTrigger>
-              <ContextMenuContent className="bg-[#1E1F22] border-border/50 text-sm">
+              <ContextMenuContent className="bg-surface-0 border-border/50 text-sm">
                 {push.isSubscribed && (
                   <ContextMenuItem
                     onSelect={() => {
@@ -429,7 +429,7 @@ export function ChannelSidebar() {
                             if (e.key === 'Escape') setEditingChannelId(null);
                           }}
                           onClick={e => e.stopPropagation()}
-                          className="flex-1 bg-[#1E1F22] text-foreground text-sm px-1.5 py-0.5 rounded outline-none focus:ring-1 focus:ring-primary"
+                          className="flex-1 bg-surface-0 text-foreground text-sm px-1.5 py-0.5 rounded outline-none focus:ring-1 focus:ring-primary"
                         />
                         <button onClick={e => saveChannelEdit(channel, e)} className="ml-1 text-primary hover:text-primary/80">
                           <Check size={12} />
@@ -628,7 +628,7 @@ function UserProfilePanel({
   const displayName = user.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'You';
 
   return (
-    <div className="shrink-0 bg-[#232428]">
+    <div className="shrink-0 bg-surface-2">
       {inVoice && (
         <div className="px-2 pt-2 pb-1">
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">

@@ -147,6 +147,10 @@ interface AppState {
   // Layout mode
   layoutMode: 'classic' | 'dock';
   setLayoutMode: (mode: 'classic' | 'dock') => void;
+
+  // Theme
+  theme: 'midnight' | 'slate' | 'light';
+  setTheme: (theme: 'midnight' | 'slate' | 'light') => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -300,6 +304,9 @@ export const useAppStore = create<AppState>()(
 
   layoutMode: 'classic',
   setLayoutMode: (mode) => set({ layoutMode: mode }),
+
+  theme: 'midnight',
+  setTheme: (theme) => set({ theme }),
     }),
     {
       name: 'hollr-nav',
@@ -310,6 +317,7 @@ export const useAppStore = create<AppState>()(
         audioInputDeviceId: state.audioInputDeviceId,
         audioOutputDeviceId: state.audioOutputDeviceId,
         layoutMode: state.layoutMode,
+        theme: state.theme,
       }),
     }
   )
