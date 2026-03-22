@@ -40,10 +40,10 @@ export function VoiceOverlay() {
   const panelRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
 
-  // Responsive positioning: on mobile the sidebar is hidden so start from left edge;
-  // on desktop start after the 320px sidebar. Right offset ignores member list on mobile.
-  const panelLeft = isMobile ? 8 : 320;
-  const panelRight = isMobile ? 8 : (memberListOpen ? 256 : 32);
+  // VoiceOverlay is rendered inside the chat column — sidebars are already excluded by the
+  // three-column layout. Use a small fixed inset so it spans the full chat area width.
+  const panelLeft = 8;
+  const panelRight = 8;
 
   // Measure expanded panel height so ChatArea can add matching spacer
   useEffect(() => {
@@ -328,7 +328,7 @@ export function VoiceOverlay() {
           </div>
         )}
 
-        <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           <LocalUserTile
             isMuted={micMuted}
             isDeafened={deafened}
@@ -513,9 +513,9 @@ function LocalUserTile({
       )}
       {!cameraStream && (
         <SpeakingRing speaking={speaking}>
-          <Avatar className="h-14 w-14 shadow-xl">
+          <Avatar className="h-16 w-16 shadow-xl">
             <AvatarImage src={avatarUrl || undefined} />
-            <AvatarFallback className="bg-indigo-600 text-white text-lg">{getInitials(label)}</AvatarFallback>
+            <AvatarFallback className="bg-indigo-600 text-white text-xl">{getInitials(label)}</AvatarFallback>
           </Avatar>
         </SpeakingRing>
       )}
@@ -657,9 +657,9 @@ function RemoteUserTile({
         {!videoStream && (
           <div className="relative">
             <SpeakingRing speaking={speaking}>
-              <Avatar className="h-14 w-14 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
+              <Avatar className="h-16 w-16 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
                 <AvatarImage src={avatarUrl || undefined} />
-                <AvatarFallback className={cn(isBot ? 'bg-violet-700' : 'bg-slate-700', 'text-white text-lg')}>
+                <AvatarFallback className={cn(isBot ? 'bg-violet-700' : 'bg-slate-700', 'text-white text-xl')}>
                   {isBot ? '♪' : getInitials(displayName)}
                 </AvatarFallback>
               </Avatar>
