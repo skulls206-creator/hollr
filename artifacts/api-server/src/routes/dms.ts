@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, usersTable } from "@workspace/db/schema";
-import { eq, and, lt, inArray } from "drizzle-orm";
-import { OpenDmThreadBody, SendMessageBody } from "@workspace/api-zod";
+import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, usersTable, messageReactionsTable } from "@workspace/db/schema";
+import { eq, and, lt, inArray, sql as drizzleSql } from "drizzle-orm";
+import { OpenDmThreadBody, SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
 import { sendPushToUser, getNotifPrefs } from "../lib/push";
 
@@ -23,7 +23,6 @@ async function formatUser(userId: string) {
       createdAt: profile.createdAt.toISOString(),
     };
   }
-  // Fallback to raw user table so firstName+lastName are always used
   const raw = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   return {
     id: userId,
@@ -38,18 +37,48 @@ async function formatUser(userId: string) {
   };
 }
 
-async function formatMessage(msg: typeof messagesTable.$inferSelect) {
-  const attachments = await db.query.attachmentsTable.findMany({
-    where: eq(attachmentsTable.messageId, msg.id),
-  });
-  const author = await formatUser(msg.authorId);
+async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserId?: string) {
+  const [attachments, author, rawReactions] = await Promise.all([
+    db.query.attachmentsTable.findMany({ where: eq(attachmentsTable.messageId, msg.id) }),
+    formatUser(msg.authorId),
+    db.select({
+      emojiId: messageReactionsTable.emojiId,
+      count: drizzleSql<number>`count(*)::int`,
+    })
+      .from(messageReactionsTable)
+      .where(eq(messageReactionsTable.messageId, msg.id))
+      .groupBy(messageReactionsTable.emojiId),
+  ]);
+
+  let userReactionEmojis = new Set<string>();
+  if (viewerUserId && rawReactions.length > 0) {
+    const userRxns = await db.query.messageReactionsTable.findMany({
+      where: and(
+        eq(messageReactionsTable.messageId, msg.id),
+        eq(messageReactionsTable.userId, viewerUserId)
+      ),
+    });
+    userReactionEmojis = new Set(userRxns.map(r => r.emojiId));
+  }
+
+  const reactions = rawReactions
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20)
+    .map(r => ({
+      emojiId: r.emojiId,
+      count: r.count,
+      reactedByCurrentUser: userReactionEmojis.has(r.emojiId),
+    }));
+
   return {
     id: msg.id,
-    content: msg.content,
+    content: msg.deleted ? "" : msg.content,
     authorId: msg.authorId,
     channelId: msg.channelId,
     dmThreadId: msg.dmThreadId,
     edited: msg.edited,
+    deleted: msg.deleted ?? false,
+    reactions,
     attachments: attachments.map((a) => ({
       id: a.id,
       objectPath: a.objectPath,
@@ -88,6 +117,7 @@ async function formatThread(threadId: string) {
   };
 }
 
+// ─── List DM threads ──────────────────────────────────────────────────────────
 router.get("/dms", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -99,6 +129,7 @@ router.get("/dms", async (req, res) => {
   res.json(threads.filter(Boolean));
 });
 
+// ─── Open / create DM thread ─────────────────────────────────────────────────
 router.post("/dms", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -134,6 +165,7 @@ router.post("/dms", async (req, res) => {
   res.json(formatted);
 });
 
+// ─── List DM messages ─────────────────────────────────────────────────────────
 router.get("/dms/:threadId/messages", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -155,10 +187,11 @@ router.get("/dms/:threadId/messages", async (req, res) => {
     limit,
   });
 
-  const formatted = await Promise.all(messages.map(formatMessage));
+  const formatted = await Promise.all(messages.map(m => formatMessage(m, req.user.id)));
   res.json(formatted.reverse());
 });
 
+// ─── Send DM message ─────────────────────────────────────────────────────────
 router.post("/dms/:threadId/messages", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -191,11 +224,10 @@ router.post("/dms/:threadId/messages", async (req, res) => {
     );
   }
 
-  const formatted = await formatMessage(msg);
+  const formatted = await formatMessage(msg, req.user.id);
   broadcast({ type: "MESSAGE_CREATE", payload: formatted });
   res.status(201).json(formatted);
 
-  // Fire-and-forget push notifications to other DM participants
   (async () => {
     try {
       const participants = await db.query.dmParticipantsTable.findMany({
@@ -229,6 +261,95 @@ router.post("/dms/:threadId/messages", async (req, res) => {
       );
     } catch {}
   })();
+});
+
+// ─── Edit DM message ──────────────────────────────────────────────────────────
+router.patch("/dms/:threadId/messages/:messageId", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const participant = await db.query.dmParticipantsTable.findFirst({
+    where: and(eq(dmParticipantsTable.threadId, req.params.threadId), eq(dmParticipantsTable.userId, req.user.id)),
+  });
+  if (!participant) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, req.params.messageId) });
+  if (!msg) { res.status(404).json({ error: "Not found" }); return; }
+  if (msg.authorId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const parsed = EditMessageBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [updated] = await db
+    .update(messagesTable)
+    .set({ content: parsed.data.content, edited: true })
+    .where(eq(messagesTable.id, req.params.messageId))
+    .returning();
+
+  const formatted = await formatMessage(updated, req.user.id);
+  broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
+  res.json(formatted);
+});
+
+// ─── Delete DM message (soft delete) ─────────────────────────────────────────
+router.delete("/dms/:threadId/messages/:messageId", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const participant = await db.query.dmParticipantsTable.findFirst({
+    where: and(eq(dmParticipantsTable.threadId, req.params.threadId), eq(dmParticipantsTable.userId, req.user.id)),
+  });
+  if (!participant) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, req.params.messageId) });
+  if (!msg) { res.status(404).json({ error: "Not found" }); return; }
+  if (msg.authorId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const [updated] = await db
+    .update(messagesTable)
+    .set({ deleted: true, edited: false })
+    .where(eq(messagesTable.id, req.params.messageId))
+    .returning();
+
+  const formatted = await formatMessage(updated, req.user.id);
+  broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
+  res.json(formatted);
+});
+
+// ─── Toggle reaction on DM message ───────────────────────────────────────────
+router.put("/dms/:threadId/messages/:messageId/reactions/:emojiId", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const participant = await db.query.dmParticipantsTable.findFirst({
+    where: and(eq(dmParticipantsTable.threadId, req.params.threadId), eq(dmParticipantsTable.userId, req.user.id)),
+  });
+  if (!participant) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const { messageId, emojiId } = req.params;
+  const decodedEmoji = decodeURIComponent(emojiId);
+
+  const existing = await db.query.messageReactionsTable.findFirst({
+    where: and(
+      eq(messageReactionsTable.messageId, messageId),
+      eq(messageReactionsTable.userId, req.user.id),
+      eq(messageReactionsTable.emojiId, decodedEmoji)
+    ),
+  });
+
+  if (existing) {
+    await db.delete(messageReactionsTable).where(eq(messageReactionsTable.id, existing.id));
+  } else {
+    await db.insert(messageReactionsTable).values({
+      messageId,
+      userId: req.user.id,
+      emojiId: decodedEmoji,
+    });
+  }
+
+  const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, messageId) });
+  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+
+  const formatted = await formatMessage(msg, req.user.id);
+  broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
+  res.json(formatted);
 });
 
 export default router;

@@ -1,11 +1,48 @@
 import { useEffect, useRef, useState } from 'react';
-import { useListDmMessages, useSendDmMessage, useRequestUploadUrl } from '@workspace/api-client-react';
+import { useListDmMessages, useSendDmMessage, useRequestUploadUrl, getListDmMessagesQueryKey } from '@workspace/api-client-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@workspace/replit-auth-web';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Smile, ChevronLeft, FileText, Download, SendHorizonal } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  PlusCircle, Smile, ChevronLeft, FileText, Download,
+  SendHorizonal, Pencil, Trash2, Check, X,
+} from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
+import { DmReactionPills } from './DmReactionPills';
+import { EmojiPickerPopover } from './EmojiPickerPopover';
+
+async function editDmMessage(threadId: string, messageId: string, content: string) {
+  const res = await fetch(`/api/dms/${threadId}/messages/${messageId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error('Failed to edit message');
+  return res.json();
+}
+
+async function deleteDmMessage(threadId: string, messageId: string) {
+  const res = await fetch(`/api/dms/${threadId}/messages/${messageId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete message');
+  return res.json();
+}
+
+function formatContent(content: string) {
+  const parts = content.split(/(@\S+)/g);
+  return parts.map((part, i) =>
+    part.startsWith('@') ? (
+      <span key={i} className="bg-primary/20 text-primary font-semibold px-1 rounded text-[13px]">
+        {part}
+      </span>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+}
 
 export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   threadId: string;
@@ -16,13 +53,23 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
   const { setActiveDmThread, voicePanelHeight } = useAppStore();
+  const { user } = useAuth();
   const { toast } = useToast();
+  const qc = useQueryClient();
+
   const [content, setContent] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [emojiHoverMsg, setEmojiHoverMsg] = useState<string | null>(null);
+  const [composerEmojiOpen, setComposerEmojiOpen] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+  const composerEmojiRef = useRef<HTMLButtonElement>(null);
 
   const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto';
@@ -33,14 +80,50 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    if (editingId && editRef.current) {
+      editRef.current.focus();
+      editRef.current.selectionStart = editRef.current.value.length;
+    }
+  }, [editingId]);
+
+  const { mutate: doEdit } = useMutation({
+    mutationFn: ({ messageId, content: c }: { messageId: string; content: string }) =>
+      editDmMessage(threadId, messageId, c),
+    onSuccess: (updated) => {
+      qc.setQueryData(getListDmMessagesQueryKey(threadId), (old: any[]) =>
+        old ? old.map(m => m.id === updated.id ? updated : m) : old
+      );
+      setEditingId(null);
+      setEditDraft('');
+    },
+    onError: () => toast({ title: 'Failed to edit message', variant: 'destructive' }),
+  });
+
+  const { mutate: doDelete } = useMutation({
+    mutationFn: (messageId: string) => deleteDmMessage(threadId, messageId),
+    onSuccess: (updated) => {
+      qc.setQueryData(getListDmMessagesQueryKey(threadId), (old: any[]) =>
+        old ? old.map(m => m.id === updated.id ? updated : m) : old
+      );
+    },
+    onError: () => toast({ title: 'Failed to delete message', variant: 'destructive' }),
+  });
+
+  const startEdit = (id: string, text: string) => { setEditingId(id); setEditDraft(text); };
+  const cancelEdit = () => { setEditingId(null); setEditDraft(''); };
+
+  const saveEdit = (messageId: string) => {
+    if (!editDraft.trim()) return;
+    doEdit({ messageId, content: editDraft.trim() });
+  };
+
   const handleSend = () => {
     if (!content.trim()) return;
     sendMessage({ threadId, data: { content: content.trim() } }, {
       onSuccess: () => {
         setContent('');
-        if (textareaRef.current) {
-          textareaRef.current.style.height = '44px';
-        }
+        if (textareaRef.current) textareaRef.current.style.height = '44px';
       },
       onError: () => toast({ title: 'Failed to send', variant: 'destructive' }),
     });
@@ -103,8 +186,6 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
     }
   };
 
-  const sorted = messages;
-
   return (
     <div className="flex-1 bg-surface-3 flex flex-col h-full min-w-0">
       {/* Header */}
@@ -124,10 +205,10 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto flex flex-col p-4 gap-2 no-scrollbar">
+      <div className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
         <div className="mt-auto" />
 
-        {sorted.length === 0 && !isLoading && (
+        {messages.length === 0 && !isLoading && (
           <div className="text-center py-10">
             <Avatar className="h-20 w-20 mx-auto mb-4">
               <AvatarImage src={recipientAvatar || undefined} />
@@ -138,12 +219,27 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
           </div>
         )}
 
-        {sorted.map((msg, index) => {
-          const showHeader = index === 0 || sorted[index - 1].authorId !== msg.authorId ||
-            (new Date(msg.createdAt).getTime() - new Date(sorted[index - 1].createdAt).getTime() > 5 * 60000);
+        {messages.map((msg: any, index: number) => {
+          const prev = messages[index - 1] as any;
+          const showHeader = index === 0
+            || prev.authorId !== msg.authorId
+            || (new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60000);
+
+          const isOwner = user?.id === msg.authorId;
+          const isEditing = editingId === msg.id;
+          const isDeleted = !!(msg as any).deleted;
+          const reactions = (msg as any).reactions || [];
 
           return (
-            <div key={msg.id} className={`group flex ${showHeader ? 'mt-4' : 'mt-0.5'} hover:bg-black/5 p-1 -mx-4 px-4 rounded-sm`}>
+            <div
+              key={msg.id}
+              className={cn(
+                'group relative flex py-0.5 px-4 -mx-4 rounded-sm transition-colors',
+                showHeader ? 'mt-4' : 'mt-0',
+                'hover:bg-black/5',
+              )}
+              onMouseLeave={() => setEmojiHoverMsg(null)}
+            >
               {showHeader ? (
                 <Avatar className="h-10 w-10 mr-4 shrink-0">
                   <AvatarImage src={msg.author.avatarUrl || undefined} />
@@ -156,17 +252,57 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
                   {format(new Date(msg.createdAt), 'h:mm a')}
                 </div>
               )}
-              <div className="flex flex-col min-w-0 flex-1">
+
+              <div className="flex flex-col min-w-0 flex-1 py-0.5">
                 {showHeader && (
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="font-medium text-base text-indigo-400">{msg.author.displayName || msg.author.username}</span>
-                    <span className="text-xs text-muted-foreground">{format(new Date(msg.createdAt), 'MM/dd/yyyy h:mm a')}</span>
+                  <div className="flex items-baseline gap-2 mb-0.5">
+                    <span className="font-medium text-base text-indigo-400">
+                      {msg.author.displayName || msg.author.username}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(msg.createdAt), 'MM/dd/yyyy h:mm a')}
+                    </span>
                   </div>
                 )}
-                <div className="text-foreground text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-                  {msg.content}
-                </div>
-                {msg.attachments && msg.attachments.length > 0 && (
+
+                {isDeleted ? (
+                  <div className="text-[14px] italic text-red-400/80 select-none">
+                    Message deleted
+                  </div>
+                ) : isEditing ? (
+                  <div className="flex flex-col gap-1">
+                    <textarea
+                      ref={editRef}
+                      value={editDraft}
+                      onChange={e => setEditDraft(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg.id); }
+                        if (e.key === 'Escape') cancelEdit();
+                      }}
+                      className="bg-[#383A40] rounded-md px-3 py-2 text-foreground text-[15px] leading-relaxed resize-none w-full outline-none focus:ring-1 focus:ring-primary"
+                      rows={1}
+                    />
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                      <button onClick={() => saveEdit(msg.id)} className="flex items-center gap-1 text-primary hover:text-primary/80">
+                        <Check size={12} /> Save
+                      </button>
+                      <span>•</span>
+                      <button onClick={cancelEdit} className="flex items-center gap-1 hover:text-foreground">
+                        <X size={12} /> Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-foreground text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+                    {formatContent(msg.content)}
+                    {msg.edited && (
+                      <span className="text-[11px] text-muted-foreground ml-1.5 italic">(edited)</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Attachments */}
+                {!isEditing && !isDeleted && msg.attachments && msg.attachments.length > 0 && (
                   <div className="flex flex-col gap-2 mt-2">
                     {msg.attachments.map((att: any) => {
                       const isImage = att.contentType.startsWith('image/');
@@ -193,7 +329,48 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
                     })}
                   </div>
                 )}
+
+                {/* Reactions */}
+                {!isEditing && !isDeleted && (
+                  <DmReactionPills
+                    reactions={reactions}
+                    threadId={threadId}
+                    messageId={msg.id}
+                    showAddButton={emojiHoverMsg === msg.id}
+                  />
+                )}
               </div>
+
+              {/* Hover action bar */}
+              {!isEditing && !isDeleted && (
+                <div className="absolute right-4 top-0 -translate-y-1/2 bg-surface-1 border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  <button
+                    onClick={() => setEmojiHoverMsg(v => v === msg.id ? null : msg.id)}
+                    title="Add reaction"
+                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                  >
+                    <Smile size={14} />
+                  </button>
+                  {isOwner && (
+                    <>
+                      <button
+                        onClick={() => startEdit(msg.id, msg.content)}
+                        title="Edit"
+                        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => doDelete(msg.id)}
+                        title="Delete"
+                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -238,10 +415,27 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
             rows={1}
             style={{ height: '44px' }}
           />
-          <div className="flex items-center gap-1 ml-2 mb-[2px] shrink-0">
-            <button className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors">
+          <div className="flex items-center gap-1 ml-2 mb-[2px] shrink-0 relative">
+            <button
+              ref={composerEmojiRef}
+              onClick={() => setComposerEmojiOpen(v => !v)}
+              className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+              title="Add emoji"
+            >
               <Smile size={22} />
             </button>
+            {composerEmojiOpen && (
+              <EmojiPickerPopover
+                onEmojiClick={(emoji) => {
+                  setContent(c => c + emoji);
+                  setComposerEmojiOpen(false);
+                  textareaRef.current?.focus();
+                }}
+                onClose={() => setComposerEmojiOpen(false)}
+                anchorRef={composerEmojiRef as any}
+                align="right"
+              />
+            )}
             <button
               onClick={handleSend}
               disabled={!content.trim() || isUploading}
