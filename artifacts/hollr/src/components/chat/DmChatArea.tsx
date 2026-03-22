@@ -9,11 +9,12 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
-  SendHorizonal, Pencil, Trash2, Check, X,
+  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { DmReactionPills } from './DmReactionPills';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
 
 async function editDmMessage(threadId: string, messageId: string, content: string) {
   const res = await fetch(`/api/dms/${threadId}/messages/${messageId}`, {
@@ -56,6 +57,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { show: showMenu } = useContextMenu();
 
   const [content, setContent] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -112,6 +114,93 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
 
   const startEdit = (id: string, text: string) => { setEditingId(id); setEditDraft(text); };
   const cancelEdit = () => { setEditingId(null); setEditDraft(''); };
+
+  const handleImageContextMenu = (e: React.MouseEvent, url: string, filename: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      actions: [
+        {
+          id: 'open-image',
+          label: 'Open Image',
+          icon: <ExternalLink size={14} />,
+          onClick: () => window.open(url, '_blank'),
+        },
+        {
+          id: 'copy-url',
+          label: 'Copy Image URL',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(window.location.origin + url),
+        },
+        {
+          id: 'save-image',
+          label: 'Save Image',
+          icon: <Download size={14} />,
+          onClick: () => {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+          },
+        },
+      ],
+    });
+  };
+
+  const handleMessageContextMenu = (e: React.MouseEvent, msg: any) => {
+    e.preventDefault();
+    const isOwner = user?.id === msg.authorId;
+    const isDeleted = !!(msg as any).deleted;
+    if (isDeleted) return;
+
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      quickReactions: (emoji) => {
+        fetch(`/api/dms/${threadId}/messages/${msg.id}/reactions/${encodeURIComponent(emoji)}`, { method: 'PUT' })
+          .then(r => r.json())
+          .then(updated => {
+            qc.setQueryData(getListDmMessagesQueryKey(threadId), (old: any[]) =>
+              old ? old.map(m => m.id === updated.id ? updated : m) : old
+            );
+          });
+      },
+      actions: [
+        {
+          id: 'add-reaction',
+          label: 'Add Reaction',
+          icon: <Smile size={14} />,
+          onClick: () => setEmojiHoverMsg(msg.id),
+        },
+        {
+          id: 'edit',
+          label: 'Edit Message',
+          icon: <Pencil size={14} />,
+          onClick: () => startEdit(msg.id, msg.content),
+          disabled: !isOwner,
+          dividerBefore: true,
+        },
+        {
+          id: 'copy',
+          label: 'Copy Text',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(msg.content),
+          shortcut: 'Ctrl+C',
+        },
+        {
+          id: 'delete',
+          label: 'Delete Message',
+          icon: <Trash2 size={14} />,
+          onClick: () => doDelete(msg.id),
+          danger: true,
+          disabled: !isOwner,
+          dividerBefore: true,
+        },
+      ],
+    });
+  };
 
   const saveEdit = (messageId: string) => {
     if (!editDraft.trim()) return;
@@ -239,6 +328,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
                 'hover:bg-black/5',
               )}
               onMouseLeave={() => setEmojiHoverMsg(null)}
+              onContextMenu={e => handleMessageContextMenu(e, msg)}
             >
               {showHeader ? (
                 <Avatar className="h-10 w-10 mr-4 shrink-0">
@@ -310,7 +400,8 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
                       if (isImage) {
                         return (
                           <a key={att.id} href={url} target="_blank" rel="noopener noreferrer"
-                            className="inline-block max-w-[400px] rounded-xl overflow-hidden border border-border/50 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity">
+                            className="inline-block max-w-[400px] rounded-xl overflow-hidden border border-border/50 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity"
+                            onContextMenu={e => handleImageContextMenu(e, url, att.name)}>
                             <img src={url} alt={att.name} className="block max-w-full max-h-[350px] object-contain" loading="lazy" />
                           </a>
                         );

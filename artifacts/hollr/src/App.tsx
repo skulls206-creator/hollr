@@ -8,6 +8,7 @@ import { Layout } from "@/pages/Layout";
 import { Login } from "@/pages/Login";
 import { JoinServer } from "@/pages/JoinServer";
 import { useAppStore } from "@/store/use-app-store";
+import { ContextMenuProvider } from "@/contexts/ContextMenuContext";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -104,8 +105,10 @@ function App() {
       <WouterRouter base={import.meta.env.BASE_URL}>
         <ThemeProvider>
           <TooltipProvider>
-            <Router />
-            <Toaster />
+            <ContextMenuProvider>
+              <Router />
+              <Toaster />
+            </ContextMenuProvider>
           </TooltipProvider>
         </ThemeProvider>
       </WouterRouter>

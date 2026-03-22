@@ -5,11 +5,12 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
-import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare } from 'lucide-react';
+import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare, Copy, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppStore } from '@/store/use-app-store';
 import { cn } from '@/lib/utils';
 import { ReactionPills } from './ReactionPills';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
 
 async function pinMessage(channelId: string, messageId: string) {
   const res = await fetch(`/api/channels/${channelId}/messages/${messageId}/pin`, { method: 'PUT' });
@@ -29,21 +30,6 @@ async function toggleReaction(channelId: string, messageId: string, emojiId: str
     { method: 'PUT' }
   );
   return res.json();
-}
-
-function renderContent(content: string) {
-  const mentionRegex = /(@[\w\-. ]+)/g;
-  const parts = content.split(mentionRegex);
-  return parts.map((part, i) => {
-    if (mentionRegex.test(part)) {
-      return (
-        <span key={i} className="bg-primary/20 text-primary font-semibold px-1 py-0.5 rounded text-[13px]">
-          {part}
-        </span>
-      );
-    }
-    return part;
-  });
 }
 
 function formatContent(content: string) {
@@ -73,6 +59,7 @@ export function MessageList({
   const { user } = useAuth();
   const { toast } = useToast();
   const { openThread, openProfileCard } = useAppStore();
+  const { show: showMenu } = useContextMenu();
   const bottomRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [emojiHoverMsg, setEmojiHoverMsg] = useState<string | null>(null);
@@ -115,7 +102,6 @@ export function MessageList({
   const handleDelete = (messageId: string) => {
     deleteMessage({ channelId, messageId }, {
       onSuccess: (updated: any) => {
-        // Soft delete: update message in cache to show tombstone
         qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), old =>
           old ? old.map(m => m.id === messageId ? { ...m, ...updated, deleted: true } : m) : old
         );
@@ -145,6 +131,97 @@ export function MessageList({
       );
     },
   });
+
+  const handleImageContextMenu = (e: React.MouseEvent, url: string, filename: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      actions: [
+        {
+          id: 'open-image',
+          label: 'Open Image',
+          icon: <ExternalLink size={14} />,
+          onClick: () => window.open(url, '_blank'),
+        },
+        {
+          id: 'copy-url',
+          label: 'Copy Image URL',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(window.location.origin + url),
+        },
+        {
+          id: 'save-image',
+          label: 'Save Image',
+          icon: <Download size={14} />,
+          onClick: () => {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+          },
+        },
+      ],
+    });
+  };
+
+  const handleMessageContextMenu = (e: React.MouseEvent, msg: any) => {
+    e.preventDefault();
+    const isOwner = user?.id === msg.authorId;
+    const isDeleted = !!(msg as any).deleted;
+    if (isDeleted) return;
+
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      quickReactions: (emoji) => doReact({ msgId: msg.id, emojiId: emoji }),
+      actions: [
+        {
+          id: 'add-reaction',
+          label: 'Add Reaction',
+          icon: <Smile size={14} />,
+          onClick: () => setEmojiHoverMsg(msg.id),
+        },
+        {
+          id: 'thread',
+          label: 'Reply in Thread',
+          icon: <MessageSquare size={14} />,
+          onClick: () => openThread(channelId, msg.id),
+        },
+        {
+          id: 'edit',
+          label: 'Edit Message',
+          icon: <Pencil size={14} />,
+          onClick: () => startEdit(msg.id, msg.content),
+          disabled: !isOwner,
+          dividerBefore: true,
+        },
+        {
+          id: 'copy',
+          label: 'Copy Text',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(msg.content),
+          shortcut: 'Ctrl+C',
+        },
+        {
+          id: 'pin',
+          label: msg.pinned ? 'Unpin Message' : 'Pin Message',
+          icon: <Pin size={14} />,
+          onClick: () => doPin({ msgId: msg.id, pinned: !!msg.pinned }),
+        },
+        {
+          id: 'delete',
+          label: 'Delete Message',
+          icon: <Trash2 size={14} />,
+          onClick: () => handleDelete(msg.id),
+          danger: true,
+          disabled: !isOwner,
+          dividerBefore: true,
+        },
+      ],
+    });
+  };
 
   if (isLoading) {
     return <div className="flex-1 flex items-center justify-center text-muted-foreground">Loading messages…</div>;
@@ -186,6 +263,7 @@ export function MessageList({
               msg.pinned && 'border-l-2 border-amber-500/60 pl-3'
             )}
             onMouseLeave={() => setEmojiHoverMsg(null)}
+            onContextMenu={e => handleMessageContextMenu(e, msg)}
           >
             {/* Avatar or timestamp stub */}
             {showHeader ? (
@@ -274,7 +352,8 @@ export function MessageList({
                     if (isImage) {
                       return (
                         <a key={att.id} href={url} target="_blank" rel="noopener noreferrer"
-                          className="inline-block max-w-[400px] rounded-xl overflow-hidden border border-border/50 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity">
+                          className="inline-block max-w-[400px] rounded-xl overflow-hidden border border-border/50 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity"
+                          onContextMenu={e => handleImageContextMenu(e, url, att.name)}>
                           <img
                             src={url}
                             alt={att.name}
