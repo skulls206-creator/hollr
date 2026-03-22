@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useListDmMessages, useSendDmMessage } from '@workspace/api-client-react';
+import { useListDmMessages, useSendDmMessage, useRequestUploadUrl } from '@workspace/api-client-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
@@ -14,11 +14,15 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
 }) {
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
+  const { mutateAsync: requestUpload } = useRequestUploadUrl();
   const { setActiveDmThread, voicePanelHeight } = useAppStore();
   const { toast } = useToast();
   const [content, setContent] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto';
@@ -34,7 +38,6 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
     sendMessage({ threadId, data: { content: content.trim() } }, {
       onSuccess: () => {
         setContent('');
-        // Reset textarea height after clearing
         if (textareaRef.current) {
           textareaRef.current.style.height = '44px';
         }
@@ -50,14 +53,62 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
     }
   };
 
-  // API returns messages in ascending (oldest-first) order — no reverse needed
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 100 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Maximum file size is 100MB', variant: 'destructive' });
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(10);
+
+    try {
+      const { uploadURL, objectPath } = await requestUpload({
+        data: { name: file.name, size: file.size, contentType: file.type },
+      });
+      setUploadProgress(40);
+
+      const uploadRes = await fetch(uploadURL, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+
+      if (!uploadRes.ok) throw new Error('Upload failed');
+      setUploadProgress(100);
+
+      sendMessage({
+        threadId,
+        data: {
+          content: content.trim() || `Uploaded ${file.name}`,
+          attachments: [{ objectPath, name: file.name, contentType: file.type, size: file.size }],
+        },
+      }, {
+        onSuccess: () => {
+          setContent('');
+          if (textareaRef.current) textareaRef.current.style.height = '44px';
+          toast({ title: 'File uploaded' });
+        },
+        onError: () => toast({ title: 'Failed to send file', variant: 'destructive' }),
+      });
+    } catch (err: any) {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const sorted = messages;
 
   return (
     <div className="flex-1 bg-surface-3 flex flex-col h-full min-w-0">
       {/* Header */}
       <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 shadow-sm z-10 bg-surface-3">
-        {/* Back to DM list on mobile — on desktop the sidebar is always visible */}
         <button
           onClick={() => setActiveDmThread(null)}
           className="md:hidden mr-2 -ml-1 p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors shrink-0 rounded-md"
@@ -151,10 +202,29 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
 
       {/* Composer */}
       <div className="px-4 pb-6 pt-2 bg-surface-3">
-        <div className="bg-[#383A40] rounded-lg flex items-end px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
-          <button className="p-1 mr-2 mb-[2px] text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0">
+        <div className="bg-[#383A40] rounded-lg flex items-end px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50 relative overflow-visible">
+          {isUploading && (
+            <div
+              className="absolute top-0 left-0 h-1 bg-primary transition-all duration-300 ease-out rounded-t-lg"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          )}
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="p-1 mr-2 mb-[2px] text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0 disabled:opacity-50"
+            title="Attach file"
+          >
             <PlusCircle size={22} className="fill-muted-foreground/20" />
           </button>
+          <input
+            type="file"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+          />
+
           <textarea
             ref={textareaRef}
             value={content}
@@ -174,8 +244,8 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
             </button>
             <button
               onClick={handleSend}
-              disabled={!content.trim()}
-              className={`p-1.5 rounded-md transition-colors ${content.trim() ? 'text-primary hover:bg-primary/20' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+              disabled={!content.trim() || isUploading}
+              className={`p-1.5 rounded-md transition-colors ${content.trim() && !isUploading ? 'text-primary hover:bg-primary/20' : 'text-muted-foreground/40 cursor-not-allowed'}`}
               title="Send message"
             >
               <SendHorizonal size={20} />
@@ -184,7 +254,6 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
         </div>
       </div>
 
-      {/* Spacer so voice panel doesn't cover the composer */}
       {voicePanelHeight > 0 && (
         <div style={{ height: voicePanelHeight }} className="shrink-0" />
       )}
