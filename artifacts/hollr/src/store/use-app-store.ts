@@ -152,6 +152,10 @@ interface AppState {
   theme: 'midnight' | 'slate' | 'light';
   setTheme: (theme: 'midnight' | 'slate' | 'light') => void;
 
+  // Music bot volume (0–100), persisted so it never resets on rejoin
+  musicVolume: number;
+  setMusicVolume: (v: number) => void;
+
   // Mic gain (0–200, default 100 = unity)
   micGain: number;
   setMicGain: (gain: number) => void;
@@ -316,6 +320,9 @@ export const useAppStore = create<AppState>()(
   theme: 'midnight',
   setTheme: (theme) => set({ theme }),
 
+  musicVolume: 80,
+  setMusicVolume: (v) => set({ musicVolume: v }),
+
   micGain: 100,
   setMicGain: (gain) => set({ micGain: gain }),
 
@@ -334,6 +341,7 @@ export const useAppStore = create<AppState>()(
         audioOutputDeviceId: state.audioOutputDeviceId,
         layoutMode: state.layoutMode,
         theme: state.theme,
+        musicVolume: state.musicVolume,
         micGain: state.micGain,
         musicEffects: state.musicEffects,
       }),

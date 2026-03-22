@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { setMusicStateListener } from './use-realtime';
 import type { MusicState } from '@workspace/api-zod';
+import { useAppStore } from '@/store/use-app-store';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -16,7 +17,7 @@ export const MUSIC_DEFAULT_STATE: MusicState = {
 
 export function useMusicState(voiceChannelId: string | null) {
   const [musicState, setMusicState] = useState<MusicState>(MUSIC_DEFAULT_STATE);
-  const [musicVolume, setMusicVolume] = useState(100);
+  const { musicVolume, setMusicVolume } = useAppStore();
   const [localError, setLocalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
