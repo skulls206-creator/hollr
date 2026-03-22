@@ -72,10 +72,28 @@ function Router() {
   );
 }
 
+const THEME_BAR_COLORS: Record<string, string> = {
+  midnight: '#0A0D14',
+  abyss:    '#060710',
+  slate:    '#222426',
+  forest:   '#050D07',
+  light:    '#f2f3f5',
+};
+
 function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { theme } = useAppStore();
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+
+    // Keep the OS title bar / PWA chrome in sync with the active theme
+    const color = THEME_BAR_COLORS[theme] ?? '#0A0D14';
+    let meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (!meta) {
+      meta = document.createElement('meta') as HTMLMetaElement;
+      meta.name = 'theme-color';
+      document.head.appendChild(meta);
+    }
+    meta.content = color;
   }, [theme]);
   return <>{children}</>;
 }
