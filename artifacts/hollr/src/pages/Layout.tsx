@@ -128,7 +128,7 @@ export function Layout() {
         </div>
 
         {/* ── Middle column — music bar + chat ── */}
-        <div className={`flex flex-col flex-1 min-w-0 ${layoutMode === 'dock' ? 'pb-[64px]' : ''}`}>
+        <div className="flex flex-col flex-1 min-w-0">
           {/*
             Music bar lives here — spans only the chat column,
             NOT the left or right sidebars.
@@ -183,16 +183,14 @@ export function Layout() {
         )}
       </div>
 
-      {/* Dock bar — fixed overlay at bottom so sidebars fill full height */}
+      {/* Dock bar — always at the bottom in dock mode */}
       {layoutMode === 'dock' && (
-        <>
-          <div className="fixed bottom-2 left-1/2 -translate-x-1/2 z-50 overflow-visible">
-            <DockBar />
-          </div>
-          <div className="fixed bottom-2 left-4 z-50">
+        <div className="relative flex items-end justify-center shrink-0 px-4 pb-2 pt-0 overflow-visible">
+          <div className="absolute inset-y-0 left-4 flex items-center z-10">
             <DmFab />
           </div>
-        </>
+          <DockBar />
+        </div>
       )}
 
       {/* Modals */}

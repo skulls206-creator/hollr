@@ -469,7 +469,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
       </div>
 
       {/* Composer */}
-      <div className="px-4 pb-6 pt-2 bg-surface-3">
+      <div className="px-4 pb-2 pt-2 bg-surface-3">
         <div className="bg-[#383A40] rounded-lg flex items-end px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50 relative overflow-visible">
           {isUploading && (
             <div
