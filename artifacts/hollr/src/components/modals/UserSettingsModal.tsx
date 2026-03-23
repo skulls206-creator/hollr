@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
@@ -172,6 +172,14 @@ export function UserSettingsModal() {
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailMsg, setEmailMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const [inputDevices, setInputDevices] = useState<AudioDevice[]>([]);
   const [outputDevices, setOutputDevices] = useState<AudioDevice[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
@@ -280,6 +288,33 @@ export function UserSettingsModal() {
       setEmailMsg({ type: 'error', text: 'Network error, please try again' });
     } finally {
       setEmailSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPwMsg(null);
+    if (!currentPw) { setPwMsg({ type: 'error', text: 'Enter your current password' }); return; }
+    if (newPw.length < 8) { setPwMsg({ type: 'error', text: 'New password must be at least 8 characters' }); return; }
+    if (newPw !== confirmPw) { setPwMsg({ type: 'error', text: 'New passwords do not match' }); return; }
+    setPwSaving(true);
+    try {
+      const res = await fetch('/api/auth/password', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPwMsg({ type: 'error', text: data.error ?? 'Failed to change password' });
+      } else {
+        setPwMsg({ type: 'success', text: 'Password changed successfully' });
+        setCurrentPw(''); setNewPw(''); setConfirmPw('');
+      }
+    } catch {
+      setPwMsg({ type: 'error', text: 'Network error, please try again' });
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -445,6 +480,67 @@ export function UserSettingsModal() {
                 {emailMsg && (
                   <p className={cn('text-xs px-2 py-1 rounded', emailMsg.type === 'success' ? 'text-emerald-400' : 'text-destructive')}>
                     {emailMsg.text}
+                  </p>
+                )}
+              </div>
+
+              {/* Change Password */}
+              <div className="flex flex-col gap-2">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                  <KeyRound size={13} /> Change Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    type={showCurrentPw ? 'text' : 'password'}
+                    value={currentPw}
+                    onChange={(e) => { setCurrentPw(e.target.value); setPwMsg(null); }}
+                    placeholder="Current password"
+                    className="bg-surface-0 border-border/50 focus:border-primary pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPw(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showCurrentPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    type={showNewPw ? 'text' : 'password'}
+                    value={newPw}
+                    onChange={(e) => { setNewPw(e.target.value); setPwMsg(null); }}
+                    placeholder="New password (min 8 chars)"
+                    className="bg-surface-0 border-border/50 focus:border-primary pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPw(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showNewPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={confirmPw}
+                    onChange={(e) => { setConfirmPw(e.target.value); setPwMsg(null); }}
+                    placeholder="Confirm new password"
+                    className="bg-surface-0 border-border/50 focus:border-primary flex-1"
+                  />
+                  <Button
+                    onClick={handleChangePassword}
+                    disabled={pwSaving || !currentPw || !newPw || !confirmPw}
+                    variant="outline"
+                    className="shrink-0"
+                  >
+                    {pwSaving ? <Loader2 size={14} className="animate-spin" /> : 'Update'}
+                  </Button>
+                </div>
+                {pwMsg && (
+                  <p className={cn('text-xs px-2 py-1 rounded', pwMsg.type === 'success' ? 'text-emerald-400' : 'text-destructive')}>
+                    {pwMsg.text}
                   </p>
                 )}
               </div>

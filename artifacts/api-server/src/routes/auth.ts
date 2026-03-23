@@ -224,6 +224,48 @@ router.patch("/auth/email", async (req: Request, res: Response) => {
   res.json({ email: normalizedEmail });
 });
 
+// Authenticated users can change their password
+router.patch("/auth/password", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const { currentPassword, newPassword } = req.body ?? {};
+
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+    res.status(400).json({ error: "currentPassword and newPassword are required" });
+    return;
+  }
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: "New password must be at least 8 characters" });
+    return;
+  }
+
+  const user = await db.query.usersTable.findFirst({
+    where: eq(usersTable.id, req.user.id),
+  });
+
+  if (!user?.passwordHash) {
+    res.status(400).json({ error: "Account has no password set" });
+    return;
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+
+  const hash = await bcrypt.hash(newPassword, 12);
+  await db
+    .update(usersTable)
+    .set({ passwordHash: hash, updatedAt: new Date() })
+    .where(eq(usersTable.id, req.user.id));
+
+  res.json({ success: true });
+});
+
 // ── POST /mobile-auth/logout (kept for mobile compat) ────────────────────────
 router.post("/mobile-auth/logout", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
