@@ -439,8 +439,7 @@ export function DockBar() {
     >
       <div className="flex items-end justify-center w-full select-none">
         <motion.div
-          onMouseMove={(e) => { if (!isTouchDevice.current) mouseX.set(e.clientX); }}
-          onMouseLeave={() => { mouseX.set(Infinity); }}
+          onPointerMove={(e) => { if (e.pointerType === 'mouse') mouseX.set(e.clientX); }}
           onPointerLeave={() => { mouseX.set(Infinity); }}
           onPointerUp={() => { mouseX.set(Infinity); }}
           onTouchEnd={() => { mouseX.set(Infinity); }}
