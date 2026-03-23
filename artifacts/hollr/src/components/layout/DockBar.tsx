@@ -532,6 +532,8 @@ export function DockBar() {
               overflowY: 'clip',
               paddingTop: '56px',
               marginTop: '-56px',
+              paddingBottom: '8px',
+              marginBottom: '-8px',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch' as any,
