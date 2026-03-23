@@ -84,7 +84,7 @@ export const KHURK_APPS: KhurkApp[] = [
     id: 'ballpoint',
     name: 'Ballpoint.one',
     tagline: 'Private Notes',
-    url: 'https://ballpoint.one',
+    url: 'https://ballpoint.khurk.services',
     imageSrc: gaslessImg,
     gradient: ['#2a006e', '#7b2fff'],
   },
