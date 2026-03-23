@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
 import { MessageSquare, Shield, Lock, Eye, EyeOff, Loader2, User, KeyRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,6 +8,7 @@ type Mode = 'login' | 'signup';
 
 export function Login() {
   const { setAuthUser } = useAuth();
+  const [, navigate] = useLocation();
 
   const [mode, setMode] = useState<Mode>('login');
   const [identifier, setIdentifier] = useState('');   // username or email (login)
@@ -48,10 +50,10 @@ export function Login() {
         return;
       }
 
-      // Update auth state directly from the response body — this transitions
-      // the app to /app immediately without needing a page reload or relying
-      // on the cookie being forwarded by the browser.
+      // Set auth state immediately so the app can render without waiting for
+      // a cookie round-trip, then navigate to /app so RequireAuth mounts fresh.
       setAuthUser({ id: data.id, username: data.username, email: data.email ?? null });
+      navigate('/app');
     } catch {
       setError('Network error — please try again');
     } finally {

@@ -32,7 +32,14 @@ export async function getSession(sid: string): Promise<SessionData | null> {
     return null;
   }
 
-  return row.sess as unknown as SessionData;
+  // Defensively handle both parsed-object (JSONB) and raw JSON-string (TEXT)
+  // column types — production DB may differ from the declared schema.
+  let sess = row.sess as unknown;
+  if (typeof sess === "string") {
+    try { sess = JSON.parse(sess); } catch { return null; }
+  }
+
+  return sess as SessionData;
 }
 
 export async function updateSession(
