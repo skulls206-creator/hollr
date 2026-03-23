@@ -212,7 +212,7 @@ export function Layout() {
       {layoutMode === 'dock' && (
         <div
           className="relative flex items-end justify-center shrink-0 px-4 pt-2 overflow-visible z-50"
-          style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}
+          style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))', pointerEvents: 'none' }}
         >
           <DockBar />
         </div>
