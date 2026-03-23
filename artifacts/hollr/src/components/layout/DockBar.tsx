@@ -103,7 +103,7 @@ function DockItem({
             transition: dragTransition,
             opacity: isDragging ? 0 : 1,
           }}
-          className="relative shrink-0 flex items-center justify-center touch-none"
+          className="relative shrink-0 flex items-center justify-center"
           {...(dragListeners as any)}
           {...(dragAttributes as any)}
         >
@@ -344,10 +344,12 @@ export function DockBar() {
     setEntries([...savedFiltered, ...newEntries]);
   }, [servers, visibleApps]);
 
-  // dnd sensors — mouse needs 5px movement to start; touch needs 250ms long-press
+  // dnd sensors — mouse: 5px movement; touch: 600ms long-press (fires AFTER the
+  // native contextmenu event at ~500ms so they never clash), 10px tolerance so
+  // a finger wiggle during the hold doesn't cancel the drag
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 600, tolerance: 10 } }),
   );
 
   const [activeEntry, setActiveEntry] = useState<DockEntry | null>(null);
@@ -489,15 +491,18 @@ export function DockBar() {
   const hasAppSeparator = appEntries.length > 0 && serverEntries.length > 0;
 
   return (
-    <div
-      className="flex items-end justify-center w-full select-none"
-      onClick={() => startMenuOpen && setStartMenuOpen(false)}
+    // DndContext is the single root. The DragOverlay uses a portal so it
+    // renders at document.body regardless of where it sits in the JSX tree —
+    // Framer Motion's CSS transform on the dock pill won't displace it.
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
     >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
+      <div
+        className="flex items-end justify-center w-full select-none"
+        onClick={() => startMenuOpen && setStartMenuOpen(false)}
       >
         <motion.div
           onMouseMove={(e) => { mouseX.set(e.clientX); }}
@@ -621,12 +626,13 @@ export function DockBar() {
             )}
           </div>
         </motion.div>
+      </div>
 
-        {/* ── DragOverlay: renders into document.body — no clipping ever ── */}
-        <DragOverlay dropAnimation={{ duration: 180, easing: 'ease' }}>
-          {renderOverlayContent()}
-        </DragOverlay>
-      </DndContext>
-    </div>
+      {/* DragOverlay is inside DndContext but outside the animated motion.div
+          so Framer Motion's CSS transform never displaces the ghost position */}
+      <DragOverlay dropAnimation={{ duration: 180, easing: 'ease' }}>
+        {renderOverlayContent()}
+      </DragOverlay>
+    </DndContext>
   );
 }
