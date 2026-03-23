@@ -280,7 +280,7 @@ export function DockBar() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="relative flex items-end bg-background/70 backdrop-blur-2xl border border-border/30 shadow-2xl shadow-black/30 rounded-2xl px-3 py-2.5"
+        className="relative flex items-end bg-background/70 backdrop-blur-2xl border border-border/30 shadow-2xl shadow-black/30 rounded-2xl px-4 py-2.5"
         style={{ overflow: 'visible', maxWidth: 'calc(100vw - 2rem)' }}
       >
         {/* ── hollr start-menu button (leftmost, permanent, NOT in scroll area) ── */}
@@ -334,7 +334,7 @@ export function DockBar() {
               onClick={() => { setActiveServer(null); setStartMenuOpen(false); }}
               whileTap={{ scale: 0.92 }}
               style={{ width: ICON_BASE, height: ICON_BASE }}
-              className="relative shrink-0 flex items-center justify-center ml-1"
+              className="relative shrink-0 flex items-center justify-center ml-2"
             >
               <div
                 className={cn(
@@ -363,7 +363,7 @@ export function DockBar() {
 
         {/* ── Scrollable area: servers + add + KHURK apps ── */}
         <div
-          className="flex items-end gap-1.5 min-w-0 [&::-webkit-scrollbar]:hidden"
+          className="flex items-end gap-3 min-w-0 [&::-webkit-scrollbar]:hidden"
           style={{
             overflowX: 'auto',
             overflowY: 'visible',
