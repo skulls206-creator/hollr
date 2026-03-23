@@ -363,7 +363,7 @@ export function UserSettingsModal() {
         </div>
 
         {/* Scrollable tab content */}
-        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4 no-scrollbar">
+        <div className="flex-1 overflow-y-auto px-5 pb-5 pt-3 no-scrollbar">
 
         {/* Profile tab */}
         {tab === 'profile' && (
@@ -372,7 +372,7 @@ export function UserSettingsModal() {
               <Loader2 size={24} className="animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-3.5">
               <ImageCropUploader
                 current={avatarUrl}
                 shape="circle"
@@ -438,10 +438,20 @@ export function UserSettingsModal() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-1">
-                <Button variant="ghost" onClick={() => setUserSettingsModalOpen(false)}>Cancel</Button>
-                <Button onClick={handleSave} disabled={updateProfile.isPending}>
-                  {updateProfile.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
+              <div className="grid grid-cols-2 gap-2.5">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setUserSettingsModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="w-full"
+                  onClick={handleSave}
+                  disabled={updateProfile.isPending}
+                >
+                  {updateProfile.isPending && <Loader2 size={14} className="animate-spin mr-1.5" />}
                   Save Changes
                 </Button>
               </div>
