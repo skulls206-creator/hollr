@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
-  Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff,
+  Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
+  Volume1, VolumeOff,
 } from 'lucide-react';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { usePwaInstall } from '@/hooks/use-pwa-install';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { useAppStore } from '@/store/use-app-store';
@@ -107,6 +109,9 @@ export function ChannelSidebar() {
     qc.invalidateQueries({ queryKey: ['unread', activeServerId] });
   };
 
+  const { show: showMenu } = useContextMenu();
+  const { openProfileCard } = useAppStore();
+
   const isOwnerOrAdmin = server?.ownerId === user?.id || false;
 
   const startEditChannel = (channel: Channel, e: React.MouseEvent) => {
@@ -148,6 +153,80 @@ export function ChannelSidebar() {
     );
   };
 
+  const handleVoiceChannelContextMenu = (e: React.MouseEvent, channel: Channel) => {
+    e.preventDefault();
+    const isConnected = voiceConnection.status !== 'disconnected' && voiceConnection.channelId === channel.id;
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      actions: [
+        {
+          id: 'join-leave',
+          label: isConnected ? 'Leave Voice' : 'Join Voice',
+          icon: isConnected ? <PhoneOff size={14} /> : <PhoneCall size={14} />,
+          onClick: () => isConnected ? leaveVoice() : joinVoice(channel.id),
+        },
+        {
+          id: 'copy-name',
+          label: 'Copy Channel Name',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(channel.name),
+        },
+        {
+          id: 'rename',
+          label: 'Rename Channel',
+          icon: <Pencil size={14} />,
+          onClick: () => { setEditingChannelId(channel.id); setEditChannelName(channel.name); },
+          disabled: !isOwnerOrAdmin,
+          dividerBefore: true,
+        },
+        {
+          id: 'delete',
+          label: 'Delete Channel',
+          icon: <Trash2 size={14} />,
+          onClick: () => handleDeleteChannel(channel, { stopPropagation: () => {} } as any),
+          danger: true,
+          disabled: !isOwnerOrAdmin,
+        },
+      ],
+    });
+  };
+
+  const handleDmContextMenu = (e: React.MouseEvent, thread: any, other: any) => {
+    e.preventDefault();
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      actions: [
+        {
+          id: 'open',
+          label: 'Open DM',
+          icon: <MessageSquare size={14} />,
+          onClick: () => { setActiveDmThread(thread.id); clearDmUnreadCount(thread.id); },
+        },
+        {
+          id: 'view-profile',
+          label: 'View Profile',
+          icon: <User size={14} />,
+          onClick: () => openProfileCard({ userId: other.id, position: { x: e.clientX, y: e.clientY } }),
+        },
+        {
+          id: 'mark-read',
+          label: 'Mark as Read',
+          icon: <Check size={14} />,
+          onClick: () => clearDmUnreadCount(thread.id),
+          dividerBefore: true,
+        },
+        {
+          id: 'copy-username',
+          label: 'Copy Username',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(other.username || other.displayName || ''),
+        },
+      ],
+    });
+  };
+
   if (!activeServerId) {
     return (
       <div className="w-[240px] bg-surface-1 shrink-0 flex flex-col h-full border-r border-border/5">
@@ -171,6 +250,7 @@ export function ChannelSidebar() {
               <button
                 key={thread.id}
                 onClick={() => { setActiveDmThread(thread.id); clearDmUnreadCount(thread.id); }}
+                onContextMenu={e => handleDmContextMenu(e, thread, other)}
                 className={cn(
                   'w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
                   activeDmThreadId === thread.id
@@ -409,7 +489,9 @@ export function ChannelSidebar() {
               const isLive = channelUsers.length > 0;
               return (
                 <div key={channel.id}>
-                  <div className={cn(
+                  <div
+                    onContextMenu={e => handleVoiceChannelContextMenu(e, channel)}
+                    className={cn(
                     'group/vch flex items-center px-2 py-1.5 rounded-md transition-colors',
                     isConnected
                       ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
@@ -963,6 +1045,66 @@ function VoiceSidebarUser({
   const [open, setOpen] = useState(false);
   const [dmLoading, setDmLoading] = useState(false);
   const qc = useQueryClient();
+  const { show: showMenu } = useContextMenu();
+  const { openProfileCard } = useAppStore();
+
+  const handleVoiceUserContextMenu = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const actions: any[] = [];
+
+    if (!isSelf) {
+      actions.push(
+        {
+          id: 'view-profile',
+          label: 'View Profile',
+          icon: <User size={14} />,
+          onClick: () => openProfileCard({ userId: u.userId, position: { x: e.clientX, y: e.clientY } }),
+        },
+        {
+          id: 'message',
+          label: 'Send Message',
+          icon: <MessageSquare size={14} />,
+          onClick: () => handleDm(),
+        },
+        {
+          id: 'mention',
+          label: 'Mention in Chat',
+          icon: <AtSign size={14} />,
+          onClick: () => onMention(),
+        },
+        {
+          id: 'copy-username',
+          label: 'Copy Username',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(u.username || u.displayName || ''),
+          dividerBefore: true,
+        },
+        {
+          id: 'vol-up',
+          label: `Volume Up (${Math.min(200, Math.round(volume * 100) + 25)}%)`,
+          icon: <Volume1 size={14} />,
+          onClick: () => onVolumeChange(Math.min(2, volume + 0.25)),
+          dividerBefore: true,
+        },
+        {
+          id: 'vol-down',
+          label: `Volume Down (${Math.max(0, Math.round(volume * 100) - 25)}%)`,
+          icon: <VolumeOff size={14} />,
+          onClick: () => onVolumeChange(Math.max(0, volume - 0.25)),
+        },
+      );
+    } else {
+      actions.push({
+        id: 'copy-username',
+        label: 'Copy Username',
+        icon: <Copy size={14} />,
+        onClick: () => navigator.clipboard.writeText(u.username || u.displayName || ''),
+      });
+    }
+
+    showMenu({ x: e.clientX, y: e.clientY, actions });
+  };
 
   const handleDm = async () => {
     if (isSelf || dmLoading) return;
@@ -999,7 +1141,10 @@ function VoiceSidebarUser({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-white/5 transition-colors group/vu">
+        <div
+          onContextMenu={handleVoiceUserContextMenu}
+          className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-white/5 transition-colors group/vu"
+        >
           <div className={cn(
             'relative shrink-0 rounded-full transition-all duration-150',
             u.speaking
