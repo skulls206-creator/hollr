@@ -1,14 +1,130 @@
-import { Plus, MessageSquare } from 'lucide-react';
+import { Plus, MessageSquare, UserPlus, Settings, LogOut, Copy, Bell, Hash } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListMyServers } from '@workspace/api-client-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn, getInitials } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { useAuth } from '@workspace/replit-auth-web';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { useToast } from '@/hooks/use-toast';
+
+const BASE = import.meta.env.BASE_URL;
 
 export function ServerSidebar() {
-  const { activeServerId, setActiveServer, setActiveDmThread, setCreateServerModalOpen, dmUnreadCounts } = useAppStore();
+  const {
+    activeServerId, setActiveServer, setActiveDmThread, setCreateServerModalOpen,
+    dmUnreadCounts, setInviteModalOpen, setServerSettingsModalOpen,
+  } = useAppStore();
   const { data: servers = [] } = useListMyServers();
+  const { user } = useAuth();
+  const { show: showMenu } = useContextMenu();
+  const { toast } = useToast();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
+
+  const leaveServer = async (serverId: string, serverName: string) => {
+    if (!confirm(`Leave "${serverName}"? You can rejoin later if invited.`)) return;
+    try {
+      const res = await fetch(`${BASE}api/servers/${serverId}/leave`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to leave server');
+      if (activeServerId === serverId) setActiveServer(null);
+      toast({ title: `Left ${serverName}` });
+    } catch {
+      toast({ title: 'Could not leave server', variant: 'destructive' });
+    }
+  };
+
+  const handleServerContextMenu = (e: React.MouseEvent, server: any) => {
+    e.preventDefault();
+    const isOwner = server.ownerId === user?.id;
+
+    const actions: any[] = [
+      {
+        id: 'mark-home',
+        label: server.id === activeServerId ? 'Currently Viewing' : 'Go to Server',
+        icon: <Hash size={14} />,
+        onClick: () => setActiveServer(server.id),
+        disabled: server.id === activeServerId,
+      },
+      {
+        id: 'invite',
+        label: 'Invite People',
+        icon: <UserPlus size={14} />,
+        onClick: () => {
+          setActiveServer(server.id);
+          setInviteModalOpen(true);
+        },
+        dividerBefore: true,
+      },
+      {
+        id: 'copy-name',
+        label: 'Copy Server Name',
+        icon: <Copy size={14} />,
+        onClick: () => navigator.clipboard.writeText(server.name),
+      },
+      {
+        id: 'copy-id',
+        label: 'Copy Server ID',
+        icon: <Copy size={14} />,
+        onClick: () => navigator.clipboard.writeText(server.id),
+      },
+    ];
+
+    if (isOwner) {
+      actions.push({
+        id: 'settings',
+        label: 'Server Settings',
+        icon: <Settings size={14} />,
+        onClick: () => {
+          setActiveServer(server.id);
+          setServerSettingsModalOpen(true);
+        },
+        dividerBefore: true,
+      });
+    }
+
+    if (!isOwner) {
+      actions.push({
+        id: 'leave',
+        label: 'Leave Server',
+        icon: <LogOut size={14} />,
+        onClick: () => leaveServer(server.id, server.name),
+        danger: true,
+        dividerBefore: true,
+      });
+    }
+
+    showMenu({ x: e.clientX, y: e.clientY, actions });
+  };
+
+  const handleDmContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      actions: [
+        {
+          id: 'open-dms',
+          label: 'Open Direct Messages',
+          icon: <MessageSquare size={14} />,
+          onClick: () => setActiveServer(null),
+        },
+        {
+          id: 'copy',
+          label: 'Mark All DMs Read',
+          icon: <Bell size={14} />,
+          onClick: () => {
+            Object.keys(dmUnreadCounts).forEach(id => {
+              useAppStore.getState().clearDmUnreadCount(id);
+            });
+          },
+          dividerBefore: true,
+        },
+      ],
+    });
+  };
 
   return (
     <div className="w-[72px] bg-surface-0 shrink-0 flex flex-col items-center py-3 gap-2 overflow-y-auto overflow-x-hidden no-scrollbar border-r border-border/10 z-20">
@@ -17,9 +133,8 @@ export function ServerSidebar() {
       <Tooltip>
         <TooltipTrigger asChild>
           <button
-            onClick={() => {
-              setActiveServer(null);
-            }}
+            onClick={() => setActiveServer(null)}
+            onContextMenu={handleDmContextMenu}
             className="relative group flex items-center justify-center w-full h-12"
           >
             <div className={cn(
@@ -50,9 +165,11 @@ export function ServerSidebar() {
       {servers.map((server) => (
         <Tooltip key={server.id}>
           <TooltipTrigger asChild>
-            <button
+            <motion.button
               onClick={() => setActiveServer(server.id)}
+              onContextMenu={(e) => handleServerContextMenu(e, server)}
               className="relative group flex items-center justify-center w-full h-12"
+              whileTap={{ scale: 0.92 }}
             >
               <div className={cn(
                 "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
@@ -70,7 +187,7 @@ export function ServerSidebar() {
                   <span className="font-medium text-lg tracking-wider">{getInitials(server.name)}</span>
                 )}
               </div>
-            </button>
+            </motion.button>
           </TooltipTrigger>
           <TooltipContent side="right" className="font-semibold ml-2">{server.name}</TooltipContent>
         </Tooltip>
@@ -90,8 +207,6 @@ export function ServerSidebar() {
         </TooltipTrigger>
         <TooltipContent side="right" className="font-semibold ml-2">Add a Server</TooltipContent>
       </Tooltip>
-
-
     </div>
   );
 }

@@ -1,17 +1,14 @@
 import { useState } from 'react';
-import { useListServerMembers, getListServerMembersQueryKey } from '@workspace/api-client-react';
+import { useListServerMembers, getListServerMembersQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
-import { Crown, ShieldCheck, MoreVertical, UserX, Ban, Loader2 } from 'lucide-react';
+import { Crown, ShieldCheck, UserX, Ban, Loader2, Copy, MessageSquare, AtSign, User, ShieldBan } from 'lucide-react';
 import type { Member } from '@workspace/api-client-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -22,6 +19,12 @@ function statusColor(status: string) {
     case 'dnd': return 'bg-destructive';
     default: return 'bg-muted-foreground/40';
   }
+}
+
+function roleLabel(role: string) {
+  if (role === 'owner') return 'Server Owner';
+  if (role === 'admin') return 'Admin';
+  return 'Member';
 }
 
 function MemberRow({
@@ -35,11 +38,12 @@ function MemberRow({
   canModerate: boolean;
   actorRole: string;
 }) {
-  const { openProfileCard } = useAppStore();
+  const { openProfileCard, setActiveDmThread, triggerMention } = useAppStore();
   const { user: me } = useAuth();
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { show: showMenu } = useContextMenu();
   const isOnline = member.user.status !== 'offline';
   const isSelf = member.userId === me?.id;
 
@@ -56,6 +60,27 @@ function MemberRow({
       role: member.role,
       position: { x: e.clientX, y: e.clientY },
     });
+  };
+
+  const openDm = async () => {
+    if (isSelf) return;
+    try {
+      const res = await fetch(`${BASE}api/dms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId: member.userId }),
+      });
+      if (!res.ok) throw new Error('Failed to open DM');
+      const thread = await res.json();
+      qc.setQueryData(getListDmThreadsQueryKey(), (old: any[]) => {
+        const existing = (old || []).filter((t: any) => t.id !== thread.id);
+        return [...existing, thread];
+      });
+      setActiveDmThread(thread.id);
+    } catch {
+      toast({ title: 'Could not open DM', variant: 'destructive' });
+    }
   };
 
   const doAction = async (action: 'kick' | 'ban') => {
@@ -79,8 +104,95 @@ function MemberRow({
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const actions: any[] = [
+      {
+        id: 'view-profile',
+        label: 'View Profile',
+        icon: <User size={14} />,
+        onClick: () => openProfileCard({
+          userId: member.userId,
+          joinedAt: member.joinedAt,
+          role: member.role,
+          position: { x: e.clientX, y: e.clientY },
+        }),
+      },
+    ];
+
+    if (!isSelf) {
+      actions.push(
+        {
+          id: 'message',
+          label: 'Message',
+          icon: <MessageSquare size={14} />,
+          onClick: openDm,
+        },
+        {
+          id: 'mention',
+          label: 'Mention in Chat',
+          icon: <AtSign size={14} />,
+          onClick: () => triggerMention(member.user.displayName || member.user.username),
+        },
+      );
+    }
+
+    actions.push(
+      {
+        id: 'copy-username',
+        label: 'Copy Username',
+        icon: <Copy size={14} />,
+        onClick: () => navigator.clipboard.writeText(member.user.username || ''),
+        dividerBefore: true,
+      },
+      {
+        id: 'copy-id',
+        label: 'Copy User ID',
+        icon: <Copy size={14} />,
+        onClick: () => navigator.clipboard.writeText(member.userId),
+      },
+      {
+        id: 'role-label',
+        label: roleLabel(member.role),
+        icon: member.role === 'owner'
+          ? <Crown size={14} />
+          : member.role === 'admin'
+            ? <ShieldCheck size={14} />
+            : <User size={14} />,
+        onClick: () => {},
+        disabled: true,
+        dividerBefore: true,
+      },
+    );
+
+    if (canActOn) {
+      actions.push(
+        {
+          id: 'kick',
+          label: 'Kick Member',
+          icon: <UserX size={14} />,
+          onClick: () => doAction('kick'),
+          danger: true,
+          dividerBefore: true,
+        },
+        {
+          id: 'ban',
+          label: 'Ban Member',
+          icon: <ShieldBan size={14} />,
+          onClick: () => doAction('ban'),
+          danger: true,
+        },
+      );
+    }
+
+    showMenu({ x: e.clientX, y: e.clientY, actions });
+  };
+
   return (
-    <div className={`flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-secondary/50 transition-colors group ${!isOnline ? 'opacity-50' : ''}`}>
+    <div
+      onContextMenu={handleContextMenu}
+      className={`flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-secondary/50 transition-colors group ${!isOnline ? 'opacity-50' : ''}`}
+    >
       <button
         onClick={handleClick}
         className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
@@ -92,7 +204,7 @@ function MemberRow({
               {getInitials(member.user.displayName || member.user.username)}
             </AvatarFallback>
           </Avatar>
-          <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[2.5px] border-[#2B2D31] ${statusColor(member.user.status)}`} />
+          <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[2.5px] border-[#2B2D31] ${statusColor(member.user.status ?? '')}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
@@ -109,34 +221,14 @@ function MemberRow({
       </button>
 
       {canActOn && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded transition-all shrink-0"
-              onClick={(e) => e.stopPropagation()}
-              disabled={busy}
-            >
-              {busy ? <Loader2 size={14} className="animate-spin" /> : <MoreVertical size={14} />}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40 bg-[#111214] border-border/50">
-            <DropdownMenuItem
-              onClick={() => doAction('kick')}
-              className="text-sm cursor-pointer gap-2"
-            >
-              <UserX size={14} className="text-muted-foreground" />
-              Kick member
-            </DropdownMenuItem>
-            <DropdownMenuSeparator className="bg-border/30" />
-            <DropdownMenuItem
-              onClick={() => doAction('ban')}
-              className="text-sm text-destructive focus:text-destructive cursor-pointer gap-2"
-            >
-              <Ban size={14} />
-              Ban member
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <button
+          onClick={(e) => { e.stopPropagation(); handleContextMenu(e); }}
+          className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded transition-all shrink-0"
+          disabled={busy}
+          title="Member options"
+        >
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}
+        </button>
       )}
     </div>
   );
