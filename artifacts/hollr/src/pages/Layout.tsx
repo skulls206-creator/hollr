@@ -20,6 +20,9 @@ import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-clien
 import { MobileDmList } from '@/components/layout/MobileDmList';
 import { DockBar } from '@/components/layout/DockBar';
 import { NewDmModal } from '@/components/modals/NewDmModal';
+import { AppWindow } from '@/components/khurk/AppWindow';
+import { PiPWindow } from '@/components/khurk/PiPWindow';
+import { DashboardView } from '@/components/khurk/DashboardView';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { pendingNav, applyNav } from '@/lib/notification-nav';
@@ -32,6 +35,7 @@ export function Layout() {
     profileCard, closeProfileCard,
     pinnedPanelOpen, toggleMemberList,
     voiceConnection, layoutMode,
+    activeKhurkAppId, khurkPipMode, khurkDashboardOnStartup,
   } = useAppStore();
 
   const navApplied = useRef(false);
@@ -71,6 +75,12 @@ export function Layout() {
 
   const showThread = !!(threadMessageId && threadChannelId);
   const showMemberList = !!(activeServerId && memberListOpen && !showThread && !pinnedPanelOpen);
+
+  // Whether the KHURK OS AppWindow should occupy the entire center panel
+  const showAppWindow = !!(activeKhurkAppId && !khurkPipMode);
+
+  // Dashboard: shown when no active KHURK app (or in PiP), no DM, no server, and pref is on
+  const showDashboard = khurkDashboardOnStartup && !activeKhurkAppId && !activeDmThreadId && !activeServerId;
 
   return (
     /*
@@ -147,13 +157,22 @@ export function Layout() {
 
           {/* Chat + thread panel — fills remaining height */}
           <div className="flex flex-1 min-h-0 overflow-hidden relative">
-            {activeDmThreadId ? (
+
+            {/* ── KHURK OS AppWindow (highest priority) ── */}
+            {showAppWindow ? (
+              <AppWindow />
+            ) : showDashboard ? (
+              /* ── KHURK OS Dashboard ── */
+              <DashboardView />
+            ) : activeDmThreadId ? (
+              /* ── DM chat ── */
               <DmChatArea
                 threadId={activeDmThreadId}
                 recipientName={dmRecipient?.displayName || dmRecipient?.username || 'Unknown'}
                 recipientAvatar={dmRecipient?.avatarUrl}
               />
             ) : !activeServerId ? (
+              /* ── No server / DM selected ── */
               <>
                 <div className="flex md:hidden flex-1 h-full min-w-0">
                   <MobileDmList />
@@ -163,6 +182,7 @@ export function Layout() {
                 </div>
               </>
             ) : (
+              /* ── Server channel ── */
               <ChatArea />
             )}
 
@@ -197,6 +217,9 @@ export function Layout() {
           <DockBar />
         </div>
       )}
+
+      {/* ── KHURK OS Picture-in-Picture window (floats above everything) ── */}
+      <PiPWindow />
 
       {/* Modals */}
       <CreateServerModal />

@@ -135,10 +135,25 @@ export function ServerSidebar() {
     });
   };
 
+  const { setActiveKhurkAppId } = useAppStore();
+
+  const handleAppClick = (app: KhurkApp) => {
+    if (app.openMode === 'tab') {
+      window.open(app.url, '_blank', 'noopener');
+    } else {
+      setActiveKhurkAppId(app.id);
+    }
+  };
+
   const handleAppContextMenu = (e: React.MouseEvent, app: KhurkApp) => {
     e.preventDefault();
     const actions: any[] = [
-      { id: 'open', label: 'Open App', icon: <LayoutGrid size={14} />, onClick: () => window.open(app.url, '_blank', 'noopener') },
+      {
+        id: 'open',
+        label: app.openMode === 'tab' ? 'Open in New Tab' : 'Open App',
+        icon: <LayoutGrid size={14} />,
+        onClick: () => handleAppClick(app),
+      },
       { id: 'open-tab', label: 'Open in New Tab', icon: <ExternalLink size={14} />, onClick: () => window.open(app.url, '_blank', 'noopener') },
       { id: 'copy-url', label: 'Copy Link', icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText(app.url), dividerBefore: true },
       { id: 'remove', label: 'Remove from Sidebar', icon: <Trash2 size={14} />, onClick: () => dismissOne(app.id), danger: true, dividerBefore: true },
@@ -268,7 +283,7 @@ export function ServerSidebar() {
             <Tooltip key={app.id}>
               <TooltipTrigger asChild>
                 <motion.button
-                  onClick={() => window.open(app.url, '_blank', 'noopener')}
+                  onClick={() => handleAppClick(app)}
                   onContextMenu={(e) => handleAppContextMenu(e, app)}
                   className="relative group flex items-center justify-center w-full h-12"
                   whileTap={{ scale: 0.9 }}

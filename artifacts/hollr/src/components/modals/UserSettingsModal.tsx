@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail, KeyRound, Eye, EyeOff, LayoutGrid } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
@@ -155,6 +155,7 @@ export function UserSettingsModal() {
     setAudioInputDeviceId, setAudioOutputDeviceId,
     layoutMode, setLayoutMode,
     theme, setTheme,
+    khurkDashboardOnStartup, setKhurkDashboardOnStartup,
   } = useAppStore();
   const { user, logout } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
@@ -625,6 +626,39 @@ export function UserSettingsModal() {
                     <span className="text-[11px] opacity-70 leading-tight text-center">macOS-style server bar at the bottom</span>
                   </button>
                 </div>
+              </div>
+
+              {/* KHURK OS Dashboard on startup */}
+              <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border/20 bg-surface-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <LayoutGrid size={14} className="text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground leading-tight">KHURK OS Dashboard</p>
+                    <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                      Show the app launcher when no channel is open
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setKhurkDashboardOnStartup(!khurkDashboardOnStartup)}
+                  className={cn(
+                    'relative shrink-0 w-10 h-5.5 rounded-full transition-colors duration-200 focus:outline-none',
+                    khurkDashboardOnStartup ? 'bg-primary' : 'bg-border/60'
+                  )}
+                  style={{ width: 40, height: 22 }}
+                  aria-label="Toggle KHURK OS Dashboard"
+                >
+                  <span
+                    className={cn(
+                      'absolute top-0.5 left-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-transform duration-200',
+                    )}
+                    style={{
+                      width: 18,
+                      height: 18,
+                      transform: khurkDashboardOnStartup ? 'translateX(18px)' : 'translateX(0)',
+                    }}
+                  />
+                </button>
               </div>
 
               <div className="h-[1px] bg-border/30" />

@@ -81,6 +81,14 @@ interface AppState {
   // Modals (additional)
   userSettingsModalOpen: boolean;
 
+  // KHURK OS app shell
+  activeKhurkAppId: string | null;
+  setActiveKhurkAppId: (id: string | null) => void;
+  khurkPipMode: boolean;
+  setKhurkPipMode: (v: boolean) => void;
+  khurkDashboardOnStartup: boolean;
+  setKhurkDashboardOnStartup: (v: boolean) => void;
+
   // Actions
   setActiveServer: (id: string | null) => void;
   setActiveChannel: (id: string | null) => void;
@@ -215,9 +223,42 @@ export const useAppStore = create<AppState>()(
   setAudioOutputDeviceId: (id) => set({ audioOutputDeviceId: id }),
   userSettingsModalOpen: false,
 
-  setActiveServer: (id) => set({ activeServerId: id, activeDmThreadId: null, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
-  setActiveChannel: (id) => set({ activeChannelId: id, mobileSidebarOpen: false, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
-  setActiveDmThread: (id) => set({ activeDmThreadId: id, activeServerId: null, activeChannelId: null, mobileSidebarOpen: false, pinnedPanelOpen: false, threadMessageId: null, threadChannelId: null }),
+  // KHURK OS app shell state
+  activeKhurkAppId: null,
+  setActiveKhurkAppId: (id) => set({ activeKhurkAppId: id, khurkPipMode: false }),
+  khurkPipMode: false,
+  setKhurkPipMode: (v) => set({ khurkPipMode: v }),
+  khurkDashboardOnStartup: true,
+  setKhurkDashboardOnStartup: (v) => set({ khurkDashboardOnStartup: v }),
+
+  // When navigating to content (server/channel/DM), exit the full AppWindow (but
+  // preserve activeKhurkAppId in PiP mode so the floating panel stays alive).
+  setActiveServer: (id) => set((state) => ({
+    activeServerId: id,
+    activeDmThreadId: null,
+    pinnedPanelOpen: false,
+    threadMessageId: null,
+    threadChannelId: null,
+    activeKhurkAppId: state.khurkPipMode ? state.activeKhurkAppId : null,
+  })),
+  setActiveChannel: (id) => set((state) => ({
+    activeChannelId: id,
+    mobileSidebarOpen: false,
+    pinnedPanelOpen: false,
+    threadMessageId: null,
+    threadChannelId: null,
+    activeKhurkAppId: state.khurkPipMode ? state.activeKhurkAppId : null,
+  })),
+  setActiveDmThread: (id) => set((state) => ({
+    activeDmThreadId: id,
+    activeServerId: null,
+    activeChannelId: null,
+    mobileSidebarOpen: false,
+    pinnedPanelOpen: false,
+    threadMessageId: null,
+    threadChannelId: null,
+    activeKhurkAppId: state.khurkPipMode ? state.activeKhurkAppId : null,
+  })),
 
   setCreateServerModalOpen: (open) => set({ createServerModalOpen: open }),
   setCreateChannelModalOpen: (open) => set({ createChannelModalOpen: open }),
@@ -262,7 +303,6 @@ export const useAppStore = create<AppState>()(
 
   addVoiceChannelUser: (channelId, user) => set((state) => {
     const existing = state.voiceChannelUsers[channelId] ?? [];
-    // Don't duplicate
     if (existing.some(u => u.userId === user.userId)) {
       return {
         voiceChannelUsers: {
@@ -348,6 +388,7 @@ export const useAppStore = create<AppState>()(
         musicVolume: state.musicVolume,
         micGain: state.micGain,
         musicEffects: state.musicEffects,
+        khurkDashboardOnStartup: state.khurkDashboardOnStartup,
       }),
     }
   )

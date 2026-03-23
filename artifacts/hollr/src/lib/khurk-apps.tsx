@@ -16,6 +16,8 @@ export interface KhurkApp {
   /** 'cover' fills the icon (default); 'contain' shows the whole image with gradient bg */
   iconFit?: 'cover' | 'contain';
   gradient: [string, string];
+  /** 'iframe' loads the app in the center panel (default); 'tab' always opens a new browser tab */
+  openMode?: 'iframe' | 'tab';
 }
 
 // Hollr icon — rendered inline so it matches the brand
@@ -101,6 +103,14 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://onlyxmr.khurk.services',
     imageSrc: ballpointImg,
     gradient: ['#5a1a00', '#c04a00'],
+  },
+  {
+    id: 'hollr',
+    name: 'hollr.chat',
+    tagline: 'Real-time messaging & voice',
+    url: 'https://hollr.khurk.services',
+    gradient: ['#2d0a8c', '#5b21b6'],
+    openMode: 'tab',
   },
 ];
 

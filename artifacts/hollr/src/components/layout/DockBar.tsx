@@ -308,7 +308,7 @@ function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }
 // ─── Main DockBar ─────────────────────────────────────────────────────────────
 
 export function DockBar() {
-  const { activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts, setNewDmModalOpen } = useAppStore();
+  const { activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts, setNewDmModalOpen, setActiveKhurkAppId } = useAppStore();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { data: servers = [] } = useListMyServers();
   const mouseX = useMotionValue(Infinity);
@@ -378,10 +378,23 @@ export function DockBar() {
     });
   };
 
+  const handleAppClick = (app: KhurkApp) => {
+    if (app.openMode === 'tab') {
+      window.open(app.url, '_blank', 'noopener');
+    } else {
+      setActiveKhurkAppId(app.id);
+    }
+  };
+
   const handleAppContextMenu = (e: React.MouseEvent, app: KhurkApp) => {
     e.preventDefault();
     const actions: any[] = [
-      { id: 'open', label: 'Open App', icon: <LayoutGrid size={14} />, onClick: () => window.open(app.url, '_blank', 'noopener') },
+      {
+        id: 'open',
+        label: app.openMode === 'tab' ? 'Open in New Tab' : 'Open App',
+        icon: <LayoutGrid size={14} />,
+        onClick: () => handleAppClick(app),
+      },
       { id: 'open-tab', label: 'Open in New Tab', icon: <ExternalLink size={14} />, onClick: () => window.open(app.url, '_blank', 'noopener') },
       { id: 'copy-url', label: 'Copy Link', icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText(app.url), dividerBefore: true },
       { id: 'remove', label: 'Remove from Dock', icon: <Trash2 size={14} />, onClick: () => dismissOne(app.id), danger: true, dividerBefore: true },
@@ -456,7 +469,7 @@ export function DockBar() {
           mouseX={mouseX}
           label={app.name}
           sublabel={app.tagline}
-          onClick={() => window.open(app.url, '_blank', 'noopener')}
+          onClick={() => handleAppClick(app)}
           onContextMenu={(e) => handleAppContextMenu(e, app)}
         >
           <KhurkDockIcon app={app} />

@@ -1,7 +1,7 @@
 {
-  "name": "hollr.chat",
-  "short_name": "hollr",
-  "description": "The premium real-time communication platform for modern teams.",
+  "name": "KHURK OS",
+  "short_name": "KHURK OS",
+  "description": "The KHURK ecosystem — real-time chat, voice, and your favourite apps in one place.",
   "start_url": "/app",
   "scope": "/",
   "id": "/app",
@@ -42,7 +42,7 @@
     {
       "name": "Open App",
       "short_name": "App",
-      "description": "Open hollr.chat",
+      "description": "Open KHURK OS",
       "url": "/app",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
@@ -60,7 +60,7 @@
       "sizes": "1200x630",
       "type": "image/jpeg",
       "form_factor": "wide",
-      "label": "hollr.chat — real-time messaging"
+      "label": "KHURK OS — real-time messaging & your favourite apps"
     }
   ]
 }
