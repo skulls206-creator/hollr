@@ -1,4 +1,4 @@
-import { Plus, MessageSquare, UserPlus, Settings, LogOut, Copy, Bell, Hash } from 'lucide-react';
+import { Plus, MessageSquare, UserPlus, Settings, LogOut, Copy, Bell, Hash, ExternalLink, Trash2, RotateCcw, LayoutGrid } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListMyServers } from '@workspace/api-client-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -7,12 +7,52 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect, useCallback } from 'react';
+import { KHURK_APPS, type KhurkApp } from '@/lib/khurk-apps';
 
 const BASE = import.meta.env.BASE_URL;
 
+function useKhurkDismissals() {
+  const { user } = useAuth();
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  const fetchDismissed = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`${BASE}api/khurk-apps/dismissed`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setDismissed(new Set(data.dismissed ?? []));
+      }
+    } catch { /* ignore */ }
+  }, [user]);
+
+  useEffect(() => { fetchDismissed(); }, [fetchDismissed]);
+
+  const dismissOne = useCallback(async (appId: string) => {
+    setDismissed(prev => new Set([...prev, appId]));
+    await fetch(`${BASE}api/khurk-apps/dismiss/${appId}`, { method: 'POST', credentials: 'include' });
+  }, []);
+
+  const dismissAll = useCallback(async () => {
+    setDismissed(new Set(KHURK_APPS.map(a => a.id)));
+    await fetch(`${BASE}api/khurk-apps/dismiss-all`, { method: 'POST', credentials: 'include' });
+  }, []);
+
+  const restoreAll = useCallback(async () => {
+    setDismissed(new Set());
+    await fetch(`${BASE}api/khurk-apps/dismissed`, { method: 'DELETE', credentials: 'include' });
+  }, []);
+
+  const visibleApps = KHURK_APPS.filter(a => !dismissed.has(a.id));
+  const hasAnyDismissed = dismissed.size > 0;
+
+  return { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll };
+}
+
 export function ServerSidebar() {
   const {
-    activeServerId, setActiveServer, setActiveDmThread, setCreateServerModalOpen,
+    activeServerId, setActiveServer, setCreateServerModalOpen,
     dmUnreadCounts, setInviteModalOpen, setServerSettingsModalOpen,
   } = useAppStore();
   const { data: servers = [] } = useListMyServers();
@@ -20,6 +60,7 @@ export function ServerSidebar() {
   const { show: showMenu } = useContextMenu();
   const { toast } = useToast();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
+  const { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll } = useKhurkDismissals();
 
   const leaveServer = async (serverId: string, serverName: string) => {
     if (!confirm(`Leave "${serverName}"? You can rejoin later if invited.`)) return;
@@ -126,6 +167,58 @@ export function ServerSidebar() {
     });
   };
 
+  const handleAppContextMenu = (e: React.MouseEvent, app: KhurkApp) => {
+    e.preventDefault();
+    const actions: any[] = [
+      {
+        id: 'open',
+        label: 'Open App',
+        icon: <LayoutGrid size={14} />,
+        onClick: () => window.open(app.url, '_blank', 'noopener'),
+      },
+      {
+        id: 'open-tab',
+        label: 'Open in New Tab',
+        icon: <ExternalLink size={14} />,
+        onClick: () => window.open(app.url, '_blank', 'noopener'),
+      },
+      {
+        id: 'copy-url',
+        label: 'Copy Link',
+        icon: <Copy size={14} />,
+        onClick: () => navigator.clipboard.writeText(app.url),
+        dividerBefore: true,
+      },
+      {
+        id: 'remove',
+        label: 'Remove from Sidebar',
+        icon: <Trash2 size={14} />,
+        onClick: () => dismissOne(app.id),
+        danger: true,
+        dividerBefore: true,
+      },
+      {
+        id: 'remove-all',
+        label: 'Remove All KHURK Apps',
+        icon: <Trash2 size={14} />,
+        onClick: dismissAll,
+        danger: true,
+      },
+    ];
+
+    if (hasAnyDismissed) {
+      actions.push({
+        id: 'restore',
+        label: 'Restore Hidden Apps',
+        icon: <RotateCcw size={14} />,
+        onClick: restoreAll,
+        dividerBefore: true,
+      });
+    }
+
+    showMenu({ x: e.clientX, y: e.clientY, actions });
+  };
+
   return (
     <div className="w-[72px] bg-surface-0 shrink-0 flex flex-col items-center py-3 gap-2 overflow-y-auto overflow-x-hidden no-scrollbar border-r border-border/10 z-20">
       
@@ -207,6 +300,63 @@ export function ServerSidebar() {
         </TooltipTrigger>
         <TooltipContent side="right" className="font-semibold ml-2">Add a Server</TooltipContent>
       </Tooltip>
+
+      {/* KHURK Apps Section */}
+      {(visibleApps.length > 0 || hasAnyDismissed) && (
+        <>
+          <div className="w-full flex flex-col items-center gap-0.5 mt-2">
+            <div className="w-8 h-[1px] bg-border/30 rounded-full" />
+            <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/40 select-none mt-1">
+              Apps
+            </span>
+          </div>
+
+          {visibleApps.map((app) => (
+            <Tooltip key={app.id}>
+              <TooltipTrigger asChild>
+                <motion.button
+                  onClick={() => window.open(app.url, '_blank', 'noopener')}
+                  onContextMenu={(e) => handleAppContextMenu(e, app)}
+                  className="relative group flex items-center justify-center w-full h-12"
+                  whileTap={{ scale: 0.92 }}
+                >
+                  {/* No active pill — these are external links, not navigation */}
+                  <div className="absolute left-0 w-1 rounded-r-full transition-all duration-300 h-0 group-hover:h-5 bg-foreground/50 opacity-0 group-hover:opacity-100" />
+                  <div
+                    className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-sm rounded-[24px] group-hover:rounded-2xl group-hover:shadow-lg"
+                    style={{
+                      background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
+                    }}
+                  >
+                    <app.Icon />
+                  </div>
+                </motion.button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="ml-2">
+                <p className="font-semibold text-sm">{app.name}</p>
+                <p className="text-xs text-muted-foreground">{app.tagline}</p>
+              </TooltipContent>
+            </Tooltip>
+          ))}
+
+          {/* Restore button — shown only when all apps are hidden */}
+          {visibleApps.length === 0 && hasAnyDismissed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={restoreAll}
+                  className="relative group flex items-center justify-center w-12 h-12"
+                >
+                  <div className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden bg-secondary text-muted-foreground rounded-[24px] group-hover:rounded-2xl group-hover:bg-primary/20 group-hover:text-primary border border-dashed border-border/30">
+                    <RotateCcw size={18} />
+                  </div>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="font-semibold ml-2">Restore KHURK Apps</TooltipContent>
+            </Tooltip>
+          )}
+        </>
+      )}
     </div>
   );
 }

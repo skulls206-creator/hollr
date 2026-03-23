@@ -181,3 +181,13 @@ export const notificationPrefsTable = pgTable("notification_prefs", {
 
 export type PushSubscription = typeof pushSubscriptionsTable.$inferSelect;
 export type NotificationPrefs = typeof notificationPrefsTable.$inferSelect;
+
+// Tracks which KHURK ecosystem apps a user has removed from their sidebar.
+// All apps are visible by default (no row = visible). A row means hidden.
+export const khurkAppDismissalsTable = pgTable("khurk_app_dismissals", {
+  userId: varchar("user_id").notNull(),
+  appId: varchar("app_id", { length: 32 }).notNull(),
+  dismissedAt: timestamp("dismissed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.userId, t.appId] })]);
+
+export type KhurkAppDismissal = typeof khurkAppDismissalsTable.$inferSelect;
