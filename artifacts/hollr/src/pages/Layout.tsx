@@ -19,7 +19,6 @@ import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { MobileDmList } from '@/components/layout/MobileDmList';
 import { DockBar } from '@/components/layout/DockBar';
-import { DmFab } from '@/components/layout/DmFab';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { pendingNav, applyNav } from '@/lib/notification-nav';
@@ -183,12 +182,9 @@ export function Layout() {
         )}
       </div>
 
-      {/* Dock bar — always at the bottom in dock mode */}
+      {/* Dock bar — always at the bottom in dock mode, z-50 keeps it above the sliding sidebar panel */}
       {layoutMode === 'dock' && (
-        <div className="relative flex items-end justify-center shrink-0 px-4 pb-2 pt-0 overflow-visible">
-          <div className="absolute inset-y-0 left-4 flex items-center z-10">
-            <DmFab />
-          </div>
+        <div className="relative flex items-end justify-center shrink-0 px-4 pb-2 pt-0 overflow-visible z-50">
           <DockBar />
         </div>
       )}

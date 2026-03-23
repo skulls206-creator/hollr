@@ -209,7 +209,8 @@ function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }
 }
 
 export function DockBar() {
-  const { activeServerId, setActiveServer, setCreateServerModalOpen } = useAppStore();
+  const { activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts } = useAppStore();
+  const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { data: servers = [] } = useListMyServers();
   const mouseX = useMotionValue(Infinity);
   const { show: showMenu } = useContextMenu();
@@ -326,7 +327,38 @@ export function DockBar() {
           </AnimatePresence>
         </div>
 
-        {/* Thin divider between hollr and the scrollable section */}
+        {/* DM button — pinned next to hollr */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <motion.button
+              onClick={() => { setActiveServer(null); setStartMenuOpen(false); }}
+              whileTap={{ scale: 0.92 }}
+              style={{ width: ICON_BASE, height: ICON_BASE }}
+              className="relative shrink-0 flex items-center justify-center ml-1"
+            >
+              <div
+                className={cn(
+                  'w-full h-full rounded-xl overflow-hidden shadow-md flex items-center justify-center transition-all duration-200',
+                  activeServerId === null
+                    ? 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-1 ring-offset-background'
+                    : 'bg-surface-2 text-muted-foreground hover:bg-primary/20 hover:text-primary'
+                )}
+              >
+                <MessageSquare size={Math.round(ICON_BASE * 0.42)} />
+              </div>
+              {totalDmUnread > 0 && activeServerId !== null && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-destructive text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none z-10">
+                  {totalDmUnread > 99 ? '99+' : totalDmUnread}
+                </span>
+              )}
+            </motion.button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="mb-1">
+            <p className="font-bold text-xs">Direct Messages</p>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Thin divider between pinned buttons and the scrollable section */}
         <div className="w-px self-stretch mx-1.5 bg-border/40 rounded-full shrink-0" />
 
         {/* ── Scrollable area: servers + add + KHURK apps ── */}
