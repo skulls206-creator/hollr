@@ -470,7 +470,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
 
       {/* Composer */}
       <div className="px-4 pb-2 pt-2 bg-surface-3">
-        <div className="bg-[#383A40] rounded-lg flex items-end px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50 relative overflow-visible">
+        <div className="bg-[#383A40] rounded-lg flex items-center px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50 relative overflow-visible">
           {isUploading && (
             <div
               className="absolute top-0 left-0 h-1 bg-primary transition-all duration-300 ease-out rounded-t-lg"
@@ -481,7 +481,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="p-1 mr-2 mb-[2px] text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0 disabled:opacity-50"
+            className="p-1 mr-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0 disabled:opacity-50"
             title="Attach file"
           >
             <PlusCircle size={22} className="fill-muted-foreground/20" />
@@ -506,7 +506,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
             rows={1}
             style={{ height: '44px' }}
           />
-          <div className="flex items-center gap-1 ml-2 mb-[2px] shrink-0 relative">
+          <div className="flex items-center gap-1 ml-2 shrink-0 relative">
             <button
               ref={composerEmojiRef}
               onClick={() => setComposerEmojiOpen(v => !v)}

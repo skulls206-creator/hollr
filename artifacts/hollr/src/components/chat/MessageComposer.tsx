@@ -380,7 +380,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         </div>
       )}
 
-      <div className="bg-[#383A40] rounded-lg flex items-end px-4 py-2 relative overflow-visible shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
+      <div className="bg-[#383A40] rounded-lg flex items-center px-4 py-2 relative overflow-visible shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
 
         {isUploading && (
           <div className="absolute top-0 left-0 h-1 bg-primary transition-all duration-300 ease-out rounded-t-lg" style={{ width: `${uploadProgress}%` }} />
@@ -389,7 +389,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="p-1 mr-2 mb-[2px] text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0 disabled:opacity-50"
+          className="p-1 mr-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0 disabled:opacity-50"
         >
           <PlusCircle size={22} className="fill-muted-foreground/20" />
         </button>
@@ -411,7 +411,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           style={{ height: '44px' }}
         />
 
-        <div className="flex items-center gap-1 ml-2 mb-[2px] shrink-0 relative">
+        <div className="flex items-center gap-1 ml-2 shrink-0 relative">
           <button
             ref={emojiButtonRef}
             onClick={() => setEmojiPickerOpen(v => !v)}
