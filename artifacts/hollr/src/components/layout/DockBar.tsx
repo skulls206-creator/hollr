@@ -1,6 +1,24 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
 import { Plus, MessageSquare, ExternalLink, Trash2, RotateCcw, Copy, LayoutGrid, RefreshCw, Settings, HelpCircle, UserPlus, ServerIcon } from 'lucide-react';
+import {
+  DndContext,
+  DragOverlay,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  horizontalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useAppStore } from '@/store/use-app-store';
 import { useListMyServers } from '@workspace/api-client-react';
 import { cn, getInitials } from '@/lib/utils';
@@ -14,6 +32,28 @@ const MAX_SCALE = 1.7;
 const SCALE_RANGE: [number, number, number] = [0, 80, 160];
 const SCALE_OUTPUT: [number, number, number] = [MAX_SCALE, 1.3, 1.0];
 
+// ─── Types for the flat sortable list ───────────────────────────────────────
+
+type DockEntryServer = { kind: 'server'; id: string };
+type DockEntryApp = { kind: 'app'; id: string };
+type DockEntry = DockEntryServer | DockEntryApp;
+
+// ─── Order persistence ───────────────────────────────────────────────────────
+
+const LS_KEY = 'hollr:dock:order';
+
+function loadOrder(): string[] | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function saveOrder(ids: string[]) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(ids)); } catch {}
+}
+
+// ─── Magnification ───────────────────────────────────────────────────────────
+
 interface DockItemProps {
   mouseX: ReturnType<typeof useMotionValue<number>>;
   label: string;
@@ -23,9 +63,19 @@ interface DockItemProps {
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   children: React.ReactNode;
+  // dnd
+  dragListeners?: Record<string, unknown>;
+  dragAttributes?: Record<string, unknown>;
+  dragTransform?: string;
+  dragTransition?: string;
+  isDragging?: boolean;
 }
 
-function DockItem({ mouseX, label, sublabel, isActive, unreadCount, onClick, onContextMenu, children }: DockItemProps) {
+function DockItem({
+  mouseX, label, sublabel, isActive, unreadCount,
+  onClick, onContextMenu, children,
+  dragListeners, dragAttributes, dragTransform, dragTransition, isDragging,
+}: DockItemProps) {
   const ref = useRef<HTMLButtonElement>(null);
 
   const distance = useTransform(mouseX, (x: number) => {
@@ -34,7 +84,6 @@ function DockItem({ mouseX, label, sublabel, isActive, unreadCount, onClick, onC
     const { left, width } = el.getBoundingClientRect();
     return Math.abs(x - (left + width / 2));
   });
-
   const scaleRaw = useTransform(distance, SCALE_RANGE, SCALE_OUTPUT, { clamp: true });
   const scale = useSpring(scaleRaw, { mass: 0.1, stiffness: 180, damping: 14 });
 
@@ -45,8 +94,18 @@ function DockItem({ mouseX, label, sublabel, isActive, unreadCount, onClick, onC
           ref={ref}
           onClick={onClick}
           onContextMenu={onContextMenu}
-          style={{ scale, transformOrigin: 'bottom center', width: ICON_BASE, height: ICON_BASE }}
-          className="relative shrink-0 flex items-center justify-center"
+          style={{
+            scale: isDragging ? 1 : scale,
+            transformOrigin: 'bottom center',
+            width: ICON_BASE,
+            height: ICON_BASE,
+            transform: dragTransform,
+            transition: dragTransition,
+            opacity: isDragging ? 0 : 1,
+          }}
+          className="relative shrink-0 flex items-center justify-center touch-none"
+          {...(dragListeners as any)}
+          {...(dragAttributes as any)}
         >
           <div className={cn(
             'w-full h-full flex items-center justify-center rounded-xl overflow-hidden transition-all duration-200',
@@ -72,6 +131,47 @@ function DockItem({ mouseX, label, sublabel, isActive, unreadCount, onClick, onC
   );
 }
 
+// ─── Sortable wrapper ─────────────────────────────────────────────────────────
+
+function SortableDockItem(props: Omit<DockItemProps, 'dragListeners' | 'dragAttributes' | 'dragTransform' | 'dragTransition' | 'isDragging'> & { id: string }) {
+  const { id, ...rest } = props;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  return (
+    <div ref={setNodeRef} style={{ display: 'contents' }}>
+      <DockItem
+        {...rest}
+        dragListeners={listeners}
+        dragAttributes={attributes}
+        dragTransform={CSS.Transform.toString(transform)}
+        dragTransition={transition ?? undefined}
+        isDragging={isDragging}
+      />
+    </div>
+  );
+}
+
+// ─── Standalone overlay ghost (no magnification, just floats) ────────────────
+
+function OverlayIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{ width: ICON_BASE, height: ICON_BASE }}
+      className="relative flex items-center justify-center"
+    >
+      <motion.div
+        className="w-full h-full rounded-xl overflow-hidden shadow-2xl shadow-black/60 ring-2 ring-white/20"
+        initial={{ scale: 1.08 }}
+        animate={{ scale: 1.08 }}
+      >
+        {children}
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── KhurkDockIcon ────────────────────────────────────────────────────────────
+
 function KhurkDockIcon({ app }: { app: KhurkApp }) {
   const fit = app.iconFit ?? 'cover';
   return (
@@ -92,7 +192,8 @@ function KhurkDockIcon({ app }: { app: KhurkApp }) {
   );
 }
 
-// ── Mini start-menu panel shown on left-click of the hollr icon ──
+// ─── Start menu ───────────────────────────────────────────────────────────────
+
 function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }) {
   const {
     setActiveServer, setCreateServerModalOpen, setJoinServerModalOpen,
@@ -111,7 +212,6 @@ function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }
         className="absolute bottom-full left-0 mb-3 w-56 bg-surface-1/95 backdrop-blur-xl border border-border/40 shadow-2xl shadow-black/40 rounded-2xl overflow-hidden z-50"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div
           className="flex items-center gap-3 px-4 py-3 border-b border-border/20"
           style={{ background: 'linear-gradient(135deg, #2d0a8c22 0%, #5b21b622 100%)' }}
@@ -128,7 +228,6 @@ function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }
           </div>
         </div>
 
-        {/* Quick actions */}
         <div className="p-1.5 flex flex-col gap-0.5">
           <button
             onClick={() => { window.location.reload(); onClose(); }}
@@ -146,7 +245,6 @@ function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }
           </button>
         </div>
 
-        {/* Servers section */}
         {servers.length > 0 && (
           <>
             <div className="px-4 py-1">
@@ -172,7 +270,6 @@ function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }
           </>
         )}
 
-        {/* Bottom actions */}
         <div className="border-t border-border/20 p-1.5 flex flex-col gap-0.5">
           <button
             onClick={() => action(() => setCreateServerModalOpen(true))}
@@ -208,6 +305,8 @@ function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }
   );
 }
 
+// ─── Main DockBar ─────────────────────────────────────────────────────────────
+
 export function DockBar() {
   const { activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts } = useAppStore();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
@@ -217,10 +316,58 @@ export function DockBar() {
   const { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll } = useKhurkDismissals();
   const [startMenuOpen, setStartMenuOpen] = useState(false);
 
-  // Close start menu on outside click
-  const handleStartMenuToggle = useCallback(() => {
-    setStartMenuOpen(v => !v);
-  }, []);
+  // Build the canonical ordered list: servers first, then KHURK apps
+  const buildDefaultEntries = useCallback((): DockEntry[] => {
+    const s: DockEntry[] = servers.map(s => ({ kind: 'server', id: s.id }));
+    const a: DockEntry[] = visibleApps.map(a => ({ kind: 'app', id: a.id }));
+    return [...s, ...a];
+  }, [servers, visibleApps]);
+
+  const [entries, setEntries] = useState<DockEntry[]>([]);
+
+  // Sync entries when server list or apps change (add new ones, remove old ones)
+  useEffect(() => {
+    const saved = loadOrder();
+    const defaults = buildDefaultEntries();
+    const defaultIds = defaults.map(e => e.id);
+
+    if (!saved) {
+      setEntries(defaults);
+      return;
+    }
+
+    // Keep saved order, but add any new entries that don't exist yet
+    const savedFiltered = saved
+      .filter(id => defaultIds.includes(id))
+      .map(id => defaults.find(e => e.id === id)!);
+    const newEntries = defaults.filter(e => !saved.includes(e.id));
+    setEntries([...savedFiltered, ...newEntries]);
+  }, [servers, visibleApps]);
+
+  // dnd sensors — mouse needs 5px movement to start; touch needs 250ms long-press
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
+
+  const [activeEntry, setActiveEntry] = useState<DockEntry | null>(null);
+
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    const entry = entries.find(e => e.id === active.id) ?? null;
+    setActiveEntry(entry);
+  };
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    setActiveEntry(null);
+    if (!over || active.id === over.id) return;
+    setEntries(prev => {
+      const oldIdx = prev.findIndex(e => e.id === active.id);
+      const newIdx = prev.findIndex(e => e.id === over.id);
+      const next = arrayMove(prev, oldIdx, newIdx);
+      saveOrder(next.map(e => e.id));
+      return next;
+    });
+  };
 
   const handleAppContextMenu = (e: React.MouseEvent, app: KhurkApp) => {
     e.preventDefault();
@@ -234,14 +381,7 @@ export function DockBar() {
     if (hasAnyDismissed) {
       actions.push({ id: 'restore', label: 'Restore Hidden Apps', icon: <RotateCcw size={14} />, onClick: restoreAll, dividerBefore: true });
     }
-    showMenu({
-      x: e.clientX,
-      y: e.clientY,
-      actions,
-      title: app.name,
-      subtitle: app.tagline,
-      titleIcon: app.imageSrc,
-    });
+    showMenu({ x: e.clientX, y: e.clientY, actions, title: app.name, subtitle: app.tagline, titleIcon: app.imageSrc });
   };
 
   const handleHollrRightClick = (e: React.MouseEvent) => {
@@ -258,7 +398,7 @@ export function DockBar() {
     showMenu({ x: e.clientX, y: e.clientY, actions, title: 'hollr.chat', subtitle: 'Real-time messaging & voice' });
   };
 
-  // Hollr DockItem ref for magnification
+  // Hollr icon magnification
   const hollrMotionRef = useRef<HTMLButtonElement>(null);
   const hollrDistance = useTransform(mouseX, (x: number) => {
     const el = hollrMotionRef.current;
@@ -269,170 +409,224 @@ export function DockBar() {
   const hollrScaleRaw = useTransform(hollrDistance, SCALE_RANGE, SCALE_OUTPUT, { clamp: true });
   const hollrScale = useSpring(hollrScaleRaw, { mass: 0.1, stiffness: 180, damping: 14 });
 
+  // Render the content for any sortable entry
+  const renderEntryContent = (entry: DockEntry) => {
+    if (entry.kind === 'server') {
+      const server = servers.find(s => s.id === entry.id);
+      if (!server) return null;
+      return (
+        <SortableDockItem
+          key={server.id}
+          id={server.id}
+          mouseX={mouseX}
+          label={server.name}
+          isActive={activeServerId === server.id}
+          onClick={() => setActiveServer(server.id)}
+        >
+          {server.iconUrl ? (
+            <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className={cn(
+              'w-full h-full flex items-center justify-center text-sm font-semibold transition-colors',
+              activeServerId === server.id
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-foreground hover:bg-primary hover:text-primary-foreground'
+            )}>
+              {getInitials(server.name)}
+            </div>
+          )}
+        </SortableDockItem>
+      );
+    } else {
+      const app = visibleApps.find(a => a.id === entry.id);
+      if (!app) return null;
+      return (
+        <SortableDockItem
+          key={app.id}
+          id={app.id}
+          mouseX={mouseX}
+          label={app.name}
+          sublabel={app.tagline}
+          onClick={() => window.open(app.url, '_blank', 'noopener')}
+          onContextMenu={(e) => handleAppContextMenu(e, app)}
+        >
+          <KhurkDockIcon app={app} />
+        </SortableDockItem>
+      );
+    }
+  };
+
+  // Content for DragOverlay ghost
+  const renderOverlayContent = () => {
+    if (!activeEntry) return null;
+    if (activeEntry.kind === 'server') {
+      const server = servers.find(s => s.id === activeEntry.id);
+      if (!server) return null;
+      return (
+        <OverlayIcon>
+          {server.iconUrl ? (
+            <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-sm font-semibold bg-primary text-primary-foreground">
+              {getInitials(server.name)}
+            </div>
+          )}
+        </OverlayIcon>
+      );
+    } else {
+      const app = visibleApps.find(a => a.id === activeEntry.id);
+      if (!app) return null;
+      return (
+        <OverlayIcon>
+          <KhurkDockIcon app={app} />
+        </OverlayIcon>
+      );
+    }
+  };
+
+  const serverEntries = entries.filter(e => e.kind === 'server');
+  const appEntries = entries.filter(e => e.kind === 'app');
+  const hasAppSeparator = appEntries.length > 0 && serverEntries.length > 0;
+
   return (
     <div
       className="flex items-end justify-center w-full select-none"
       onClick={() => startMenuOpen && setStartMenuOpen(false)}
     >
-      <motion.div
-        onMouseMove={(e) => { mouseX.set(e.clientX); }}
-        onMouseLeave={() => { mouseX.set(Infinity); }}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="relative flex items-end bg-background/70 backdrop-blur-2xl border border-border/30 shadow-2xl shadow-black/30 rounded-2xl px-4 py-2.5"
-        style={{ overflow: 'visible', maxWidth: 'calc(100vw - 2rem)' }}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
       >
-        {/* ── hollr start-menu button (leftmost, permanent, NOT in scroll area) ── */}
-        <div className="relative shrink-0">
+        <motion.div
+          onMouseMove={(e) => { mouseX.set(e.clientX); }}
+          onMouseLeave={() => { mouseX.set(Infinity); }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="relative flex items-end bg-background/70 backdrop-blur-2xl border border-border/30 shadow-2xl shadow-black/30 rounded-2xl px-4 py-2.5"
+          style={{ overflow: 'visible', maxWidth: 'calc(100vw - 2rem)' }}
+        >
+          {/* ── hollr start-menu button ── */}
+          <div className="relative shrink-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <motion.button
+                  ref={hollrMotionRef}
+                  onClick={(e) => { e.stopPropagation(); setStartMenuOpen(v => !v); }}
+                  onContextMenu={handleHollrRightClick}
+                  style={{ scale: hollrScale, transformOrigin: 'bottom center', width: ICON_BASE, height: ICON_BASE }}
+                  className="relative shrink-0 flex items-center justify-center"
+                >
+                  <div
+                    className={cn(
+                      'w-full h-full rounded-xl overflow-hidden shadow-lg transition-all duration-200',
+                      startMenuOpen && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+                    )}
+                    style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
+                  >
+                    <div className="w-full h-full flex items-center justify-center">
+                      <HollrIcon size={Math.round(ICON_BASE * 0.55)} />
+                    </div>
+                  </div>
+                  {startMenuOpen && (
+                    <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                  )}
+                </motion.button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="mb-1">
+                <p className="font-bold text-xs">hollr.chat</p>
+                <p className="text-[10px] text-muted-foreground">Click for menu · Right-click for quick nav</p>
+              </TooltipContent>
+            </Tooltip>
+            <AnimatePresence>
+              {startMenuOpen && <StartMenu servers={servers} onClose={() => setStartMenuOpen(false)} />}
+            </AnimatePresence>
+          </div>
+
+          {/* ── DM button ── */}
           <Tooltip>
             <TooltipTrigger asChild>
               <motion.button
-                ref={hollrMotionRef}
-                onClick={(e) => { e.stopPropagation(); handleStartMenuToggle(); }}
-                onContextMenu={handleHollrRightClick}
-                style={{ scale: hollrScale, transformOrigin: 'bottom center', width: ICON_BASE, height: ICON_BASE }}
-                className="relative shrink-0 flex items-center justify-center"
+                onClick={() => { setActiveServer(null); setStartMenuOpen(false); }}
+                whileTap={{ scale: 0.92 }}
+                style={{ width: ICON_BASE, height: ICON_BASE }}
+                className="relative shrink-0 flex items-center justify-center ml-2"
               >
-                <div
-                  className={cn(
-                    'w-full h-full rounded-xl overflow-hidden shadow-lg transition-all duration-200',
-                    startMenuOpen && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
-                  )}
-                  style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
-                >
-                  <div className="w-full h-full flex items-center justify-center">
-                    <HollrIcon size={Math.round(ICON_BASE * 0.55)} />
-                  </div>
-                </div>
-                {startMenuOpen && (
-                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-                )}
-              </motion.button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="mb-1">
-              <p className="font-bold text-xs">hollr.chat</p>
-              <p className="text-[10px] text-muted-foreground">Click for menu · Right-click for quick nav</p>
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Start menu panel */}
-          <AnimatePresence>
-            {startMenuOpen && (
-              <StartMenu
-                servers={servers}
-                onClose={() => setStartMenuOpen(false)}
-              />
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* DM button — pinned next to hollr */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <motion.button
-              onClick={() => { setActiveServer(null); setStartMenuOpen(false); }}
-              whileTap={{ scale: 0.92 }}
-              style={{ width: ICON_BASE, height: ICON_BASE }}
-              className="relative shrink-0 flex items-center justify-center ml-2"
-            >
-              <div
-                className={cn(
+                <div className={cn(
                   'w-full h-full rounded-xl overflow-hidden shadow-md flex items-center justify-center transition-all duration-200',
                   activeServerId === null
                     ? 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-1 ring-offset-background'
                     : 'bg-surface-2 text-muted-foreground hover:bg-primary/20 hover:text-primary'
-                )}
-              >
-                <MessageSquare size={Math.round(ICON_BASE * 0.42)} />
-              </div>
-              {totalDmUnread > 0 && activeServerId !== null && (
-                <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-destructive text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none z-10">
-                  {totalDmUnread > 99 ? '99+' : totalDmUnread}
-                </span>
-              )}
-            </motion.button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="mb-1">
-            <p className="font-bold text-xs">Direct Messages</p>
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Thin divider between pinned buttons and the scrollable section */}
-        <div className="w-px self-stretch mx-1.5 bg-border/40 rounded-full shrink-0" />
-
-        {/* ── Scrollable area: servers + add + KHURK apps ── */}
-        <div
-          className="flex items-end gap-3 min-w-0 [&::-webkit-scrollbar]:hidden"
-          style={{
-            overflowX: 'auto',
-            overflowY: 'visible',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch' as any,
-          }}
-        >
-          {/* Servers */}
-          {servers.map((server) => (
-            <DockItem
-              key={server.id}
-              mouseX={mouseX}
-              label={server.name}
-              isActive={activeServerId === server.id}
-              onClick={() => setActiveServer(server.id)}
-            >
-              {server.iconUrl ? (
-                <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className={cn(
-                  'w-full h-full flex items-center justify-center text-sm font-semibold transition-colors',
-                  activeServerId === server.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground hover:bg-primary hover:text-primary-foreground'
                 )}>
-                  {getInitials(server.name)}
+                  <MessageSquare size={Math.round(ICON_BASE * 0.42)} />
                 </div>
-              )}
-            </DockItem>
-          ))}
+                {totalDmUnread > 0 && activeServerId !== null && (
+                  <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-destructive text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none z-10">
+                    {totalDmUnread > 99 ? '99+' : totalDmUnread}
+                  </span>
+                )}
+              </motion.button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="mb-1">
+              <p className="font-bold text-xs">Direct Messages</p>
+            </TooltipContent>
+          </Tooltip>
 
-          {/* Add Server */}
-          <DockItem mouseX={mouseX} label="Add a Server" onClick={() => setCreateServerModalOpen(true)}>
-            <div className="w-full h-full flex items-center justify-center bg-secondary text-emerald-400 hover:bg-emerald-500 hover:text-white transition-colors border border-dashed border-emerald-500/30 hover:border-transparent rounded-xl">
-              <Plus size={16} />
-            </div>
-          </DockItem>
+          {/* Divider */}
+          <div className="w-px self-stretch mx-2 bg-border/40 rounded-full shrink-0" />
 
-          {/* KHURK Apps */}
-          {visibleApps.length > 0 && (
-            <>
-              <div className="w-px self-stretch mx-0.5 bg-border/40 rounded-full shrink-0" />
-              {visibleApps.map((app) => (
-                <DockItem
-                  key={app.id}
-                  mouseX={mouseX}
-                  label={app.name}
-                  sublabel={app.tagline}
-                  onClick={() => window.open(app.url, '_blank', 'noopener')}
-                  onContextMenu={(e) => handleAppContextMenu(e, app)}
-                >
-                  <KhurkDockIcon app={app} />
-                </DockItem>
-              ))}
-            </>
-          )}
+          {/* ── Scrollable sortable area ── */}
+          <div
+            className="flex items-end gap-3 min-w-0 [&::-webkit-scrollbar]:hidden"
+            style={{
+              overflowX: 'auto',
+              overflowY: 'visible',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch' as any,
+            }}
+          >
+            <SortableContext items={entries.map(e => e.id)} strategy={horizontalListSortingStrategy}>
+              {/* Servers */}
+              {serverEntries.map(entry => renderEntryContent(entry))}
 
-          {/* Restore button when all hidden */}
-          {visibleApps.length === 0 && hasAnyDismissed && (
-            <>
-              <div className="w-px self-stretch mx-0.5 bg-border/40 rounded-full shrink-0" />
-              <DockItem mouseX={mouseX} label="Restore KHURK Apps" onClick={restoreAll}>
-                <div className="w-full h-full flex items-center justify-center bg-surface-2 text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border/40 rounded-xl">
-                  <RotateCcw size={15} />
+              {/* Add Server (never sortable, stays after servers) */}
+              <DockItem mouseX={mouseX} label="Add a Server" onClick={() => setCreateServerModalOpen(true)}>
+                <div className="w-full h-full flex items-center justify-center bg-secondary text-emerald-400 hover:bg-emerald-500 hover:text-white transition-colors border border-dashed border-emerald-500/30 hover:border-transparent rounded-xl">
+                  <Plus size={16} />
                 </div>
               </DockItem>
-            </>
-          )}
-        </div>
-      </motion.div>
+
+              {/* App separator */}
+              {hasAppSeparator && (
+                <div className="w-px self-stretch mx-0 bg-border/40 rounded-full shrink-0" />
+              )}
+
+              {/* KHURK Apps */}
+              {appEntries.map(entry => renderEntryContent(entry))}
+            </SortableContext>
+
+            {/* Restore button when all hidden */}
+            {visibleApps.length === 0 && hasAnyDismissed && (
+              <>
+                <div className="w-px self-stretch mx-0.5 bg-border/40 rounded-full shrink-0" />
+                <DockItem mouseX={mouseX} label="Restore KHURK Apps" onClick={restoreAll}>
+                  <div className="w-full h-full flex items-center justify-center bg-surface-2 text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border/40 rounded-xl">
+                    <RotateCcw size={15} />
+                  </div>
+                </DockItem>
+              </>
+            )}
+          </div>
+        </motion.div>
+
+        {/* ── DragOverlay: renders into document.body — no clipping ever ── */}
+        <DragOverlay dropAnimation={{ duration: 180, easing: 'ease' }}>
+          {renderOverlayContent()}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }
