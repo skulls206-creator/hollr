@@ -271,7 +271,7 @@ export function DockBar() {
 
   return (
     <div
-      className="flex items-end justify-center w-full select-none pb-2"
+      className="flex items-end justify-center w-full select-none"
       onClick={() => startMenuOpen && setStartMenuOpen(false)}
     >
       <motion.div

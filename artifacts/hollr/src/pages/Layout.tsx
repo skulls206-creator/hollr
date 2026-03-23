@@ -182,9 +182,14 @@ export function Layout() {
         )}
       </div>
 
-      {/* Dock bar — always at the bottom in dock mode, z-50 keeps it above the sliding sidebar panel */}
+      {/* Dock bar — z-50 keeps it above the sliding sidebar panel.
+          pt-8 gives a clear gap above the pill so magnified icons
+          never overlap the content row above. */}
       {layoutMode === 'dock' && (
-        <div className="relative flex items-end justify-center shrink-0 px-4 pb-2 pt-0 overflow-visible z-50">
+        <div
+          className="relative flex items-end justify-center shrink-0 px-4 pt-8 overflow-visible z-50"
+          style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}
+        >
           <DockBar />
         </div>
       )}
