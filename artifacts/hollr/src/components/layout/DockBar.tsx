@@ -433,10 +433,10 @@ export function DockBar() {
           onClick={() => setActiveServer(server.id)}
         >
           {server.iconUrl ? (
-            <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover" />
+            <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover rounded-xl" />
           ) : (
             <div className={cn(
-              'w-full h-full flex items-center justify-center text-sm font-semibold transition-colors',
+              'w-full h-full flex items-center justify-center text-sm font-semibold transition-colors rounded-xl',
               activeServerId === server.id
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-secondary text-foreground hover:bg-primary hover:text-primary-foreground'

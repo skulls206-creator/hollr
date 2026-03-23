@@ -1,0 +1,121 @@
+Here’s a ready‑to‑paste prompt you can give Replit (or any AI coder). You can tweak names/URLs, but this covers KHURK OS, subdomains, iframe shell, dashboard toggle, PiP, minimize, refresh, and “allow embedding” settings.
+Prompt for AI dev agent (Replit, etc.):
+I am building “KHURK OS” as a web and PWA shell around my existing apps.
+I already have multiple apps on subdomains like:
+https://playd.khurk.services
+https://instaghost.khurk.services
+(and more coming)
+I want you to turn my existing Discord‑style chat app (“hollr”) into a KHURK OS shell with this behavior:
+Overall concept
+hollr is the main app / PWA.
+Left sidebar = servers + KHURK Apps dock.
+Center area = “app window” where my other web apps load inside an iframe.
+Right side = existing members/user list stays as‑is.
+This should work both in the browser and when installed as a PWA.
+1. KHURK OS branding
+Add “KHURK OS” as the title in the top‑left (or in the main header area).
+Update the PWA manifest (name and short_name) to reflect “KHURK OS” as the shell name.
+2. KHURK Apps dock in the sidebar
+In the main left sidebar (where Discord servers would normally show), add a section called “KHURK Apps”.
+This should appear visually separated from any normal servers (e.g., small label text “KHURK Apps” and a divider).
+The KHURK Apps section is driven by a config array, something like:
+const KHURK_APPS = [
+  {
+    id: 'playd',
+    name: 'Playd',
+    url: 'https://playd.khurk.services',
+    iconUrl: '/icons/playd.png'
+  },
+  {
+    id: 'instaghost',
+    name: 'InstaGhost',
+    url: 'https://instaghost.khurk.services',
+    iconUrl: '/icons/instaghost.png'
+  },
+  // more apps...
+];
+Render each app as a circular icon (matching Discord server icon style: same size, hover states, tooltips).
+On hover, show a tooltip with the app name (e.g., “Playd – Social app”).
+On left click, load that app in the central iframe area (see section 3).
+On middle click or context menu “Open in new tab”, open the app in a new tab.
+3. Central app iframe window
+Replace the current “empty” messages area on first load with a dedicated AppWindow component that:
+Uses an <iframe> to render the currently selected KHURK app.
+Fills 100% of the center content area (height and width), responsive with the layout.
+The AppWindow should:
+Start with no app selected and show a default “KHURK OS Dashboard” view (see section 4).
+When a KHURK app is selected from the sidebar, set the iframe src to that app’s URL.
+The iframe must support:
+loading="lazy" where appropriate.
+Styling to remove borders and visually match the layout.
+A clean fallback/loading state while the iframe is loading.
+IMPORTANT: Make sure the code and server config allow my apps to be embedded:
+Assume I control the backend; warn me that I must NOT use X-Frame-Options: DENY or SAMEORIGIN on my subdomain apps.
+If you provide any server configs (like Express, NGINX examples), set the Content-Security-Policy with frame-ancestors 'self' https://*.khurk.services; so the KHURK OS shell can iframe these subdomains.
+Document clearly where I should adjust headers so all *.khurk.services apps can be embedded in KHURK OS.
+4. Dashboard vs Chat toggle (per user)
+I want a Dashboard vs Chat toggle with a per-user setting.
+Behavior:
+When enabled: on startup, the center area shows the “KHURK OS Dashboard” (not chat, not an app iframe) until the user selects a server or app.
+When disabled: on startup, go directly to the normal chat view (like a default server/channel) instead of the dashboard.
+Implementation details:
+Add an obvious toggle in a user settings area or in the UI (for example, in a top‑right settings or profile menu):
+“Use KHURK OS Dashboard on startup” [on/off].
+Store this preference in localStorage (and if I already have a user account system, also store per user in the backend).
+On app load, read the user preference and decide whether to render:
+Dashboard view, or
+Normal chat default view.
+Provide a clear button/tab in the UI to manually switch between “Dashboard” and “Chat” views at any time.
+5. Minimize + Picture‑in‑Picture (PiP) for the app iframe
+I want users to control the embedded app window:
+Add three controls in the AppWindow header (above the iframe), e.g. top‑right of the center panel:
+Minimize button:
+Hides the iframe and returns the center area to normal chat view.
+Store minimized state in React state (don’t worry about persistence for now).
+Restore button:
+When minimized or PiP, bring the iframe back to full center area.
+PiP (Picture‑in‑Picture) button:
+Shrinks the app window into a resizable and draggable small panel docked at the bottom‑right of the screen (or similar).
+While in PiP:
+Chat occupies the main center area.
+The PiP panel still shows the iframe for the selected app.
+Include a close/minimize button on the PiP panel itself.
+Make sure PiP state is also tracked so the user can switch between full app view and PiP seamlessly.
+Make these transitions smooth and visually clear (simple CSS transitions are fine).
+6. Refresh behavior and “always connected” feeling
+I want the embedded apps to feel fresh and responsive:
+Add a refresh control specific to the app iframe:
+A “Refresh App” button in the AppWindow header.
+When clicked, it reloads the iframe content:
+Either by calling iframeRef.current.contentWindow.location.reload(), or
+By resetting the key or src state so React remounts the iframe.
+Also:
+Each time the user switches to a different KHURK app via the sidebar, reload that app fresh by setting the iframe src to the configured URL (no caching of iframes between apps).
+I also want a context‑style experience for refresh:
+If possible, add a custom “KHURK OS App” context menu for the iframe area (on right click) with at least:
+“Refresh app”
+“Open in new tab”
+If you can’t override the browser’s native context menu, provide a visible UI button (with an icon) inside the AppWindow header so it’s always accessible.
+Do NOT implement “remember last state vs always fresh” toggle yet; just implement the simplest behavior:
+Always reload the app when switched.
+Provide explicit “Refresh App” control.
+7. PWA behavior
+Ensure KHURK OS remains a PWA:
+Confirm that the existing service worker and manifest still work after the new layout changes.
+The embedded iframes should continue to work when KHURK OS is installed as a PWA window.
+Make sure:
+The PWA manifest uses the KHURK OS name and appropriate icons.
+The start_url is set to the main KHURK OS shell path (hollr app).
+Don’t try to make inner apps into PWAs inside the outer PWA; just make sure they load fine inside the iframe when the shell is installed.
+8. Developer experience
+Use clean, well‑named React components for:
+SidebarKhurkAppsDock
+AppWindow
+DashboardView
+AppControls (minimize, restore, PiP, refresh, open in new tab)
+Keep the KHURK_APPS list in a single config file so I can easily add/remove apps and change icons/URLs.
+If any CORS or iframe security headers are required, provide sample config for typical setups (Node/Express, NGINX, and Cloudflare) so I can copy‑paste them.
+Finally, when you’re done, summarize:
+What files/components you added or modified.
+How to add a new app to KHURK_APPS.
+Where to change CSP / iframe‑related headers so that all *.khurk.services apps can be embedded without browser blocking.
