@@ -325,6 +325,12 @@ export function DockBar() {
 
   const [entries, setEntries] = useState<DockEntry[]>([]);
 
+  // Use stable primitive keys as deps — array references from servers/visibleApps
+  // change every render (new Array from .filter / React Query), which would cause
+  // an infinite loop if we depended on them directly.
+  const serverIds = servers.map(s => s.id).join(',');
+  const appIds = visibleApps.map(a => a.id).join(',');
+
   // Sync entries when server list or apps change (add new ones, remove old ones)
   useEffect(() => {
     const saved = loadOrder();
@@ -342,7 +348,8 @@ export function DockBar() {
       .map(id => defaults.find(e => e.id === id)!);
     const newEntries = defaults.filter(e => !saved.includes(e.id));
     setEntries([...savedFiltered, ...newEntries]);
-  }, [servers, visibleApps]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverIds, appIds]);
 
   // dnd sensors — mouse: 5px movement; touch: 600ms long-press (fires AFTER the
   // native contextmenu event at ~500ms so they never clash), 10px tolerance so
