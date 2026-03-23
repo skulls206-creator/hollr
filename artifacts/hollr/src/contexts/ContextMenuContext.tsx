@@ -93,7 +93,7 @@ function AppContextMenu({
         {/* Quick reaction strip */}
         {config.quickReactions && (
           <>
-            <div className="flex items-center justify-between px-2 py-1.5 gap-1">
+            <div className="flex items-center px-2 py-1.5 gap-1">
               {QUICK_EMOJIS.map(emoji => (
                 <button
                   key={emoji}
@@ -107,11 +107,11 @@ function AppContextMenu({
                   {emoji}
                 </button>
               ))}
-              <div className="relative">
+              <div className="relative flex-1">
                 <button
                   ref={emojiPickerBtnRef}
                   onClick={() => setEmojiPickerOpen(v => !v)}
-                  className="flex-1 flex items-center justify-center h-9 w-9 rounded-md hover:bg-white/10 transition-all text-[#b5bac1] hover:text-white text-[18px]"
+                  className="w-full flex items-center justify-center h-9 rounded-md hover:bg-white/10 transition-all text-[#b5bac1] hover:text-white text-[18px]"
                   title="More reactions"
                 >
                   +
