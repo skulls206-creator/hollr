@@ -1,6 +1,6 @@
-import uStreamImg from '@assets/5965_1774286181415.png';
+import uStreamImg from '@assets/download_(1)_1774290216897.png';
 import playdImg from '@assets/5957_1774286181393.png';
-import foldrImg from '@assets/5953_1774286181410.png';
+import foldrImg from '@assets/5996_1774290216887.png';
 import instaGhostImg from '@assets/5952_1774286181402.png';
 import gaslessImg from '@assets/5963_1774286181380.png';
 import ballpointImg from '@assets/5955_1774286181397.png';
@@ -44,7 +44,6 @@ export const KHURK_APPS: KhurkApp[] = [
     tagline: 'Movies & TV',
     url: 'https://ustream.khurk.services',
     imageSrc: uStreamImg,
-    iconFit: 'contain',
     gradient: ['#1a1a6e', '#3a3abf'],
   },
   {
@@ -61,8 +60,7 @@ export const KHURK_APPS: KhurkApp[] = [
     tagline: 'Encrypted IPFS Storage',
     url: 'https://foldr.khurk.services',
     imageSrc: foldrImg,
-    iconFit: 'contain',
-    gradient: ['#0d4fcf', '#1a7fff'],
+    gradient: ['#0d1b6e', '#3b4fcf'],
   },
   {
     id: 'instaghost',
