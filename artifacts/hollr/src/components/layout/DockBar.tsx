@@ -434,6 +434,9 @@ export function DockBar() {
         <motion.div
           onMouseMove={(e) => { mouseX.set(e.clientX); }}
           onMouseLeave={() => { mouseX.set(Infinity); }}
+          onPointerLeave={() => { mouseX.set(Infinity); }}
+          onPointerUp={() => { mouseX.set(Infinity); }}
+          onTouchEnd={() => { mouseX.set(Infinity); }}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
