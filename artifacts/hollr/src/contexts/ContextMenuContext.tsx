@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { cn } from '@/lib/utils';
 import { EmojiPickerPopover } from '@/components/chat/EmojiPickerPopover';
+import { RefreshCw } from 'lucide-react';
 
 export interface ContextMenuAction {
   id: string;
@@ -166,6 +167,19 @@ function AppContextMenu({
             </button>
           </div>
         ))}
+
+        {/* Always-present Reload footer */}
+        <div className="h-px bg-white/[0.06] mx-1 my-1" />
+        <button
+          onClick={() => { onClose(); window.location.reload(); }}
+          className="w-[calc(100%-8px)] flex items-center gap-2.5 px-2 py-[7px] mx-1 rounded text-[14px] font-medium transition-colors text-left text-[#b5bac1] hover:bg-[#5865f2] hover:text-white"
+        >
+          <span className="shrink-0 w-4 h-4 flex items-center justify-center opacity-80">
+            <RefreshCw size={14} />
+          </span>
+          <span className="flex-1 min-w-0">Reload App</span>
+          <span className="text-[11px] opacity-50 font-normal shrink-0 ml-2">F5</span>
+        </button>
       </div>
     </div>
   );
