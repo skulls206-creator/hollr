@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
-import { Plus, MessageSquare, ExternalLink, Trash2, RotateCcw, Copy, LayoutGrid, RefreshCw, Settings, HelpCircle, UserPlus, ServerIcon, ChevronUp } from 'lucide-react';
+import { Plus, MessageSquare, ExternalLink, Trash2, RotateCcw, Copy, LayoutGrid, RefreshCw, Settings, HelpCircle, UserPlus, ServerIcon } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListMyServers } from '@workspace/api-client-react';
 import { cn, getInitials } from '@/lib/utils';
@@ -206,14 +206,12 @@ function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }
 }
 
 export function DockBar() {
-  const { activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts } = useAppStore();
+  const { activeServerId, setActiveServer, setCreateServerModalOpen } = useAppStore();
   const { data: servers = [] } = useListMyServers();
   const mouseX = useMotionValue(Infinity);
   const { show: showMenu } = useContextMenu();
-  const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll } = useKhurkDismissals();
   const [startMenuOpen, setStartMenuOpen] = useState(false);
-  const hollrRef = useRef<HTMLButtonElement>(null);
 
   // Close start menu on outside click
   const handleStartMenuToggle = useCallback(() => {
@@ -271,10 +269,10 @@ export function DockBar() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="relative flex items-end gap-1.5 bg-background/70 backdrop-blur-2xl border border-border/30 shadow-2xl shadow-black/30 rounded-2xl px-3 py-2.5 max-w-[calc(100vw-2rem)]"
-        style={{ overflow: 'visible' }}
+        className="relative flex items-end bg-background/70 backdrop-blur-2xl border border-border/30 shadow-2xl shadow-black/30 rounded-2xl px-3 py-2.5"
+        style={{ overflow: 'visible', maxWidth: 'calc(100vw - 2rem)' }}
       >
-        {/* ── hollr start-menu button (leftmost, permanent) ── */}
+        {/* ── hollr start-menu button (leftmost, permanent, NOT in scroll area) ── */}
         <div className="relative shrink-0">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -318,86 +316,80 @@ export function DockBar() {
           </AnimatePresence>
         </div>
 
-        {/* Thin divider between hollr and the rest of the dock */}
-        <div className="w-px self-stretch mx-0.5 bg-border/40 rounded-full" />
+        {/* Thin divider between hollr and the scrollable section */}
+        <div className="w-px self-stretch mx-1.5 bg-border/40 rounded-full shrink-0" />
 
-        {/* DMs */}
-        <DockItem
-          mouseX={mouseX}
-          label="Direct Messages"
-          isActive={activeServerId === null}
-          unreadCount={totalDmUnread}
-          onClick={() => setActiveServer(null)}
+        {/* ── Scrollable area: servers + add + KHURK apps ── */}
+        <div
+          className="flex items-end gap-1.5 min-w-0 [&::-webkit-scrollbar]:hidden"
+          style={{
+            overflowX: 'auto',
+            overflowY: 'visible',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch' as any,
+          }}
         >
-          <div className={cn(
-            'w-full h-full flex items-center justify-center transition-colors',
-            activeServerId === null
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-foreground hover:bg-primary hover:text-primary-foreground'
-          )}>
-            <MessageSquare size={18} />
-          </div>
-        </DockItem>
-
-        {/* Servers */}
-        {servers.map((server) => (
-          <DockItem
-            key={server.id}
-            mouseX={mouseX}
-            label={server.name}
-            isActive={activeServerId === server.id}
-            onClick={() => setActiveServer(server.id)}
-          >
-            {server.iconUrl ? (
-              <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className={cn(
-                'w-full h-full flex items-center justify-center text-sm font-semibold transition-colors',
-                activeServerId === server.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground hover:bg-primary hover:text-primary-foreground'
-              )}>
-                {getInitials(server.name)}
-              </div>
-            )}
-          </DockItem>
-        ))}
-
-        {/* Add Server */}
-        <DockItem mouseX={mouseX} label="Add a Server" onClick={() => setCreateServerModalOpen(true)}>
-          <div className="w-full h-full flex items-center justify-center bg-secondary text-emerald-400 hover:bg-emerald-500 hover:text-white transition-colors border border-dashed border-emerald-500/30 hover:border-transparent rounded-xl">
-            <Plus size={16} />
-          </div>
-        </DockItem>
-
-        {/* KHURK Apps */}
-        {visibleApps.length > 0 && (
-          <>
-            <div className="w-px self-stretch mx-0.5 bg-border/40 rounded-full" />
-            {visibleApps.map((app) => (
-              <DockItem
-                key={app.id}
-                mouseX={mouseX}
-                label={app.name}
-                sublabel={app.tagline}
-                onClick={() => window.open(app.url, '_blank', 'noopener')}
-                onContextMenu={(e) => handleAppContextMenu(e, app)}
-              >
-                <KhurkDockIcon app={app} />
-              </DockItem>
-            ))}
-          </>
-        )}
-
-        {/* Restore button when all hidden */}
-        {visibleApps.length === 0 && hasAnyDismissed && (
-          <>
-            <div className="w-px self-stretch mx-0.5 bg-border/40 rounded-full" />
-            <DockItem mouseX={mouseX} label="Restore KHURK Apps" onClick={restoreAll}>
-              <div className="w-full h-full flex items-center justify-center bg-surface-2 text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border/40 rounded-xl">
-                <RotateCcw size={15} />
-              </div>
+          {/* Servers */}
+          {servers.map((server) => (
+            <DockItem
+              key={server.id}
+              mouseX={mouseX}
+              label={server.name}
+              isActive={activeServerId === server.id}
+              onClick={() => setActiveServer(server.id)}
+            >
+              {server.iconUrl ? (
+                <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className={cn(
+                  'w-full h-full flex items-center justify-center text-sm font-semibold transition-colors',
+                  activeServerId === server.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground hover:bg-primary hover:text-primary-foreground'
+                )}>
+                  {getInitials(server.name)}
+                </div>
+              )}
             </DockItem>
-          </>
-        )}
+          ))}
+
+          {/* Add Server */}
+          <DockItem mouseX={mouseX} label="Add a Server" onClick={() => setCreateServerModalOpen(true)}>
+            <div className="w-full h-full flex items-center justify-center bg-secondary text-emerald-400 hover:bg-emerald-500 hover:text-white transition-colors border border-dashed border-emerald-500/30 hover:border-transparent rounded-xl">
+              <Plus size={16} />
+            </div>
+          </DockItem>
+
+          {/* KHURK Apps */}
+          {visibleApps.length > 0 && (
+            <>
+              <div className="w-px self-stretch mx-0.5 bg-border/40 rounded-full shrink-0" />
+              {visibleApps.map((app) => (
+                <DockItem
+                  key={app.id}
+                  mouseX={mouseX}
+                  label={app.name}
+                  sublabel={app.tagline}
+                  onClick={() => window.open(app.url, '_blank', 'noopener')}
+                  onContextMenu={(e) => handleAppContextMenu(e, app)}
+                >
+                  <KhurkDockIcon app={app} />
+                </DockItem>
+              ))}
+            </>
+          )}
+
+          {/* Restore button when all hidden */}
+          {visibleApps.length === 0 && hasAnyDismissed && (
+            <>
+              <div className="w-px self-stretch mx-0.5 bg-border/40 rounded-full shrink-0" />
+              <DockItem mouseX={mouseX} label="Restore KHURK Apps" onClick={restoreAll}>
+                <div className="w-full h-full flex items-center justify-center bg-surface-2 text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border/40 rounded-xl">
+                  <RotateCcw size={15} />
+                </div>
+              </DockItem>
+            </>
+          )}
+        </div>
       </motion.div>
     </div>
   );
