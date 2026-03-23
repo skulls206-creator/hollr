@@ -111,27 +111,33 @@ export function VoiceOverlay() {
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 40, opacity: 0 }}
-          className="absolute bottom-28 bg-[#111214]/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex items-center gap-2 px-3 py-2"
+          className="absolute bottom-3 bg-[#18191c]/95 backdrop-blur-md rounded-2xl border border-white/10 shadow-[0_4px_24px_rgba(0,0,0,0.6)] z-50 flex items-center gap-2 px-3 py-2"
           style={{ left: panelLeft, right: panelRight }}
         >
-          <div className="flex -space-x-1.5 mr-1">
+          {/* Live dot */}
+          <span className="relative flex h-2 w-2 mr-0.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+          </span>
+
+          <div className="flex -space-x-1.5">
             {channelUsers.slice(0, 4).map(u => (
-              <Avatar key={u.userId} className="h-6 w-6 border-2 border-[#111214]">
+              <Avatar key={u.userId} className="h-6 w-6 border-2 border-[#18191c]">
                 <AvatarImage src={u.avatarUrl || undefined} />
                 <AvatarFallback className="bg-indigo-600 text-white text-[10px]">{getInitials(u.displayName)}</AvatarFallback>
               </Avatar>
             ))}
           </div>
-          <span className="text-xs text-muted-foreground font-medium">{channelUsers.length} in voice</span>
+          <span className="text-xs text-foreground/80 font-medium">{channelUsers.length} in voice</span>
 
-          <div className="w-px h-5 bg-border/50 mx-1" />
+          <div className="w-px h-4 bg-white/10 mx-0.5" />
 
           <button
             onClick={toggleMicMuted}
             title={micMuted ? 'Unmute' : 'Mute'}
             className={cn(
               "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
-              micMuted ? "bg-destructive/80 text-white" : "bg-surface-1 text-foreground hover:bg-[#383A40]"
+              micMuted ? "bg-destructive/80 text-white" : "bg-white/5 text-foreground/70 hover:bg-white/15 hover:text-foreground"
             )}
           >
             {micMuted ? <MicOff size={13} /> : <Mic size={13} />}
@@ -142,7 +148,7 @@ export function VoiceOverlay() {
             title={deafened ? 'Undeafen' : 'Deafen'}
             className={cn(
               "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
-              deafened ? "bg-destructive/80 text-white" : "bg-surface-1 text-foreground hover:bg-[#383A40]"
+              deafened ? "bg-destructive/80 text-white" : "bg-white/5 text-foreground/70 hover:bg-white/15 hover:text-foreground"
             )}
           >
             {deafened ? <VolumeX size={13} /> : <Headphones size={13} />}
@@ -156,12 +162,12 @@ export function VoiceOverlay() {
             <PhoneOff size={13} />
           </button>
 
-          <div className="w-px h-5 bg-border/50 mx-1" />
+          <div className="w-px h-4 bg-white/10 mx-0.5" />
 
           <button
             onClick={() => setVoiceMinimized(false)}
             title="Expand"
-            className="w-7 h-7 rounded-full flex items-center justify-center bg-surface-1 text-foreground hover:bg-[#383A40] transition-colors"
+            className="w-7 h-7 rounded-full flex items-center justify-center bg-white/5 text-foreground/70 hover:bg-white/15 hover:text-foreground transition-colors"
           >
             <ChevronUp size={14} />
           </button>
