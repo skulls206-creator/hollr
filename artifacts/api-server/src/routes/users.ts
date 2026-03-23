@@ -19,18 +19,15 @@ router.get("/users/me", async (req, res) => {
   });
 
   if (!profile) {
-    const firstName = req.user.firstName ?? "";
-    const lastName = req.user.lastName ?? "";
-    const displayName = [firstName, lastName].filter(Boolean).join(" ") || `user_${userId.slice(0, 8)}`;
-    const username = displayName.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 32) || `user_${userId.slice(0, 8)}`;
+    const fallbackUsername = req.user.username ?? `user_${userId.slice(0, 8)}`;
+    const fallbackDisplay = fallbackUsername;
 
     [profile] = await db
       .insert(userProfilesTable)
       .values({
         userId,
-        username,
-        displayName,
-        avatarUrl: req.user.profileImageUrl ?? null,
+        username: fallbackUsername,
+        displayName: fallbackDisplay,
         status: "online",
       })
       .returning();

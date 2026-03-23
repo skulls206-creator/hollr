@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, usersTable, messageReactionsTable } from "@workspace/db/schema";
+import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, messageReactionsTable } from "@workspace/db/schema";
 import { eq, and, lt, inArray, sql as drizzleSql } from "drizzle-orm";
 import { OpenDmThreadBody, SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
@@ -23,14 +23,11 @@ async function formatUser(userId: string) {
       createdAt: profile.createdAt.toISOString(),
     };
   }
-  const raw = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   return {
     id: userId,
     username: `user_${userId.slice(0, 8)}`,
-    displayName: raw
-      ? [raw.firstName, raw.lastName].filter(Boolean).join(" ") || `User_${userId.slice(0, 6)}`
-      : `User_${userId.slice(0, 6)}`,
-    avatarUrl: raw?.profileImageUrl ?? null,
+    displayName: `User_${userId.slice(0, 6)}`,
+    avatarUrl: null,
     status: "offline" as const,
     customStatus: null,
     createdAt: new Date().toISOString(),

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
@@ -168,6 +168,10 @@ export function UserSettingsModal() {
   const [selectedStatus, setSelectedStatus] = useState<UserStatus>('online');
   const [statusSaving, setStatusSaving] = useState(false);
 
+  const [emailInput, setEmailInput] = useState('');
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const [inputDevices, setInputDevices] = useState<AudioDevice[]>([]);
   const [outputDevices, setOutputDevices] = useState<AudioDevice[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
@@ -250,8 +254,37 @@ export function UserSettingsModal() {
     );
   };
 
+  const handleSaveEmail = async () => {
+    const trimmed = emailInput.trim();
+    if (!trimmed.includes('@')) {
+      setEmailMsg({ type: 'error', text: 'Enter a valid email address' });
+      return;
+    }
+    setEmailSaving(true);
+    setEmailMsg(null);
+    try {
+      const res = await fetch('/api/auth/email', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEmailMsg({ type: 'error', text: data.error ?? 'Failed to save email' });
+      } else {
+        setEmailMsg({ type: 'success', text: 'Email saved! You can now sign in with it.' });
+        setEmailInput('');
+      }
+    } catch {
+      setEmailMsg({ type: 'error', text: 'Network error, please try again' });
+    } finally {
+      setEmailSaving(false);
+    }
+  };
+
   const displayNameFallback = user
-    ? getInitials([user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || '?')
+    ? getInitials(user.username || '?')
     : '?';
 
   const TAB_BTN = (t: Tab, icon: React.ReactNode, label: string, shortLabel?: string) => (
@@ -371,13 +404,49 @@ export function UserSettingsModal() {
               </div>
 
               <div className="flex justify-end gap-2 pt-1">
-                <Button variant="ghost" onClick={() => setUserSettingsModalOpen(false)}>
-                  Cancel
-                </Button>
+                <Button variant="ghost" onClick={() => setUserSettingsModalOpen(false)}>Cancel</Button>
                 <Button onClick={handleSave} disabled={updateProfile.isPending}>
                   {updateProfile.isPending && <Loader2 size={14} className="animate-spin mr-2" />}
                   Save Changes
                 </Button>
+              </div>
+
+              <div className="h-[1px] bg-border/30" />
+
+              {/* Email (optional — for sign-in recovery) */}
+              <div className="flex flex-col gap-2">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                  <Mail size={13} /> Email Address
+                </Label>
+                {user?.email ? (
+                  <p className="text-sm text-foreground/70 bg-surface-0 border border-border/30 rounded-lg px-3 py-2">
+                    {user.email}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground/60">No email set — add one to sign in with email.</p>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => { setEmailInput(e.target.value); setEmailMsg(null); }}
+                    placeholder={user?.email ? 'Update email address…' : 'Add an email address…'}
+                    className="bg-surface-0 border-border/50 focus:border-primary flex-1"
+                  />
+                  <Button
+                    onClick={handleSaveEmail}
+                    disabled={emailSaving || !emailInput.trim()}
+                    variant="outline"
+                    className="shrink-0"
+                  >
+                    {emailSaving ? <Loader2 size={14} className="animate-spin" /> : 'Save'}
+                  </Button>
+                </div>
+                {emailMsg && (
+                  <p className={cn('text-xs px-2 py-1 rounded', emailMsg.type === 'success' ? 'text-emerald-400' : 'text-destructive')}>
+                    {emailMsg.text}
+                  </p>
+                )}
               </div>
 
               <div className="h-[1px] bg-border/30" />

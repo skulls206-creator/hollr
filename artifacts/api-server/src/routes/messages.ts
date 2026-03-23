@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, userProfilesTable, usersTable, messageReactionsTable } from "@workspace/db/schema";
+import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, userProfilesTable, messageReactionsTable } from "@workspace/db/schema";
 import { eq, and, lt, desc, sql as drizzleSql } from "drizzle-orm";
 import { SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
@@ -10,13 +10,9 @@ const router: IRouter = Router();
 const MAX_LIMIT = 50;
 
 async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserId?: string) {
-  const [attachments, author, rawUser, reactions] = await Promise.all([
+  const [attachments, author, reactions] = await Promise.all([
     db.query.attachmentsTable.findMany({ where: eq(attachmentsTable.messageId, msg.id) }),
     db.query.userProfilesTable.findFirst({ where: eq(userProfilesTable.userId, msg.authorId) }),
-    (async () => {
-      const profile = await db.query.userProfilesTable.findFirst({ where: eq(userProfilesTable.userId, msg.authorId) });
-      return profile ? null : db.query.usersTable.findFirst({ where: eq(usersTable.id, msg.authorId) });
-    })(),
     db.select({
       emojiId: messageReactionsTable.emojiId,
       count: drizzleSql<number>`count(*)::int`,
@@ -49,10 +45,8 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserI
   } : {
     id: msg.authorId,
     username: `user_${msg.authorId.slice(0, 8)}`,
-    displayName: rawUser
-      ? [rawUser.firstName, rawUser.lastName].filter(Boolean).join(" ") || `User_${msg.authorId.slice(0, 6)}`
-      : `User_${msg.authorId.slice(0, 6)}`,
-    avatarUrl: rawUser?.profileImageUrl ?? null,
+    displayName: `User_${msg.authorId.slice(0, 6)}`,
+    avatarUrl: null,
     status: "offline" as const,
     customStatus: null,
     createdAt: msg.createdAt.toISOString(),

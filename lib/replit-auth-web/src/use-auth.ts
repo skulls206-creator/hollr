@@ -7,16 +7,20 @@ interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  refresh: () => void;
+  logout: () => Promise<void>;
+  /** @deprecated – login is now handled inline by the Login page form */
   login: () => void;
-  logout: () => void;
 }
 
 export function useAuth(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
 
     fetch("/api/auth/user", { credentials: "include" })
       .then((res) => {
@@ -39,22 +43,28 @@ export function useAuth(): AuthState {
     return () => {
       cancelled = true;
     };
+  }, [tick]);
+
+  const refresh = useCallback(() => {
+    setTick((t) => t + 1);
+  }, []);
+
+  const logout = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    setUser(null);
+    window.location.href = import.meta.env.BASE_URL || "/";
   }, []);
 
   const login = useCallback(() => {
-    const base = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
-    window.location.href = `/api/login?returnTo=${encodeURIComponent(base)}`;
-  }, []);
-
-  const logout = useCallback(() => {
-    window.location.href = "/api/logout";
+    // No-op: login is now handled by the Login page form
   }, []);
 
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
-    login,
+    refresh,
     logout,
+    login,
   };
 }

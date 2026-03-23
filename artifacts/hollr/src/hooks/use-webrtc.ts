@@ -60,15 +60,11 @@ export function useWebRTC(
   userIdRef.current = user?.id;
 
   const getDisplayInfo = () => {
-    const firstName = user?.firstName ?? '';
-    const lastName = user?.lastName ?? '';
     const displayName = profileData?.displayName
-      || (user as any)?.displayName
-      || [firstName, lastName].filter(Boolean).join(' ')
-      || (user as any)?.username
+      || user?.username
       || 'User';
-    const username = displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32) || 'user';
-    const avatarUrl = profileData?.avatarUrl ?? user?.profileImageUrl ?? null;
+    const username = (user?.username ?? displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32)) || 'user';
+    const avatarUrl = profileData?.avatarUrl ?? null;
     return { displayName, username, avatarUrl };
   };
 

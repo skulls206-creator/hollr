@@ -24,7 +24,12 @@ lib/
 - **Express** HTTP server with session middleware (PostgreSQL-backed via `connect-pg-simple`)
 - **Rate limiting** via `express-rate-limit`: auth (20/15min IP), general API (500/15min IP), message send (60/min per user ID post-auth)
 - **CORS**: strict origin allowlist via `ALLOWED_ORIGINS` env var (comma-separated); fails open (allow-all) when not set in dev
-- **Replit Auth** via OpenID Connect (PKCE flow) — `/api/auth/*` routes
+- **Custom Auth** (username + password) — `/api/auth/*` routes
+  - `POST /api/auth/signup` — register with username + password (email optional)
+  - `POST /api/auth/login` — sign in with username OR email + password (auto-detects `@`)
+  - `POST /api/auth/logout` — clear session cookie
+  - `PATCH /api/auth/email` — authenticated users can add/update their email
+  - Passwords hashed with bcryptjs (12 rounds); sessions in PostgreSQL `sessions` table
 - **WebSocket** server attached to the same HTTP server at `/api/ws`
   - Real-time events: `MESSAGE_CREATE`, `MESSAGE_UPDATE`, `MESSAGE_DELETE`, `CHANNEL_UPDATE`, `VOICE_SIGNAL`, `PRESENCE_UPDATE`, `THREAD_REPLY_CREATE`
   - WS broadcast module: `src/lib/ws.ts`
