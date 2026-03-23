@@ -73,17 +73,20 @@ function DockItem({ mouseX, label, sublabel, isActive, unreadCount, onClick, onC
 }
 
 function KhurkDockIcon({ app }: { app: KhurkApp }) {
+  const fit = app.iconFit ?? 'cover';
   return (
     <div
-      className="w-full h-full"
+      className="w-full h-full flex items-center justify-center"
       style={{ background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)` }}
     >
       {app.imageSrc ? (
-        <img src={app.imageSrc} alt={app.name} className="w-full h-full object-cover" />
+        <img
+          src={app.imageSrc}
+          alt={app.name}
+          className={fit === 'contain' ? 'w-[82%] h-[82%] object-contain' : 'w-full h-full object-cover'}
+        />
       ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <HollrIcon size={Math.round(ICON_BASE * 0.55)} />
-        </div>
+        <HollrIcon size={Math.round(ICON_BASE * 0.55)} />
       )}
     </div>
   );
@@ -230,7 +233,14 @@ export function DockBar() {
     if (hasAnyDismissed) {
       actions.push({ id: 'restore', label: 'Restore Hidden Apps', icon: <RotateCcw size={14} />, onClick: restoreAll, dividerBefore: true });
     }
-    showMenu({ x: e.clientX, y: e.clientY, actions });
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      actions,
+      title: app.name,
+      subtitle: app.tagline,
+      titleIcon: app.imageSrc,
+    });
   };
 
   const handleHollrRightClick = (e: React.MouseEvent) => {
@@ -244,7 +254,7 @@ export function DockBar() {
       })),
       { id: 'settings', label: 'Settings', icon: <Settings size={14} />, onClick: () => useAppStore.getState().setUserSettingsModalOpen(true), dividerBefore: true },
     ];
-    showMenu({ x: e.clientX, y: e.clientY, actions });
+    showMenu({ x: e.clientX, y: e.clientY, actions, title: 'hollr.chat', subtitle: 'Real-time messaging & voice' });
   };
 
   // Hollr DockItem ref for magnification

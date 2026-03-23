@@ -13,6 +13,8 @@ export interface KhurkApp {
   tagline: string;
   url: string;
   imageSrc?: string;
+  /** 'cover' fills the icon (default); 'contain' shows the whole image with gradient bg */
+  iconFit?: 'cover' | 'contain';
   gradient: [string, string];
 }
 
@@ -42,6 +44,7 @@ export const KHURK_APPS: KhurkApp[] = [
     tagline: 'Movies & TV',
     url: 'https://ustream.khurk.services',
     imageSrc: uStreamImg,
+    iconFit: 'contain',
     gradient: ['#1a1a6e', '#3a3abf'],
   },
   {
@@ -58,7 +61,8 @@ export const KHURK_APPS: KhurkApp[] = [
     tagline: 'Encrypted IPFS Storage',
     url: 'https://foldr.khurk.services',
     imageSrc: foldrImg,
-    gradient: ['#0d1b6e', '#3b4fcf'],
+    iconFit: 'contain',
+    gradient: ['#0d4fcf', '#1a7fff'],
   },
   {
     id: 'instaghost',

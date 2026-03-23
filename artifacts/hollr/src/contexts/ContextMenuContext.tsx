@@ -27,6 +27,12 @@ export interface ContextMenuConfig {
   y: number;
   actions: ContextMenuAction[];
   quickReactions?: (emoji: string) => void;
+  /** Optional title shown at the very top of the menu (e.g. app name, username) */
+  title?: string;
+  /** Optional smaller subtitle shown below the title */
+  subtitle?: string;
+  /** Optional small icon/image src shown left of the title */
+  titleIcon?: string;
 }
 
 interface ContextMenuState {
@@ -91,6 +97,32 @@ function AppContextMenu({
         className="absolute w-[220px] bg-[#111214] border border-[#ffffff0f] rounded-md shadow-[0_8px_32px_rgba(0,0,0,0.6)] py-1.5 overflow-visible"
         style={{ left: x, top: y }}
       >
+        {/* App/item title header */}
+        {config.title && (
+          <>
+            <div className="flex items-center gap-2 px-2.5 py-2">
+              {config.titleIcon && (
+                <img
+                  src={config.titleIcon}
+                  alt=""
+                  className="w-7 h-7 rounded-lg object-cover shrink-0"
+                />
+              )}
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-[#f2f3f5] truncate leading-tight">
+                  {config.title}
+                </p>
+                {config.subtitle && (
+                  <p className="text-[10px] text-[#87898c] truncate leading-tight">
+                    {config.subtitle}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="h-px bg-white/[0.06] mx-1 mb-1" />
+          </>
+        )}
+
         {/* Quick reaction strip */}
         {config.quickReactions && (
           <>
