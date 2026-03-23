@@ -56,8 +56,9 @@ export function Login() {
         }
       }
 
-      // Re-fetch the auth state without a full reload
-      refresh();
+      // Full navigation is the most reliable way to pick up the new session
+      // cookie across all browser/proxy configurations.
+      window.location.href = import.meta.env.BASE_URL || "/";
     } catch {
       setError('Network error — please try again');
     } finally {

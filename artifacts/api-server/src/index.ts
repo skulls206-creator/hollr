@@ -2,7 +2,7 @@ import { createServer } from "http";
 import app from "./app";
 import { initWebSocket } from "./lib/ws";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db/schema";
+import { sessionsTable, usersTable } from "@workspace/db/schema";
 import { and, inArray, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -44,6 +44,20 @@ const LEGACY_EMAILS = [
     console.log("[migration] legacy password reset done", result);
   } catch (e) {
     console.warn("[migration] legacy password reset skipped:", e);
+  }
+})();
+
+// Purge stale OIDC sessions that lack a username field — they crash the Zod
+// parse in GET /auth/user and block users from reaching the login page.
+(async () => {
+  try {
+    const { sql: rawSql } = await import("drizzle-orm");
+    const result = await db
+      .delete(sessionsTable)
+      .where(rawSql`(sess->'user'->>'username') IS NULL`);
+    console.log("[migration] stale session purge done", result);
+  } catch (e) {
+    console.warn("[migration] stale session purge skipped:", e);
   }
 })();
 

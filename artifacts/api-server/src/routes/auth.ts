@@ -33,11 +33,17 @@ const BCRYPT_ROUNDS = 12;
 
 // ── GET /auth/user ────────────────────────────────────────────────────────────
 router.get("/auth/user", (req: Request, res: Response) => {
-  res.json(
-    GetCurrentAuthUserResponse.parse({
-      user: req.isAuthenticated() ? req.user : null,
-    }),
-  );
+  try {
+    res.json(
+      GetCurrentAuthUserResponse.parse({
+        user: req.isAuthenticated() ? req.user : null,
+      }),
+    );
+  } catch {
+    // Session exists but has a stale/invalid shape (e.g. old OIDC sessions).
+    // Treat as unauthenticated so the client lands on the login page.
+    res.json(GetCurrentAuthUserResponse.parse({ user: null }));
+  }
 });
 
 // ── POST /auth/signup ─────────────────────────────────────────────────────────
