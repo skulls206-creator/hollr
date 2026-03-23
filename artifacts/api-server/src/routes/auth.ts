@@ -16,10 +16,13 @@ import {
 const router: IRouter = Router();
 
 function setSessionCookie(res: Response, sid: string) {
+  const isProd = process.env.NODE_ENV === "production";
   res.cookie(SESSION_COOKIE, sid, {
     httpOnly: true,
     secure: true,
-    sameSite: "lax",
+    // In production the static frontend and API are on different origins via
+    // Replit's proxy, so we need SameSite=None. In dev both are same-origin.
+    sameSite: isProd ? "none" : "lax",
     path: "/",
     maxAge: SESSION_TTL,
   });
