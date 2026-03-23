@@ -223,6 +223,13 @@ export function DockBar() {
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { data: servers = [] } = useListMyServers();
   const mouseX = useMotionValue(Infinity);
+  // Magnification is a mouse/hover-only feature. On touch devices the finger
+  // never "hovers", so we keep mouseX at Infinity permanently — all icons stay
+  // at their base size and don't shift under the user's finger.
+  const isTouchDevice = useRef(
+    typeof window !== 'undefined' &&
+    window.matchMedia('(hover: none) and (pointer: coarse)').matches
+  );
   const { show: showMenu } = useContextMenu();
   const { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll } = useKhurkDismissals();
 
@@ -432,7 +439,7 @@ export function DockBar() {
     >
       <div className="flex items-end justify-center w-full select-none">
         <motion.div
-          onMouseMove={(e) => { mouseX.set(e.clientX); }}
+          onMouseMove={(e) => { if (!isTouchDevice.current) mouseX.set(e.clientX); }}
           onMouseLeave={() => { mouseX.set(Infinity); }}
           onPointerLeave={() => { mouseX.set(Infinity); }}
           onPointerUp={() => { mouseX.set(Infinity); }}
@@ -530,8 +537,10 @@ export function DockBar() {
             style={{
               overflowX: 'auto',
               overflowY: 'clip',
-              paddingTop: '56px',
-              marginTop: '-56px',
+              // On touch devices there's no magnification, so no headroom needed.
+              // On desktop the 56px headroom lets magnified icons pop upward.
+              paddingTop: isTouchDevice.current ? '4px' : '56px',
+              marginTop: isTouchDevice.current ? '-4px' : '-56px',
               paddingBottom: '8px',
               marginBottom: '-8px',
               scrollbarWidth: 'none',
