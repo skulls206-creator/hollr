@@ -104,14 +104,6 @@ export const KHURK_APPS: KhurkApp[] = [
     imageSrc: ballpointImg,
     gradient: ['#5a1a00', '#c04a00'],
   },
-  {
-    id: 'hollr',
-    name: 'hollr.chat',
-    tagline: 'Real-time messaging & voice',
-    url: 'https://hollr.khurk.services',
-    gradient: ['#2d0a8c', '#5b21b6'],
-    openMode: 'tab',
-  },
 ];
 
 export const ALL_KHURK_APP_IDS = KHURK_APPS.map((a) => a.id);
