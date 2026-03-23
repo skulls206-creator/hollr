@@ -86,8 +86,8 @@ interface AppState {
   setActiveKhurkAppId: (id: string | null) => void;
   khurkPipMode: boolean;
   setKhurkPipMode: (v: boolean) => void;
-  khurkDashboardOnStartup: boolean;
-  setKhurkDashboardOnStartup: (v: boolean) => void;
+  khurkDashboardOpen: boolean;
+  setKhurkDashboardOpen: (v: boolean) => void;
 
   // Actions
   setActiveServer: (id: string | null) => void;
@@ -228,17 +228,19 @@ export const useAppStore = create<AppState>()(
   setActiveKhurkAppId: (id) => set({ activeKhurkAppId: id, khurkPipMode: false }),
   khurkPipMode: false,
   setKhurkPipMode: (v) => set({ khurkPipMode: v }),
-  khurkDashboardOnStartup: true,
-  setKhurkDashboardOnStartup: (v) => set({ khurkDashboardOnStartup: v }),
+  khurkDashboardOpen: true,
+  setKhurkDashboardOpen: (v) => set({ khurkDashboardOpen: v }),
 
-  // When navigating to content (server/channel/DM), exit the full AppWindow (but
-  // preserve activeKhurkAppId in PiP mode so the floating panel stays alive).
+  // When navigating to content (server/channel/DM), exit the full AppWindow and
+  // close the dashboard. Preserve activeKhurkAppId in PiP mode so the floating
+  // panel stays alive.
   setActiveServer: (id) => set((state) => ({
     activeServerId: id,
     activeDmThreadId: null,
     pinnedPanelOpen: false,
     threadMessageId: null,
     threadChannelId: null,
+    khurkDashboardOpen: false,
     activeKhurkAppId: state.khurkPipMode ? state.activeKhurkAppId : null,
   })),
   setActiveChannel: (id) => set((state) => ({
@@ -247,6 +249,7 @@ export const useAppStore = create<AppState>()(
     pinnedPanelOpen: false,
     threadMessageId: null,
     threadChannelId: null,
+    khurkDashboardOpen: false,
     activeKhurkAppId: state.khurkPipMode ? state.activeKhurkAppId : null,
   })),
   setActiveDmThread: (id) => set((state) => ({
@@ -257,6 +260,7 @@ export const useAppStore = create<AppState>()(
     pinnedPanelOpen: false,
     threadMessageId: null,
     threadChannelId: null,
+    khurkDashboardOpen: false,
     activeKhurkAppId: state.khurkPipMode ? state.activeKhurkAppId : null,
   })),
 
@@ -388,7 +392,7 @@ export const useAppStore = create<AppState>()(
         musicVolume: state.musicVolume,
         micGain: state.micGain,
         musicEffects: state.musicEffects,
-        khurkDashboardOnStartup: state.khurkDashboardOnStartup,
+        khurkDashboardOpen: state.khurkDashboardOpen,
       }),
     }
   )

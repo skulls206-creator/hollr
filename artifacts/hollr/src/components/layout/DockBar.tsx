@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
-import { Plus, MessageSquare, ExternalLink, Trash2, RotateCcw, Copy, LayoutGrid, RefreshCw, Settings, HelpCircle, UserPlus, ServerIcon } from 'lucide-react';
+import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { Plus, MessageSquare, ExternalLink, Trash2, RotateCcw, Copy, LayoutGrid, RefreshCw, Settings, ServerIcon } from 'lucide-react';
 import {
   DndContext,
   DragOverlay,
@@ -192,129 +192,39 @@ function KhurkDockIcon({ app }: { app: KhurkApp }) {
   );
 }
 
-// ─── Start menu ───────────────────────────────────────────────────────────────
-
-function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }) {
-  const {
-    setActiveServer, setCreateServerModalOpen, setJoinServerModalOpen,
-    setUserSettingsModalOpen, setHelpModalOpen,
-  } = useAppStore();
-
-  const action = (fn: () => void) => { fn(); onClose(); };
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: 8, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 8, scale: 0.96 }}
-        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-        className="absolute bottom-full left-0 mb-3 w-56 bg-surface-1/95 backdrop-blur-xl border border-border/40 shadow-2xl shadow-black/40 rounded-2xl overflow-hidden z-50"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="flex items-center gap-3 px-4 py-3 border-b border-border/20"
-          style={{ background: 'linear-gradient(135deg, #2d0a8c22 0%, #5b21b622 100%)' }}
-        >
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm shrink-0"
-            style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
-          >
-            <HollrIcon size={18} />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-foreground leading-tight">hollr.chat</p>
-            <p className="text-[9px] text-muted-foreground leading-tight">Chat & Communities</p>
-          </div>
-        </div>
-
-        <div className="p-1.5 flex flex-col gap-0.5">
-          <button
-            onClick={() => { window.location.reload(); onClose(); }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-primary/15 hover:text-primary transition-colors group"
-          >
-            <RefreshCw size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
-            <span>Refresh Page</span>
-          </button>
-          <button
-            onClick={() => action(() => setActiveServer(null))}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-white/5 transition-colors group"
-          >
-            <MessageSquare size={14} className="text-muted-foreground group-hover:text-foreground transition-colors" />
-            <span>Direct Messages</span>
-          </button>
-        </div>
-
-        {servers.length > 0 && (
-          <>
-            <div className="px-4 py-1">
-              <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">Your Servers</p>
-            </div>
-            <div className="px-1.5 pb-1.5 flex flex-col gap-0.5 max-h-[160px] overflow-y-auto">
-              {servers.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => action(() => setActiveServer(s.id))}
-                  className="flex items-center gap-2.5 w-full px-3 py-1.5 rounded-xl text-left text-sm hover:bg-white/5 transition-colors group"
-                >
-                  <div className="w-5 h-5 rounded-md overflow-hidden bg-secondary shrink-0">
-                    {s.iconUrl
-                      ? <img src={s.iconUrl} alt={s.name} className="w-full h-full object-cover" />
-                      : <span className="w-full h-full flex items-center justify-center text-[8px] font-bold">{getInitials(s.name)}</span>
-                    }
-                  </div>
-                  <span className="truncate text-xs">{s.name}</span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        <div className="border-t border-border/20 p-1.5 flex flex-col gap-0.5">
-          <button
-            onClick={() => action(() => setCreateServerModalOpen(true))}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-white/5 transition-colors group"
-          >
-            <Plus size={14} className="text-emerald-400" />
-            <span>Create a Server</span>
-          </button>
-          <button
-            onClick={() => action(() => setJoinServerModalOpen(true))}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-white/5 transition-colors group"
-          >
-            <UserPlus size={14} className="text-muted-foreground group-hover:text-foreground transition-colors" />
-            <span>Join a Server</span>
-          </button>
-          <button
-            onClick={() => action(() => setUserSettingsModalOpen(true))}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-white/5 transition-colors group"
-          >
-            <Settings size={14} className="text-muted-foreground group-hover:text-foreground transition-colors" />
-            <span>Settings</span>
-          </button>
-          <button
-            onClick={() => action(() => setHelpModalOpen(true))}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left text-sm hover:bg-white/5 transition-colors group"
-          >
-            <HelpCircle size={14} className="text-muted-foreground group-hover:text-foreground transition-colors" />
-            <span>Help</span>
-          </button>
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
-}
 
 // ─── Main DockBar ─────────────────────────────────────────────────────────────
 
+// ─── Server icon gradient (seeded from name so each server has a stable colour)
+
+const SERVER_GRAD_PAIRS: [string, string][] = [
+  ['#5b21b6', '#7c3aed'],
+  ['#1d4ed8', '#3b82f6'],
+  ['#047857', '#10b981'],
+  ['#b45309', '#f59e0b'],
+  ['#be185d', '#ec4899'],
+  ['#0e7490', '#22d3ee'],
+  ['#dc2626', '#f87171'],
+  ['#4338ca', '#818cf8'],
+];
+
+function serverGradient(name: string): [string, string] {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return SERVER_GRAD_PAIRS[Math.abs(h) % SERVER_GRAD_PAIRS.length];
+}
+
 export function DockBar() {
-  const { activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts, setNewDmModalOpen, setActiveKhurkAppId } = useAppStore();
+  const {
+    activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts, setNewDmModalOpen,
+    setActiveKhurkAppId, activeDmThreadId, setActiveDmThread,
+    khurkDashboardOpen, setKhurkDashboardOpen, activeKhurkAppId,
+  } = useAppStore();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { data: servers = [] } = useListMyServers();
   const mouseX = useMotionValue(Infinity);
   const { show: showMenu } = useContextMenu();
   const { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll } = useKhurkDismissals();
-  const [startMenuOpen, setStartMenuOpen] = useState(false);
 
   // Build the canonical ordered list: servers first, then KHURK apps
   const buildDefaultEntries = useCallback((): DockEntry[] => {
@@ -408,7 +318,6 @@ export function DockBar() {
 
   const handleHollrRightClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    setStartMenuOpen(false);
     const actions = [
       { id: 'refresh', label: 'Refresh', icon: <RefreshCw size={14} />, onClick: () => window.location.reload() },
       { id: 'dms', label: 'Direct Messages', icon: <MessageSquare size={14} />, onClick: () => setActiveServer(null), dividerBefore: true },
@@ -448,12 +357,10 @@ export function DockBar() {
           {server.iconUrl ? (
             <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover rounded-xl" />
           ) : (
-            <div className={cn(
-              'w-full h-full flex items-center justify-center text-sm font-semibold transition-colors rounded-xl',
-              activeServerId === server.id
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-foreground hover:bg-primary hover:text-primary-foreground'
-            )}>
+            <div
+              className="w-full h-full flex items-center justify-center text-sm font-bold rounded-xl text-white"
+              style={{ background: `linear-gradient(135deg, ${serverGradient(server.name)[0]} 0%, ${serverGradient(server.name)[1]} 100%)` }}
+            >
               {getInitials(server.name)}
             </div>
           )}
@@ -489,7 +396,10 @@ export function DockBar() {
           {server.iconUrl ? (
             <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-sm font-semibold bg-primary text-primary-foreground">
+            <div
+              className="w-full h-full flex items-center justify-center text-sm font-bold text-white"
+              style={{ background: `linear-gradient(135deg, ${serverGradient(server.name)[0]} 0%, ${serverGradient(server.name)[1]} 100%)` }}
+            >
               {getInitials(server.name)}
             </div>
           )}
@@ -520,10 +430,7 @@ export function DockBar() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div
-        className="flex items-end justify-center w-full select-none"
-        onClick={() => startMenuOpen && setStartMenuOpen(false)}
-      >
+      <div className="flex items-end justify-center w-full select-none">
         <motion.div
           onMouseMove={(e) => { mouseX.set(e.clientX); }}
           onMouseLeave={() => { mouseX.set(Infinity); }}
@@ -533,13 +440,24 @@ export function DockBar() {
           className="relative flex items-end bg-background/70 backdrop-blur-2xl border border-border/30 shadow-2xl shadow-black/30 rounded-2xl px-4 py-2.5"
           style={{ overflow: 'visible', maxWidth: 'calc(100vw - 2rem)', pointerEvents: 'auto' }}
         >
-          {/* ── hollr start-menu button ── */}
+          {/* ── hollr logo — toggles the KHURK OS Dashboard ── */}
           <div className="relative shrink-0">
             <Tooltip>
               <TooltipTrigger asChild>
                 <motion.button
                   ref={hollrMotionRef}
-                  onClick={(e) => { e.stopPropagation(); setStartMenuOpen(v => !v); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const dashboardActive = khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeKhurkAppId;
+                    if (dashboardActive) {
+                      setKhurkDashboardOpen(false);
+                    } else {
+                      setKhurkDashboardOpen(true);
+                      setActiveServer(null);
+                      setActiveDmThread(null);
+                      setActiveKhurkAppId(null);
+                    }
+                  }}
                   onContextMenu={handleHollrRightClick}
                   style={{ scale: hollrScale, transformOrigin: 'bottom center', width: ICON_BASE, height: ICON_BASE }}
                   className="relative shrink-0 flex items-center justify-center"
@@ -547,7 +465,8 @@ export function DockBar() {
                   <div
                     className={cn(
                       'w-full h-full rounded-xl overflow-hidden shadow-lg transition-all duration-200',
-                      startMenuOpen && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+                      khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeKhurkAppId
+                        && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
                     )}
                     style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
                   >
@@ -555,19 +474,16 @@ export function DockBar() {
                       <HollrIcon size={Math.round(ICON_BASE * 0.55)} />
                     </div>
                   </div>
-                  {startMenuOpen && (
-                    <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                  {khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeKhurkAppId && (
+                    <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-foreground" />
                   )}
                 </motion.button>
               </TooltipTrigger>
               <TooltipContent side="top" className="mb-1">
-                <p className="font-bold text-xs">hollr.chat</p>
-                <p className="text-[10px] text-muted-foreground">Click for menu · Right-click for quick nav</p>
+                <p className="font-bold text-xs">KHURK OS</p>
+                <p className="text-[10px] text-muted-foreground">Tap to toggle app launcher · Right-click for nav</p>
               </TooltipContent>
             </Tooltip>
-            <AnimatePresence>
-              {startMenuOpen && <StartMenu servers={servers} onClose={() => setStartMenuOpen(false)} />}
-            </AnimatePresence>
           </div>
 
           {/* ── DM button — wrapped in DockItem for macOS-style magnification ── */}
@@ -575,13 +491,13 @@ export function DockBar() {
             <DockItem
               mouseX={mouseX}
               label="Direct Messages"
-              sublabel={activeServerId === null ? 'Click to start a new DM' : undefined}
-              isActive={activeServerId === null}
+              sublabel={activeServerId === null && !khurkDashboardOpen && !activeDmThreadId ? 'Click to start a new DM' : undefined}
+              isActive={activeServerId === null && !khurkDashboardOpen}
               unreadCount={totalDmUnread}
               onClick={() => {
-                setStartMenuOpen(false);
-                if (activeServerId === null) {
-                  // Already on DMs — open the new DM modal
+                if (khurkDashboardOpen) {
+                  setKhurkDashboardOpen(false);
+                } else if (activeServerId === null && !activeDmThreadId) {
                   setNewDmModalOpen(true);
                 } else {
                   setActiveServer(null);

@@ -155,7 +155,7 @@ export function UserSettingsModal() {
     setAudioInputDeviceId, setAudioOutputDeviceId,
     layoutMode, setLayoutMode,
     theme, setTheme,
-    khurkDashboardOnStartup, setKhurkDashboardOnStartup,
+    khurkDashboardOpen, setKhurkDashboardOpen,
   } = useAppStore();
   const { user, logout } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
@@ -640,10 +640,10 @@ export function UserSettingsModal() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setKhurkDashboardOnStartup(!khurkDashboardOnStartup)}
+                  onClick={() => setKhurkDashboardOpen(!khurkDashboardOpen)}
                   className={cn(
                     'relative shrink-0 w-10 h-5.5 rounded-full transition-colors duration-200 focus:outline-none',
-                    khurkDashboardOnStartup ? 'bg-primary' : 'bg-border/60'
+                    khurkDashboardOpen ? 'bg-primary' : 'bg-border/60'
                   )}
                   style={{ width: 40, height: 22 }}
                   aria-label="Toggle KHURK OS Dashboard"
@@ -655,7 +655,7 @@ export function UserSettingsModal() {
                     style={{
                       width: 18,
                       height: 18,
-                      transform: khurkDashboardOnStartup ? 'translateX(18px)' : 'translateX(0)',
+                      transform: khurkDashboardOpen ? 'translateX(18px)' : 'translateX(0)',
                     }}
                   />
                 </button>

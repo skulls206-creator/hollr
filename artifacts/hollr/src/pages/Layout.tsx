@@ -35,7 +35,7 @@ export function Layout() {
     profileCard, closeProfileCard,
     pinnedPanelOpen, toggleMemberList,
     voiceConnection, layoutMode,
-    activeKhurkAppId, khurkPipMode, khurkDashboardOnStartup,
+    activeKhurkAppId, khurkPipMode, khurkDashboardOpen,
   } = useAppStore();
 
   const navApplied = useRef(false);
@@ -79,8 +79,8 @@ export function Layout() {
   // Whether the KHURK OS AppWindow should occupy the entire center panel
   const showAppWindow = !!(activeKhurkAppId && !khurkPipMode);
 
-  // Dashboard: shown when no active KHURK app (or in PiP), no DM, no server, and pref is on
-  const showDashboard = khurkDashboardOnStartup && !activeKhurkAppId && !activeDmThreadId && !activeServerId;
+  // Dashboard: shown when explicitly opened (hollr icon toggle), no app/DM/server taking over
+  const showDashboard = khurkDashboardOpen && !activeKhurkAppId && !activeDmThreadId && !activeServerId;
 
   return (
     /*
@@ -163,7 +163,7 @@ export function Layout() {
               <AppWindow />
             ) : showDashboard ? (
               /* ── KHURK OS Dashboard ── */
-              <DashboardView />
+              <DashboardView onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
             ) : activeDmThreadId ? (
               /* ── DM chat ── */
               <DmChatArea
