@@ -218,7 +218,7 @@ export function DockBar() {
   const {
     activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts, setNewDmModalOpen,
     setActiveKhurkAppId, activeDmThreadId, setActiveDmThread,
-    khurkDashboardOpen, setKhurkDashboardOpen, activeKhurkAppId,
+    khurkDashboardOpen, setKhurkDashboardOpen, openKhurkDashboard, activeKhurkAppId,
   } = useAppStore();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { data: servers = [] } = useListMyServers();
@@ -452,10 +452,7 @@ export function DockBar() {
                     if (dashboardActive) {
                       setKhurkDashboardOpen(false);
                     } else {
-                      setKhurkDashboardOpen(true);
-                      setActiveServer(null);
-                      setActiveDmThread(null);
-                      setActiveKhurkAppId(null);
+                      openKhurkDashboard();
                     }
                   }}
                   onContextMenu={handleHollrRightClick}

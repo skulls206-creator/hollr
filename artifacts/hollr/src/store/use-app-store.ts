@@ -88,6 +88,7 @@ interface AppState {
   setKhurkPipMode: (v: boolean) => void;
   khurkDashboardOpen: boolean;
   setKhurkDashboardOpen: (v: boolean) => void;
+  openKhurkDashboard: () => void;
 
   // Actions
   setActiveServer: (id: string | null) => void;
@@ -230,6 +231,18 @@ export const useAppStore = create<AppState>()(
   setKhurkPipMode: (v) => set({ khurkPipMode: v }),
   khurkDashboardOpen: true,
   setKhurkDashboardOpen: (v) => set({ khurkDashboardOpen: v }),
+  // Atomically opens the dashboard — clears server/DM/app in a single write so
+  // khurkDashboardOpen:true is never overwritten by a subsequent setActiveServer call.
+  openKhurkDashboard: () => set({
+    khurkDashboardOpen: true,
+    activeServerId: null,
+    activeDmThreadId: null,
+    activeKhurkAppId: null,
+    khurkPipMode: false,
+    pinnedPanelOpen: false,
+    threadMessageId: null,
+    threadChannelId: null,
+  }),
 
   // When navigating to content (server/channel/DM), exit the full AppWindow and
   // close the dashboard. Preserve activeKhurkAppId in PiP mode so the floating
