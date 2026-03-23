@@ -302,7 +302,10 @@ export function ServerSidebar() {
       <div className="flex-1" />
 
       {/* ── Permanent hollr icon — pinned to bottom, never removable ── */}
-      <div className="w-full flex flex-col items-center gap-1 pb-1 px-3">
+      <div
+        className="w-full shrink-0 flex flex-col items-center gap-1 px-3"
+        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+      >
         <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent mb-1" />
         <Tooltip>
           <TooltipTrigger asChild>
