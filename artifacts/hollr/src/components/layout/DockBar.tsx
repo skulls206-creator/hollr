@@ -308,7 +308,7 @@ function StartMenu({ onClose, servers }: { onClose: () => void; servers: any[] }
 // ─── Main DockBar ─────────────────────────────────────────────────────────────
 
 export function DockBar() {
-  const { activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts } = useAppStore();
+  const { activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts, setNewDmModalOpen } = useAppStore();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { data: servers = [] } = useListMyServers();
   const mouseX = useMotionValue(Infinity);
@@ -557,44 +557,52 @@ export function DockBar() {
             </AnimatePresence>
           </div>
 
-          {/* ── DM button ── */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <motion.button
-                onClick={() => { setActiveServer(null); setStartMenuOpen(false); }}
-                whileTap={{ scale: 0.92 }}
-                style={{ width: ICON_BASE, height: ICON_BASE }}
-                className="relative shrink-0 flex items-center justify-center ml-2"
-              >
-                <div className={cn(
-                  'w-full h-full rounded-xl overflow-hidden shadow-md flex items-center justify-center transition-all duration-200',
-                  activeServerId === null
-                    ? 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-1 ring-offset-background'
-                    : 'bg-surface-2 text-muted-foreground hover:bg-primary/20 hover:text-primary'
-                )}>
-                  <MessageSquare size={Math.round(ICON_BASE * 0.42)} />
-                </div>
-                {totalDmUnread > 0 && activeServerId !== null && (
-                  <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-destructive text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none z-10">
-                    {totalDmUnread > 99 ? '99+' : totalDmUnread}
-                  </span>
-                )}
-              </motion.button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="mb-1">
-              <p className="font-bold text-xs">Direct Messages</p>
-            </TooltipContent>
-          </Tooltip>
+          {/* ── DM button — wrapped in DockItem for macOS-style magnification ── */}
+          <div className="ml-2 shrink-0">
+            <DockItem
+              mouseX={mouseX}
+              label="Direct Messages"
+              sublabel={activeServerId === null ? 'Click to start a new DM' : undefined}
+              isActive={activeServerId === null}
+              unreadCount={totalDmUnread}
+              onClick={() => {
+                setStartMenuOpen(false);
+                if (activeServerId === null) {
+                  // Already on DMs — open the new DM modal
+                  setNewDmModalOpen(true);
+                } else {
+                  setActiveServer(null);
+                }
+              }}
+            >
+              <div className={cn(
+                'w-full h-full flex items-center justify-center transition-all duration-200',
+                activeServerId === null
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-surface-2 text-muted-foreground hover:bg-primary/20 hover:text-primary'
+              )}>
+                <MessageSquare size={Math.round(ICON_BASE * 0.42)} />
+              </div>
+            </DockItem>
+          </div>
 
           {/* Divider */}
           <div className="w-px self-stretch mx-2 bg-border/40 rounded-full shrink-0" />
 
-          {/* ── Scrollable sortable area ── */}
+          {/* ── Scrollable sortable area ──
+               overflow-y: 'clip' is crucial here. CSS spec forces overflow-y to
+               become 'auto' (i.e. hidden) when overflow-x is 'auto', UNLESS we
+               use 'clip'. With clip, overflow-x: auto can coexist. The paddingTop
+               + negative marginTop give headroom inside the element's padding box
+               (which 'clip' does NOT cut off) so magnified icons can pop upward
+               without being clipped. */}
           <div
             className="flex items-end gap-3 min-w-0 [&::-webkit-scrollbar]:hidden"
             style={{
               overflowX: 'auto',
-              overflowY: 'visible',
+              overflowY: 'clip',
+              paddingTop: '56px',
+              marginTop: '-56px',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch' as any,
