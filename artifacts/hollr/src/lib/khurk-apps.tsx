@@ -75,16 +75,16 @@ export const KHURK_APPS: KhurkApp[] = [
     name: 'Gasless',
     tagline: 'USDT Web Wallet',
     url: 'https://gasless.khurk.services',
-    imageSrc: gaslessImg,
-    gradient: ['#2a006e', '#7b2fff'],
+    imageSrc: onlyXmrImg,
+    gradient: ['#003a3a', '#007070'],
   },
   {
     id: 'ballpoint',
     name: 'Ballpoint.one',
     tagline: 'Private Notes',
     url: 'https://ballpoint.one',
-    imageSrc: ballpointImg,
-    gradient: ['#7a2200', '#e05a00'],
+    imageSrc: gaslessImg,
+    gradient: ['#2a006e', '#7b2fff'],
   },
   {
     id: 'onlygames',
@@ -99,8 +99,8 @@ export const KHURK_APPS: KhurkApp[] = [
     name: 'OnlyXMR',
     tagline: 'Private Creator Platform',
     url: 'https://onlyxmr.khurk.services',
-    imageSrc: onlyXmrImg,
-    gradient: ['#001a2e', '#004d80'],
+    imageSrc: ballpointImg,
+    gradient: ['#5a1a00', '#c04a00'],
   },
 ];
 
