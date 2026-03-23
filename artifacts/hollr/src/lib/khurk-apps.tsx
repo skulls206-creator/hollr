@@ -100,13 +100,6 @@ export const KHURK_APPS: KhurkApp[] = [
     imageSrc: onlyXmrImg,
     gradient: ['#001a2e', '#004d80'],
   },
-  {
-    id: 'hollr',
-    name: 'hollr.chat',
-    tagline: 'Chat & Communities',
-    url: 'https://hollr.chat',
-    gradient: ['#2d0a8c', '#5b21b6'],
-  },
 ];
 
 export const ALL_KHURK_APP_IDS = KHURK_APPS.map((a) => a.id);
