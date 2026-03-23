@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 type Mode = 'login' | 'signup';
 
 export function Login() {
-  const { refresh } = useAuth();
+  const { setAuthUser } = useAuth();
 
   const [mode, setMode] = useState<Mode>('login');
   const [identifier, setIdentifier] = useState('');   // username or email (login)
@@ -30,35 +30,28 @@ export function Login() {
     setLoading(true);
 
     try {
-      if (mode === 'signup') {
-        const res = await fetch('/api/auth/signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ username: username.trim(), password }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error ?? 'Signup failed');
-          return;
-        }
-      } else {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ identifier: identifier.trim(), password }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error ?? 'Login failed');
-          return;
-        }
+      const url = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+      const body = mode === 'signup'
+        ? { username: username.trim(), password }
+        : { identifier: identifier.trim(), password };
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? (mode === 'signup' ? 'Signup failed' : 'Login failed'));
+        return;
       }
 
-      // Full navigation is the most reliable way to pick up the new session
-      // cookie across all browser/proxy configurations.
-      window.location.href = import.meta.env.BASE_URL || "/";
+      // Update auth state directly from the response body — this transitions
+      // the app to /app immediately without needing a page reload or relying
+      // on the cookie being forwarded by the browser.
+      setAuthUser({ id: data.id, username: data.username, email: data.email ?? null });
     } catch {
       setError('Network error — please try again');
     } finally {

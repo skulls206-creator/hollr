@@ -8,6 +8,7 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   refresh: () => void;
+  setAuthUser: (user: AuthUser) => void;
   logout: () => Promise<void>;
   /** @deprecated – login is now handled inline by the Login page form */
   login: () => void;
@@ -49,6 +50,13 @@ export function useAuth(): AuthState {
     setTick((t) => t + 1);
   }, []);
 
+  // Directly set the authenticated user — used by the login form so the
+  // app transitions to /app immediately without relying on a cookie round-trip.
+  const setAuthUser = useCallback((u: AuthUser) => {
+    setUser(u);
+    setIsLoading(false);
+  }, []);
+
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     setUser(null);
@@ -64,6 +72,7 @@ export function useAuth(): AuthState {
     isLoading,
     isAuthenticated: !!user,
     refresh,
+    setAuthUser,
     logout,
     login,
   };
