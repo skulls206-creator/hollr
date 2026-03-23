@@ -114,12 +114,17 @@ export function Layout() {
       */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* ── Left sidebar — full height ── */}
+        {/* ── Left sidebar — full height ──
+            On mobile the sidebar is `fixed` (full viewport) which would bleed
+            behind the dock. In dock mode we pin its bottom to the dock height
+            (~78px: 8px pt + 60px pill + 10px pb) so it never overlaps the dock.
+            On desktop (md:relative) the flex row already stops above the dock. */}
         <div
           className={[
-            'flex h-full z-40 shrink-0',
-            'md:relative md:translate-x-0',
+            'flex z-40 shrink-0',
+            'md:relative md:translate-x-0 md:h-full',
             'fixed transition-transform duration-200',
+            layoutMode === 'dock' ? 'bottom-[78px] md:bottom-0 h-[calc(100%-78px)] md:h-full' : 'h-full bottom-0',
             mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
           ].join(' ')}
         >
