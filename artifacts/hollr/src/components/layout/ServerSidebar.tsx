@@ -8,11 +8,11 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useCallback } from 'react';
-import { KHURK_APPS, type KhurkApp } from '@/lib/khurk-apps';
+import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
 
 const BASE = import.meta.env.BASE_URL;
 
-function useKhurkDismissals() {
+export function useKhurkDismissals() {
   const { user } = useAuth();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
@@ -50,6 +50,27 @@ function useKhurkDismissals() {
   return { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll };
 }
 
+function KhurkAppIcon({ app, size = 48 }: { app: KhurkApp; size?: number }) {
+  return (
+    <div
+      className="w-full h-full flex items-center justify-center overflow-hidden"
+      style={{
+        background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
+      }}
+    >
+      {app.imageSrc ? (
+        <img
+          src={app.imageSrc}
+          alt={app.name}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <HollrIcon size={Math.round(size * 0.55)} />
+      )}
+    </div>
+  );
+}
+
 export function ServerSidebar() {
   const {
     activeServerId, setActiveServer, setCreateServerModalOpen,
@@ -80,7 +101,6 @@ export function ServerSidebar() {
   const handleServerContextMenu = (e: React.MouseEvent, server: any) => {
     e.preventDefault();
     const isOwner = server.ownerId === user?.id;
-
     const actions: any[] = [
       {
         id: 'mark-home',
@@ -93,10 +113,7 @@ export function ServerSidebar() {
         id: 'invite',
         label: 'Invite People',
         icon: <UserPlus size={14} />,
-        onClick: () => {
-          setActiveServer(server.id);
-          setInviteModalOpen(true);
-        },
+        onClick: () => { setActiveServer(server.id); setInviteModalOpen(true); },
         dividerBefore: true,
       },
       {
@@ -112,55 +129,35 @@ export function ServerSidebar() {
         onClick: () => navigator.clipboard.writeText(server.id),
       },
     ];
-
     if (isOwner) {
       actions.push({
-        id: 'settings',
-        label: 'Server Settings',
-        icon: <Settings size={14} />,
-        onClick: () => {
-          setActiveServer(server.id);
-          setServerSettingsModalOpen(true);
-        },
+        id: 'settings', label: 'Server Settings', icon: <Settings size={14} />,
+        onClick: () => { setActiveServer(server.id); setServerSettingsModalOpen(true); },
         dividerBefore: true,
       });
     }
-
     if (!isOwner) {
       actions.push({
-        id: 'leave',
-        label: 'Leave Server',
-        icon: <LogOut size={14} />,
+        id: 'leave', label: 'Leave Server', icon: <LogOut size={14} />,
         onClick: () => leaveServer(server.id, server.name),
-        danger: true,
-        dividerBefore: true,
+        danger: true, dividerBefore: true,
       });
     }
-
     showMenu({ x: e.clientX, y: e.clientY, actions });
   };
 
   const handleDmContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     showMenu({
-      x: e.clientX,
-      y: e.clientY,
+      x: e.clientX, y: e.clientY,
       actions: [
         {
-          id: 'open-dms',
-          label: 'Open Direct Messages',
-          icon: <MessageSquare size={14} />,
+          id: 'open-dms', label: 'Open Direct Messages', icon: <MessageSquare size={14} />,
           onClick: () => setActiveServer(null),
         },
         {
-          id: 'copy',
-          label: 'Mark All DMs Read',
-          icon: <Bell size={14} />,
-          onClick: () => {
-            Object.keys(dmUnreadCounts).forEach(id => {
-              useAppStore.getState().clearDmUnreadCount(id);
-            });
-          },
+          id: 'copy', label: 'Mark All DMs Read', icon: <Bell size={14} />,
+          onClick: () => { Object.keys(dmUnreadCounts).forEach(id => useAppStore.getState().clearDmUnreadCount(id)); },
           dividerBefore: true,
         },
       ],
@@ -171,57 +168,40 @@ export function ServerSidebar() {
     e.preventDefault();
     const actions: any[] = [
       {
-        id: 'open',
-        label: 'Open App',
-        icon: <LayoutGrid size={14} />,
+        id: 'open', label: 'Open App', icon: <LayoutGrid size={14} />,
         onClick: () => window.open(app.url, '_blank', 'noopener'),
       },
       {
-        id: 'open-tab',
-        label: 'Open in New Tab',
-        icon: <ExternalLink size={14} />,
+        id: 'open-tab', label: 'Open in New Tab', icon: <ExternalLink size={14} />,
         onClick: () => window.open(app.url, '_blank', 'noopener'),
       },
       {
-        id: 'copy-url',
-        label: 'Copy Link',
-        icon: <Copy size={14} />,
+        id: 'copy-url', label: 'Copy Link', icon: <Copy size={14} />,
         onClick: () => navigator.clipboard.writeText(app.url),
         dividerBefore: true,
       },
       {
-        id: 'remove',
-        label: 'Remove from Sidebar',
-        icon: <Trash2 size={14} />,
+        id: 'remove', label: 'Remove from Sidebar', icon: <Trash2 size={14} />,
         onClick: () => dismissOne(app.id),
-        danger: true,
-        dividerBefore: true,
+        danger: true, dividerBefore: true,
       },
       {
-        id: 'remove-all',
-        label: 'Remove All KHURK Apps',
-        icon: <Trash2 size={14} />,
-        onClick: dismissAll,
-        danger: true,
+        id: 'remove-all', label: 'Remove All KHURK Apps', icon: <Trash2 size={14} />,
+        onClick: dismissAll, danger: true,
       },
     ];
-
     if (hasAnyDismissed) {
       actions.push({
-        id: 'restore',
-        label: 'Restore Hidden Apps',
-        icon: <RotateCcw size={14} />,
-        onClick: restoreAll,
-        dividerBefore: true,
+        id: 'restore', label: 'Restore Hidden Apps', icon: <RotateCcw size={14} />,
+        onClick: restoreAll, dividerBefore: true,
       });
     }
-
     showMenu({ x: e.clientX, y: e.clientY, actions });
   };
 
   return (
     <div className="w-[72px] bg-surface-0 shrink-0 flex flex-col items-center py-3 gap-2 overflow-y-auto overflow-x-hidden no-scrollbar border-r border-border/10 z-20">
-      
+
       {/* Direct Messages Button */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -236,8 +216,8 @@ export function ServerSidebar() {
             )} />
             <div className={cn(
               "w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden",
-              activeServerId === null 
-                ? "bg-primary text-primary-foreground rounded-2xl" 
+              activeServerId === null
+                ? "bg-primary text-primary-foreground rounded-2xl"
                 : "bg-secondary text-foreground rounded-[24px] group-hover:rounded-2xl group-hover:bg-primary group-hover:text-primary-foreground"
             )}>
               <MessageSquare size={24} />
@@ -252,7 +232,7 @@ export function ServerSidebar() {
         <TooltipContent side="right" className="font-semibold ml-2">Direct Messages</TooltipContent>
       </Tooltip>
 
-      <div className="w-8 h-[2px] bg-border/40 rounded-full my-3" />
+      <div className="w-8 h-[2px] bg-border/40 rounded-full my-1" />
 
       {/* Server List */}
       {servers.map((server) => (
@@ -270,8 +250,8 @@ export function ServerSidebar() {
               )} />
               <div className={cn(
                 "w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-sm",
-                activeServerId === server.id 
-                  ? "bg-primary text-primary-foreground rounded-2xl shadow-primary/20" 
+                activeServerId === server.id
+                  ? "bg-primary text-primary-foreground rounded-2xl shadow-primary/20"
                   : "bg-secondary text-foreground rounded-[24px] group-hover:rounded-2xl group-hover:bg-primary group-hover:text-primary-foreground"
               )}>
                 {server.iconUrl ? (
@@ -291,7 +271,7 @@ export function ServerSidebar() {
         <TooltipTrigger asChild>
           <button
             onClick={() => setCreateServerModalOpen(true)}
-            className="relative group flex items-center justify-center w-12 h-12 mt-2"
+            className="relative group flex items-center justify-center w-12 h-12 mt-1"
           >
             <div className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden bg-secondary text-emerald-500 rounded-[24px] group-hover:rounded-2xl group-hover:bg-emerald-500 group-hover:text-white border border-dashed border-emerald-500/20 group-hover:border-transparent">
               <Plus size={24} />
@@ -301,13 +281,13 @@ export function ServerSidebar() {
         <TooltipContent side="right" className="font-semibold ml-2">Add a Server</TooltipContent>
       </Tooltip>
 
-      {/* KHURK Apps Section */}
+      {/* ── KHURK Apps Section ── */}
       {(visibleApps.length > 0 || hasAnyDismissed) && (
         <>
-          <div className="w-full flex flex-col items-center gap-0.5 mt-2">
-            <div className="w-8 h-[1px] bg-border/30 rounded-full" />
-            <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/40 select-none mt-1">
-              Apps
+          <div className="w-full flex flex-col items-center gap-1 mt-2 px-3">
+            <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+            <span className="text-[7.5px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 select-none">
+              KHURK
             </span>
           </div>
 
@@ -318,28 +298,24 @@ export function ServerSidebar() {
                   onClick={() => window.open(app.url, '_blank', 'noopener')}
                   onContextMenu={(e) => handleAppContextMenu(e, app)}
                   className="relative group flex items-center justify-center w-full h-12"
-                  whileTap={{ scale: 0.92 }}
+                  whileTap={{ scale: 0.9 }}
                 >
-                  {/* No active pill — these are external links, not navigation */}
-                  <div className="absolute left-0 w-1 rounded-r-full transition-all duration-300 h-0 group-hover:h-5 bg-foreground/50 opacity-0 group-hover:opacity-100" />
+                  <div className="absolute left-0 w-1 rounded-r-full transition-all duration-300 h-0 group-hover:h-4 bg-white/40 opacity-0 group-hover:opacity-100" />
                   <div
-                    className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-sm rounded-[24px] group-hover:rounded-2xl group-hover:shadow-lg"
-                    style={{
-                      background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
-                    }}
+                    className="w-12 h-12 transition-all duration-300 overflow-hidden shadow-md rounded-[24px] group-hover:rounded-2xl group-hover:shadow-xl group-hover:scale-105"
                   >
-                    <app.Icon />
+                    <KhurkAppIcon app={app} size={48} />
                   </div>
                 </motion.button>
               </TooltipTrigger>
-              <TooltipContent side="right" className="ml-2">
-                <p className="font-semibold text-sm">{app.name}</p>
-                <p className="text-xs text-muted-foreground">{app.tagline}</p>
+              <TooltipContent side="right" className="ml-2 p-2">
+                <p className="font-bold text-xs">{app.name}</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">{app.tagline}</p>
               </TooltipContent>
             </Tooltip>
           ))}
 
-          {/* Restore button — shown only when all apps are hidden */}
+          {/* Restore button — only when ALL are hidden */}
           {visibleApps.length === 0 && hasAnyDismissed && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -347,7 +323,7 @@ export function ServerSidebar() {
                   onClick={restoreAll}
                   className="relative group flex items-center justify-center w-12 h-12"
                 >
-                  <div className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden bg-secondary text-muted-foreground rounded-[24px] group-hover:rounded-2xl group-hover:bg-primary/20 group-hover:text-primary border border-dashed border-border/30">
+                  <div className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden bg-surface-2 text-muted-foreground rounded-[24px] group-hover:rounded-2xl group-hover:text-foreground border border-dashed border-border/40">
                     <RotateCcw size={18} />
                   </div>
                 </button>
@@ -357,6 +333,9 @@ export function ServerSidebar() {
           )}
         </>
       )}
+
+      {/* Bottom padding */}
+      <div className="h-2 shrink-0" />
     </div>
   );
 }
