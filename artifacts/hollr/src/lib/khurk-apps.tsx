@@ -48,7 +48,7 @@ export const KHURK_APPS: KhurkApp[] = [
   },
   {
     id: 'playd',
-    name: 'Playd',
+    name: 'Playd Music',
     tagline: 'Local Music Player',
     url: 'https://playd.khurk.services',
     imageSrc: playdImg,
