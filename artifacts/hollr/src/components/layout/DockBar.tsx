@@ -103,7 +103,7 @@ function DockItem({
             transition: dragTransition,
             opacity: isDragging ? 0 : 1,
           }}
-          className="relative shrink-0 flex items-center justify-center"
+          className="relative shrink-0 flex items-center justify-center pointer-events-auto"
           {...(dragListeners as any)}
           {...(dragAttributes as any)}
         >
@@ -223,13 +223,6 @@ export function DockBar() {
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { data: servers = [] } = useListMyServers();
   const mouseX = useMotionValue(Infinity);
-  // Magnification is a mouse/hover-only feature. On touch devices the finger
-  // never "hovers", so we keep mouseX at Infinity permanently — all icons stay
-  // at their base size and don't shift under the user's finger.
-  const isTouchDevice = useRef(
-    typeof window !== 'undefined' &&
-    window.matchMedia('(hover: none) and (pointer: coarse)').matches
-  );
   const { show: showMenu } = useContextMenu();
   const { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll } = useKhurkDismissals();
 
@@ -536,10 +529,13 @@ export function DockBar() {
             style={{
               overflowX: 'auto',
               overflowY: 'clip',
-              // On touch devices there's no magnification, so no headroom needed.
-              // On desktop the 56px headroom lets magnified icons pop upward.
-              paddingTop: isTouchDevice.current ? '4px' : '56px',
-              marginTop: isTouchDevice.current ? '-4px' : '-56px',
+              // pointer-events: none on the scrollable container so the 56px
+              // invisible headroom zone (paddingTop) never blocks taps to
+              // elements above the dock (user panel, settings buttons, etc.).
+              // Each icon button restores pointer-events: auto individually.
+              pointerEvents: 'none',
+              paddingTop: '56px',
+              marginTop: '-56px',
               paddingBottom: '8px',
               marginBottom: '-8px',
               scrollbarWidth: 'none',
