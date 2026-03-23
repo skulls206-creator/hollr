@@ -33,6 +33,7 @@ interface AppState {
   serverSettingsModalOpen: boolean;
   inviteModalOpen: boolean;
   helpModalOpen: boolean;
+  newDmModalOpen: boolean;
 
   // UI panels
   memberListOpen: boolean;
@@ -91,6 +92,7 @@ interface AppState {
   setServerSettingsModalOpen: (open: boolean) => void;
   setInviteModalOpen: (open: boolean) => void;
   setHelpModalOpen: (open: boolean) => void;
+  setNewDmModalOpen: (open: boolean) => void;
 
   setMemberListOpen: (open: boolean) => void;
   toggleMemberList: () => void;
@@ -178,6 +180,7 @@ export const useAppStore = create<AppState>()(
   serverSettingsModalOpen: false,
   inviteModalOpen: false,
   helpModalOpen: false,
+  newDmModalOpen: false,
 
   memberListOpen: false,
   mobileSidebarOpen: false,
@@ -222,6 +225,7 @@ export const useAppStore = create<AppState>()(
   setServerSettingsModalOpen: (open) => set({ serverSettingsModalOpen: open }),
   setInviteModalOpen: (open) => set({ inviteModalOpen: open }),
   setHelpModalOpen: (open) => set({ helpModalOpen: open }),
+  setNewDmModalOpen: (open) => set({ newDmModalOpen: open }),
 
   setMemberListOpen: (open) => set({ memberListOpen: open }),
   toggleMemberList: () => set((state) => ({ memberListOpen: !state.memberListOpen })),

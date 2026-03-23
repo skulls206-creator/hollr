@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { userProfilesTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { userProfilesTable, usersTable } from "@workspace/db/schema";
+import { eq, ilike } from "drizzle-orm";
 import { UpdateMyProfileBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -82,6 +82,60 @@ router.patch("/users/me", async (req, res) => {
     status: profile.status,
     customStatus: profile.customStatus,
     createdAt: profile.createdAt.toISOString(),
+  });
+});
+
+// ─── Lookup user by username or email ────────────────────────────────────────
+// GET /api/users/lookup?q=username_or_email
+// Returns the user profile if found and not the current user, otherwise 404.
+router.get("/users/lookup", async (req, res) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const q = String(req.query.q ?? "").trim();
+  if (!q) {
+    res.status(400).json({ error: "Query is required" });
+    return;
+  }
+
+  const myId = req.user.id;
+
+  // 1. Try exact username match (case-insensitive)
+  let profile = await db.query.userProfilesTable.findFirst({
+    where: ilike(userProfilesTable.username, q),
+  });
+
+  // 2. If not found, try looking up by email in the users table
+  if (!profile) {
+    const authUser = await db.query.usersTable.findFirst({
+      where: ilike(usersTable.email, q),
+    });
+    if (authUser) {
+      profile = await db.query.userProfilesTable.findFirst({
+        where: eq(userProfilesTable.userId, authUser.id),
+      });
+    }
+  }
+
+  if (!profile) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  // Don't let users DM themselves
+  if (profile.userId === myId) {
+    res.status(400).json({ error: "That's you!" });
+    return;
+  }
+
+  res.json({
+    id: profile.userId,
+    username: profile.username,
+    displayName: profile.displayName,
+    avatarUrl: profile.avatarUrl,
+    status: profile.status,
   });
 });
 

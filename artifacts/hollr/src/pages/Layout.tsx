@@ -19,6 +19,7 @@ import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { MobileDmList } from '@/components/layout/MobileDmList';
 import { DockBar } from '@/components/layout/DockBar';
+import { NewDmModal } from '@/components/modals/NewDmModal';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { pendingNav, applyNav } from '@/lib/notification-nav';
@@ -199,6 +200,7 @@ export function Layout() {
       <HelpModal />
       <ServerSettingsModal />
       <UserSettingsModal />
+      <NewDmModal />
 
       {profileCard && (
         <UserProfileCard

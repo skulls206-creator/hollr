@@ -236,7 +236,11 @@ export function ChannelSidebar() {
         <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
           <div className="flex items-center justify-between px-2 py-2">
             <p className="text-xs text-muted-foreground font-semibold">DIRECT MESSAGES</p>
-            <button title="Open DM" className="text-muted-foreground hover:text-foreground transition-colors">
+            <button
+              title="New Direct Message"
+              onClick={() => useAppStore.getState().setNewDmModalOpen(true)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
               <MessageSquarePlus size={14} />
             </button>
           </div>
