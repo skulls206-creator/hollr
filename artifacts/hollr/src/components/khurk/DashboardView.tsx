@@ -62,7 +62,7 @@ function AppCard({ app }: { app: KhurkApp }) {
           <img
             src={app.imageSrc}
             alt={app.name}
-            className="w-20 h-20 object-contain drop-shadow-xl"
+            className="w-20 h-20 object-contain drop-shadow-xl mix-blend-screen"
           />
         ) : (
           <HollrIcon size={64} />
