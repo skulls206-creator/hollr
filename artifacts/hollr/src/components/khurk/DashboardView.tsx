@@ -62,10 +62,10 @@ function AppCard({ app }: { app: KhurkApp }) {
           <img
             src={app.imageSrc}
             alt={app.name}
-            className="w-12 h-12 object-contain drop-shadow-lg"
+            className="w-20 h-20 object-contain drop-shadow-xl"
           />
         ) : (
-          <HollrIcon size={40} />
+          <HollrIcon size={64} />
         )}
         {isTab && (
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
