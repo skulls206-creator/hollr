@@ -365,7 +365,7 @@ export function AppWindow() {
           className="w-full h-full border-none"
           style={{ opacity: loading ? 0 : 1, transition: 'opacity 0.35s ease' }}
           onLoad={() => setLoading(false)}
-          allow="camera; microphone; fullscreen; clipboard-read; clipboard-write; autoplay"
+          allow="camera; microphone; fullscreen; clipboard-read; clipboard-write; autoplay; file-system-access"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation"
         />
       </div>
