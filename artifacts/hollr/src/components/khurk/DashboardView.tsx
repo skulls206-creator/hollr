@@ -80,12 +80,18 @@ function AppCard({ app }: { app: KhurkApp }) {
           {app.imageSrc ? (
             <div
               className="rounded-2xl p-3 flex items-center justify-center"
-              style={{ background: 'rgba(0,0,0,0.42)', backdropFilter: 'blur(4px)', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
+              style={{
+                background: 'rgba(255,255,255,0.13)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.45)',
+              }}
             >
               <img
                 src={app.imageSrc}
                 alt={app.name}
                 className="w-11 h-11 object-contain"
+                style={{ filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.6))' }}
               />
             </div>
           ) : (
