@@ -120,12 +120,12 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
           <Menu size={18} />
         </button>
         <div className="flex items-center gap-2">
-          <div
-            className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
-          >
-            <HollrIcon size={11} />
-          </div>
+          <img
+            src="/khurk-logo.png"
+            alt="KHURK OS"
+            className="w-6 h-6 rounded-md object-cover shrink-0"
+            draggable={false}
+          />
           <span className="text-sm font-bold tracking-tight" style={{ color: 'rgba(255,255,255,0.85)' }}>
             KHURK OS
           </span>
@@ -138,15 +138,13 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
 
           {/* Header */}
           <div className="flex flex-col items-center gap-3 mb-8">
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
-              style={{
-                background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)',
-                boxShadow: '0 0 32px rgba(91,33,182,0.4)',
-              }}
-            >
-              <HollrIcon size={32} />
-            </div>
+            <img
+              src="/khurk-logo.png"
+              alt="KHURK OS"
+              draggable={false}
+              className="w-20 h-20 rounded-2xl object-cover shadow-lg"
+              style={{ boxShadow: '0 0 32px rgba(34,211,238,0.35)' }}
+            />
             <div className="text-center">
               <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'rgba(255,255,255,0.95)' }}>
                 KHURK OS
