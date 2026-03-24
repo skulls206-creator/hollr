@@ -74,7 +74,7 @@ function SortableServerItem({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      style={{ transform: CSS.Transform.toString(transform), transition: transition ?? undefined, touchAction: 'none', opacity: isDragging ? 0 : 1 }}
+      style={{ transform: CSS.Transform.toString(transform), transition: transition ?? undefined, touchAction: 'pan-y', opacity: isDragging ? 0 : 1 }}
       className="py-0.5 w-full"
     >
       <Tooltip>
@@ -121,7 +121,7 @@ function SortableKhurkItem({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      style={{ transform: CSS.Transform.toString(transform), transition: transition ?? undefined, touchAction: 'none', opacity: isDragging ? 0 : 1 }}
+      style={{ transform: CSS.Transform.toString(transform), transition: transition ?? undefined, touchAction: 'pan-y', opacity: isDragging ? 0 : 1 }}
     >
       <Tooltip>
         <TooltipTrigger asChild>
@@ -190,7 +190,15 @@ export function ServerSidebar() {
 
   // ── DND — single DndContext, two SortableContexts, routed by khurk: prefix ──
   const sidebarSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        // Require a 250 ms hold before a drag activates.
+        // If the pointer moves more than 8 px during that hold the drag is
+        // cancelled, so a quick scroll swipe is never mistaken for a reorder.
+        delay: 250,
+        tolerance: 8,
+      },
+    }),
   );
 
   // Track which item type is being dragged: 'server' | 'khurk' | null
