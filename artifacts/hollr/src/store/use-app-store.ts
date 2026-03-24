@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+export interface PipWindowEntry {
+  id: string;
+  appId: string;
+}
+
 interface ProfileCardState {
   userId: string;
   joinedAt?: string;
@@ -89,6 +94,12 @@ interface AppState {
   khurkDashboardOpen: boolean;
   setKhurkDashboardOpen: (v: boolean) => void;
   openKhurkDashboard: () => void;
+
+  // Multi-PiP windows (max 4)
+  pipWindows: PipWindowEntry[];
+  addPipWindow: (appId: string) => void;
+  removePipWindow: (windowId: string) => void;
+  restorePipWindow: (windowId: string) => void;
 
   // Actions
   setActiveServer: (id: string | null) => void;
@@ -236,8 +247,6 @@ export const useAppStore = create<AppState>()(
   setKhurkPipMode: (v) => set({ khurkPipMode: v }),
   khurkDashboardOpen: true,
   setKhurkDashboardOpen: (v) => set({ khurkDashboardOpen: v }),
-  // Atomically opens the dashboard — clears server/DM/app in a single write so
-  // khurkDashboardOpen:true is never overwritten by a subsequent setActiveServer call.
   openKhurkDashboard: () => set({
     khurkDashboardOpen: true,
     activeServerId: null,
@@ -250,28 +259,49 @@ export const useAppStore = create<AppState>()(
     threadChannelId: null,
   }),
 
+  // Multi-PiP windows
+  pipWindows: [],
+  addPipWindow: (appId) => set((state) => {
+    if (state.pipWindows.length >= 4) return {};
+    // Don't duplicate the same app
+    if (state.pipWindows.some(w => w.appId === appId)) return {};
+    const id = crypto.randomUUID();
+    return { pipWindows: [...state.pipWindows, { id, appId }] };
+  }),
+  removePipWindow: (windowId) => set((state) => ({
+    pipWindows: state.pipWindows.filter(w => w.id !== windowId),
+  })),
+  restorePipWindow: (windowId) => set((state) => {
+    const entry = state.pipWindows.find(w => w.id === windowId);
+    if (!entry) return {};
+    return {
+      pipWindows: state.pipWindows.filter(w => w.id !== windowId),
+      activeKhurkAppId: entry.appId,
+      khurkPipMode: false,
+    };
+  }),
+
   // When navigating to content (server/channel/DM), exit the full AppWindow and
-  // close the dashboard. Preserve activeKhurkAppId in PiP mode so the floating
-  // panel stays alive.
-  setActiveServer: (id) => set((state) => ({
+  // close the dashboard. PiP windows (pipWindows array) survive navigation.
+  setActiveServer: (id) => set({
     activeServerId: id,
     activeDmThreadId: null,
     pinnedPanelOpen: false,
     threadMessageId: null,
     threadChannelId: null,
     khurkDashboardOpen: false,
-    activeKhurkAppId: state.khurkPipMode ? state.activeKhurkAppId : null,
-  })),
-  setActiveChannel: (id) => set((state) => ({
+    activeKhurkAppId: null,
+  }),
+  setActiveChannel: (id) => set({
     activeChannelId: id,
     mobileSidebarOpen: false,
     pinnedPanelOpen: false,
     threadMessageId: null,
     threadChannelId: null,
     khurkDashboardOpen: false,
-    activeKhurkAppId: state.khurkPipMode ? state.activeKhurkAppId : null,
-  })),
-  setActiveDmThread: (id) => set((state) => ({
+    activeKhurkAppId: null,
+  }),
+  setActiveDmThread: (id) => set({
     activeDmThreadId: id,
     activeServerId: null,
     activeChannelId: null,
@@ -280,8 +310,8 @@ export const useAppStore = create<AppState>()(
     threadMessageId: null,
     threadChannelId: null,
     khurkDashboardOpen: false,
-    activeKhurkAppId: state.khurkPipMode ? state.activeKhurkAppId : null,
-  })),
+    activeKhurkAppId: null,
+  }),
 
   setCreateServerModalOpen: (open) => set({ createServerModalOpen: open }),
   setCreateChannelModalOpen: (open) => set({ createChannelModalOpen: open }),

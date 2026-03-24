@@ -2,13 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon } from '@/lib/khurk-apps';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { useToast } from '@/hooks/use-toast';
 import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, Menu } from 'lucide-react';
+
+const MAX_PIP = 4;
 
 export function AppWindow() {
   const {
     activeKhurkAppId, setActiveKhurkAppId, setKhurkPipMode,
+    pipWindows, addPipWindow,
     layoutMode, toggleMobileSidebar, setClassicChannelOpen,
   } = useAppStore();
+  const { toast } = useToast();
   const { show: showMenu } = useContextMenu();
   const [refreshCount, setRefreshCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -32,8 +37,14 @@ export function AppWindow() {
   }, [setActiveKhurkAppId, setKhurkPipMode]);
 
   const handlePip = useCallback(() => {
-    setKhurkPipMode(true);
-  }, [setKhurkPipMode]);
+    if (!activeKhurkAppId) return;
+    if (pipWindows.length >= MAX_PIP) {
+      toast({ title: 'Maximum 4 PiP windows open', description: 'Close one before opening another.', variant: 'destructive' });
+      return;
+    }
+    addPipWindow(activeKhurkAppId);
+    setActiveKhurkAppId(null);
+  }, [activeKhurkAppId, pipWindows.length, addPipWindow, setActiveKhurkAppId, toast]);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -54,9 +65,10 @@ export function AppWindow() {
           },
           {
             id: 'pip',
-            label: 'Picture in Picture',
+            label: pipWindows.length >= MAX_PIP ? 'PiP (max 4 reached)' : 'Picture in Picture',
             icon: <PictureInPicture2 size={14} />,
             onClick: handlePip,
+            disabled: pipWindows.length >= MAX_PIP,
           },
           {
             id: 'open-tab',
@@ -137,9 +149,10 @@ export function AppWindow() {
             <ExternalLink size={13} />
           </button>
           <button
-            title="Picture in Picture"
+            title={pipWindows.length >= MAX_PIP ? 'Max 4 PiP windows open' : 'Picture in Picture'}
             onClick={handlePip}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+            disabled={pipWindows.length >= MAX_PIP}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <PictureInPicture2 size={13} />
           </button>
