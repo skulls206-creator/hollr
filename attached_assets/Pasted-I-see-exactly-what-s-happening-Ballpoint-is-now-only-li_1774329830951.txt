@@ -1,0 +1,64 @@
+I see exactly what's happening. Ballpoint is now only listening for khurk:vault-open with file contents, but Hollr is almost certainly still sending the old khurk:fs-directory handle message — and Ballpoint just ignores it silently with zero feedback. Let me fix this with proper diagnostic feedback and a visual "waiting" state:
+
+Now update the WelcomeScreen to replace the static text with a live "listening" indicator and show exactly what Hollr needs to send:
+
+Okay. Let me be completely straight with you about what's happening.
+
+The problem is 100% in Hollr. Ballpoint is ready and working. Nothing I change on Ballpoint's side will make it work until Hollr is updated.
+
+Here's exactly why: When Hollr's folder button calls showDirectoryPicker(), it gets a handle to the folder. The browser gave that permission specifically to Hollr. When Hollr sends that handle to Ballpoint inside the iframe, the browser sees a different origin trying to use it and silently blocks every single file read. Zero errors, zero feedback. Just nothing.
+
+The fix is architectural — Hollr has to be the one reading the files, not Ballpoint.
+
+What I just changed:
+
+Ballpoint now shows a pulsing green dot with "Listening for KHURK OS to share a folder..." — so you can see it's actively waiting
+If Hollr sends the old handle message, you now get a visible warning toast instead of silence: "⚠️ Hollr needs to be updated — it sent a folder handle instead of file contents"
+Open Chrome DevTools → Console and you'll see [Ballpoint] logs showing exactly what arrives
+What you must change in Hollr — find wherever your folder button is and replace it with this:
+
+const dir = await showDirectoryPicker({ mode: 'readwrite' });
+// Read all file CONTENTS (not just the handle)
+const files = [];
+for await (const entry of dir.values()) {
+  if (entry.kind === 'file' && (entry.name.endsWith('.md') || entry.name.endsWith('.txt'))) {
+    const file = await entry.getFile();
+    files.push({
+      name: entry.name,
+      content: await file.text(),
+      lastModified: file.lastModified
+    });
+  }
+}
+// Send contents, not the handle
+ballpointIframe.contentWindow.postMessage({
+  type: 'khurk:vault-open',
+  name: dir.name,
+  files
+}, '*');
+// Listen for writes back from Ballpoint
+window.addEventListener('message', async (e) => {
+  if (e.data?.type === 'ballpoint:write-file') {
+    const fh = await dir.getFileHandle(e.data.name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(e.data.content);
+    await w.close();
+  }
+  if (e.data?.type === 'ballpoint:create-file') {
+    const fh = await dir.getFileHandle(e.data.name, { create: true });
+    const w = await fh.createWritable();
+    await w.write('');
+    await w.close();
+  }
+  if (e.data?.type === 'ballpoint:delete-file') {
+    await dir.removeEntry(e.data.name).catch(() => {});
+  }
+  if (e.data?.type === 'ballpoint:rename-file') {
+    const fh = await dir.getFileHandle(e.data.newName, { create: true });
+    const w = await fh.createWritable();
+    await w.write(e.data.content);
+    await w.close();
+    await dir.removeEntry(e.data.oldName).catch(() => {});
+  }
+});
+Once you make that change in Hollr and click the folder button, Ballpoint will immediately load your notes with no other changes needed.

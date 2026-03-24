@@ -23,6 +23,8 @@ export function AppWindow() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
   const vaultListenerRef = useRef<((e: MessageEvent) => void) | null>(null);
+  // Holds the last vault payload so it can be replayed when Ballpoint signals ready
+  const pendingVaultRef = useRef<{ name: string; files: { name: string; content: string; lastModified: number }[] } | null>(null);
 
   const app = KHURK_APPS.find((a) => a.id === activeKhurkAppId);
 
@@ -37,7 +39,23 @@ export function AppWindow() {
       vaultListenerRef.current = null;
     }
     dirHandleRef.current = null;
+    pendingVaultRef.current = null;
   }, [activeKhurkAppId]);
+
+  // Listen for ballpoint:ready — sent by Ballpoint when its message listener is active.
+  // Re-sends the pending vault payload so folder data is never lost to a timing race.
+  useEffect(() => {
+    const onReady = (e: MessageEvent) => {
+      if (e.data?.type !== 'ballpoint:ready') return;
+      const payload = pendingVaultRef.current;
+      const win = iframeRef.current?.contentWindow;
+      if (payload && win) {
+        win.postMessage({ type: 'khurk:vault-open', ...payload }, '*');
+      }
+    };
+    window.addEventListener('message', onReady);
+    return () => window.removeEventListener('message', onReady);
+  }, []);
 
   // Final cleanup on unmount
   useEffect(() => {
@@ -164,6 +182,9 @@ export function AppWindow() {
 
     vaultListenerRef.current = listener;
     window.addEventListener('message', listener);
+
+    // Cache the payload — the ballpoint:ready listener will replay it if needed
+    pendingVaultRef.current = { name: dir.name, files };
 
     // Send file contents to the iframe (not the handle)
     iframe.contentWindow.postMessage(
