@@ -230,7 +230,7 @@ export function ChannelSidebar() {
 
   if (!activeServerId) {
     return (
-      <div className="w-[260px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
+      <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
         <div className="h-12 border-b border-border/10 flex items-center px-4 font-bold text-foreground shadow-sm">
           Direct Messages
         </div>
@@ -320,7 +320,7 @@ export function ChannelSidebar() {
   };
 
   return (
-    <div className="w-[260px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
+    <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
       {/* Server Header with dropdown */}
       <div className="relative">
         <button

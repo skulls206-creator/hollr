@@ -291,15 +291,15 @@ export function Layout() {
 
         Classic mode:
           • Server icon rail is always 72px wide (in-flow).
-          • Channel sidebar is 260px when open.
+          • Channel sidebar is 300px when open.
           • closed → left-[72px]  (right of icon rail, before channel list)
-          • open   → left-[332px] (right of icon rail + channel list)
+          • open   → left-[372px] (right of icon rail + channel list)
 
         Dock mode:
           • No permanent icon rail — sidebar starts at x=0.
           • closed → left-0
-          • open / locked → left-[260px]
-          • Desktop + normal chat (sidebar in-flow): always md:left-[260px]
+          • open / locked → left-[300px]
+          • Desktop + normal chat (sidebar in-flow): always md:left-[300px]
       */}
 
       {/* ── Classic mode pull-tab ── */}
@@ -310,7 +310,7 @@ export function Layout() {
             'fixed top-1/2 -translate-y-1/2 z-[60]',
             'flex flex-col items-center justify-center gap-[3.5px]',
             'opacity-40 hover:opacity-100 transition-[left,opacity] duration-200 ease-out',
-            classicChannelOpen ? 'left-[332px]' : 'left-[72px]',
+            classicChannelOpen ? 'left-[372px]' : 'left-[72px]',
           )}
           style={{
             width: '14px',
@@ -346,8 +346,8 @@ export function Layout() {
             'fixed top-1/2 -translate-y-1/2 z-[60]',
             'flex flex-col items-center justify-center gap-[3.5px]',
             'opacity-40 hover:opacity-100 transition-[left,opacity] duration-200 ease-out',
-            (sidebarLocked || mobileSidebarOpen) ? 'left-[260px]' : 'left-0',
-            !showDashboard && !showAppWindow && 'md:left-[260px]',
+            (sidebarLocked || mobileSidebarOpen) ? 'left-[300px]' : 'left-0',
+            !showDashboard && !showAppWindow && 'md:left-[300px]',
           )}
           style={{
             width: '14px',
