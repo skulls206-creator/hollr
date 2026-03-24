@@ -76,19 +76,23 @@ function AppCard({ app }: { app: KhurkApp }) {
         <div
           className="absolute inset-0"
           style={{
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 100%)',
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.78) 100%)',
           }}
         />
 
         {/* App icon centered on top of banner */}
         <div className="absolute inset-0 flex items-center justify-center">
           {app.imageSrc ? (
-            <img
-              src={app.imageSrc}
-              alt={app.name}
-              className="w-[72px] h-[72px] object-contain drop-shadow-2xl mix-blend-screen"
-              style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.8))' }}
-            />
+            <div
+              className="rounded-2xl p-3 flex items-center justify-center"
+              style={{ background: 'rgba(0,0,0,0.38)', backdropFilter: 'blur(4px)', boxShadow: '0 4px 24px rgba(0,0,0,0.5)' }}
+            >
+              <img
+                src={app.imageSrc}
+                alt={app.name}
+                className="w-12 h-12 object-contain"
+              />
+            </div>
           ) : (
             <HollrIcon size={60} />
           )}
@@ -141,7 +145,7 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
-  const { sidebarLocked, setSidebarLocked, layoutMode, setClassicChannelOpen, setMobileSidebarOpen } = useAppStore();
+  const { sidebarLocked, setSidebarLocked, layoutMode, setClassicChannelOpen } = useAppStore();
 
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full" style={{ background: '#06060a' }}>
@@ -160,7 +164,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
           <Menu size={18} />
         </button>
         <button
-          onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next) { if (layoutMode === 'classic') setClassicChannelOpen(true); else { onOpenSidebar?.(); setMobileSidebarOpen(true); } } }}
+          onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next && layoutMode === 'classic') setClassicChannelOpen(true); }}
           className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-white/5"
           style={{ color: sidebarLocked ? 'rgb(34,211,238)' : 'rgba(255,255,255,0.2)' }}
           title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}

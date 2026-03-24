@@ -191,7 +191,7 @@ export function ChatArea() {
             <Menu size={22} />
           </button>
           <button
-            onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next) { if (layoutMode === 'classic') setClassicChannelOpen(true); else setMobileSidebarOpen(true); } }}
+            onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next && layoutMode === 'classic') setClassicChannelOpen(true); }}
             className={cn('transition-colors shrink-0 p-1 rounded', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
             title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
           >
@@ -223,7 +223,7 @@ export function ChatArea() {
               <Menu size={22} />
             </button>
             <button
-              onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next) { if (layoutMode === 'classic') setClassicChannelOpen(true); else setMobileSidebarOpen(true); } }}
+              onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next && layoutMode === 'classic') setClassicChannelOpen(true); }}
               className={cn('mr-3 p-1 rounded transition-colors shrink-0', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
               title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
             >
