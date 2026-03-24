@@ -57,6 +57,21 @@ export function AppWindow() {
 
   const app = KHURK_APPS.find((a) => a.id === activeKhurkAppId);
 
+  // Posts the current pending vault payload to the iframe.
+  // Declared first — useEffects below depend on it; declaring after them causes a
+  // temporal dead zone error in production builds (minified variable used before init).
+  // Safe to call any time — no-ops if there's no payload or iframe isn't ready.
+  const sendVault = useCallback((delayMs = 0) => {
+    const go = () => {
+      const payload = pendingVaultRef.current;
+      const win = iframeRef.current?.contentWindow;
+      if (payload && win) {
+        win.postMessage({ type: 'khurk:vault-open', ...payload }, '*');
+      }
+    };
+    if (delayMs > 0) setTimeout(go, delayMs); else go();
+  }, []);
+
   // Reset iframe, loading state, and connected folder whenever the active app changes.
   // Also tear down the vault proxy listener so stale disk writes can't happen.
   useEffect(() => {
@@ -89,19 +104,6 @@ export function AppWindow() {
         window.removeEventListener('message', vaultListenerRef.current);
       }
     };
-  }, []);
-
-  // Posts the current pending vault payload to the iframe.
-  // Safe to call any time — no-ops if there's no payload or iframe isn't ready.
-  const sendVault = useCallback((delayMs = 0) => {
-    const go = () => {
-      const payload = pendingVaultRef.current;
-      const win = iframeRef.current?.contentWindow;
-      if (payload && win) {
-        win.postMessage({ type: 'khurk:vault-open', ...payload }, '*');
-      }
-    };
-    if (delayMs > 0) setTimeout(go, delayMs); else go();
   }, []);
 
   const refresh = useCallback(() => {
