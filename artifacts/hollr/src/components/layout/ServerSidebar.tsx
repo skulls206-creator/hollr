@@ -308,7 +308,7 @@ export function ServerSidebar() {
       onDragEnd={handleDragEnd}
     >
       <div className={cn(
-        "w-[72px] bg-surface-0 shrink-0 flex flex-col items-center py-3 gap-2 overflow-x-hidden no-scrollbar border-r border-border/10 z-20",
+        "w-[72px] h-full bg-surface-0 shrink-0 flex flex-col items-center py-3 gap-2 overflow-x-hidden no-scrollbar border-r border-border/10 z-20",
         isAnyDragging ? "overflow-y-hidden" : "overflow-y-auto"
       )}>
 
