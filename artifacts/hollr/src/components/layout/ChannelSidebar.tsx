@@ -888,7 +888,7 @@ function UserProfilePanel({
                 >All</span>
                 <span
                   onClick={(e) => { e.stopPropagation(); }}
-                  className={cn("px-1.5 py-0.5 transition-colors cursor-default", khurkAppsMode === 'neutral' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'neutral' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                 >Ø</span>
                 <span
                   onClick={(e) => { e.stopPropagation(); dismissAllApps(); }}
