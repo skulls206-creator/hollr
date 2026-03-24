@@ -457,7 +457,7 @@ export function DockBar() {
                     }
                   }}
                   onContextMenu={handleHollrRightClick}
-                  style={{ scale: hollrScale, transformOrigin: 'bottom left', width: ICON_BASE, height: ICON_BASE }}
+                  style={{ scale: hollrScale, transformOrigin: 'bottom center', width: ICON_BASE, height: ICON_BASE }}
                   className="relative shrink-0 flex items-center justify-center"
                 >
                   <div
@@ -488,8 +488,11 @@ export function DockBar() {
             </Tooltip>
           </div>
 
+          {/* Divider separating KHURK OS from nav buttons */}
+          <div className="w-px self-stretch mx-2 bg-border/40 rounded-full shrink-0" />
+
           {/* ── DM button — wrapped in DockItem for macOS-style magnification ── */}
-          <div className="ml-2 shrink-0">
+          <div className="shrink-0">
             <DockItem
               mouseX={mouseX}
               label="Direct Messages"
