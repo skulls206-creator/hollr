@@ -132,18 +132,15 @@ export function Layout() {
             On desktop (md:relative) the flex row already stops above the dock. */}
         <div
           className={[
-            'flex z-40 shrink-0',
-            'md:relative md:h-full',
-            'fixed transition-transform duration-200',
+            'flex z-40 shrink-0 transition-transform duration-200',
             layoutMode === 'dock' ? 'bottom-[78px] md:bottom-0 h-[calc(100%-78px)] md:h-full' : 'h-full bottom-0',
-            // When dashboard or app window is open, hide on ALL screen sizes
-            // and only show as a slide-out when mobileSidebarOpen is true.
-            // Otherwise on desktop the sidebar is always visible.
-            mobileSidebarOpen
-              ? 'translate-x-0 md:translate-x-0'
-              : (showDashboard || showAppWindow)
-                ? '-translate-x-full md:-translate-x-full'
-                : '-translate-x-full md:translate-x-0',
+            // During dashboard/app: sidebar is always fixed (out of flow) on ALL
+            // screen sizes so it doesn't leave a dead-space gap in the flex row.
+            // During normal chat: sidebar is fixed on mobile (overlay) but
+            // md:relative (in-flow, always visible) on desktop.
+            (showDashboard || showAppWindow)
+              ? `fixed ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+              : `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
           ].join(' ')}
         >
           {layoutMode === 'classic' && <ServerSidebar />}
