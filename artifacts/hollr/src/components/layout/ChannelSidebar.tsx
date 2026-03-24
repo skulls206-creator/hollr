@@ -918,7 +918,7 @@ function UserProfilePanel({
               className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
             >
               <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
-              <span className="flex-1 text-left">KHURK Apps</span>
+              <span className="flex-1 text-left">KHURK APPS</span>
               <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
                 <span
                   onClick={(e) => { e.stopPropagation(); restoreAllApps(); }}
