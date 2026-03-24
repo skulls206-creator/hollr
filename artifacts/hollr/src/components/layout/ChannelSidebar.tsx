@@ -644,7 +644,9 @@ function UserProfilePanel({
   const { permission, subscription, subscribe, unsubscribe } = usePushNotifications();
   const notifOn = permission === 'granted' && subscription !== null;
   const { visibleApps, hasAnyDismissed, dismissAll: dismissAllApps, restoreAll: restoreAllApps } = useKhurkDismissals();
-  const khurkAppsMode = !hasAnyDismissed ? 'all' : visibleApps.length === 0 ? 'none' : 'neutral';
+  const khurkAppsExplicitNeutral = useAppStore(s => s.khurkAppsExplicitNeutral);
+  const setKhurkAppsExplicitNeutral = useAppStore(s => s.setKhurkAppsExplicitNeutral);
+  const khurkAppsMode = khurkAppsExplicitNeutral ? 'neutral' : !hasAnyDismissed ? 'all' : visibleApps.length === 0 ? 'none' : 'neutral';
 
   // Device picker state
   const [micPickerOpen, setMicPickerOpen] = useState(false);
@@ -873,9 +875,9 @@ function UserProfilePanel({
             </button>
             <button
               onClick={() => {
-                if (khurkAppsMode === 'all') dismissAllApps();
-                else if (khurkAppsMode === 'none') restoreAllApps();
-                // neutral: user manages their own icons — do nothing
+                if (khurkAppsMode === 'all') { setKhurkAppsExplicitNeutral(false); dismissAllApps(); }
+                else if (khurkAppsMode === 'none') { setKhurkAppsExplicitNeutral(false); restoreAllApps(); }
+                // neutral: do nothing
               }}
               className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
             >
@@ -883,15 +885,15 @@ function UserProfilePanel({
               <span className="flex-1 text-left">KHURK APPS</span>
               <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
                 <span
-                  onClick={(e) => { e.stopPropagation(); restoreAllApps(); }}
+                  onClick={(e) => { e.stopPropagation(); setKhurkAppsExplicitNeutral(false); restoreAllApps(); }}
                   className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'all' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                 >All</span>
                 <span
-                  onClick={(e) => { e.stopPropagation(); }}
+                  onClick={(e) => { e.stopPropagation(); setKhurkAppsExplicitNeutral(true); }}
                   className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'neutral' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                 >Ø</span>
                 <span
-                  onClick={(e) => { e.stopPropagation(); dismissAllApps(); }}
+                  onClick={(e) => { e.stopPropagation(); setKhurkAppsExplicitNeutral(false); dismissAllApps(); }}
                   className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'none' ? "bg-destructive text-white" : "text-muted-foreground hover:text-foreground")}
                 >None</span>
               </div>

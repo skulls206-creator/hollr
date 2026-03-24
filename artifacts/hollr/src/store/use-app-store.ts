@@ -198,6 +198,10 @@ interface AppState {
   // KHURK dismissed app IDs (shared so all consumers stay in sync)
   khurkDismissedIds: string[];
   setKhurkDismissedIds: (ids: string[]) => void;
+
+  // Explicit neutral mode — user clicked Ø to opt out of All/None management
+  khurkAppsExplicitNeutral: boolean;
+  setKhurkAppsExplicitNeutral: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -445,6 +449,9 @@ export const useAppStore = create<AppState>()(
 
   khurkDismissedIds: [],
   setKhurkDismissedIds: (ids) => set({ khurkDismissedIds: ids }),
+
+  khurkAppsExplicitNeutral: false,
+  setKhurkAppsExplicitNeutral: (v) => set({ khurkAppsExplicitNeutral: v }),
     }),
     {
       name: 'hollr-nav',
