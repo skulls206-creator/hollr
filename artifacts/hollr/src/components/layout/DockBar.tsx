@@ -103,14 +103,14 @@ function DockItem({
             transition: dragTransition,
             opacity: isDragging ? 0 : 1,
           }}
-          className="relative shrink-0 flex items-center justify-center pointer-events-auto"
+          className={cn(
+            'relative shrink-0 flex items-center justify-center rounded-xl pointer-events-auto transition-all duration-200',
+            isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+          )}
           {...(dragListeners as any)}
           {...(dragAttributes as any)}
         >
-          <div className={cn(
-            'w-full h-full flex items-center justify-center rounded-xl overflow-hidden transition-all duration-200',
-            isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
-          )}>
+          <div className="w-full h-full flex items-center justify-center rounded-xl overflow-hidden">
             {children}
           </div>
           {unreadCount != null && unreadCount > 0 && !isActive && (
