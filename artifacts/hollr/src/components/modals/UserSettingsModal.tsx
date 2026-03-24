@@ -563,6 +563,7 @@ export function UserSettingsModal() {
                 <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Theme</Label>
                 <div className="grid grid-cols-3 gap-2">
                   {([
+                    { id: 'void',     label: 'Void',     desc: 'Pure black ✦',    swatches: ['#060609', '#0C0C10', '#8B5CF6'] },
                     { id: 'midnight', label: 'Midnight', desc: 'Deep blue-black', swatches: ['#0A0D14', '#1E1F22', '#2B2D31'] },
                     { id: 'abyss',    label: 'Abyss',    desc: 'Darker indigo',   swatches: ['#060710', '#111215', '#191B1F'] },
                     { id: 'slate',    label: 'Slate',    desc: 'Warm charcoal',   swatches: ['#2C2F33', '#36393F', '#40444B'] },

@@ -269,6 +269,74 @@
   --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.6);
 }
 
+/* ─── Void theme (near-pure black, electric violet accent) ── */
+[data-theme="void"] {
+  --button-outline: rgba(255,255,255, .06);
+  --badge-outline: rgba(255,255,255, .03);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .025);
+  --elevate-2: rgba(255,255,255, .055);
+
+  /* Surface steps — barely-there depth, no grey hue */
+  --surface-0: #0C0C10;
+  --surface-1: #121218;
+  --surface-2: #09090D;
+  --surface-3: #18181F;
+
+  /* Background: near-pure black, breath of indigo */
+  --background: 245 20% 4%;
+  --foreground: 240 15% 96%;
+
+  --border: 245 15% 12%;
+  --input: 245 15% 12%;
+  --ring: 262 100% 72%;
+
+  --card: 245 18% 7%;
+  --card-foreground: 240 15% 96%;
+  --card-border: 245 15% 12%;
+
+  --popover: 245 18% 7%;
+  --popover-foreground: 240 15% 96%;
+  --popover-border: 245 15% 12%;
+
+  /* Electric violet primary */
+  --primary: 262 100% 72%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 245 15% 11%;
+  --secondary-foreground: 240 15% 96%;
+
+  --muted: 245 15% 11%;
+  --muted-foreground: 245 12% 48%;
+
+  --accent: 245 15% 13%;
+  --accent-foreground: 240 15% 96%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 240 15% 96%;
+
+  /* Sidebar — channels panel, fractionally lighter than background */
+  --sidebar: 248 22% 5%;
+  --sidebar-foreground: 240 15% 96%;
+  --sidebar-border: 245 15% 11%;
+  --sidebar-primary: 262 100% 72%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 245 15% 11%;
+  --sidebar-accent-foreground: 240 15% 96%;
+  --sidebar-ring: 262 100% 72%;
+
+  --radius: 0.5rem;
+
+  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.5);
+  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.5);
+  --shadow-sm: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 1px 2px -1px hsl(0 0% 0% / 0.5);
+  --shadow: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 1px 2px -1px hsl(0 0% 0% / 0.5);
+  --shadow-md: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 2px 4px -1px hsl(0 0% 0% / 0.5);
+  --shadow-lg: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 4px 6px -1px hsl(0 0% 0% / 0.55);
+  --shadow-xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.5), 0px 8px 10px -1px hsl(0 0% 0% / 0.6);
+  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.75);
+}
+
 /* ─── Forest theme (deep emerald-green colorway) ─────────── */
 [data-theme="forest"] {
   --button-outline: rgba(255,255,255, .07);
