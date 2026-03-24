@@ -150,7 +150,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
               ? 'text-muted-foreground/25 cursor-default'
               : 'text-muted-foreground hover:text-foreground hover:bg-accent',
           )}
-          title={sidebarLocked ? 'Sidebar is pinned' : 'Open sidebar'}
+          title={sidebarLocked ? 'Sidebar is pinned' : 'Toggle sidebar'}
         >
           <Menu size={18} />
         </button>

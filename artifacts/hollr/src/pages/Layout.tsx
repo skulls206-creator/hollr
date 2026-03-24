@@ -38,7 +38,7 @@ export function Layout() {
     voiceConnection, layoutMode,
     activeKhurkAppId, khurkPipMode, khurkDashboardOpen, khurkOsEnabled,
     classicChannelOpen, toggleClassicChannel, setClassicChannelOpen,
-    sidebarLocked, setSidebarLocked,
+    sidebarLocked, setSidebarLocked, toggleMobileSidebar,
   } = useAppStore();
 
   const navApplied = useRef(false);
@@ -224,7 +224,7 @@ export function Layout() {
             ) : showDashboard ? (
               /* ── KHURK OS Dashboard ── */
               <DashboardView onOpenSidebar={
-                layoutMode === 'classic' ? toggleClassicChannel : () => setMobileSidebarOpen(true)
+                layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar
               } />
             ) : activeDmThreadId ? (
               /* ── DM chat ── */
