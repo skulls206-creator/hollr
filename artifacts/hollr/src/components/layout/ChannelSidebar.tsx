@@ -3,7 +3,7 @@ import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
-  Volume1, VolumeOff, LayoutGrid, PanelLeft,
+  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck,
 } from 'lucide-react';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
@@ -431,6 +431,18 @@ export function ChannelSidebar() {
               </div>
               </ContextMenuTrigger>
               <ContextMenuContent className="bg-surface-0 border-border/50 text-sm">
+                {!!unreadCounts[channel.id] && (
+                  <ContextMenuItem
+                    onSelect={() => {
+                      clearUnreadCount(channel.id);
+                      markChannelRead(channel.id).catch(() => {});
+                      qc.invalidateQueries({ queryKey: ['unread', activeServerId] });
+                    }}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <CheckCheck size={13} /> Mark as Read
+                  </ContextMenuItem>
+                )}
                 {push.isSubscribed && (
                   <ContextMenuItem
                     onSelect={() => {
