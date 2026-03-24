@@ -875,7 +875,7 @@ function UserProfilePanel({
               onClick={() => {
                 if (khurkAppsMode === 'all') dismissAllApps();
                 else if (khurkAppsMode === 'none') restoreAllApps();
-                else restoreAllApps();
+                // neutral: user manages their own icons — do nothing
               }}
               className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
             >
