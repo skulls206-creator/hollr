@@ -9,6 +9,21 @@ import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
+import {
+  DndContext, DragOverlay, MouseSensor, TouchSensor,
+  useSensor, useSensors, closestCenter,
+  type DragStartEvent, type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+const SIDEBAR_ORDER_KEY = 'hollr:sidebar:server-order';
+function loadSidebarOrder(): string[] | null {
+  try { const r = localStorage.getItem(SIDEBAR_ORDER_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
+}
+function saveSidebarOrder(ids: string[]) {
+  try { localStorage.setItem(SIDEBAR_ORDER_KEY, JSON.stringify(ids)); } catch {}
+}
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -73,18 +88,106 @@ function KhurkAppIcon({ app }: { app: KhurkApp }) {
   );
 }
 
+// ─── Sortable server pill (wraps the icon button) ─────────────────────────────
+function SortableServerItem({
+  server, isActive, onClick, onContextMenu,
+}: {
+  server: any;
+  isActive: boolean;
+  onClick: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: server.id });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: transition ?? undefined,
+        touchAction: 'none',
+        opacity: isDragging ? 0 : 1,
+      }}
+    >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <motion.button
+            onClick={onClick}
+            onContextMenu={onContextMenu}
+            className="relative group flex items-center justify-center w-full h-12"
+            whileTap={{ scale: 0.92 }}
+          >
+            <div className={cn(
+              "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
+              isActive ? "h-10 opacity-100" : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
+            )} />
+            <div className={cn(
+              "w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-sm",
+              isActive
+                ? "bg-primary text-primary-foreground rounded-2xl shadow-primary/20"
+                : "bg-secondary text-foreground rounded-[24px] group-hover:rounded-2xl group-hover:bg-primary group-hover:text-primary-foreground"
+            )}>
+              {server.iconUrl
+                ? <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover" />
+                : <span className="font-medium text-lg tracking-wider">{getInitials(server.name)}</span>
+              }
+            </div>
+          </motion.button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="font-semibold ml-2">{server.name}</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
 export function ServerSidebar() {
   const {
     activeServerId, setActiveServer, setCreateServerModalOpen,
     dmUnreadCounts, setInviteModalOpen, setServerSettingsModalOpen,
     setUserSettingsModalOpen, setJoinServerModalOpen, setHelpModalOpen,
   } = useAppStore();
-  const { data: servers = [] } = useListMyServers();
+  const { data: rawServers = [] } = useListMyServers();
   const { user } = useAuth();
   const { show: showMenu } = useContextMenu();
   const { toast } = useToast();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll } = useKhurkDismissals();
+
+  // ── Ordered server list (respects drag-to-reorder saved in localStorage) ──
+  const [serverOrder, setServerOrder] = useState<string[]>([]);
+  const rawServerIds = rawServers.map((s: any) => s.id).join(',');
+  useEffect(() => {
+    const saved = loadSidebarOrder();
+    const ids = rawServers.map((s: any) => s.id);
+    if (!saved) { setServerOrder(ids); return; }
+    const filtered = saved.filter((id: string) => ids.includes(id));
+    const added = ids.filter((id: string) => !saved.includes(id));
+    setServerOrder([...filtered, ...added]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawServerIds]);
+  const servers = serverOrder
+    .map((id: string) => rawServers.find((s: any) => s.id === id))
+    .filter(Boolean) as any[];
+
+  // ── DND setup for server reordering ──
+  const sidebarSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 600, tolerance: 10 } }),
+  );
+  const [draggingServerId, setDraggingServerId] = useState<string | null>(null);
+  const handleServerDragStart = ({ active }: DragStartEvent) => setDraggingServerId(active.id as string);
+  const handleServerDragEnd = ({ active, over }: DragEndEvent) => {
+    setDraggingServerId(null);
+    if (!over || active.id === over.id) return;
+    setServerOrder(prev => {
+      const oldIdx = prev.indexOf(active.id as string);
+      const newIdx = prev.indexOf(over.id as string);
+      const next = arrayMove(prev, oldIdx, newIdx);
+      saveSidebarOrder(next);
+      return next;
+    });
+  };
 
   const leaveServer = async (serverId: string, serverName: string) => {
     if (!confirm(`Leave "${serverName}"? You can rejoin later if invited.`)) return;
@@ -228,36 +331,41 @@ export function ServerSidebar() {
 
       <div className="w-8 h-[2px] bg-border/40 rounded-full my-1" />
 
-      {/* Server List */}
-      {servers.map((server) => (
-        <Tooltip key={server.id}>
-          <TooltipTrigger asChild>
-            <motion.button
+      {/* Server List — drag-to-reorder via dnd-kit */}
+      <DndContext
+        sensors={sidebarSensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleServerDragStart}
+        onDragEnd={handleServerDragEnd}
+      >
+        <SortableContext items={serverOrder} strategy={verticalListSortingStrategy}>
+          {servers.map((server) => (
+            <SortableServerItem
+              key={server.id}
+              server={server}
+              isActive={activeServerId === server.id}
               onClick={() => setActiveServer(server.id)}
               onContextMenu={(e) => handleServerContextMenu(e, server)}
-              className="relative group flex items-center justify-center w-full h-12"
-              whileTap={{ scale: 0.92 }}
-            >
-              <div className={cn(
-                "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
-                activeServerId === server.id ? "h-10 opacity-100" : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
-              )} />
-              <div className={cn(
-                "w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-sm",
-                activeServerId === server.id
-                  ? "bg-primary text-primary-foreground rounded-2xl shadow-primary/20"
-                  : "bg-secondary text-foreground rounded-[24px] group-hover:rounded-2xl group-hover:bg-primary group-hover:text-primary-foreground"
-              )}>
-                {server.iconUrl
-                  ? <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover" />
-                  : <span className="font-medium text-lg tracking-wider">{getInitials(server.name)}</span>
+            />
+          ))}
+        </SortableContext>
+        <DragOverlay dropAnimation={{ duration: 160, easing: 'ease' }}>
+          {draggingServerId ? (() => {
+            const s = rawServers.find((sv: any) => sv.id === draggingServerId);
+            if (!s) return null;
+            return (
+              <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-2xl shadow-black/60 ring-2 ring-white/20 mx-auto opacity-90">
+                {s.iconUrl
+                  ? <img src={s.iconUrl} alt={s.name} className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground font-medium text-lg">
+                      {getInitials(s.name)}
+                    </div>
                 }
               </div>
-            </motion.button>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="font-semibold ml-2">{server.name}</TooltipContent>
-        </Tooltip>
-      ))}
+            );
+          })() : null}
+        </DragOverlay>
+      </DndContext>
 
       {/* Add Server */}
       <Tooltip>

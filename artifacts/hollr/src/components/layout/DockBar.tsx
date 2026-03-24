@@ -60,21 +60,15 @@ interface DockItemProps {
   sublabel?: string;
   isActive?: boolean;
   unreadCount?: number;
+  isDragging?: boolean;
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   children: React.ReactNode;
-  // dnd
-  dragListeners?: Record<string, unknown>;
-  dragAttributes?: Record<string, unknown>;
-  dragTransform?: string;
-  dragTransition?: string;
-  isDragging?: boolean;
 }
 
 function DockItem({
-  mouseX, label, sublabel, isActive, unreadCount,
+  mouseX, label, sublabel, isActive, unreadCount, isDragging,
   onClick, onContextMenu, children,
-  dragListeners, dragAttributes, dragTransform, dragTransition, isDragging,
 }: DockItemProps) {
   const ref = useRef<HTMLButtonElement>(null);
 
@@ -99,16 +93,12 @@ function DockItem({
             transformOrigin: 'bottom center',
             width: ICON_BASE,
             height: ICON_BASE,
-            transform: dragTransform,
-            transition: dragTransition,
             opacity: isDragging ? 0 : 1,
           }}
           className={cn(
-            'relative shrink-0 flex items-center justify-center rounded-xl pointer-events-auto transition-all duration-200',
+            'relative shrink-0 flex items-center justify-center rounded-xl pointer-events-auto transition-opacity duration-150',
             isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
           )}
-          {...(dragListeners as any)}
-          {...(dragAttributes as any)}
         >
           <div className="w-full h-full flex items-center justify-center rounded-xl overflow-hidden">
             {children}
@@ -132,21 +122,30 @@ function DockItem({
 }
 
 // ─── Sortable wrapper ─────────────────────────────────────────────────────────
+// IMPORTANT: the ref/transform/listeners live on the *wrapper div*, NOT on the
+// motion.button inside DockItem. Using display:contents on the wrapper gave
+// dnd-kit a zero-rect → ghost snapped to 0,0 (top-left). Using inline-flex
+// gives it a proper measured box. Keeping transforms off the motion.button
+// also prevents conflicts between dnd-kit translate and Framer Motion scale.
 
-function SortableDockItem(props: Omit<DockItemProps, 'dragListeners' | 'dragAttributes' | 'dragTransform' | 'dragTransition' | 'isDragging'> & { id: string }) {
+function SortableDockItem(props: DockItemProps & { id: string }) {
   const { id, ...rest } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
   return (
-    <div ref={setNodeRef} style={{ display: 'contents' }}>
-      <DockItem
-        {...rest}
-        dragListeners={listeners}
-        dragAttributes={attributes}
-        dragTransform={CSS.Transform.toString(transform)}
-        dragTransition={transition ?? undefined}
-        isDragging={isDragging}
-      />
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'flex-end',
+        transform: CSS.Transform.toString(transform),
+        transition: transition ?? undefined,
+        touchAction: 'none',
+      }}
+    >
+      <DockItem {...rest} isDragging={isDragging} />
     </div>
   );
 }
