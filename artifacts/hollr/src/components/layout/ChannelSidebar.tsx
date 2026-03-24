@@ -857,6 +857,27 @@ function UserProfilePanel({
               <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
             </div>
             <div className="h-px bg-border/40 mb-1" />
+            {permission !== 'unsupported' && (
+              <button
+                onClick={() => notifOn ? unsubscribe() : subscribe()}
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+              >
+                {notifOn
+                  ? <Bell size={14} className="shrink-0 text-muted-foreground" />
+                  : <BellOff size={14} className="shrink-0 text-muted-foreground" />
+                }
+                <span className="flex-1 text-left">NOTIFICATIONS</span>
+                <div className={cn(
+                  "w-8 h-4 rounded-full transition-colors relative shrink-0",
+                  notifOn ? "bg-primary" : "bg-white/20"
+                )}>
+                  <div className={cn(
+                    "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
+                    notifOn ? "translate-x-4" : "translate-x-0.5"
+                  )} />
+                </div>
+              </button>
+            )}
             <button
               onClick={toggleKhurkOs}
               className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
@@ -915,27 +936,6 @@ function UserProfilePanel({
                 )}>Dock</span>
               </div>
             </button>
-            {permission !== 'unsupported' && (
-              <button
-                onClick={() => notifOn ? unsubscribe() : subscribe()}
-                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
-              >
-                {notifOn
-                  ? <Bell size={14} className="shrink-0 text-muted-foreground" />
-                  : <BellOff size={14} className="shrink-0 text-muted-foreground" />
-                }
-                <span className="flex-1 text-left">NOTIFICATIONS</span>
-                <div className={cn(
-                  "w-8 h-4 rounded-full transition-colors relative shrink-0",
-                  notifOn ? "bg-primary" : "bg-white/20"
-                )}>
-                  <div className={cn(
-                    "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
-                    notifOn ? "translate-x-4" : "translate-x-0.5"
-                  )} />
-                </div>
-              </button>
-            )}
             <div className="h-px bg-border/40 my-1" />
             <button
               onClick={() => { logout(); setQuickOpen(false); }}
