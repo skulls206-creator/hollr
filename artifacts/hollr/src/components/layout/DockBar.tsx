@@ -544,13 +544,39 @@ export function DockBar() {
                 }
               }}
             >
-              <div className={cn(
-                'w-full h-full flex items-center justify-center transition-all duration-200',
-                activeServerId === null
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-surface-2 text-muted-foreground hover:bg-primary/20 hover:text-primary'
-              )}>
-                <MessageSquare size={Math.round(ICON_BASE * 0.42)} />
+              <div
+                className="w-full h-full relative overflow-hidden transition-all duration-200"
+                style={{
+                  background: activeServerId === null && !khurkDashboardOpen
+                    ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
+                    : 'hsl(var(--surface-2))',
+                }}
+              >
+                {/* Back bubble — top-right, semi-transparent */}
+                <div style={{
+                  position: 'absolute', width: '54%', height: '50%',
+                  top: '12%', right: '8%',
+                  background: activeServerId === null && !khurkDashboardOpen
+                    ? 'rgba(255,255,255,0.25)' : 'rgba(128,128,160,0.18)',
+                  borderRadius: '6px 6px 2px 6px',
+                }} />
+                {/* Front bubble — bottom-left, with typing dots */}
+                <div style={{
+                  position: 'absolute', width: '62%', height: '54%',
+                  bottom: '12%', left: '8%',
+                  background: activeServerId === null && !khurkDashboardOpen
+                    ? 'rgba(255,255,255,0.93)' : 'rgba(128,128,160,0.35)',
+                  borderRadius: '6px 6px 6px 2px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px',
+                }}>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} style={{
+                      width: '4px', height: '4px', borderRadius: '50%',
+                      background: activeServerId === null && !khurkDashboardOpen
+                        ? '#6366f1' : 'rgba(128,128,180,0.7)',
+                    }} />
+                  ))}
+                </div>
               </div>
             </DockItem>
           </div>
