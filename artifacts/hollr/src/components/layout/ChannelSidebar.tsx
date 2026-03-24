@@ -876,7 +876,7 @@ function UserProfilePanel({
               className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
             >
               <PanelLeft size={14} className="shrink-0 text-muted-foreground" />
-              <span className="flex-1 text-left">Layout</span>
+              <span className="flex-1 text-left">LAYOUT</span>
               <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
                 <span className={cn(
                   "px-1.5 py-0.5 transition-colors",
