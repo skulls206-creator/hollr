@@ -426,13 +426,20 @@ export function ServerSidebar() {
                 whileTap={{ scale: 0.92 }}
               >
                 <div className={cn(
-                  'w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-lg rounded-[24px] group-hover:rounded-2xl group-hover:shadow-primary/40 group-hover:scale-105',
+                  'w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden rounded-[24px] group-hover:rounded-2xl group-hover:scale-105',
+                  'shadow-lg group-hover:shadow-[0_0_16px_3px_rgba(34,211,238,0.35)]',
                   khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp
-                    && 'ring-2 ring-primary ring-offset-2 ring-offset-surface-0 rounded-2xl'
+                    ? 'ring-2 ring-[#22d3ee] ring-offset-2 ring-offset-surface-0 rounded-2xl'
+                    : ''
                 )}
-                  style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
+                  style={{ background: '#0a1a1f' }}
                 >
-                  <HollrIcon size={26} />
+                  <img
+                    src="/khurk-logo.png"
+                    alt="KHURK OS"
+                    className="w-full h-full object-cover"
+                    draggable={false}
+                  />
                 </div>
               </motion.button>
             </TooltipTrigger>
