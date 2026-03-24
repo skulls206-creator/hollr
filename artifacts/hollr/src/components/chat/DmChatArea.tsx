@@ -276,9 +276,9 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   };
 
   return (
-    <div className="flex-1 bg-surface-3 flex flex-col h-full min-w-0">
+    <div className="flex-1 bg-surface-0 flex flex-col h-full min-w-0">
       {/* Header */}
-      <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 shadow-sm z-10 bg-surface-3">
+      <div className="h-12 border-b border-border/20 flex items-center px-4 shrink-0 shadow-sm z-10 bg-surface-1">
         {/* Hamburger — toggles sidebar panel, visible at all sizes */}
         <button
           onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}
@@ -478,7 +478,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
       </div>
 
       {/* Composer */}
-      <div className="px-4 pb-2 pt-2 bg-surface-3">
+      <div className="px-4 pb-2 pt-2 bg-surface-0">
         <div className="bg-[#383A40] rounded-lg flex items-center px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50 relative overflow-visible">
           {isUploading && (
             <div
