@@ -11,16 +11,14 @@ export interface KhurkApp {
   id: string;
   name: string;
   tagline: string;
+  description: string;
   url: string;
   imageSrc?: string;
-  /** 'cover' fills the icon (default); 'contain' shows the whole image with gradient bg */
   iconFit?: 'cover' | 'contain';
   gradient: [string, string];
-  /** 'iframe' loads the app in the center panel (default); 'tab' always opens a new browser tab */
   openMode?: 'iframe' | 'tab';
 }
 
-// Hollr icon — rendered inline so it matches the brand
 export function HollrIcon({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 26 26" fill="none">
@@ -44,65 +42,73 @@ export const KHURK_APPS: KhurkApp[] = [
     id: 'ustream',
     name: 'uStream',
     tagline: 'Movies & TV',
+    description: 'High-definition streaming of movies and television series.',
     url: 'https://ustream.khurk.services',
     imageSrc: uStreamImg,
-    gradient: ['#1a1a6e', '#3a3abf'],
+    gradient: ['#1a1f8f', '#4a54d4'],
   },
   {
     id: 'playd',
     name: 'Playd Music',
     tagline: 'Local Music Player',
+    description: 'Your local high-fidelity music library, organized perfectly.',
     url: 'https://playd.khurk.services',
     imageSrc: playdImg,
-    gradient: ['#1a0800', '#7a2c00'],
+    gradient: ['#c0340a', '#f07020'],
   },
   {
     id: 'foldr',
     name: 'foldr.storage',
     tagline: 'Encrypted IPFS Storage',
+    description: 'Encrypted IPFS storage solution for your sensitive data.',
     url: 'https://foldr.khurk.services',
     imageSrc: foldrImg,
-    gradient: ['#0d1b6e', '#3b4fcf'],
+    gradient: ['#0a5a9c', '#2ea8e0'],
   },
   {
     id: 'instaghost',
     name: 'InstaGhost',
     tagline: 'Crypto Exchange',
+    description: 'Anonymous and lightning-fast cryptocurrency exchange.',
     url: 'https://instaghost.khurk.services',
     imageSrc: instaGhostImg,
-    gradient: ['#00544a', '#00bfa0'],
+    gradient: ['#006b4a', '#00c47a'],
   },
   {
     id: 'gasless',
     name: 'Gasless',
     tagline: 'USDT Web Wallet',
+    description: 'USDT Web Wallet with zero network fee transactions.',
     url: 'https://gasless.khurk.services',
     imageSrc: onlyXmrImg,
-    gradient: ['#003a3a', '#007070'],
+    gradient: ['#007a5a', '#00d4a0'],
   },
   {
     id: 'ballpoint',
     name: 'Ballpoint.one',
     tagline: 'Private Notes',
+    description: 'Private, end-to-end encrypted notes and journaling.',
     url: 'https://ballpoint.khurk.services',
     imageSrc: gaslessImg,
-    gradient: ['#2a006e', '#7b2fff'],
+    gradient: ['#5a10c0', '#a040f0'],
   },
   {
     id: 'onlygames',
     name: 'OnlyGames',
     tagline: 'Game Search',
+    description: 'Search and discover the best indie and AAA titles.',
     url: 'https://onlygames.khurk.services',
     imageSrc: onlyGamesImg,
-    gradient: ['#1a0050', '#6b00c8'],
+    gradient: ['#1a1a2e', '#4a4a8a'],
   },
   {
     id: 'onlyxmr',
     name: 'OnlyXMR',
     tagline: 'Private Creator Platform',
+    description: 'The private creator platform powered by Monero.',
     url: 'https://onlyxmr.khurk.services',
     imageSrc: ballpointImg,
-    gradient: ['#5a1a00', '#c04a00'],
+    gradient: ['#8a2a00', '#e05010'],
   },
 ];
 

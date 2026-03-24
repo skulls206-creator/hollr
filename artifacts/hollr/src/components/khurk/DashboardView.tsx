@@ -18,11 +18,14 @@ function AppCard({ app }: { app: KhurkApp }) {
   return (
     <button
       onClick={handleLaunch}
-      className="group flex flex-col rounded-xl overflow-hidden border border-border/20 bg-surface-1/80 hover:border-border/50 hover:bg-surface-2/80 transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 text-left"
+      className="group flex flex-col rounded-xl overflow-hidden text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.07)' }}
     >
+      {/* Gradient thumbnail */}
       <div
-        className="w-full h-14 flex items-center justify-center relative overflow-hidden shrink-0"
+        className="w-full flex items-center justify-center relative overflow-hidden shrink-0"
         style={{
+          height: '120px',
           background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
         }}
       >
@@ -30,35 +33,34 @@ function AppCard({ app }: { app: KhurkApp }) {
           <img
             src={app.imageSrc}
             alt={app.name}
-            className="w-9 h-9 object-cover rounded-lg shadow-md"
+            className="w-12 h-12 object-contain drop-shadow-lg"
           />
         ) : (
-          <div className="w-9 h-9 flex items-center justify-center">
-            <HollrIcon size={24} />
-          </div>
+          <HollrIcon size={40} />
         )}
         {isTab && (
-          <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <ExternalLink size={10} className="text-white/70" />
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <ExternalLink size={12} className="text-white/70" />
           </div>
         )}
       </div>
 
-      <div className="px-2.5 py-2 flex flex-col gap-0.5 flex-1">
-        <p className="text-xs font-semibold text-foreground leading-tight truncate">{app.name}</p>
-        <p className="text-[10px] text-muted-foreground leading-tight truncate">{app.tagline}</p>
+      {/* Info */}
+      <div className="px-3 pt-3 pb-2 flex flex-col gap-1 flex-1">
+        <p className="text-sm font-semibold text-white leading-tight truncate">{app.name}</p>
+        <p className="text-xs leading-snug" style={{ color: 'rgba(255,255,255,0.45)', minHeight: '2.5rem' }}>
+          {app.description}
+        </p>
       </div>
 
-      <div className="px-2.5 pb-2">
+      {/* Launch button */}
+      <div className="px-3 pb-3">
         <div
-          className="w-full h-6 flex items-center justify-center rounded-md text-[10px] font-semibold transition-all"
-          style={{
-            background: `linear-gradient(135deg, ${app.gradient[0]}cc 0%, ${app.gradient[1]}cc 100%)`,
-            color: 'white',
-          }}
+          className="w-full h-8 flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors"
+          style={{ background: '#2a2a2a', color: 'rgba(255,255,255,0.75)' }}
         >
           {isTab ? 'Open' : 'Launch'}
-          {isTab && <ExternalLink size={9} className="ml-1 opacity-70" />}
+          <ExternalLink size={10} className="opacity-60" />
         </div>
       </div>
     </button>
@@ -73,64 +75,52 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
   return (
     <div
       className="flex flex-col flex-1 min-h-0 h-full overflow-y-auto no-scrollbar"
-      style={{
-        background: 'var(--background)',
-        backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(93,55,177,0.10) 0%, transparent 55%)',
-      }}
+      style={{ background: '#111111' }}
     >
-      {/* Top bar — always visible; hamburger opens the DM/channel sidebar */}
-      <div className="flex items-center gap-3 px-3 pt-3 pb-1 shrink-0">
+      {/* Top bar */}
+      <div
+        className="flex items-center gap-3 px-4 shrink-0"
+        style={{ height: '52px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+      >
         <button
           onClick={onOpenSidebar}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/8 transition-colors"
+          className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+          style={{ color: 'rgba(255,255,255,0.5)' }}
           title="Open sidebar"
         >
           <Menu size={18} />
         </button>
         <div className="flex items-center gap-2">
           <div
-            className="w-6 h-6 rounded-lg flex items-center justify-center shadow shrink-0"
+            className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
           >
             <HollrIcon size={13} />
           </div>
-          <span className="text-sm font-bold text-foreground tracking-tight">KHURK OS</span>
+          <span className="text-sm font-bold tracking-tight" style={{ color: 'rgba(255,255,255,0.9)' }}>
+            KHURK OS
+          </span>
         </div>
       </div>
 
-      <div className="flex flex-col items-center w-full max-w-2xl mx-auto px-3 pt-4 pb-12 md:pt-6 md:pb-16 md:px-4">
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 py-6 md:px-8 md:py-8">
+        {/* Section label */}
+        <p
+          className="text-xs font-bold uppercase tracking-widest mb-5"
+          style={{ color: 'rgba(255,255,255,0.3)', letterSpacing: '0.15em' }}
+        >
+          All Apps
+        </p>
 
-        {/* Header — large KHURK OS logo, always shown */}
-        <div className="flex flex-col items-center gap-3 mb-8">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20"
-            style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
-          >
-            <HollrIcon size={30} />
-          </div>
-          <div className="text-center">
-            <h1 className="text-xl font-bold text-foreground tracking-tight">KHURK OS</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Your apps, all in one place</p>
-          </div>
-        </div>
-
-        {/* Section divider */}
-        <div className="w-full flex items-center gap-3 mb-3">
-          <div className="h-px flex-1 bg-border/30" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50 shrink-0">
-            All Apps
-          </span>
-          <div className="h-px flex-1 bg-border/30" />
-        </div>
-
-        {/* App grid — 3 cols on mobile, 4 on md+ */}
-        <div className="w-full grid grid-cols-3 md:grid-cols-4 gap-2.5">
+        {/* Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           {KHURK_APPS.map((app) => (
             <AppCard key={app.id} app={app} />
           ))}
         </div>
 
-        <p className="mt-8 text-[11px] text-muted-foreground/40 text-center">
+        <p className="mt-10 text-center text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
           KHURK ecosystem · powered by hollr.chat
         </p>
       </div>
