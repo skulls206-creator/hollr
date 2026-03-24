@@ -25,6 +25,7 @@ import { PiPWindow } from '@/components/khurk/PiPWindow';
 import { DashboardView } from '@/components/khurk/DashboardView';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import { pendingNav, applyNav } from '@/lib/notification-nav';
 
 export function Layout() {
@@ -37,7 +38,7 @@ export function Layout() {
     voiceConnection, layoutMode,
     activeKhurkAppId, khurkPipMode, khurkDashboardOpen, khurkOsEnabled,
     classicChannelOpen, toggleClassicChannel, setClassicChannelOpen,
-    sidebarLocked,
+    sidebarLocked, setSidebarLocked,
   } = useAppStore();
 
   const navApplied = useRef(false);
@@ -277,6 +278,69 @@ export function Layout() {
         >
           <DockBar />
         </div>
+      )}
+
+      {/*
+        ── Dock-mode sidebar pull-tab ──
+        A slim vertical handle always fixed at the sidebar's right edge.
+        Lets users open/close the sidebar from anywhere on screen — not just
+        the top hamburger. Only shown in dock mode (classic keeps its sidebar
+        permanently in-flow on desktop).
+
+        Position logic:
+        • Mobile OR dashboard/appWindow (sidebar is a fixed overlay):
+            closed → left-0, open → left-[260px]
+        • Desktop + normal chat (sidebar is always in-flow, md:relative):
+            always md:left-[260px] so tab stays pinned to sidebar edge
+      */}
+      {layoutMode === 'dock' && !showAppWindow && (
+        <button
+          onClick={() => {
+            if (sidebarLocked) {
+              setSidebarLocked(false);
+            } else if (mobileSidebarOpen) {
+              setMobileSidebarOpen(false);
+            } else {
+              setMobileSidebarOpen(true);
+            }
+          }}
+          className={cn(
+            'fixed top-1/2 -translate-y-1/2 z-[60]',
+            'flex flex-col items-center justify-center gap-[3.5px]',
+            'opacity-40 hover:opacity-100 transition-[left,opacity] duration-200 ease-out',
+            // Horizontal position — slides with the sidebar
+            (sidebarLocked || mobileSidebarOpen) ? 'left-[260px]' : 'left-0',
+            // Desktop + normal chat: sidebar is always in-flow → tab stays at sidebar edge
+            !showDashboard && !showAppWindow && 'md:left-[260px]',
+          )}
+          style={{
+            width: '14px',
+            height: '52px',
+            background: 'rgba(16,16,24,0.92)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: '0 9px 9px 0',
+            border: '1px solid rgba(255,255,255,0.10)',
+            borderLeft: 'none',
+            boxShadow: '3px 0 14px rgba(0,0,0,0.55)',
+          }}
+          title={
+            sidebarLocked ? 'Unpin sidebar' :
+            mobileSidebarOpen ? 'Close sidebar' : 'Open sidebar'
+          }
+        >
+          {/* Grip lines — horizontal dashes stacked vertically */}
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                width: '5px',
+                height: '1.5px',
+                borderRadius: '2px',
+                background: 'rgba(255,255,255,0.75)',
+              }}
+            />
+          ))}
+        </button>
       )}
 
       {/* ── KHURK OS Picture-in-Picture window (floats above everything) ── */}
