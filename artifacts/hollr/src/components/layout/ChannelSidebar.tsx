@@ -11,6 +11,7 @@ import {
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { usePwaInstall } from '@/hooks/use-pwa-install';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { useAppStore } from '@/store/use-app-store';
 import {
   useGetServer, useListChannels, useListDmThreads,
@@ -640,6 +641,10 @@ function UserProfilePanel({
   const [editingCustom, setEditingCustom] = useState(false);
   const [iosInstallOpen, setIosInstallOpen] = useState(false);
   const { canInstall, isIOS, promptInstall } = usePwaInstall();
+  const { permission, subscription, subscribe, unsubscribe } = usePushNotifications();
+  const notifOn = permission === 'granted' && subscription !== null;
+  const { visibleApps, hasAnyDismissed, dismissAll: dismissAllApps, restoreAll: restoreAllApps } = useKhurkDismissals();
+  const khurkAppsMode = !hasAnyDismissed ? 'all' : visibleApps.length === 0 ? 'none' : 'neutral';
 
   // Device picker state
   const [micPickerOpen, setMicPickerOpen] = useState(false);
@@ -844,7 +849,7 @@ function UserProfilePanel({
               )} />
             </button>
           </PopoverTrigger>
-          <PopoverContent side="top" align="start" className="w-56 p-2 bg-[#111214] border-border/50" sideOffset={8}>
+          <PopoverContent side="top" align="start" className="w-64 p-2 bg-[#111214] border-border/50" sideOffset={8}>
             <div className="px-2 py-1 mb-1">
               <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
               <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
@@ -881,6 +886,52 @@ function UserProfilePanel({
                   "px-1.5 py-0.5 transition-colors",
                   layoutMode === 'dock' ? "bg-primary text-primary-foreground" : "text-muted-foreground"
                 )}>Dock</span>
+              </div>
+            </button>
+            {permission !== 'unsupported' && (
+              <button
+                onClick={() => notifOn ? unsubscribe() : subscribe()}
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+              >
+                {notifOn
+                  ? <Bell size={14} className="shrink-0 text-muted-foreground" />
+                  : <BellOff size={14} className="shrink-0 text-muted-foreground" />
+                }
+                <span className="flex-1 text-left">Notifications</span>
+                <div className={cn(
+                  "w-8 h-4 rounded-full transition-colors relative shrink-0",
+                  notifOn ? "bg-primary" : "bg-white/20"
+                )}>
+                  <div className={cn(
+                    "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
+                    notifOn ? "translate-x-4" : "translate-x-0.5"
+                  )} />
+                </div>
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (khurkAppsMode === 'all') dismissAllApps();
+                else if (khurkAppsMode === 'none') restoreAllApps();
+                else restoreAllApps();
+              }}
+              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+            >
+              <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1 text-left">KHURK Apps</span>
+              <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
+                <span
+                  onClick={(e) => { e.stopPropagation(); restoreAllApps(); }}
+                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'all' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+                >All</span>
+                <span
+                  onClick={(e) => { e.stopPropagation(); }}
+                  className={cn("px-1.5 py-0.5 transition-colors cursor-default", khurkAppsMode === 'neutral' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                >Neutral</span>
+                <span
+                  onClick={(e) => { e.stopPropagation(); dismissAllApps(); }}
+                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'none' ? "bg-destructive text-white" : "text-muted-foreground hover:text-foreground")}
+                >None</span>
               </div>
             </button>
             <div className="h-px bg-border/40 my-1" />
