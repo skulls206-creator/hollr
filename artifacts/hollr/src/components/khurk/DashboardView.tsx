@@ -53,9 +53,8 @@ function AppCard({ app }: { app: KhurkApp }) {
     >
       {/* ── Cinematic banner ── */}
       <div
-        className="w-full relative overflow-hidden shrink-0"
+        className="w-full relative overflow-hidden shrink-0 h-[130px] sm:h-[160px]"
         style={{
-          height: '160px',
           background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
         }}
       >
@@ -242,7 +241,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
             <p className="text-[10px] font-bold uppercase mb-5 text-muted-foreground/60" style={{ letterSpacing: '0.2em' }}>
               All Apps
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {KHURK_APPS.map((app) => (
                 <AppCard key={app.id} app={app} />
               ))}
