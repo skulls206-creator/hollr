@@ -464,13 +464,17 @@ export function DockBar() {
                     className={cn(
                       'w-full h-full rounded-xl overflow-hidden shadow-lg transition-all duration-200',
                       khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeKhurkAppId
-                        && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+                        ? 'ring-2 ring-[#22d3ee] ring-offset-1 ring-offset-background'
+                        : ''
                     )}
-                    style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
+                    style={{ background: '#0a1a1f' }}
                   >
-                    <div className="w-full h-full flex items-center justify-center">
-                      <HollrIcon size={Math.round(ICON_BASE * 0.55)} />
-                    </div>
+                    <img
+                      src="/khurk-logo.png"
+                      alt="KHURK OS"
+                      className="w-full h-full object-cover"
+                      draggable={false}
+                    />
                   </div>
                   {khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeKhurkAppId && (
                     <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-foreground" />
