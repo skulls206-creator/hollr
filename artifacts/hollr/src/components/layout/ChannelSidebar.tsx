@@ -242,15 +242,15 @@ export function ChannelSidebar() {
   if (!activeServerId) {
     return (
       <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
-        <div className="h-12 border-b border-border/10 flex items-center pl-4 pr-2 font-bold text-foreground shadow-sm">
-          <span className="flex-1">Direct Messages</span>
+        <div className="h-12 border-b border-border/10 flex items-center pl-2 pr-4 font-bold text-foreground shadow-sm">
           <button
             onClick={closeSidebar}
             title="Close sidebar"
-            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors shrink-0"
+            className="p-1.5 mr-1 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors shrink-0"
           >
             <Menu size={16} />
           </button>
+          <span className="flex-1">Direct Messages</span>
         </div>
         <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
           <div className="flex items-center justify-between px-2 py-2">
@@ -343,18 +343,18 @@ export function ChannelSidebar() {
       <div className="relative">
         <div className="h-12 border-b border-border/10 flex items-center shadow-sm">
           <button
+            onClick={closeSidebar}
+            title="Close sidebar"
+            className="p-1.5 ml-2 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors shrink-0"
+          >
+            <Menu size={16} />
+          </button>
+          <button
             onClick={() => setServerMenuOpen(o => !o)}
-            className="flex-1 h-full flex items-center justify-between pl-4 pr-2 font-bold text-foreground hover:bg-secondary/50 transition-colors min-w-0"
+            className="flex-1 h-full flex items-center justify-between pl-2 pr-3 font-bold text-foreground hover:bg-secondary/50 transition-colors min-w-0"
           >
             <span className="truncate">{server?.name || 'Loading…'}</span>
             <ChevronDown size={16} className={cn("text-muted-foreground transition-transform shrink-0 mx-1", serverMenuOpen && "rotate-180")} />
-          </button>
-          <button
-            onClick={closeSidebar}
-            title="Close sidebar"
-            className="p-1.5 mr-2 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors shrink-0"
-          >
-            <Menu size={16} />
           </button>
         </div>
         {serverMenuOpen && (
