@@ -881,7 +881,7 @@ function UserProfilePanel({
                 <span className={cn(
                   "px-1.5 py-0.5 transition-colors",
                   layoutMode === 'classic' ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                )}>Sidebar</span>
+                )}>Side</span>
                 <span className={cn(
                   "px-1.5 py-0.5 transition-colors",
                   layoutMode === 'dock' ? "bg-primary text-primary-foreground" : "text-muted-foreground"
