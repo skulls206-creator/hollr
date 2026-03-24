@@ -231,7 +231,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
       if (isKnown) {
         await executeSlashCommand(trimmed);
         setContent('');
-        if (textareaRef.current) textareaRef.current.style.height = '44px';
+        if (textareaRef.current) textareaRef.current.style.height = '36px';
         return;
       }
     }
@@ -239,7 +239,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     sendMessage({ channelId, data: { content: trimmed } }, {
       onSuccess: () => {
         setContent('');
-        if (textareaRef.current) textareaRef.current.style.height = '44px';
+        if (textareaRef.current) textareaRef.current.style.height = '36px';
       },
       onError: () => toast({ title: "Failed to send", variant: "destructive" })
     });
@@ -320,7 +320,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   };
 
   return (
-    <div className="px-4 pb-2 pt-2 w-full bg-surface-3 relative">
+    <div className="px-4 pb-2 pt-1 w-full bg-surface-3 relative">
       {/* Slash command palette */}
       {slashQuery !== null && slashMatches.length > 0 && (
         <div className="absolute bottom-full left-4 right-4 mb-2 bg-surface-1 border border-border/20 rounded-xl shadow-2xl overflow-hidden z-50">
@@ -387,7 +387,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         </div>
       )}
 
-      <div className="bg-[#232428] rounded-lg flex items-center px-4 py-2 relative overflow-visible shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
+      <div className="bg-[#232428] rounded-lg flex items-center px-4 py-1 relative overflow-visible shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
 
         {isUploading && (
           <div className="absolute top-0 left-0 h-1 bg-primary transition-all duration-300 ease-out rounded-t-lg" style={{ width: `${uploadProgress}%` }} />
@@ -413,9 +413,9 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Message… (type / for commands)"
-          className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 min-h-[44px] max-h-[200px] overflow-y-auto leading-normal"
+          className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-1.5 min-h-[36px] max-h-[200px] overflow-y-auto leading-normal"
           rows={1}
-          style={{ height: '44px' }}
+          style={{ height: '36px' }}
           data-ctx-suppress
         />
 
