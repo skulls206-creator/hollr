@@ -266,7 +266,7 @@ export function MemberList({ serverId }: { serverId: string }) {
   );
 
   return (
-    <div className="w-[240px] bg-surface-1 shrink-0 flex flex-col h-full border-l border-border/5 overflow-hidden">
+    <div className="w-[240px] bg-surface-2 shrink-0 flex flex-col h-full border-l border-border/5 overflow-hidden">
       <div className="flex-1 overflow-y-auto p-3 space-y-4 no-scrollbar">
 
         {online.length > 0 && (
