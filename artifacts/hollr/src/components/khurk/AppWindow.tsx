@@ -2,10 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon } from '@/lib/khurk-apps';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
-import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2 } from 'lucide-react';
+import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, Menu } from 'lucide-react';
 
 export function AppWindow() {
-  const { activeKhurkAppId, setActiveKhurkAppId, setKhurkPipMode } = useAppStore();
+  const {
+    activeKhurkAppId, setActiveKhurkAppId, setKhurkPipMode,
+    layoutMode, toggleMobileSidebar, setClassicChannelOpen,
+  } = useAppStore();
   const { show: showMenu } = useContextMenu();
   const [refreshCount, setRefreshCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -84,6 +87,15 @@ export function AppWindow() {
         className="flex items-center gap-2 px-3 py-2 bg-surface-1 border-b border-border/30 shrink-0 select-none cursor-default"
         onContextMenu={handleContextMenu}
       >
+        {/* Hamburger — opens channel/DM panel from inside the app window */}
+        <button
+          title="Open messages"
+          onClick={() => layoutMode === 'classic' ? setClassicChannelOpen(true) : toggleMobileSidebar()}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors shrink-0 mr-0.5"
+        >
+          <Menu size={16} />
+        </button>
+
         {/* App icon */}
         <div
           className="w-7 h-7 rounded-lg overflow-hidden shrink-0 shadow-sm"
