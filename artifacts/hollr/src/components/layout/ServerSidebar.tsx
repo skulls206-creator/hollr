@@ -374,7 +374,7 @@ export function ServerSidebar() {
           <>
             <div className="w-full flex flex-col items-center gap-1 mt-2 px-3">
               <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/50 to-transparent" />
-              <span className="text-[7.5px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 select-none">KHURK</span>
+              <span className="text-[7.5px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 select-none">KHURK OS</span>
             </div>
 
             <SortableContext items={khurkSortableIds} strategy={verticalListSortingStrategy}>
