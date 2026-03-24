@@ -473,7 +473,7 @@ export function DockBar() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="relative flex items-end bg-background/70 backdrop-blur-2xl border border-border/30 shadow-2xl shadow-black/30 rounded-2xl px-4 py-2.5"
+          className="relative flex items-end bg-background/70 backdrop-blur-2xl border border-border/30 shadow-2xl shadow-black/30 rounded-2xl px-3 py-2"
           style={{ overflow: 'visible', maxWidth: '100%', pointerEvents: 'auto' }}
         >
           {/* ── hollr logo — toggles the KHURK OS Dashboard ── */}
@@ -524,7 +524,7 @@ export function DockBar() {
           </div>
 
           {/* Divider separating KHURK OS from nav buttons */}
-          <div className="w-px self-stretch mx-2 bg-border/40 rounded-full shrink-0" />
+          <div className="w-px self-stretch mx-1.5 bg-border/40 rounded-full shrink-0" />
 
           {/* ── DM button — wrapped in DockItem for macOS-style magnification ── */}
           <div className="shrink-0">
@@ -556,7 +556,7 @@ export function DockBar() {
           </div>
 
           {/* Divider */}
-          <div className="w-px self-stretch mx-2 bg-border/40 rounded-full shrink-0" />
+          <div className="w-px self-stretch mx-3 bg-border/40 rounded-full shrink-0" />
 
           {/* ── Scrollable sortable area ──
                overflow-y: 'clip' is crucial here. CSS spec forces overflow-y to
@@ -566,7 +566,7 @@ export function DockBar() {
                (which 'clip' does NOT cut off) so magnified icons can pop upward
                without being clipped. */}
           <div
-            className="flex items-end gap-4 min-w-0 [&::-webkit-scrollbar]:hidden"
+            className="flex items-end gap-2 min-w-0 [&::-webkit-scrollbar]:hidden"
             style={{
               overflowX: 'auto',
               overflowY: 'clip',
