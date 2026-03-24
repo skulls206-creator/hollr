@@ -26,7 +26,14 @@ function loadOrder(key: string): string[] | null {
   try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : null; } catch { return null; }
 }
 function saveOrder(key: string, ids: string[]) {
-  try { localStorage.setItem(key, JSON.stringify(ids)); } catch {}
+  try {
+    localStorage.setItem(key, JSON.stringify(ids));
+    // Broadcast to DashboardView (and any other subscriber) when the KHURK
+    // app order changes, regardless of layout mode.
+    if (key === KHURK_ORDER_KEY) {
+      window.dispatchEvent(new CustomEvent('hollr:dock-order', { detail: ids }));
+    }
+  } catch {}
 }
 
 // Prefix used on KHURK drag IDs to keep them separate from server IDs in one DndContext
