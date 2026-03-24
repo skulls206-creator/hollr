@@ -3,7 +3,7 @@ import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
-  Volume1, VolumeOff, LayoutGrid,
+  Volume1, VolumeOff, LayoutGrid, PanelLeft,
 } from 'lucide-react';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
@@ -628,6 +628,7 @@ function UserProfilePanel({
     micMuted, deafened, toggleMicMuted, toggleDeafened, setUserSettingsModalOpen,
     audioInputDeviceId, audioOutputDeviceId, setAudioInputDeviceId, setAudioOutputDeviceId,
     khurkOsEnabled, toggleKhurkOs,
+    layoutMode, setLayoutMode,
   } = useAppStore();
   const { logout } = useAuth();
   const { data: profile } = useGetMyProfile();
@@ -863,6 +864,23 @@ function UserProfilePanel({
                   "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
                   khurkOsEnabled ? "translate-x-4" : "translate-x-0.5"
                 )} />
+              </div>
+            </button>
+            <button
+              onClick={() => setLayoutMode(layoutMode === 'classic' ? 'dock' : 'classic')}
+              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+            >
+              <PanelLeft size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1 text-left">Layout</span>
+              <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
+                <span className={cn(
+                  "px-1.5 py-0.5 transition-colors",
+                  layoutMode === 'classic' ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                )}>Sidebar</span>
+                <span className={cn(
+                  "px-1.5 py-0.5 transition-colors",
+                  layoutMode === 'dock' ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                )}>Dock</span>
               </div>
             </button>
             <div className="h-px bg-border/40 my-1" />
