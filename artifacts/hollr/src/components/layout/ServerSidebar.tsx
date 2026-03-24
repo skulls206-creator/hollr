@@ -7,10 +7,11 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
+import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import {
-  DndContext, DragOverlay, MouseSensor, TouchSensor,
+  DndContext, DragOverlay, PointerSensor,
   useSensor, useSensors, closestCenter,
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -26,47 +27,6 @@ function saveSidebarOrder(ids: string[]) {
 }
 
 const BASE = import.meta.env.BASE_URL;
-
-export function useKhurkDismissals() {
-  const { user } = useAuth();
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-
-  const fetchDismissed = useCallback(async () => {
-    if (!user) return;
-    try {
-      const res = await fetch(`${BASE}api/khurk-apps/dismissed`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setDismissed(new Set(data.dismissed ?? []));
-      }
-    } catch { /* ignore */ }
-  }, [user]);
-
-  useEffect(() => { fetchDismissed(); }, [fetchDismissed]);
-
-  const dismissOne = useCallback(async (appId: string) => {
-    setDismissed(prev => new Set([...prev, appId]));
-    await fetch(`${BASE}api/khurk-apps/dismiss/${appId}`, { method: 'POST', credentials: 'include' });
-  }, []);
-
-  const dismissAll = useCallback(async () => {
-    setDismissed(new Set(KHURK_APPS.map(a => a.id)));
-    await fetch(`${BASE}api/khurk-apps/dismiss-all`, { method: 'POST', credentials: 'include' });
-  }, []);
-
-  const restoreAll = useCallback(async () => {
-    setDismissed(new Set());
-    await fetch(`${BASE}api/khurk-apps/dismissed`, { method: 'DELETE', credentials: 'include' });
-  }, []);
-
-  const visibleApps = useMemo(
-    () => KHURK_APPS.filter(a => !dismissed.has(a.id)),
-    [dismissed]
-  );
-  const hasAnyDismissed = dismissed.size > 0;
-
-  return { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll };
-}
 
 function KhurkAppIcon({ app }: { app: KhurkApp }) {
   const fit = app.iconFit ?? 'cover';
@@ -170,10 +130,11 @@ export function ServerSidebar() {
     .map((id: string) => rawServers.find((s: any) => s.id === id))
     .filter(Boolean) as any[];
 
-  // ── DND setup for server reordering ──
+  // ── DND setup ─────────────────────────────────────────────────────────────
+  // PointerSensor (vs MouseSensor) calls preventDefault after activation,
+  // which stops the scrollable container from stealing the gesture.
   const sidebarSensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 600, tolerance: 10 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
   const [draggingServerId, setDraggingServerId] = useState<string | null>(null);
   const handleServerDragStart = ({ active }: DragStartEvent) => setDraggingServerId(active.id as string);
@@ -296,48 +257,62 @@ export function ServerSidebar() {
     showMenu({ x: e.clientX, y: e.clientY, actions, title: 'hollr.chat', subtitle: 'Real-time messaging & voice' });
   };
 
+  // The DragOverlay ghost
+  const draggingServer = rawServers.find((sv: any) => sv.id === draggingServerId);
+
   return (
-    <div className="w-[72px] bg-surface-0 shrink-0 flex flex-col items-center py-3 gap-2 overflow-y-auto overflow-x-hidden no-scrollbar border-r border-border/10 z-20">
+    /*
+      DndContext wraps the ENTIRE sidebar — including outside the scroll div.
+      This means DragOverlay (portalled to document.body) has a clean context
+      and the PointerSensor can call preventDefault before the scroll container
+      intercepts vertical pointer movement.
+    */
+    <DndContext
+      sensors={sidebarSensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleServerDragStart}
+      onDragEnd={handleServerDragEnd}
+    >
+      {/* Lock vertical scroll while a drag is active so the container doesn't
+          fight with dnd-kit for pointer ownership */}
+      <div className={cn(
+        "w-[72px] bg-surface-0 shrink-0 flex flex-col items-center py-3 gap-2 overflow-x-hidden no-scrollbar border-r border-border/10 z-20",
+        draggingServerId ? "overflow-y-hidden" : "overflow-y-auto"
+      )}>
 
-      {/* Direct Messages */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={() => setActiveServer(null)}
-            onContextMenu={handleDmContextMenu}
-            className="relative group flex items-center justify-center w-full h-12"
-          >
-            <div className={cn(
-              "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
-              activeServerId === null ? "h-10 opacity-100" : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
-            )} />
-            <div className={cn(
-              "w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden",
-              activeServerId === null
-                ? "bg-primary text-primary-foreground rounded-2xl"
-                : "bg-secondary text-foreground rounded-[24px] group-hover:rounded-2xl group-hover:bg-primary group-hover:text-primary-foreground"
-            )}>
-              <MessageSquare size={24} />
-            </div>
-            {totalDmUnread > 0 && activeServerId !== null && (
-              <span className="absolute bottom-0.5 right-1 min-w-[16px] h-4 px-1 bg-destructive text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none">
-                {totalDmUnread > 99 ? '99+' : totalDmUnread}
-              </span>
-            )}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="font-semibold ml-2">Direct Messages</TooltipContent>
-      </Tooltip>
+        {/* Direct Messages */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setActiveServer(null)}
+              onContextMenu={handleDmContextMenu}
+              className="relative group flex items-center justify-center w-full h-12"
+            >
+              <div className={cn(
+                "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
+                activeServerId === null ? "h-10 opacity-100" : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
+              )} />
+              <div className={cn(
+                "w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden",
+                activeServerId === null
+                  ? "bg-primary text-primary-foreground rounded-2xl"
+                  : "bg-secondary text-foreground rounded-[24px] group-hover:rounded-2xl group-hover:bg-primary group-hover:text-primary-foreground"
+              )}>
+                <MessageSquare size={24} />
+              </div>
+              {totalDmUnread > 0 && activeServerId !== null && (
+                <span className="absolute bottom-0.5 right-1 min-w-[16px] h-4 px-1 bg-destructive text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none">
+                  {totalDmUnread > 99 ? '99+' : totalDmUnread}
+                </span>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="font-semibold ml-2">Direct Messages</TooltipContent>
+        </Tooltip>
 
-      <div className="w-8 h-[2px] bg-border/40 rounded-full my-1" />
+        <div className="w-8 h-[2px] bg-border/40 rounded-full my-1" />
 
-      {/* Server List — drag-to-reorder via dnd-kit */}
-      <DndContext
-        sensors={sidebarSensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleServerDragStart}
-        onDragEnd={handleServerDragEnd}
-      >
+        {/* Server List — drag-to-reorder */}
         <SortableContext items={serverOrder} strategy={verticalListSortingStrategy}>
           {servers.map((server) => (
             <SortableServerItem
@@ -349,122 +324,120 @@ export function ServerSidebar() {
             />
           ))}
         </SortableContext>
-        <DragOverlay dropAnimation={{ duration: 160, easing: 'ease' }}>
-          {draggingServerId ? (() => {
-            const s = rawServers.find((sv: any) => sv.id === draggingServerId);
-            if (!s) return null;
-            return (
-              <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-2xl shadow-black/60 ring-2 ring-white/20 mx-auto opacity-90">
-                {s.iconUrl
-                  ? <img src={s.iconUrl} alt={s.name} className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground font-medium text-lg">
-                      {getInitials(s.name)}
-                    </div>
-                }
-              </div>
-            );
-          })() : null}
-        </DragOverlay>
-      </DndContext>
 
-      {/* Add Server */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button onClick={() => setCreateServerModalOpen(true)} className="relative group flex items-center justify-center w-12 h-12 mt-1">
-            <div className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden bg-secondary text-emerald-500 rounded-[24px] group-hover:rounded-2xl group-hover:bg-emerald-500 group-hover:text-white border border-dashed border-emerald-500/20 group-hover:border-transparent">
-              <Plus size={24} />
-            </div>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="font-semibold ml-2">Add a Server</TooltipContent>
-      </Tooltip>
-
-      {/* ── KHURK Apps ── */}
-      {(visibleApps.length > 0 || hasAnyDismissed) && (
-        <>
-          <div className="w-full flex flex-col items-center gap-1 mt-2 px-3">
-            <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/50 to-transparent" />
-            <span className="text-[7.5px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 select-none">KHURK</span>
-          </div>
-
-          {visibleApps.map((app) => (
-            <Tooltip key={app.id}>
-              <TooltipTrigger asChild>
-                <motion.button
-                  onClick={() => handleAppClick(app)}
-                  onContextMenu={(e) => handleAppContextMenu(e, app)}
-                  className="relative group flex items-center justify-center w-full h-12"
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <div className="absolute left-0 w-1 rounded-r-full transition-all duration-300 h-0 group-hover:h-4 bg-white/40 opacity-0 group-hover:opacity-100" />
-                  <div className="w-12 h-12 transition-all duration-300 overflow-hidden shadow-md rounded-[24px] group-hover:rounded-2xl group-hover:shadow-xl group-hover:scale-105">
-                    <KhurkAppIcon app={app} />
-                  </div>
-                </motion.button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="ml-2 p-2">
-                <p className="font-bold text-xs">{app.name}</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">{app.tagline}</p>
-              </TooltipContent>
-            </Tooltip>
-          ))}
-
-          {visibleApps.length === 0 && hasAnyDismissed && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button onClick={restoreAll} className="relative group flex items-center justify-center w-12 h-12">
-                  <div className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden bg-surface-2 text-muted-foreground rounded-[24px] group-hover:rounded-2xl group-hover:text-foreground border border-dashed border-border/40">
-                    <RotateCcw size={18} />
-                  </div>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="font-semibold ml-2">Restore KHURK Apps</TooltipContent>
-            </Tooltip>
-          )}
-        </>
-      )}
-
-      {/* ── Spacer pushes hollr icon to the bottom ── */}
-      <div className="flex-1" />
-
-      {/* ── Permanent hollr icon — pinned to bottom, never removable ── */}
-      <div
-        className="w-full shrink-0 flex flex-col items-center gap-1 px-3"
-        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
-      >
-        <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent mb-1" />
+        {/* Add Server */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <motion.button
-              onClick={() => {
-                const dashboardActive = khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp;
-                if (dashboardActive) {
-                  setKhurkDashboardOpen(false);
-                } else {
-                  openKhurkDashboard();
-                }
-              }}
-              onContextMenu={handleHollrContextMenu}
-              className="relative group flex items-center justify-center w-full h-12"
-              whileTap={{ scale: 0.92 }}
-            >
-              <div className={cn(
-                'w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-lg rounded-[24px] group-hover:rounded-2xl group-hover:shadow-primary/40 group-hover:scale-105',
-                khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp
-                  && 'ring-2 ring-primary ring-offset-2 ring-offset-surface-0 rounded-2xl'
-              )}
-                style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
-              >
-                <HollrIcon size={26} />
+            <button onClick={() => setCreateServerModalOpen(true)} className="relative group flex items-center justify-center w-12 h-12 mt-1">
+              <div className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden bg-secondary text-emerald-500 rounded-[24px] group-hover:rounded-2xl group-hover:bg-emerald-500 group-hover:text-white border border-dashed border-emerald-500/20 group-hover:border-transparent">
+                <Plus size={24} />
               </div>
-            </motion.button>
+            </button>
           </TooltipTrigger>
-          <TooltipContent side="right" className="ml-2 p-2">
-            <p className="font-bold text-xs">KHURK OS</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">Click to toggle · Right-click for menu</p>
-          </TooltipContent>
+          <TooltipContent side="right" className="font-semibold ml-2">Add a Server</TooltipContent>
         </Tooltip>
+
+        {/* ── KHURK Apps ── */}
+        {(visibleApps.length > 0 || hasAnyDismissed) && (
+          <>
+            <div className="w-full flex flex-col items-center gap-1 mt-2 px-3">
+              <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+              <span className="text-[7.5px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 select-none">KHURK</span>
+            </div>
+
+            {visibleApps.map((app) => (
+              <Tooltip key={app.id}>
+                <TooltipTrigger asChild>
+                  <motion.button
+                    onClick={() => handleAppClick(app)}
+                    onContextMenu={(e) => handleAppContextMenu(e, app)}
+                    className="relative group flex items-center justify-center w-full h-12"
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <div className="absolute left-0 w-1 rounded-r-full transition-all duration-300 h-0 group-hover:h-4 bg-white/40 opacity-0 group-hover:opacity-100" />
+                    <div className="w-12 h-12 transition-all duration-300 overflow-hidden shadow-md rounded-[24px] group-hover:rounded-2xl group-hover:shadow-xl group-hover:scale-105">
+                      <KhurkAppIcon app={app} />
+                    </div>
+                  </motion.button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="ml-2 p-2">
+                  <p className="font-bold text-xs">{app.name}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{app.tagline}</p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+
+            {visibleApps.length === 0 && hasAnyDismissed && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button onClick={restoreAll} className="relative group flex items-center justify-center w-12 h-12">
+                    <div className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden bg-surface-2 text-muted-foreground rounded-[24px] group-hover:rounded-2xl group-hover:text-foreground border border-dashed border-border/40">
+                      <RotateCcw size={18} />
+                    </div>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="font-semibold ml-2">Restore KHURK Apps</TooltipContent>
+              </Tooltip>
+            )}
+          </>
+        )}
+
+        {/* ── Spacer pushes hollr icon to the bottom ── */}
+        <div className="flex-1" />
+
+        {/* ── Permanent hollr icon — pinned to bottom, never removable ── */}
+        <div
+          className="w-full shrink-0 flex flex-col items-center gap-1 px-3"
+          style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+        >
+          <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent mb-1" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <motion.button
+                onClick={() => {
+                  const dashboardActive = khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp;
+                  if (dashboardActive) {
+                    setKhurkDashboardOpen(false);
+                  } else {
+                    openKhurkDashboard();
+                  }
+                }}
+                onContextMenu={handleHollrContextMenu}
+                className="relative group flex items-center justify-center w-full h-12"
+                whileTap={{ scale: 0.92 }}
+              >
+                <div className={cn(
+                  'w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-lg rounded-[24px] group-hover:rounded-2xl group-hover:shadow-primary/40 group-hover:scale-105',
+                  khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp
+                    && 'ring-2 ring-primary ring-offset-2 ring-offset-surface-0 rounded-2xl'
+                )}
+                  style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
+                >
+                  <HollrIcon size={26} />
+                </div>
+              </motion.button>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="ml-2 p-2">
+              <p className="font-bold text-xs">KHURK OS</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">Click to toggle · Right-click for menu</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </div>
-    </div>
+
+      {/* DragOverlay renders via portal to document.body — position here is fine */}
+      <DragOverlay dropAnimation={{ duration: 160, easing: 'ease' }}>
+        {draggingServer ? (
+          <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-2xl shadow-black/60 ring-2 ring-white/20 opacity-90">
+            {draggingServer.iconUrl
+              ? <img src={draggingServer.iconUrl} alt={draggingServer.name} className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center bg-primary text-primary-foreground font-medium text-lg">
+                  {getInitials(draggingServer.name)}
+                </div>
+            }
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }

@@ -24,7 +24,7 @@ import { useListMyServers } from '@workspace/api-client-react';
 import { cn, getInitials } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
-import { useKhurkDismissals } from '@/components/layout/ServerSidebar';
+import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
 
 const ICON_BASE = 40;
