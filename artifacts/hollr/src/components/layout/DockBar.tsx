@@ -53,7 +53,11 @@ function loadOrder(): string[] | null {
   } catch { return null; }
 }
 function saveOrder(ids: string[]) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(ids)); } catch {}
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(ids));
+    // Broadcast so any other component (e.g. Dashboard) can re-sort in real-time
+    window.dispatchEvent(new CustomEvent('hollr:dock-order', { detail: ids }));
+  } catch {}
 }
 
 // ─── Magnification ───────────────────────────────────────────────────────────

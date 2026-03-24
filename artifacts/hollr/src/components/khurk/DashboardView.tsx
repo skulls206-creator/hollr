@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
 import { ExternalLink, EyeOff, Grid2x2, Menu, MonitorPlay, Pin, PinOff, RotateCcw, Sparkles } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
+import { useDockOrder } from '@/hooks/use-dock-order';
 import { cn } from '@/lib/utils';
 
 function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) {
@@ -145,9 +146,33 @@ interface DashboardViewProps {
 export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
   const { sidebarLocked, setSidebarLocked, layoutMode, setClassicChannelOpen } = useAppStore();
   const { visibleApps, hasAnyDismissed, dismissOne, restoreAll } = useKhurkDismissals();
+  const dockOrder = useDockOrder();
   // Temporarily show all apps (ignores user's hidden list until they navigate away)
   const [showAll, setShowAll] = useState(false);
-  const displayedApps = showAll ? KHURK_APPS : visibleApps;
+
+  // Sort a list of apps to match the user's dock order.
+  // Apps that appear in the dock come first (in dock sequence).
+  // Apps not in the dock order (e.g. dismissed) fall to the end in their
+  // original KHURK_APPS index order.
+  const applyDockOrder = useCallback((apps: KhurkApp[]): KhurkApp[] => {
+    // dockOrder contains server IDs too — filter to only app IDs
+    const appIdSet = new Set(KHURK_APPS.map(a => a.id));
+    const orderedAppIds = dockOrder.filter(id => appIdSet.has(id));
+    if (!orderedAppIds.length) return apps;
+    return [...apps].sort((a, b) => {
+      const ia = orderedAppIds.indexOf(a.id);
+      const ib = orderedAppIds.indexOf(b.id);
+      if (ia === -1 && ib === -1) return 0;   // both unlisted → keep relative order
+      if (ia === -1) return 1;                 // a unlisted → a goes after b
+      if (ib === -1) return -1;                // b unlisted → b goes after a
+      return ia - ib;                          // both listed → sort by position
+    });
+  }, [dockOrder]);
+
+  const displayedApps = useMemo(
+    () => applyDockOrder(showAll ? KHURK_APPS : visibleApps),
+    [applyDockOrder, showAll, visibleApps],
+  );
 
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full bg-background">
