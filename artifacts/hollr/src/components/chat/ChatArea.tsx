@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Hash, Users, Bell, BellOff, Pin, Search, HelpCircle, Menu, X } from 'lucide-react';
+import { Hash, Users, Bell, BellOff, Pin, Search, HelpCircle, Menu, X, Copy, ChevronsDown, ScrollText } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListChannels, getListChannelsQueryKey } from '@workspace/api-client-react';
 import { MessageList } from './MessageList';
@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -30,11 +31,96 @@ export function ChatArea() {
     layoutMode, toggleClassicChannel,
   } = useAppStore();
 
+  const { show: showMenu } = useContextMenu();
+
   const { data: channels = [] } = useListChannels(activeServerId || '', {
     query: { queryKey: getListChannelsQueryKey(activeServerId || ''), enabled: !!activeServerId },
   });
 
   const channel = channels.find(c => c.id === activeChannelId);
+
+  // Define isMuted here so context-menu callbacks can reference it before the old position
+  const isMuted = activeChannelId ? isChannelMuted(activeChannelId) : false;
+
+  // Right-click on the channel header bar
+  const handleHeaderContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!channel) return;
+    e.preventDefault();
+    e.stopPropagation();
+    showMenu({
+      x: e.clientX, y: e.clientY,
+      title: `#${channel.name}`,
+      subtitle: channel.topic || undefined,
+      actions: [
+        {
+          id: 'copy-name',
+          label: 'Copy Channel Name',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(`#${channel.name}`),
+        },
+        {
+          id: 'mute',
+          label: isMuted ? 'Unmute Notifications' : 'Mute Notifications',
+          icon: isMuted ? <Bell size={14} /> : <BellOff size={14} />,
+          onClick: () => activeChannelId && toggleMuteChannel(activeChannelId),
+        },
+        {
+          id: 'pins',
+          label: pinnedPanelOpen ? 'Hide Pinned Messages' : 'Show Pinned Messages',
+          icon: <Pin size={14} />,
+          onClick: togglePinnedPanel,
+          dividerBefore: true,
+        },
+        {
+          id: 'members',
+          label: 'Toggle Member List',
+          icon: <Users size={14} />,
+          onClick: toggleMemberList,
+        },
+        {
+          id: 'help',
+          label: 'Keyboard Shortcuts',
+          icon: <HelpCircle size={14} />,
+          onClick: () => setHelpModalOpen(true),
+          dividerBefore: true,
+        },
+      ],
+    });
+  }, [channel, isMuted, activeChannelId, pinnedPanelOpen, toggleMuteChannel, togglePinnedPanel, toggleMemberList, setHelpModalOpen, showMenu]);
+
+  // Right-click on the chat body (messages area + composer wrapper)
+  const handleBodyContextMenu = useCallback((e: React.MouseEvent) => {
+    // Let message-level right-clicks handle themselves
+    if ((e.target as HTMLElement).closest('[data-message-row]')) return;
+    e.preventDefault();
+    showMenu({
+      x: e.clientX, y: e.clientY,
+      actions: [
+        {
+          id: 'scroll-bottom',
+          label: 'Scroll to Bottom',
+          icon: <ChevronsDown size={14} />,
+          onClick: () => {
+            const el = document.querySelector('[data-messages-scroll]');
+            el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+          },
+        },
+        {
+          id: 'pins',
+          label: pinnedPanelOpen ? 'Hide Pinned Messages' : 'Show Pinned Messages',
+          icon: <ScrollText size={14} />,
+          onClick: togglePinnedPanel,
+        },
+        {
+          id: 'mute',
+          label: isMuted ? 'Unmute Notifications' : 'Mute Notifications',
+          icon: isMuted ? <Bell size={14} /> : <BellOff size={14} />,
+          onClick: () => activeChannelId && toggleMuteChannel(activeChannelId),
+          dividerBefore: true,
+        },
+      ],
+    });
+  }, [isMuted, activeChannelId, pinnedPanelOpen, toggleMuteChannel, togglePinnedPanel, showMenu]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,8 +129,6 @@ export function ChatArea() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(searchQuery, 300);
-
-  const isMuted = activeChannelId ? isChannelMuted(activeChannelId) : false;
 
   // Run search when debounced query changes
   useEffect(() => {
@@ -111,9 +195,9 @@ export function ChatArea() {
 
   return (
     <div className="flex flex-1 min-w-0 h-full">
-      <div className="flex-1 bg-surface-3 flex flex-col h-full min-w-0">
+      <div className="flex-1 bg-surface-3 flex flex-col h-full min-w-0" onContextMenu={handleBodyContextMenu}>
         {/* Top Header */}
-        <div className="h-12 border-b border-border/10 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-surface-3">
+        <div className="h-12 border-b border-border/10 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-surface-3" onContextMenu={handleHeaderContextMenu}>
           <div className="flex items-center min-w-0">
             <button
               onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}

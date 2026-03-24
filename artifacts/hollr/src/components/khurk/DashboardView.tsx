@@ -1,9 +1,12 @@
+import { useCallback } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
-import { ExternalLink, Menu } from 'lucide-react';
+import { ExternalLink, Menu, MonitorPlay } from 'lucide-react';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
 
 function AppCard({ app }: { app: KhurkApp }) {
   const { setActiveKhurkAppId } = useAppStore();
+  const { show: showMenu } = useContextMenu();
 
   const handleLaunch = () => {
     if (app.openMode === 'tab') {
@@ -15,9 +18,35 @@ function AppCard({ app }: { app: KhurkApp }) {
 
   const isTab = app.openMode === 'tab';
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showMenu({
+      x: e.clientX, y: e.clientY,
+      title: app.name,
+      subtitle: app.tagline,
+      titleIcon: app.imageSrc,
+      actions: [
+        {
+          id: 'launch',
+          label: isTab ? 'Open' : 'Launch in Window',
+          icon: isTab ? <ExternalLink size={14} /> : <MonitorPlay size={14} />,
+          onClick: handleLaunch,
+        },
+        {
+          id: 'open-tab',
+          label: 'Open in New Tab',
+          icon: <ExternalLink size={14} />,
+          onClick: () => window.open(app.url, '_blank', 'noopener'),
+        },
+      ],
+    });
+  }, [app, isTab, showMenu, handleLaunch]);
+
   return (
     <button
       onClick={handleLaunch}
+      onContextMenu={handleContextMenu}
       className="group flex flex-col rounded-xl overflow-hidden text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.07)' }}
     >

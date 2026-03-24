@@ -2,8 +2,9 @@ import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useDragControls } from 'framer-motion';
 import { useAppStore, type PipWindowEntry } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon } from '@/lib/khurk-apps';
-import { X, Maximize2, GripHorizontal, RefreshCw, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { X, Maximize2, GripHorizontal, RefreshCw, ChevronsUpDown, ChevronsDownUp, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
 
 const DEFAULT_W  = 380;
 const DEFAULT_H  = 240;
@@ -29,6 +30,7 @@ function SinglePipWindow({
   onFocus: () => void;
 }) {
   const { removePipWindow, restorePipWindow } = useAppStore();
+  const { show: showMenu } = useContextMenu();
   const [refreshCount, setRefreshCount] = useState(0);
   const [size, setSize] = useState({ w: DEFAULT_W, h: DEFAULT_H });
 
@@ -50,6 +52,63 @@ function SinglePipWindow({
 
   const app = KHURK_APPS.find(a => a.id === entry.appId);
   if (!app) return null;
+
+  // ── Window-level right-click menu ──────────────────────────────────────────
+  const handleWindowContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!app) return;
+    e.preventDefault();
+    e.stopPropagation();
+    showMenu({
+      x: e.clientX, y: e.clientY,
+      title: app.name,
+      subtitle: app.tagline,
+      titleIcon: app.imageSrc,
+      actions: [
+        {
+          id: 'refresh',
+          label: 'Refresh',
+          icon: <RefreshCw size={14} />,
+          onClick: () => setRefreshCount(c => c + 1),
+        },
+        {
+          id: 'snap',
+          label: isSnapped ? 'Restore Size' : 'Snap to Smallest',
+          icon: isSnapped ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />,
+          onClick: () => {
+            if (isSnapped) {
+              setSize({ w: savedSize.current.w, h: savedSize.current.h });
+              setIsSnapped(false);
+            } else {
+              savedSize.current = { w: size.w, h: size.h };
+              setSize({ w: MIN_W, h: MIN_H });
+              setIsSnapped(true);
+            }
+          },
+        },
+        {
+          id: 'restore',
+          label: 'Restore to Full Window',
+          icon: <Maximize2 size={14} />,
+          onClick: () => restorePipWindow(entry.id),
+          dividerBefore: true,
+        },
+        {
+          id: 'open-tab',
+          label: 'Open in New Tab',
+          icon: <ExternalLink size={14} />,
+          onClick: () => window.open(app.url, '_blank', 'noopener'),
+        },
+        {
+          id: 'close',
+          label: 'Close',
+          icon: <X size={14} />,
+          onClick: () => removePipWindow(entry.id),
+          dividerBefore: true,
+          danger: true,
+        },
+      ],
+    });
+  }, [app, entry.id, isSnapped, size.w, size.h, showMenu, restorePipWindow, removePipWindow]);
 
   // ── Snap toggle ────────────────────────────────────────────────────────────
   const handleSnapToggle = useCallback((e: React.MouseEvent) => {
@@ -137,6 +196,7 @@ function SinglePipWindow({
         className="flex items-center gap-1.5 px-2 bg-surface-1/95 backdrop-blur-sm border-b border-border/20 cursor-grab active:cursor-grabbing shrink-0"
         style={{ height: HEADER_H }}
         onPointerDown={(e) => dragControls.start(e)}
+        onContextMenu={handleWindowContextMenu}
       >
         <GripHorizontal size={11} className="text-muted-foreground/50 shrink-0" />
 
@@ -203,7 +263,7 @@ function SinglePipWindow({
       </div>
 
       {/* ── Iframe (fills remaining height, hidden when snapped to save resources) ── */}
-      <div className="relative flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0" onContextMenu={handleWindowContextMenu}>
         <iframe
           key={`pip-${entry.id}-${refreshCount}`}
           src={app.url}
