@@ -11,7 +11,7 @@ export function AppWindow() {
   const {
     activeKhurkAppId, setActiveKhurkAppId, setKhurkPipMode,
     pipWindows, addPipWindow,
-    layoutMode, toggleMobileSidebar, setClassicChannelOpen,
+    layoutMode, toggleMobileSidebar, toggleClassicChannel,
   } = useAppStore();
   const { toast } = useToast();
   const { show: showMenu } = useContextMenu();
@@ -101,8 +101,8 @@ export function AppWindow() {
       >
         {/* Hamburger — opens channel/DM panel from inside the app window */}
         <button
-          title="Open messages"
-          onClick={() => layoutMode === 'classic' ? setClassicChannelOpen(true) : toggleMobileSidebar()}
+          title="Toggle messages panel"
+          onClick={() => layoutMode === 'classic' ? toggleClassicChannel() : toggleMobileSidebar()}
           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors shrink-0 mr-0.5"
         >
           <Menu size={16} />
