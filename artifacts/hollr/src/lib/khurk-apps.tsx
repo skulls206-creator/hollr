@@ -67,7 +67,7 @@ export const KHURK_APPS: KhurkApp[] = [
   },
   {
     id: 'instaghost',
-    name: 'InstaGhost',
+    name: 'InstaGhost Exchange',
     tagline: 'Crypto Exchange',
     description: 'Anonymous and lightning-fast cryptocurrency exchange.',
     url: 'https://instaghost.khurk.services',
