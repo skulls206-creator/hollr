@@ -196,6 +196,7 @@ function SinglePipWindow({
         className="flex items-center gap-1.5 px-2 bg-surface-1/95 backdrop-blur-sm border-b border-border/20 cursor-grab active:cursor-grabbing shrink-0"
         style={{ height: HEADER_H }}
         onPointerDown={(e) => dragControls.start(e)}
+        onDoubleClick={handleSnapToggle}
         onContextMenu={handleWindowContextMenu}
       >
         <GripHorizontal size={11} className="text-muted-foreground/50 shrink-0" />
