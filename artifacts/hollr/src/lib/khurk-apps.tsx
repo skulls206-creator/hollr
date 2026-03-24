@@ -7,6 +7,15 @@ import ballpointImg from '@assets/5955_1774286181397.png';
 import onlyGamesImg from '@assets/5961_1774286181406.png';
 import onlyXmrImg from '@assets/5959_1774286181386.png';
 
+import uStreamBanner from '@assets/generated_images/banner_ustream.png';
+import playdBanner from '@assets/generated_images/banner_playd.png';
+import foldrBanner from '@assets/generated_images/banner_foldr.png';
+import instaGhostBanner from '@assets/generated_images/banner_instaghost.png';
+import gaslessBanner from '@assets/generated_images/banner_gasless.png';
+import ballpointBanner from '@assets/generated_images/banner_ballpoint.png';
+import onlyGamesBanner from '@assets/generated_images/banner_onlygames.png';
+import onlyXmrBanner from '@assets/generated_images/banner_onlyxmr.png';
+
 export interface KhurkApp {
   id: string;
   name: string;
@@ -14,6 +23,7 @@ export interface KhurkApp {
   description: string;
   url: string;
   imageSrc?: string;
+  bannerSrc?: string;
   iconFit?: 'cover' | 'contain';
   gradient: [string, string];
   openMode?: 'iframe' | 'tab';
@@ -45,6 +55,7 @@ export const KHURK_APPS: KhurkApp[] = [
     description: 'High-definition streaming of movies and television series.',
     url: 'https://ustream.khurk.services',
     imageSrc: uStreamImg,
+    bannerSrc: uStreamBanner,
     gradient: ['#1a1f8f', '#4a54d4'],
   },
   {
@@ -54,6 +65,7 @@ export const KHURK_APPS: KhurkApp[] = [
     description: 'Your local high-fidelity music library, organized perfectly.',
     url: 'https://playd.khurk.services',
     imageSrc: playdImg,
+    bannerSrc: playdBanner,
     gradient: ['#c0340a', '#f07020'],
   },
   {
@@ -63,6 +75,7 @@ export const KHURK_APPS: KhurkApp[] = [
     description: 'Encrypted IPFS storage solution for your sensitive data.',
     url: 'https://foldr.khurk.services',
     imageSrc: foldrImg,
+    bannerSrc: foldrBanner,
     gradient: ['#0a5a9c', '#2ea8e0'],
   },
   {
@@ -72,6 +85,7 @@ export const KHURK_APPS: KhurkApp[] = [
     description: 'Anonymous and lightning-fast cryptocurrency exchange.',
     url: 'https://instaghost.khurk.services',
     imageSrc: instaGhostImg,
+    bannerSrc: instaGhostBanner,
     gradient: ['#006b4a', '#00c47a'],
   },
   {
@@ -81,6 +95,7 @@ export const KHURK_APPS: KhurkApp[] = [
     description: 'USDT Web Wallet with zero network fee transactions.',
     url: 'https://gasless.khurk.services',
     imageSrc: onlyXmrImg,
+    bannerSrc: gaslessBanner,
     gradient: ['#007a5a', '#00d4a0'],
   },
   {
@@ -90,6 +105,7 @@ export const KHURK_APPS: KhurkApp[] = [
     description: 'Private, end-to-end encrypted notes and journaling.',
     url: 'https://ballpoint.khurk.services',
     imageSrc: gaslessImg,
+    bannerSrc: ballpointBanner,
     gradient: ['#5a10c0', '#a040f0'],
   },
   {
@@ -99,6 +115,7 @@ export const KHURK_APPS: KhurkApp[] = [
     description: 'Search and discover the best indie and AAA titles.',
     url: 'https://onlygames.khurk.services',
     imageSrc: onlyGamesImg,
+    bannerSrc: onlyGamesBanner,
     gradient: ['#1a1a2e', '#4a4a8a'],
   },
   {
@@ -108,6 +125,7 @@ export const KHURK_APPS: KhurkApp[] = [
     description: 'The private creator platform powered by Monero.',
     url: 'https://onlyxmr.khurk.services',
     imageSrc: ballpointImg,
+    bannerSrc: onlyXmrBanner,
     gradient: ['#8a2a00', '#e05010'],
   },
 ];
