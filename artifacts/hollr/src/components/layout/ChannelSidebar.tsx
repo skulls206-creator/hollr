@@ -3,7 +3,7 @@ import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
-  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera, RefreshCw,
+  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera, RefreshCw, Menu,
 } from 'lucide-react';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
@@ -51,7 +51,15 @@ export function ChannelSidebar() {
     dmUnreadCounts, clearDmUnreadCount,
     voiceVolumes, setVoiceVolume,
     triggerMention,
+    layoutMode, toggleClassicChannel, toggleMobileSidebar,
   } = useAppStore();
+
+  // Closes the channel sidebar regardless of which layout mode is active
+  const closeSidebar = () => {
+    if (layoutMode === 'classic') toggleClassicChannel();
+    else toggleMobileSidebar();
+  };
+
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -231,8 +239,15 @@ export function ChannelSidebar() {
   if (!activeServerId) {
     return (
       <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
-        <div className="h-12 border-b border-border/10 flex items-center px-4 font-bold text-foreground shadow-sm">
-          Direct Messages
+        <div className="h-12 border-b border-border/10 flex items-center pl-4 pr-2 font-bold text-foreground shadow-sm">
+          <span className="flex-1">Direct Messages</span>
+          <button
+            onClick={closeSidebar}
+            title="Close sidebar"
+            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors shrink-0"
+          >
+            <Menu size={16} />
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
           <div className="flex items-center justify-between px-2 py-2">
@@ -323,13 +338,22 @@ export function ChannelSidebar() {
     <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
       {/* Server Header with dropdown */}
       <div className="relative">
-        <button
-          onClick={() => setServerMenuOpen(o => !o)}
-          className="h-12 border-b border-border/10 flex items-center justify-between px-4 font-bold text-foreground hover:bg-secondary/50 transition-colors shadow-sm w-full"
-        >
-          <span className="truncate">{server?.name || 'Loading…'}</span>
-          <ChevronDown size={16} className={cn("text-muted-foreground transition-transform", serverMenuOpen && "rotate-180")} />
-        </button>
+        <div className="h-12 border-b border-border/10 flex items-center shadow-sm">
+          <button
+            onClick={() => setServerMenuOpen(o => !o)}
+            className="flex-1 h-full flex items-center justify-between pl-4 pr-2 font-bold text-foreground hover:bg-secondary/50 transition-colors min-w-0"
+          >
+            <span className="truncate">{server?.name || 'Loading…'}</span>
+            <ChevronDown size={16} className={cn("text-muted-foreground transition-transform shrink-0 mx-1", serverMenuOpen && "rotate-180")} />
+          </button>
+          <button
+            onClick={closeSidebar}
+            title="Close sidebar"
+            className="p-1.5 mr-2 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors shrink-0"
+          >
+            <Menu size={16} />
+          </button>
+        </div>
         {serverMenuOpen && (
           <div className="absolute top-full left-0 right-0 z-50 bg-[#111214] border border-border/20 rounded-lg shadow-2xl py-1 mx-2 mt-1">
             <button
