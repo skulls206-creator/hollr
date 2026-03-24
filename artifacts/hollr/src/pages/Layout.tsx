@@ -35,7 +35,7 @@ export function Layout() {
     profileCard, closeProfileCard,
     pinnedPanelOpen, toggleMemberList,
     voiceConnection, layoutMode,
-    activeKhurkAppId, khurkPipMode, khurkDashboardOpen,
+    activeKhurkAppId, khurkPipMode, khurkDashboardOpen, khurkOsEnabled,
     classicChannelOpen, toggleClassicChannel, setClassicChannelOpen,
   } = useAppStore();
 
@@ -90,10 +90,10 @@ export function Layout() {
   const showMemberList = !!(activeServerId && memberListOpen && !showThread && !pinnedPanelOpen);
 
   // Whether the KHURK OS AppWindow should occupy the entire center panel
-  const showAppWindow = !!(activeKhurkAppId && !khurkPipMode);
+  const showAppWindow = !!(khurkOsEnabled && activeKhurkAppId && !khurkPipMode);
 
   // Dashboard: shown when explicitly opened (hollr icon toggle), no app/DM/server taking over
-  const showDashboard = khurkDashboardOpen && !activeKhurkAppId && !activeDmThreadId && !activeServerId;
+  const showDashboard = khurkOsEnabled && khurkDashboardOpen && !activeKhurkAppId && !activeDmThreadId && !activeServerId;
 
   return (
     /*
@@ -265,7 +265,7 @@ export function Layout() {
       </div>
 
       {/* Dock bar — z-50 keeps it above the sliding sidebar panel. */}
-      {layoutMode === 'dock' && (
+      {khurkOsEnabled && layoutMode === 'dock' && (
         <div
           className="relative flex items-end justify-center shrink-0 px-4 pt-2 overflow-visible z-50"
           style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))', pointerEvents: 'none' }}
@@ -275,7 +275,7 @@ export function Layout() {
       )}
 
       {/* ── KHURK OS Picture-in-Picture window (floats above everything) ── */}
-      <PiPWindow />
+      {khurkOsEnabled && <PiPWindow />}
 
       {/* Modals */}
       <CreateServerModal />

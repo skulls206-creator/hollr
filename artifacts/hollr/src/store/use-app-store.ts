@@ -190,6 +190,10 @@ interface AppState {
   // Music bot EQ effects
   musicEffects: { bassBoost: boolean; nightcore: boolean; normalize: boolean };
   setMusicEffect: (effect: 'bassBoost' | 'nightcore' | 'normalize', enabled: boolean) => void;
+
+  // KHURK OS on/off (persisted)
+  khurkOsEnabled: boolean;
+  toggleKhurkOs: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -431,6 +435,9 @@ export const useAppStore = create<AppState>()(
   setMusicEffect: (effect, enabled) => set((state) => ({
     musicEffects: { ...state.musicEffects, [effect]: enabled },
   })),
+
+  khurkOsEnabled: true,
+  toggleKhurkOs: () => set((state) => ({ khurkOsEnabled: !state.khurkOsEnabled })),
     }),
     {
       name: 'hollr-nav',
@@ -447,6 +454,7 @@ export const useAppStore = create<AppState>()(
         micGain: state.micGain,
         musicEffects: state.musicEffects,
         khurkDashboardOpen: state.khurkDashboardOpen,
+        khurkOsEnabled: state.khurkOsEnabled,
       }),
     }
   )

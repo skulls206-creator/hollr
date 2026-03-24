@@ -1,0 +1,50 @@
+The green folder was a lie, and here's why: The browser gives file permissions to the page that asked for them. Hollr picked the folder, so only Hollr has read/write access to it. When Hollr sent Ballpoint the folder handle, Ballpoint tried to use it but the browser silently denied every single file read — so you got zero notes loaded. The toast appeared because the handle object arrived fine, but the actual disk access was completely blocked.
+
+The fix I've just shipped: Ballpoint now has a "proxy vault" mode. Instead of using file handles, it lives entirely in memory when inside Hollr — Hollr reads the files and sends the text content, Ballpoint displays and edits them, and every save/create/delete is sent back to Hollr as a message for Hollr to write to disk.
+
+What you need to add to Hollr — the folder button should now do this:
+
+// 1. User picks folder (this works because Hollr is the top-level page)
+const dir = await showDirectoryPicker({ mode: 'readwrite' });
+// 2. Read all .md and .txt files
+const files = [];
+for await (const entry of dir.values()) {
+  if (entry.kind === 'file' && (entry.name.endsWith('.md') || entry.name.endsWith('.txt'))) {
+    const file = await entry.getFile();
+    files.push({ name: entry.name, content: await file.text(), lastModified: file.lastModified });
+  }
+}
+// 3. Send contents to Ballpoint (NOT the handle — the actual text)
+ballpointIframe.contentWindow.postMessage({
+  type: 'khurk:vault-open',
+  name: dir.name,
+  files
+}, '*');
+// 4. Listen for writes FROM Ballpoint and save them to disk
+window.addEventListener('message', async (e) => {
+  if (e.data?.type === 'ballpoint:write-file') {
+    const fh = await dir.getFileHandle(e.data.name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(e.data.content);
+    await w.close();
+  }
+  if (e.data?.type === 'ballpoint:create-file') {
+    const fh = await dir.getFileHandle(e.data.name, { create: true });
+    const w = await fh.createWritable();
+    await w.write('');
+    await w.close();
+  }
+  if (e.data?.type === 'ballpoint:delete-file') {
+    await dir.removeEntry(e.data.name);
+  }
+  if (e.data?.type === 'ballpoint:rename-file') {
+    // read old, write new, delete old
+    const oldFh = await dir.getFileHandle(e.data.oldName);
+    const newFh = await dir.getFileHandle(e.data.newName, { create: true });
+    const w = await newFh.createWritable();
+    await w.write(e.data.content);
+    await w.close();
+    await dir.removeEntry(e.data.oldName);
+  }
+});
+So to answer your question directly: you need to change Hollr. Ballpoint's side is fully built and waiting. Once Hollr sends khurk:vault-open with file contents instead of just a handle, notes will load in Ballpoint instantly and every edit you make will be sent back to Hollr to write to disk.

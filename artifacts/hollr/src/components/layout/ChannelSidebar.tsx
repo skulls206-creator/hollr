@@ -3,7 +3,7 @@ import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
-  Volume1, VolumeOff,
+  Volume1, VolumeOff, LayoutGrid,
 } from 'lucide-react';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
@@ -627,10 +627,13 @@ function UserProfilePanel({
   const {
     micMuted, deafened, toggleMicMuted, toggleDeafened, setUserSettingsModalOpen,
     audioInputDeviceId, audioOutputDeviceId, setAudioInputDeviceId, setAudioOutputDeviceId,
+    khurkOsEnabled, toggleKhurkOs,
   } = useAppStore();
+  const { logout } = useAuth();
   const { data: profile } = useGetMyProfile();
   const updateProfile = useUpdateMyProfile();
   const qcPanel = useQueryClient();
+  const [quickOpen, setQuickOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [customStatusInput, setCustomStatusInput] = useState('');
   const [editingCustom, setEditingCustom] = useState(false);
@@ -824,34 +827,69 @@ function UserProfilePanel({
       </div>
 
       <div className="h-[52px] flex items-center px-2 py-1.5 gap-2 group/profile">
+        {/* Avatar — click to open quick actions (sign out, KHURK OS toggle) */}
+        <Popover open={quickOpen} onOpenChange={setQuickOpen}>
+          <PopoverTrigger asChild>
+            <button className="relative shrink-0 rounded-full hover:opacity-90 transition-opacity">
+              <Avatar className="h-8 w-8 rounded-full border border-border/50">
+                <AvatarImage src={profile?.avatarUrl || undefined} />
+                <AvatarFallback className="bg-primary text-white text-xs">
+                  {getInitials(displayName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className={cn(
+                "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-[2.5px] border-[#232428] rounded-full",
+                statusColor(inVoice ? 'online' : currentStatus)
+              )} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="start" className="w-56 p-2 bg-[#111214] border-border/50" sideOffset={8}>
+            <div className="px-2 py-1 mb-1">
+              <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
+            </div>
+            <div className="h-px bg-border/40 mb-1" />
+            <button
+              onClick={toggleKhurkOs}
+              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+            >
+              <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1 text-left">KHURK OS</span>
+              <div className={cn(
+                "w-8 h-4 rounded-full transition-colors relative shrink-0",
+                khurkOsEnabled ? "bg-primary" : "bg-white/20"
+              )}>
+                <div className={cn(
+                  "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
+                  khurkOsEnabled ? "translate-x-4" : "translate-x-0.5"
+                )} />
+              </div>
+            </button>
+            <div className="h-px bg-border/40 my-1" />
+            <button
+              onClick={() => { logout(); setQuickOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-destructive/10 text-destructive"
+            >
+              <LogOut size={14} className="shrink-0" />
+              Sign Out
+            </button>
+          </PopoverContent>
+        </Popover>
+
         {/* Username area — click to pick status */}
         <Popover open={statusOpen} onOpenChange={setStatusOpen}>
           <PopoverTrigger asChild>
-            <button className="flex items-center hover:bg-white/10 rounded-md p-1 cursor-pointer transition-colors flex-1 min-w-0 text-left">
-              <div className="relative shrink-0">
-                <Avatar className="h-8 w-8 rounded-full border border-border/50">
-                  <AvatarImage src={profile?.avatarUrl || undefined} />
-                  <AvatarFallback className="bg-primary text-white text-xs">
-                    {getInitials(displayName)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className={cn(
-                  "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-[2.5px] border-[#232428] rounded-full",
-                  statusColor(inVoice ? 'online' : currentStatus)
-                )} />
-              </div>
-              <div className="ml-2 flex flex-col overflow-hidden">
-                <span className="text-sm font-bold text-foreground truncate leading-tight">
-                  {displayName}
-                </span>
-                <span className="text-xs text-muted-foreground truncate leading-tight">
-                  {inVoice
-                    ? 'In Voice'
-                    : profile?.customStatus
-                      ? profile.customStatus
-                      : statusLabel(currentStatus)}
-                </span>
-              </div>
+            <button className="flex flex-col flex-1 min-w-0 cursor-pointer hover:bg-white/10 rounded-md px-2 py-1 text-left transition-colors">
+              <span className="text-sm font-bold text-foreground truncate leading-tight">
+                {displayName}
+              </span>
+              <span className="text-xs text-muted-foreground truncate leading-tight">
+                {inVoice
+                  ? 'In Voice'
+                  : profile?.customStatus
+                    ? profile.customStatus
+                    : statusLabel(currentStatus)}
+              </span>
             </button>
           </PopoverTrigger>
           <PopoverContent
