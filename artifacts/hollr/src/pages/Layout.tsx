@@ -140,29 +140,50 @@ export function Layout() {
       */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* ── Left sidebar — full height ──
-            On mobile the sidebar is `fixed` (full viewport) which would bleed
-            behind the dock. In dock mode we pin its bottom to the dock height
-            (~78px: 8px pt + 60px pill + 10px pb) so it never overlaps the dock.
-            On desktop (md:relative) the flex row already stops above the dock. */}
+        {/*
+          ── Classic layout: permanent server icon rail ──
+          Rendered as an always-in-flow sibling — NEVER toggled or hidden,
+          not even on mobile (it's only 72px wide so it fits on any screen).
+          The channel sidebar below slides independently beside it.
+        */}
+        {layoutMode === 'classic' && (
+          <div className="relative h-full shrink-0 z-40">
+            <ServerSidebar />
+          </div>
+        )}
+
+        {/* ── Channel sidebar wrapper ──
+            Classic mode:
+              • Desktop (md:): always relative/in-flow, always visible.
+              • Mobile: fixed, starts at left=72px (right of the permanent icon
+                rail), slides in/out with the hamburger.
+            Dock mode:
+              • Height pinned above the dock pill on mobile (78px).
+              • Dashboard/app open: always fixed (no dead-space gap in the flex row).
+              • Normal chat: fixed on mobile (hamburger), relative on desktop. */}
         <div
           className={[
             'flex z-40 shrink-0 transition-transform duration-200',
-            layoutMode === 'dock' ? 'bottom-[78px] md:bottom-0 h-[calc(100%-78px)] md:h-full' : 'h-full bottom-0',
-            // ── Classic layout: sidebar is ALWAYS permanently in-flow on
-            //    desktop (md:relative md:translate-x-0) regardless of which
-            //    view is active. On mobile it's still a hamburger slide-in.
-            // ── Dock layout: during dashboard/app the sidebar must be fully
-            //    fixed (out of flow) on all sizes so it leaves no dead space.
-            //    During normal chat it's fixed on mobile, relative on desktop.
             layoutMode === 'classic'
-              ? `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`
-              : (showDashboard || showAppWindow)
-                ? `fixed ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
-                : `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
+              // Classic: channel sidebar slides independently of the icon rail
+              ? [
+                  'top-0 h-full',
+                  // Mobile: fixed, offset so it opens right beside the 72px icon rail
+                  'fixed left-[72px] md:left-auto',
+                  // Desktop: always in-flow and visible
+                  'md:relative md:h-full',
+                  mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+                ].join(' ')
+              : layoutMode === 'dock'
+                ? [
+                    'bottom-[78px] md:bottom-0 h-[calc(100%-78px)] md:h-full',
+                    (showDashboard || showAppWindow)
+                      ? `fixed ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+                      : `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
+                  ].join(' ')
+                : `fixed h-full bottom-0 md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
           ].join(' ')}
         >
-          {layoutMode === 'classic' && <ServerSidebar />}
           <ChannelSidebar />
         </div>
 
