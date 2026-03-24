@@ -380,7 +380,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         </div>
       )}
 
-      <div className="bg-[#383A40] rounded-lg flex items-center px-4 py-2 relative overflow-visible shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
+      <div className="bg-[#232428] rounded-lg flex items-center px-4 py-2 relative overflow-visible shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
 
         {isUploading && (
           <div className="absolute top-0 left-0 h-1 bg-primary transition-all duration-300 ease-out rounded-t-lg" style={{ width: `${uploadProgress}%` }} />
