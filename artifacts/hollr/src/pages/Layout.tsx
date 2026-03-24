@@ -36,6 +36,7 @@ export function Layout() {
     pinnedPanelOpen, toggleMemberList,
     voiceConnection, layoutMode,
     activeKhurkAppId, khurkPipMode, khurkDashboardOpen,
+    classicChannelOpen, toggleClassicChannel, setClassicChannelOpen,
   } = useAppStore();
 
   const navApplied = useRef(false);
@@ -163,16 +164,17 @@ export function Layout() {
               • Normal chat: fixed on mobile (hamburger), relative on desktop. */}
         <div
           className={[
-            'flex z-40 shrink-0 transition-transform duration-200',
+            'flex z-40 shrink-0 transition-all duration-200',
             layoutMode === 'classic'
-              // Classic: channel sidebar slides independently of the icon rail
+              // Classic: channel sidebar is independent of the icon rail.
+              // Mobile: fixed overlay starting at 72px (right of icon rail), slide in/out.
+              // Desktop: in-flow, collapses to width=0 when closed so it leaves no dead gap.
               ? [
                   'top-0 h-full',
-                  // Mobile: fixed, offset so it opens right beside the 72px icon rail
                   'fixed left-[72px] md:left-auto',
-                  // Desktop: always in-flow and visible
-                  'md:relative md:h-full',
-                  mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+                  classicChannelOpen
+                    ? 'translate-x-0 md:relative md:h-full'
+                    : '-translate-x-full md:translate-x-0 md:relative md:h-full md:w-0 md:overflow-hidden md:min-w-0',
                 ].join(' ')
               : layoutMode === 'dock'
                 ? [

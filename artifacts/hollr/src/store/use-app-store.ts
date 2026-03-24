@@ -159,6 +159,11 @@ interface AppState {
   layoutMode: 'classic' | 'dock';
   setLayoutMode: (mode: 'classic' | 'dock') => void;
 
+  // Classic layout: channel panel visibility (can be toggled independently of icon rail)
+  classicChannelOpen: boolean;
+  toggleClassicChannel: () => void;
+  setClassicChannelOpen: (open: boolean) => void;
+
   // Theme
   theme: 'midnight' | 'slate' | 'light' | 'abyss' | 'forest' | 'void';
   setTheme: (theme: 'midnight' | 'slate' | 'light' | 'abyss' | 'forest' | 'void') => void;
@@ -379,6 +384,10 @@ export const useAppStore = create<AppState>()(
   layoutMode: 'classic',
   setLayoutMode: (mode) => set({ layoutMode: mode }),
 
+  classicChannelOpen: true,
+  toggleClassicChannel: () => set((state) => ({ classicChannelOpen: !state.classicChannelOpen })),
+  setClassicChannelOpen: (open) => set({ classicChannelOpen: open }),
+
   theme: 'void',
   setTheme: (theme) => set({ theme }),
 
@@ -402,6 +411,7 @@ export const useAppStore = create<AppState>()(
         audioInputDeviceId: state.audioInputDeviceId,
         audioOutputDeviceId: state.audioOutputDeviceId,
         layoutMode: state.layoutMode,
+        classicChannelOpen: state.classicChannelOpen,
         theme: state.theme,
         musicVolume: state.musicVolume,
         micGain: state.micGain,
