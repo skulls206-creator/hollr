@@ -205,7 +205,7 @@ export function ChatArea() {
     <div className="flex flex-1 min-w-0 h-full">
       <div className="flex-1 bg-surface-3 flex flex-col h-full min-w-0" onContextMenu={handleBodyContextMenu}>
         {/* Top Header */}
-        <div className="h-12 border-b border-border/10 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-surface-3" onContextMenu={handleHeaderContextMenu}>
+        <div className="h-12 border-b border-border/20 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-surface-1" onContextMenu={handleHeaderContextMenu}>
           <div className="flex items-center min-w-0">
             <button
               onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}
