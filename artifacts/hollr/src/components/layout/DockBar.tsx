@@ -457,7 +457,7 @@ export function DockBar() {
                     }
                   }}
                   onContextMenu={handleHollrRightClick}
-                  style={{ scale: hollrScale, transformOrigin: 'bottom center', width: ICON_BASE, height: ICON_BASE }}
+                  style={{ scale: hollrScale, transformOrigin: 'bottom right', width: ICON_BASE, height: ICON_BASE }}
                   className="relative shrink-0 flex items-center justify-center"
                 >
                   <div
