@@ -585,31 +585,23 @@ export function DockBar() {
           <div className="w-px self-stretch mx-3 bg-border/40 rounded-full shrink-0" />
 
           {/* ── Scrollable sortable area ──
-               overflow-y: 'clip' is crucial here. CSS spec forces overflow-y to
-               become 'auto' (i.e. hidden) when overflow-x is 'auto', UNLESS we
-               use 'clip'. With clip, overflow-x: auto can coexist. The paddingTop
-               + negative marginTop give headroom inside the element's padding box
-               (which 'clip' does NOT cut off) so magnified icons can pop upward
-               without being clipped. */}
+               overflow-y: 'clip' is crucial — CSS spec forces overflow-y to 'auto'
+               when overflow-x is 'auto', UNLESS we use 'clip'. The paddingTop +
+               negative marginTop give headroom so magnified icons pop upward without
+               being clipped.
+               pointer-events: auto (not none) is required for touch-scroll on mobile.
+               The 56px headroom zone is made click-through via a sibling overlay div
+               instead, so elements above the dock are never accidentally blocked. */}
           <div
-            className="flex items-end gap-2 min-w-0 [&::-webkit-scrollbar]:hidden"
+            className="relative flex items-end gap-2 min-w-0 [&::-webkit-scrollbar]:hidden"
             style={{
               overflowX: 'auto',
               overflowY: 'clip',
-              // pointer-events: none on the scrollable container so the 56px
-              // invisible headroom zone (paddingTop) never blocks taps to
-              // elements above the dock (user panel, settings buttons, etc.).
-              // Each icon button restores pointer-events: auto individually.
-              pointerEvents: 'none',
+              pointerEvents: 'auto',
               paddingTop: '56px',
               marginTop: '-56px',
               paddingBottom: '8px',
               marginBottom: '-8px',
-              // Left/right padding ensures the first and last icons are never
-              // flush-clipped at the scroll boundary (especially when magnified).
-              // 12px gives the active ring (ring-2 ring-offset-1 = 3px total) ample
-              // buffer — some browsers clip box-shadows at the scroll boundary even
-              // within the padding region, so we overshoot generously.
               paddingLeft: '12px',
               paddingRight: '12px',
               scrollPaddingLeft: '12px',
@@ -617,8 +609,25 @@ export function DockBar() {
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch' as any,
+              touchAction: 'pan-x',
             }}
           >
+            {/* Invisible overlay that blocks pointer events only in the headroom
+                zone (above the dock's visible row) — keeps the 56px zone from
+                intercepting taps on content above the dock pill.
+                The scroll area itself needs pointer-events:auto for touch-scroll,
+                but the top 56px of padding would otherwise eat taps above the dock. */}
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '56px',
+                pointerEvents: 'none',
+              }}
+            />
             <SortableContext items={entries.map(e => e.id)} strategy={horizontalListSortingStrategy}>
               {/* Servers */}
               {serverEntries.map(entry => renderEntryContent(entry))}
