@@ -409,6 +409,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 min-h-[44px] max-h-[200px] overflow-y-auto leading-normal"
           rows={1}
           style={{ height: '44px' }}
+          data-ctx-suppress
         />
 
         <div className="flex items-center gap-1 ml-2 shrink-0 relative">
