@@ -275,7 +275,7 @@ export function ChannelSidebar() {
                 onClick={() => { setActiveDmThread(thread.id); clearDmUnreadCount(thread.id); }}
                 onContextMenu={e => handleDmContextMenu(e, thread, other)}
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
+                  'w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors',
                   activeDmThreadId === thread.id
                     ? 'bg-secondary text-foreground'
                     : dmUnread > 0
@@ -284,13 +284,13 @@ export function ChannelSidebar() {
                 )}
               >
                 <div className="relative shrink-0">
-                  <Avatar className="h-8 w-8">
+                  <Avatar className="h-10 w-10">
                     <AvatarImage src={other?.avatarUrl || undefined} />
-                    <AvatarFallback className="bg-primary text-white text-xs">
+                    <AvatarFallback className="bg-primary text-white text-sm">
                       {getInitials(other?.displayName || other?.username || '?')}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-[#2B2D31] rounded-full" />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-[#2B2D31] rounded-full" />
                 </div>
                 <div className="flex-1 min-w-0 text-left">
                   <p className={cn("truncate text-sm", dmUnread > 0 ? "font-bold" : "font-medium")}>
