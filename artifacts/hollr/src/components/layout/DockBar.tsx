@@ -8,7 +8,6 @@ import {
   DndContext,
   DragOverlay,
   MouseSensor,
-  TouchSensor,
   useSensor,
   useSensors,
   closestCenter,
@@ -268,12 +267,14 @@ export function DockBar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverIds, appIds]);
 
-  // dnd sensors — mouse: 5px movement; touch: 600ms long-press (fires AFTER the
-  // native contextmenu event at ~500ms so they never clash), 10px tolerance so
-  // a finger wiggle during the hold doesn't cancel the drag
+  // dnd sensors — mouse only (5px movement to start drag).
+  // TouchSensor is intentionally excluded: while waiting for the long-press
+  // delay it calls preventDefault() on every touchmove, which kills the
+  // browser's native scroll gesture for the whole touch sequence regardless
+  // of the tolerance setting. Removing it means finger-scroll in the dock
+  // works freely; drag-to-reorder is a desktop-only feature via mouse.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 600, tolerance: 10 } }),
   );
 
   const [activeEntry, setActiveEntry] = useState<DockEntry | null>(null);
