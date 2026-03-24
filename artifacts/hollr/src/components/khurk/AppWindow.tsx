@@ -21,15 +21,32 @@ export function AppWindow() {
   const [connectedFolderName, setConnectedFolderName] = useState<string | null>(null);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const vaultListenerRef = useRef<((e: MessageEvent) => void) | null>(null);
 
   const app = KHURK_APPS.find((a) => a.id === activeKhurkAppId);
 
-  // Reset iframe, loading state, and connected folder whenever the active app changes
+  // Reset iframe, loading state, and connected folder whenever the active app changes.
+  // Also tear down the vault proxy listener so stale disk writes can't happen.
   useEffect(() => {
     setRefreshCount(0);
     setLoading(true);
     setConnectedFolderName(null);
+    if (vaultListenerRef.current) {
+      window.removeEventListener('message', vaultListenerRef.current);
+      vaultListenerRef.current = null;
+    }
+    dirHandleRef.current = null;
   }, [activeKhurkAppId]);
+
+  // Final cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (vaultListenerRef.current) {
+        window.removeEventListener('message', vaultListenerRef.current);
+      }
+    };
+  }, []);
 
   const refresh = useCallback(() => {
     setRefreshCount((c) => c + 1);
@@ -52,11 +69,12 @@ export function AppWindow() {
     setActiveKhurkAppId(null);
   }, [activeKhurkAppId, pipWindows.length, addPipWindow, setActiveKhurkAppId, toast]);
 
-  // ── Folder picker bridge ────────────────────────────────────────────────────
-  // The app inside the iframe is cross-origin and can't call showDirectoryPicker()
-  // itself. Hollr (the parent) picks the folder, then passes the FileSystemDirectoryHandle
-  // to the iframe via postMessage. The iframe app listens for { type: 'khurk:fs-directory' }
-  // and uses the handle to read/write .md files directly.
+  // ── Folder picker — vault-proxy bridge ──────────────────────────────────────
+  // Cross-origin iframes can't call showDirectoryPicker() themselves, and the
+  // browser also blocks passing a FileSystemDirectoryHandle across origins.
+  // Solution: Hollr (top-level page) holds the handle, reads file contents, and
+  // sends them to the iframe as plain text via khurk:vault-open. The iframe
+  // sends write-intent messages back; Hollr writes them to disk on its behalf.
   const handlePickFolder = useCallback(async () => {
     if (!('showDirectoryPicker' in window)) {
       toast({
@@ -67,11 +85,10 @@ export function AppWindow() {
       return;
     }
 
-    let dirHandle: FileSystemDirectoryHandle;
+    let dir: FileSystemDirectoryHandle;
     try {
-      dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+      dir = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
     } catch (err: any) {
-      // User cancelled — do nothing
       if (err?.name === 'AbortError') return;
       toast({ title: 'Could not open folder', description: String(err?.message ?? err), variant: 'destructive' });
       return;
@@ -83,18 +100,81 @@ export function AppWindow() {
       return;
     }
 
-    // Post the handle to the embedded app.
-    // The app should listen: window.addEventListener('message', (e) => { if (e.data?.type === 'khurk:fs-directory') ... })
-    // It will receive e.data.handle (a FileSystemDirectoryHandle) and e.data.name (folder name string).
+    // Read all .md and .txt file contents up-front (Hollr has permission, iframe doesn't)
+    const files: { name: string; content: string; lastModified: number }[] = [];
+    try {
+      for await (const entry of (dir as any).values()) {
+        if (
+          entry.kind === 'file' &&
+          (entry.name.endsWith('.md') || entry.name.endsWith('.txt'))
+        ) {
+          const file = await entry.getFile();
+          files.push({ name: entry.name, content: await file.text(), lastModified: file.lastModified });
+        }
+      }
+    } catch (err: any) {
+      toast({ title: 'Could not read folder', description: String(err?.message ?? err), variant: 'destructive' });
+      return;
+    }
+
+    // Store handle so the write listener can access it
+    dirHandleRef.current = dir;
+
+    // Tear down any previous write listener before installing a new one
+    if (vaultListenerRef.current) {
+      window.removeEventListener('message', vaultListenerRef.current);
+    }
+
+    // Listen for write-back messages from the embedded app
+    const listener = async (e: MessageEvent) => {
+      const d = e.data;
+      const handle = dirHandleRef.current;
+      if (!handle || !d?.type?.startsWith('ballpoint:')) return;
+
+      try {
+        if (d.type === 'ballpoint:write-file') {
+          const fh = await handle.getFileHandle(d.name, { create: true });
+          const w = await fh.createWritable();
+          await w.write(d.content);
+          await w.close();
+
+        } else if (d.type === 'ballpoint:create-file') {
+          const fh = await handle.getFileHandle(d.name, { create: true });
+          const w = await fh.createWritable();
+          await w.write('');
+          await w.close();
+
+        } else if (d.type === 'ballpoint:delete-file') {
+          await (handle as any).removeEntry(d.name);
+
+        } else if (d.type === 'ballpoint:rename-file') {
+          const oldFh = await handle.getFileHandle(d.oldName);
+          const oldFile = await oldFh.getFile();
+          const content = d.content ?? await oldFile.text();
+          const newFh = await handle.getFileHandle(d.newName, { create: true });
+          const w = await newFh.createWritable();
+          await w.write(content);
+          await w.close();
+          await (handle as any).removeEntry(d.oldName);
+        }
+      } catch (err: any) {
+        console.warn('[vault-proxy] write failed:', err);
+      }
+    };
+
+    vaultListenerRef.current = listener;
+    window.addEventListener('message', listener);
+
+    // Send file contents to the iframe (not the handle)
     iframe.contentWindow.postMessage(
-      { type: 'khurk:fs-directory', handle: dirHandle, name: dirHandle.name },
+      { type: 'khurk:vault-open', name: dir.name, files },
       '*',
     );
 
-    setConnectedFolderName(dirHandle.name);
+    setConnectedFolderName(dir.name);
     toast({
-      title: `Folder connected: ${dirHandle.name}`,
-      description: 'The app can now read and write files in this folder.',
+      title: `Vault opened: ${dir.name}`,
+      description: `${files.length} note${files.length !== 1 ? 's' : ''} loaded.`,
     });
   }, [toast]);
 
