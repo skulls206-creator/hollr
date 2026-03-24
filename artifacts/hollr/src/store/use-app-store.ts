@@ -194,6 +194,10 @@ interface AppState {
   // KHURK OS on/off (persisted)
   khurkOsEnabled: boolean;
   toggleKhurkOs: () => void;
+
+  // KHURK dismissed app IDs (shared so all consumers stay in sync)
+  khurkDismissedIds: string[];
+  setKhurkDismissedIds: (ids: string[]) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -438,6 +442,9 @@ export const useAppStore = create<AppState>()(
 
   khurkOsEnabled: true,
   toggleKhurkOs: () => set((state) => ({ khurkOsEnabled: !state.khurkOsEnabled })),
+
+  khurkDismissedIds: [],
+  setKhurkDismissedIds: (ids) => set({ khurkDismissedIds: ids }),
     }),
     {
       name: 'hollr-nav',
