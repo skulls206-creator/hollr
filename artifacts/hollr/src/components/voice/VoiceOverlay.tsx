@@ -37,8 +37,32 @@ export function VoiceOverlay() {
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const [watchingUserId, setWatchingUserId] = useState<string | null>(null);
   const [voiceCard, setVoiceCard] = useState<{ userId: string; x: number; y: number } | null>(null);
+  const [resizeHeight, setResizeHeight] = useState<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const resizingRef = useRef(false);
+  const dragStartY = useRef(0);
+  const dragStartH = useRef(0);
   const isMobile = useIsMobile();
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    resizingRef.current = true;
+    dragStartY.current = e.clientY;
+    dragStartH.current = panelRef.current?.offsetHeight ?? 0;
+    const onMove = (ev: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const delta = dragStartY.current - ev.clientY;
+      const newH = Math.max(180, Math.min(window.innerHeight * 0.75, dragStartH.current + delta));
+      setResizeHeight(newH);
+    };
+    const onUp = () => {
+      resizingRef.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
 
   // VoiceOverlay is rendered inside the chat column — sidebars are already excluded by the
   // three-column layout. Use a small fixed inset so it spans the full chat area width.
@@ -308,9 +332,18 @@ export function VoiceOverlay() {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
         className="absolute bottom-8 bg-[#000000]/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
-        style={{ left: panelLeft, right: panelRight }}
+        style={{ left: panelLeft, right: panelRight, ...(resizeHeight ? { height: resizeHeight } : {}) }}
         ref={panelRef}
       >
+        {/* Resize handle — drag up/down to resize the panel */}
+        <div
+          onMouseDown={handleResizeMouseDown}
+          className="h-4 flex items-center justify-center cursor-ns-resize shrink-0 group/rh"
+          title="Drag to resize"
+        >
+          <div className="w-8 h-1 rounded-full bg-white/15 group-hover/rh:bg-white/40 transition-colors" />
+        </div>
+
         {/* Title bar with minimize */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-border/20 shrink-0">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -334,7 +367,7 @@ export function VoiceOverlay() {
           </div>
         )}
 
-        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto flex-1 min-h-0">
           <LocalUserTile
             isMuted={micMuted}
             isDeafened={deafened}
