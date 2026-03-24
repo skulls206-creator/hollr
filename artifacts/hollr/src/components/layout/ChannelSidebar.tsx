@@ -897,7 +897,7 @@ function UserProfilePanel({
                   ? <Bell size={14} className="shrink-0 text-muted-foreground" />
                   : <BellOff size={14} className="shrink-0 text-muted-foreground" />
                 }
-                <span className="flex-1 text-left">Notifications</span>
+                <span className="flex-1 text-left">NOTIFICATIONS</span>
                 <div className={cn(
                   "w-8 h-4 rounded-full transition-colors relative shrink-0",
                   notifOn ? "bg-primary" : "bg-white/20"
