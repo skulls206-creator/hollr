@@ -104,11 +104,14 @@ export function Layout() {
     */
     <div className="flex flex-col h-screen w-full bg-background overflow-hidden font-sans text-foreground">
 
-      {/* Sidebar backdrop — always shown on mobile; also shown on desktop when
-          the dashboard/app is active (sidebar is hidden by default there) */}
+      {/* Sidebar backdrop — mobile-only in classic mode (sidebar is always
+          visible on desktop there). In dock mode during dashboard/app it shows
+          on all screen sizes because the sidebar is an overlay even on desktop. */}
       {mobileSidebarOpen && (
         <div
-          className={`fixed inset-0 bg-black/60 z-30 ${(showDashboard || showAppWindow) ? '' : 'md:hidden'}`}
+          className={`fixed inset-0 bg-black/60 z-30 ${
+            layoutMode === 'dock' && (showDashboard || showAppWindow) ? '' : 'md:hidden'
+          }`}
           onClick={() => setMobileSidebarOpen(false)}
         />
       )}
@@ -146,13 +149,17 @@ export function Layout() {
           className={[
             'flex z-40 shrink-0 transition-transform duration-200',
             layoutMode === 'dock' ? 'bottom-[78px] md:bottom-0 h-[calc(100%-78px)] md:h-full' : 'h-full bottom-0',
-            // During dashboard/app: sidebar is always fixed (out of flow) on ALL
-            // screen sizes so it doesn't leave a dead-space gap in the flex row.
-            // During normal chat: sidebar is fixed on mobile (overlay) but
-            // md:relative (in-flow, always visible) on desktop.
-            (showDashboard || showAppWindow)
-              ? `fixed ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
-              : `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
+            // ── Classic layout: sidebar is ALWAYS permanently in-flow on
+            //    desktop (md:relative md:translate-x-0) regardless of which
+            //    view is active. On mobile it's still a hamburger slide-in.
+            // ── Dock layout: during dashboard/app the sidebar must be fully
+            //    fixed (out of flow) on all sizes so it leaves no dead space.
+            //    During normal chat it's fixed on mobile, relative on desktop.
+            layoutMode === 'classic'
+              ? `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`
+              : (showDashboard || showAppWindow)
+                ? `fixed ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+                : `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
           ].join(' ')}
         >
           {layoutMode === 'classic' && <ServerSidebar />}
