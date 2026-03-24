@@ -3,7 +3,7 @@ import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
-  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera,
+  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera, RefreshCw,
 } from 'lucide-react';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
@@ -298,6 +298,27 @@ export function ChannelSidebar() {
     );
   }
 
+  const handleSidebarContextMenu = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('[data-channel-row]')) return;
+    e.preventDefault();
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      actions: [
+        {
+          id: 'refresh',
+          label: 'Refresh',
+          icon: <RefreshCw size={14} />,
+          onClick: () => {
+            qc.invalidateQueries({ queryKey: getListChannelsQueryKey(activeServerId!) });
+            qc.invalidateQueries({ queryKey: getGetServerQueryKey(activeServerId!) });
+            qc.invalidateQueries({ queryKey: ['unread', activeServerId] });
+          },
+        },
+      ],
+    });
+  };
+
   return (
     <div className="w-[240px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
       {/* Server Header with dropdown */}
@@ -344,7 +365,7 @@ export function ChannelSidebar() {
       </div>
 
       {/* Channel List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-4 no-scrollbar" onClick={() => setServerMenuOpen(false)}>
+      <div className="flex-1 overflow-y-auto p-2 space-y-4 no-scrollbar" onClick={() => setServerMenuOpen(false)} onContextMenu={handleSidebarContextMenu}>
 
         {/* Text Channels */}
         <div>
@@ -366,6 +387,7 @@ export function ChannelSidebar() {
               <ContextMenu key={channel.id}>
               <ContextMenuTrigger asChild>
               <div
+                data-channel-row
                 className={cn(
                   'group/ch flex items-center px-2 py-1.5 rounded-md transition-colors',
                   activeChannelId === channel.id
