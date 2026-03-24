@@ -758,7 +758,7 @@ function UserProfilePanel({
   const displayName = (user as any).displayName || (user as any).username || 'You';
 
   return (
-    <div className="shrink-0 bg-surface-2 relative">
+    <div className="shrink-0 relative">
       {inVoice && (
         <div className="px-2 pt-2 pb-1">
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
@@ -868,7 +868,7 @@ function UserProfilePanel({
         </div>
       </div>
 
-      <div className="h-[52px] flex items-center px-2 py-1.5 gap-2 group/profile">
+      <div className="mx-2 mb-2 mt-1 flex items-center px-3 py-2 gap-2 group/profile bg-background/80 backdrop-blur-xl border border-border/30 shadow-xl shadow-black/30 rounded-2xl">
         {/* Avatar — click to open quick actions (sign out, KHURK OS toggle) */}
         <Popover open={quickOpen} onOpenChange={setQuickOpen}>
           <PopoverTrigger asChild>
@@ -880,7 +880,7 @@ function UserProfilePanel({
                 </AvatarFallback>
               </Avatar>
               <div className={cn(
-                "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-[2.5px] border-[#232428] rounded-full",
+                "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-[2.5px] border-card rounded-full",
                 statusColor(inVoice ? 'online' : currentStatus)
               )} />
             </button>
