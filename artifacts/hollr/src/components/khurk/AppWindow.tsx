@@ -3,8 +3,31 @@ import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon } from '@/lib/khurk-apps';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
-import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, Menu, FolderOpen, FolderCheck } from 'lucide-react';
+import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, Menu, FolderOpen, FolderCheck, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// ── Recursive directory reader ──────────────────────────────────────────────
+// Reads all .md / .txt / .json files from a directory tree, prefixing nested
+// file names with their relative path (e.g. "notes/ideas/draft.md").
+// Hidden entries (starting with ".") are skipped.
+async function readDirRecursive(
+  handle: FileSystemDirectoryHandle,
+  prefix = '',
+  out: { name: string; content: string; lastModified: number }[] = [],
+): Promise<{ name: string; content: string; lastModified: number }[]> {
+  for await (const entry of (handle as any).values()) {
+    if (entry.name.startsWith('.')) continue;
+    if (entry.kind === 'file') {
+      if (/\.(md|txt|json)$/i.test(entry.name)) {
+        const file = await entry.getFile();
+        out.push({ name: prefix + entry.name, content: await file.text(), lastModified: file.lastModified });
+      }
+    } else if (entry.kind === 'directory') {
+      await readDirRecursive(entry, `${prefix}${entry.name}/`, out);
+    }
+  }
+  return out;
+}
 
 const MAX_PIP = 4;
 
@@ -47,15 +70,11 @@ export function AppWindow() {
   useEffect(() => {
     const onReady = (e: MessageEvent) => {
       if (e.data?.type !== 'ballpoint:ready') return;
-      const payload = pendingVaultRef.current;
-      const win = iframeRef.current?.contentWindow;
-      if (payload && win) {
-        win.postMessage({ type: 'khurk:vault-open', ...payload }, '*');
-      }
+      sendVault();
     };
     window.addEventListener('message', onReady);
     return () => window.removeEventListener('message', onReady);
-  }, []);
+  }, [sendVault]);
 
   // Final cleanup on unmount
   useEffect(() => {
@@ -64,6 +83,19 @@ export function AppWindow() {
         window.removeEventListener('message', vaultListenerRef.current);
       }
     };
+  }, []);
+
+  // Posts the current pending vault payload to the iframe.
+  // Safe to call any time — no-ops if there's no payload or iframe isn't ready.
+  const sendVault = useCallback((delayMs = 0) => {
+    const go = () => {
+      const payload = pendingVaultRef.current;
+      const win = iframeRef.current?.contentWindow;
+      if (payload && win) {
+        win.postMessage({ type: 'khurk:vault-open', ...payload }, '*');
+      }
+    };
+    if (delayMs > 0) setTimeout(go, delayMs); else go();
   }, []);
 
   const refresh = useCallback(() => {
@@ -118,18 +150,10 @@ export function AppWindow() {
       return;
     }
 
-    // Read all .md and .txt file contents up-front (Hollr has permission, iframe doesn't)
-    const files: { name: string; content: string; lastModified: number }[] = [];
+    // Read all .md / .txt / .json files recursively (Hollr has permission, iframe doesn't)
+    let files: { name: string; content: string; lastModified: number }[] = [];
     try {
-      for await (const entry of (dir as any).values()) {
-        if (
-          entry.kind === 'file' &&
-          (entry.name.endsWith('.md') || entry.name.endsWith('.txt'))
-        ) {
-          const file = await entry.getFile();
-          files.push({ name: entry.name, content: await file.text(), lastModified: file.lastModified });
-        }
-      }
+      files = await readDirRecursive(dir);
     } catch (err: any) {
       toast({ title: 'Could not read folder', description: String(err?.message ?? err), variant: 'destructive' });
       return;
@@ -218,10 +242,16 @@ export function AppWindow() {
           },
           {
             id: 'pick-folder',
-            label: 'Connect a Folder…',
+            label: connectedFolderName ? `Change Folder (${connectedFolderName})` : 'Connect a Folder…',
             icon: <FolderOpen size={14} />,
             onClick: handlePickFolder,
           },
+          ...(connectedFolderName ? [{
+            id: 'resync-vault',
+            label: `Re-sync "${connectedFolderName}"`,
+            icon: <RotateCcw size={14} />,
+            onClick: () => sendVault(),
+          }] : []),
           {
             id: 'pip',
             label: pipWindows.length >= MAX_PIP ? 'PiP (max 4 reached)' : 'Picture in Picture',
@@ -246,7 +276,7 @@ export function AppWindow() {
         ],
       });
     },
-    [app, showMenu, refresh, handlePickFolder, handlePip, handleClose]
+    [app, showMenu, refresh, handlePickFolder, handlePip, handleClose, connectedFolderName, sendVault]
   );
 
   if (!app) return null;
@@ -303,6 +333,17 @@ export function AppWindow() {
           >
             {connectedFolderName ? <FolderCheck size={13} /> : <FolderOpen size={13} />}
           </button>
+
+          {/* Re-sync — manually re-sends the vault payload; useful if the app missed it */}
+          {connectedFolderName && (
+            <button
+              title={`Re-sync "${connectedFolderName}" into app`}
+              onClick={() => sendVault()}
+              className="p-1.5 rounded-md text-emerald-400 hover:text-emerald-300 hover:bg-white/5 transition-colors"
+            >
+              <RotateCcw size={13} />
+            </button>
+          )}
 
           <button
             title="Refresh"
@@ -364,7 +405,13 @@ export function AppWindow() {
           title={app.name}
           className="w-full h-full border-none"
           style={{ opacity: loading ? 0 : 1, transition: 'opacity 0.35s ease' }}
-          onLoad={() => setLoading(false)}
+          onLoad={() => {
+            setLoading(false);
+            // Replay vault on every load — covers apps that don't send ballpoint:ready,
+            // and handles the refresh case. Delay gives the app's JS time to attach
+            // its own message listener before we fire.
+            sendVault(900);
+          }}
           allow="camera; microphone; fullscreen; clipboard-read; clipboard-write; autoplay; file-system-access"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation"
         />

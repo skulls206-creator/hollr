@@ -175,28 +175,32 @@ export function Layout() {
           className={[
             'flex z-40 shrink-0 transition-all duration-200',
             layoutMode === 'classic'
-              // Classic: channel sidebar is independent of the icon rail.
-              // Mobile: fixed overlay starting at 72px (right of icon rail), slide in/out.
-              // Desktop: in-flow, collapses to width=0 when closed so it leaves no dead gap.
+              // Classic: icon rail (ServerSidebar, 72px) is always in-flow.
+              // Channel sidebar slides independently beside it.
+              // Mobile open:   left-[72px] translate-x-0    → right of icon rail ✓
+              // Mobile closed: left-0 -translate-x-full     → x = 0-260 = -260 → fully off screen ✓
+              //   (using left-[72px] when closed gave x = 72-260 = -188, leaving 72px visible)
+              // Desktop: in-flow, collapses to w-0 when closed.
               ? [
-                  'top-0 h-full',
-                  'fixed left-[72px] md:left-auto',
+                  'top-0 h-full fixed md:left-auto md:relative md:h-full',
                   classicChannelOpen
-                    ? 'translate-x-0 md:relative md:h-full'
-                    : '-translate-x-full md:translate-x-0 md:relative md:h-full md:w-0 md:overflow-hidden md:min-w-0',
+                    ? 'left-[72px] translate-x-0'
+                    : 'left-0 -translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:min-w-0',
                 ].join(' ')
               : layoutMode === 'dock'
+                // Dock: explicit left-0 on all fixed cases so -translate-x-full
+                // always moves the sidebar to x = 0-260 = -260 (fully off screen).
                 ? [
-                    'bottom-[78px] md:bottom-0 h-[calc(100%-78px)] md:h-full',
+                    'top-0 bottom-[78px] md:bottom-0 md:h-full',
                     sidebarLocked
                       ? (showDashboard || showAppWindow)
-                        ? 'fixed translate-x-0'
-                        : 'fixed md:relative md:h-full translate-x-0'
+                        ? 'fixed left-0 translate-x-0'
+                        : 'fixed left-0 translate-x-0 md:relative md:left-auto md:h-full'
                       : (showDashboard || showAppWindow)
-                        ? `fixed ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
-                        : `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
+                        ? `fixed left-0 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+                        : `fixed left-0 md:relative md:left-auto md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
                   ].join(' ')
-                : `fixed h-full bottom-0 md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
+                : `fixed top-0 left-0 h-full md:relative md:h-full md:left-auto ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
           ].join(' ')}
         >
           <ChannelSidebar />

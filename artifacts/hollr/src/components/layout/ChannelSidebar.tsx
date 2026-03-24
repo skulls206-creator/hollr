@@ -885,7 +885,7 @@ function UserProfilePanel({
               )} />
             </button>
           </PopoverTrigger>
-          <PopoverContent side="top" align="start" alignOffset={-8} className="w-64 p-2 bg-[#111214] border-border/50" sideOffset={8}>
+          <PopoverContent side="top" align="start" alignOffset={-20} className="w-64 p-2 bg-[#111214] border-border/50" sideOffset={8}>
             <div className="flex items-center gap-3 px-2 py-1 mb-1">
               <button
                 onClick={() => { setUserSettingsModalOpen(true); setQuickOpen(false); }}
