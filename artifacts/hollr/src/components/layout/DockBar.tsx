@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { Plus, MessageSquare, ExternalLink, Trash2, RotateCcw, Copy, LayoutGrid, RefreshCw, Settings, ServerIcon, Hash, UserPlus, LogOut } from 'lucide-react';
+import { Plus, MessageSquare, ExternalLink, Trash2, RotateCcw, Copy, LayoutGrid, RefreshCw, Settings, ServerIcon, Hash, UserPlus, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useToast } from '@/hooks/use-toast';
 
@@ -304,8 +304,31 @@ export function DockBar() {
     }
   };
 
+  // Move an app one slot left or right within the app section of the dock
+  const moveApp = useCallback((appId: string, direction: 'left' | 'right') => {
+    setEntries(prev => {
+      // Collect the indices of all app entries in the flat entries array
+      const appIndices = prev.reduce<number[]>((acc, e, i) => {
+        if (e.kind === 'app') acc.push(i);
+        return acc;
+      }, []);
+      const posInApps = appIndices.findIndex(i => prev[i].id === appId);
+      if (posInApps === -1) return prev;
+      const targetPosInApps = direction === 'left' ? posInApps - 1 : posInApps + 1;
+      if (targetPosInApps < 0 || targetPosInApps >= appIndices.length) return prev;
+      const next = arrayMove(prev, appIndices[posInApps], appIndices[targetPosInApps]);
+      saveOrder(next.map(e => e.id));
+      return next;
+    });
+  }, []);
+
   const handleAppContextMenu = (e: React.MouseEvent, app: KhurkApp) => {
     e.preventDefault();
+    // Determine position within app entries to conditionally enable move buttons
+    const appEntries = entries.filter(en => en.kind === 'app');
+    const posInApps = appEntries.findIndex(en => en.id === app.id);
+    const canMoveLeft = posInApps > 0;
+    const canMoveRight = posInApps < appEntries.length - 1;
     const actions: any[] = [
       {
         id: 'open',
@@ -315,6 +338,8 @@ export function DockBar() {
       },
       { id: 'open-tab', label: 'Open in New Tab', icon: <ExternalLink size={14} />, onClick: () => window.open(app.url, '_blank', 'noopener') },
       { id: 'copy-url', label: 'Copy Link', icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText(app.url), dividerBefore: true },
+      { id: 'move-left', label: 'Move Left', icon: <ChevronLeft size={14} />, onClick: () => moveApp(app.id, 'left'), disabled: !canMoveLeft, dividerBefore: true },
+      { id: 'move-right', label: 'Move Right', icon: <ChevronRight size={14} />, onClick: () => moveApp(app.id, 'right'), disabled: !canMoveRight },
       { id: 'remove', label: 'Remove from Dock', icon: <Trash2 size={14} />, onClick: () => dismissOne(app.id), danger: true, dividerBefore: true },
       { id: 'remove-all', label: 'Remove All KHURK Apps', icon: <Trash2 size={14} />, onClick: dismissAll, danger: true },
     ];
