@@ -581,8 +581,13 @@ export function DockBar() {
               marginBottom: '-8px',
               // Left/right padding ensures the first and last icons are never
               // flush-clipped at the scroll boundary (especially when magnified).
-              paddingLeft: '6px',
-              paddingRight: '6px',
+              // 12px gives the active ring (ring-2 ring-offset-1 = 3px total) ample
+              // buffer — some browsers clip box-shadows at the scroll boundary even
+              // within the padding region, so we overshoot generously.
+              paddingLeft: '12px',
+              paddingRight: '12px',
+              scrollPaddingLeft: '12px',
+              scrollPaddingRight: '12px',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch' as any,
