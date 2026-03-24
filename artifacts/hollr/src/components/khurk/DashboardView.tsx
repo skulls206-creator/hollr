@@ -173,7 +173,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
           </div>
 
           <p className="mt-10 text-xs" style={{ color: 'rgba(255,255,255,0.18)' }}>
-            KHURK ecosystem · powered by hollr.chat
+            2026 KHURK OS · powered by Hollr Chat
           </p>
         </div>
       </div>
