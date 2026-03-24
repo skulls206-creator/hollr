@@ -228,7 +228,7 @@ export function MessageList({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
+    <div data-messages-scroll className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
       <div className="mt-auto" />
 
       {messages.length === 0 && (
