@@ -54,7 +54,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
-  const { activeServerId, pendingMention, clearPendingMention, voiceConnection } = useAppStore();
+  const { activeServerId, pendingMention, clearPendingMention, pendingCommand, clearPendingCommand, voiceConnection } = useAppStore();
   const voiceChannelId = voiceConnection.channelId;
 
   useEffect(() => {
@@ -66,6 +66,13 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     clearPendingMention();
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, [pendingMention]);
+
+  useEffect(() => {
+    if (!pendingCommand) return;
+    setContent(pendingCommand);
+    clearPendingCommand();
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [pendingCommand]);
 
   const { mutate: sendMessage, isPending: isSending } = useSendMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();

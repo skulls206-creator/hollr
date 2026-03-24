@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Hash, Users, Bell, BellOff, Pin, Search, HelpCircle, Menu, X, Copy, ChevronsDown, ScrollText } from 'lucide-react';
+import { Hash, Users, Bell, BellOff, Pin, Search, HelpCircle, Menu, X, Copy, ChevronsDown, ScrollText, Music } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListChannels, getListChannelsQueryKey } from '@workspace/api-client-react';
 import { MessageList } from './MessageList';
@@ -29,6 +29,7 @@ export function ChatArea() {
     setHelpModalOpen,
     voicePanelHeight,
     layoutMode, toggleClassicChannel,
+    triggerCommand,
   } = useAppStore();
 
   const { show: showMenu } = useContextMenu();
@@ -118,9 +119,16 @@ export function ChatArea() {
           onClick: () => activeChannelId && toggleMuteChannel(activeChannelId),
           dividerBefore: true,
         },
+        {
+          id: 'play',
+          label: '/Play',
+          icon: <Music size={14} />,
+          onClick: () => triggerCommand('/play '),
+          dividerBefore: true,
+        },
       ],
     });
-  }, [isMuted, activeChannelId, pinnedPanelOpen, toggleMuteChannel, togglePinnedPanel, showMenu]);
+  }, [isMuted, activeChannelId, pinnedPanelOpen, toggleMuteChannel, togglePinnedPanel, triggerCommand, showMenu]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');

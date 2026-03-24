@@ -166,6 +166,11 @@ interface AppState {
   triggerMention: (displayName: string) => void;
   clearPendingMention: () => void;
 
+  // Pending slash command to insert into the active composer
+  pendingCommand: string | null;
+  triggerCommand: (cmd: string) => void;
+  clearPendingCommand: () => void;
+
   // Layout mode
   layoutMode: 'classic' | 'dock';
   setLayoutMode: (mode: 'classic' | 'dock') => void;
@@ -422,6 +427,10 @@ export const useAppStore = create<AppState>()(
   pendingMention: null,
   triggerMention: (displayName) => set({ pendingMention: displayName }),
   clearPendingMention: () => set({ pendingMention: null }),
+
+  pendingCommand: null,
+  triggerCommand: (cmd) => set({ pendingCommand: cmd }),
+  clearPendingCommand: () => set({ pendingCommand: null }),
 
   layoutMode: 'classic',
   setLayoutMode: (mode) => set({ layoutMode: mode }),
