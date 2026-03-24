@@ -46,6 +46,18 @@ export function Layout() {
     }
   }, [isLoading, user]);
 
+  // Auto-close the mobile sidebar whenever the viewport grows past the md
+  // breakpoint (≥ 768px) while in normal chat mode — prevents the sidebar
+  // from getting stuck as an overlay after a resize.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => {
+      if (e.matches) setMobileSidebarOpen(false);
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [setMobileSidebarOpen]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && memberListOpen) toggleMemberList(); };
     document.addEventListener('keydown', onKey);

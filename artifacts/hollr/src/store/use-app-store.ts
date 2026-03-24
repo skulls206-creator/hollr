@@ -239,6 +239,7 @@ export const useAppStore = create<AppState>()(
     activeDmThreadId: null,
     activeKhurkAppId: null,
     khurkPipMode: false,
+    mobileSidebarOpen: false,
     pinnedPanelOpen: false,
     threadMessageId: null,
     threadChannelId: null,
