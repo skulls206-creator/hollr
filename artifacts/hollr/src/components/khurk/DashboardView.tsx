@@ -141,7 +141,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
     <div className="flex flex-col flex-1 min-h-0 h-full bg-background">
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-1 px-4 shrink-0 border-b border-border bg-surface-2" style={{ height: '52px' }}>
+      <div className="relative z-50 flex items-center gap-1 px-4 shrink-0 border-b border-border bg-surface-2" style={{ height: '52px' }}>
         <button
           onClick={() => { if (!sidebarLocked) onOpenSidebar?.(); }}
           className={cn(

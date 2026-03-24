@@ -278,7 +278,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   return (
     <div className="flex-1 bg-surface-0 flex flex-col h-full min-w-0">
       {/* Header */}
-      <div className="h-12 border-b border-border/20 flex items-center px-4 shrink-0 shadow-sm z-10 bg-surface-1">
+      <div className="relative z-50 h-12 border-b border-border/20 flex items-center px-4 shrink-0 shadow-sm bg-surface-1">
         {/* Hamburger — toggles sidebar panel, visible at all sizes */}
         <button
           onClick={() => { if (!sidebarLocked) (layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar)(); }}

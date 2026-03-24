@@ -281,18 +281,52 @@ export function Layout() {
       )}
 
       {/*
-        ── Dock-mode sidebar pull-tab ──
-        A slim vertical handle always fixed at the sidebar's right edge.
-        Lets users open/close the sidebar from anywhere on screen — not just
-        the top hamburger. Only shown in dock mode (classic keeps its sidebar
-        permanently in-flow on desktop).
+        ── Pull-tab handle — both Classic and Dock modes ──
+        A slim vertical pill fixed at the right edge of the channel sidebar.
+        Tap/click to open or close the sidebar from anywhere on screen.
 
-        Position logic:
-        • Mobile OR dashboard/appWindow (sidebar is a fixed overlay):
-            closed → left-0, open → left-[260px]
-        • Desktop + normal chat (sidebar is always in-flow, md:relative):
-            always md:left-[260px] so tab stays pinned to sidebar edge
+        Classic mode:
+          • Server icon rail is always 72px wide (in-flow).
+          • Channel sidebar is 260px when open.
+          • closed → left-[72px]  (right of icon rail, before channel list)
+          • open   → left-[332px] (right of icon rail + channel list)
+
+        Dock mode:
+          • No permanent icon rail — sidebar starts at x=0.
+          • closed → left-0
+          • open / locked → left-[260px]
+          • Desktop + normal chat (sidebar in-flow): always md:left-[260px]
       */}
+
+      {/* ── Classic mode pull-tab ── */}
+      {layoutMode === 'classic' && !showAppWindow && (
+        <button
+          onClick={toggleClassicChannel}
+          className={cn(
+            'fixed top-1/2 -translate-y-1/2 z-[60]',
+            'flex flex-col items-center justify-center gap-[3.5px]',
+            'opacity-40 hover:opacity-100 transition-[left,opacity] duration-200 ease-out',
+            classicChannelOpen ? 'left-[332px]' : 'left-[72px]',
+          )}
+          style={{
+            width: '14px',
+            height: '52px',
+            background: 'rgba(16,16,24,0.92)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: '0 9px 9px 0',
+            border: '1px solid rgba(255,255,255,0.10)',
+            borderLeft: 'none',
+            boxShadow: '3px 0 14px rgba(0,0,0,0.55)',
+          }}
+          title={classicChannelOpen ? 'Close channel list' : 'Open channel list'}
+        >
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ width: '5px', height: '1.5px', borderRadius: '2px', background: 'rgba(255,255,255,0.75)' }} />
+          ))}
+        </button>
+      )}
+
+      {/* ── Dock mode pull-tab ── */}
       {layoutMode === 'dock' && !showAppWindow && (
         <button
           onClick={() => {
@@ -308,9 +342,7 @@ export function Layout() {
             'fixed top-1/2 -translate-y-1/2 z-[60]',
             'flex flex-col items-center justify-center gap-[3.5px]',
             'opacity-40 hover:opacity-100 transition-[left,opacity] duration-200 ease-out',
-            // Horizontal position — slides with the sidebar
             (sidebarLocked || mobileSidebarOpen) ? 'left-[260px]' : 'left-0',
-            // Desktop + normal chat: sidebar is always in-flow → tab stays at sidebar edge
             !showDashboard && !showAppWindow && 'md:left-[260px]',
           )}
           style={{
@@ -328,17 +360,8 @@ export function Layout() {
             mobileSidebarOpen ? 'Close sidebar' : 'Open sidebar'
           }
         >
-          {/* Grip lines — horizontal dashes stacked vertically */}
           {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              style={{
-                width: '5px',
-                height: '1.5px',
-                borderRadius: '2px',
-                background: 'rgba(255,255,255,0.75)',
-              }}
-            />
+            <div key={i} style={{ width: '5px', height: '1.5px', borderRadius: '2px', background: 'rgba(255,255,255,0.75)' }} />
           ))}
         </button>
       )}

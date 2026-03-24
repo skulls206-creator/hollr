@@ -182,7 +182,7 @@ export function ChatArea() {
   if (!activeChannelId || !channel) {
     return (
       <div className="flex-1 bg-surface-0 flex flex-col min-w-0 h-full">
-        <div className="h-12 border-b border-border/20 flex items-center gap-1 px-4 shrink-0 bg-surface-1">
+        <div className="relative z-50 h-12 border-b border-border/20 flex items-center gap-1 px-4 shrink-0 bg-surface-1">
           <button
             onClick={() => { if (!sidebarLocked) (layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar)(); }}
             className={cn('transition-colors shrink-0', sidebarLocked ? 'text-muted-foreground/30 cursor-default' : 'text-muted-foreground hover:text-foreground')}
@@ -213,7 +213,7 @@ export function ChatArea() {
     <div className="flex flex-1 min-w-0 h-full">
       <div className="flex-1 bg-surface-0 flex flex-col h-full min-w-0" onContextMenu={handleBodyContextMenu}>
         {/* Top Header */}
-        <div className="h-12 border-b border-border/20 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-surface-1" onContextMenu={handleHeaderContextMenu}>
+        <div className="relative z-50 h-12 border-b border-border/20 flex items-center justify-between px-4 shrink-0 shadow-sm bg-surface-1" onContextMenu={handleHeaderContextMenu}>
           <div className="flex items-center min-w-0">
             <button
               onClick={() => { if (!sidebarLocked) (layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar)(); }}
