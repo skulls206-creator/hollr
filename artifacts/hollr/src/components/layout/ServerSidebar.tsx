@@ -144,7 +144,7 @@ function SortableServerItem({
 export function ServerSidebar() {
   const {
     activeServerId, setActiveServer, setCreateServerModalOpen,
-    dmUnreadCounts, setInviteModalOpen, setServerSettingsModalOpen,
+    dmUnreadCounts, activeDmThreadId, setInviteModalOpen, setServerSettingsModalOpen,
     setUserSettingsModalOpen, setJoinServerModalOpen, setHelpModalOpen,
   } = useAppStore();
   const { data: rawServers = [] } = useListMyServers();
@@ -238,7 +238,7 @@ export function ServerSidebar() {
     });
   };
 
-  const { setActiveKhurkAppId } = useAppStore();
+  const { setActiveKhurkAppId, openKhurkDashboard, khurkDashboardOpen, setKhurkDashboardOpen, activeKhurkAppId: activeApp } = useAppStore();
 
   const handleAppClick = (app: KhurkApp) => {
     if (app.openMode === 'tab') {
@@ -436,13 +436,23 @@ export function ServerSidebar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <motion.button
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                const dashboardActive = khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp;
+                if (dashboardActive) {
+                  setKhurkDashboardOpen(false);
+                } else {
+                  openKhurkDashboard();
+                }
+              }}
               onContextMenu={handleHollrContextMenu}
               className="relative group flex items-center justify-center w-full h-12"
               whileTap={{ scale: 0.92 }}
             >
-              <div
-                className="w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-lg rounded-[24px] group-hover:rounded-2xl group-hover:shadow-primary/40 group-hover:scale-105"
+              <div className={cn(
+                'w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden shadow-lg rounded-[24px] group-hover:rounded-2xl group-hover:shadow-primary/40 group-hover:scale-105',
+                khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp
+                  && 'ring-2 ring-primary ring-offset-2 ring-offset-surface-0 rounded-2xl'
+              )}
                 style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}
               >
                 <HollrIcon size={26} />
@@ -450,8 +460,8 @@ export function ServerSidebar() {
             </motion.button>
           </TooltipTrigger>
           <TooltipContent side="right" className="ml-2 p-2">
-            <p className="font-bold text-xs">hollr.chat</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">Click to refresh · Right-click for menu</p>
+            <p className="font-bold text-xs">KHURK OS</p>
+            <p className="text-[10px] text-muted-foreground leading-tight">Click to toggle · Right-click for menu</p>
           </TooltipContent>
         </Tooltip>
       </div>
