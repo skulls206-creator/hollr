@@ -379,7 +379,7 @@ export const useAppStore = create<AppState>()(
   layoutMode: 'classic',
   setLayoutMode: (mode) => set({ layoutMode: mode }),
 
-  theme: 'midnight',
+  theme: 'void',
   setTheme: (theme) => set({ theme }),
 
   musicVolume: 80,
