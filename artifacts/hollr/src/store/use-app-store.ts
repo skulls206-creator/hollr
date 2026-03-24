@@ -315,8 +315,10 @@ export const useAppStore = create<AppState>()(
     pinnedPanelOpen: false,
     threadMessageId: null,
     threadChannelId: null,
-    khurkDashboardOpen: false,
-    activeKhurkAppId: null,
+    // Only close the KHURK OS dashboard when navigating TO a real channel.
+    // Cleanup calls (id === null) fire from ChannelSidebar's server-change effect
+    // and must not kill a dashboard that was just opened.
+    ...(id !== null ? { khurkDashboardOpen: false, activeKhurkAppId: null } : {}),
   }),
   setActiveDmThread: (id) => set({
     activeDmThreadId: id,
