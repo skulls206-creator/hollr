@@ -146,7 +146,7 @@ function SortableDockItem(props: DockItemProps & { id: string }) {
         alignItems: 'flex-end',
         transform: CSS.Transform.toString(transform),
         transition: transition ?? undefined,
-        touchAction: 'none',
+        touchAction: 'pan-x',
       }}
     >
       <DockItem {...rest} isDragging={isDragging} />
