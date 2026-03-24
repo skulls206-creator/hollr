@@ -849,7 +849,7 @@ function UserProfilePanel({
               )} />
             </button>
           </PopoverTrigger>
-          <PopoverContent side="top" align="start" className="w-64 p-2 bg-[#111214] border-border/50" sideOffset={8}>
+          <PopoverContent side="top" align="start" alignOffset={-8} className="w-64 p-2 bg-[#111214] border-border/50" sideOffset={8}>
             <div className="px-2 py-1 mb-1">
               <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
               <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
