@@ -210,6 +210,10 @@ interface AppState {
   // Explicit neutral mode — user clicked Ø to opt out of All/None management
   khurkAppsExplicitNeutral: boolean;
   setKhurkAppsExplicitNeutral: (v: boolean) => void;
+
+  // Chat message text size preference
+  chatFontSize: 'sm' | 'md' | 'lg';
+  setChatFontSize: (size: 'sm' | 'md' | 'lg') => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -469,6 +473,9 @@ export const useAppStore = create<AppState>()(
 
   khurkAppsExplicitNeutral: false,
   setKhurkAppsExplicitNeutral: (v) => set({ khurkAppsExplicitNeutral: v }),
+
+  chatFontSize: 'md',
+  setChatFontSize: (size) => set({ chatFontSize: size }),
     }),
     {
       name: 'hollr-nav',
@@ -487,6 +494,7 @@ export const useAppStore = create<AppState>()(
         khurkDashboardOpen: state.khurkDashboardOpen,
         khurkOsEnabled: state.khurkOsEnabled,
         sidebarLocked: state.sidebarLocked,
+        chatFontSize: state.chatFontSize,
       }),
     }
   )

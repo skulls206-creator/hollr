@@ -58,7 +58,7 @@ export function MessageList({
   const qc = useQueryClient();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { openThread, openProfileCard } = useAppStore();
+  const { openThread, openProfileCard, chatFontSize } = useAppStore();
   const { show: showMenu } = useContextMenu();
   const bottomRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -335,7 +335,10 @@ export function MessageList({
                   </div>
                 </div>
               ) : (
-                <div className="text-foreground text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+                <div className={cn(
+                  'text-foreground leading-relaxed whitespace-pre-wrap break-words',
+                  chatFontSize === 'sm' ? 'text-sm' : chatFontSize === 'lg' ? 'text-lg' : 'text-[15px]'
+                )}>
                   {formatContent(msg.content)}
                   {msg.edited && (
                     <span className="text-[11px] text-muted-foreground ml-1.5 italic">(edited)</span>

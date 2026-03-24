@@ -156,6 +156,7 @@ export function UserSettingsModal() {
     layoutMode, setLayoutMode,
     theme, setTheme,
     khurkDashboardOpen, setKhurkDashboardOpen,
+    chatFontSize, setChatFontSize,
   } = useAppStore();
   const { user, logout } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
@@ -627,6 +628,39 @@ export function UserSettingsModal() {
                     <span className="text-[11px] opacity-70 leading-tight text-center">macOS-style server bar at the bottom</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Message Text Size */}
+              <div className="flex flex-col gap-2">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
+                  Message Text Size
+                </Label>
+                <div className="flex rounded-lg border border-border/30 overflow-hidden bg-surface-0">
+                  {([
+                    { id: 'sm', label: 'Small' },
+                    { id: 'md', label: 'Normal' },
+                    { id: 'lg', label: 'Large' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setChatFontSize(opt.id)}
+                      className={cn(
+                        'flex-1 py-2 text-sm font-medium transition-all border-r last:border-r-0 border-border/30',
+                        chatFontSize === opt.id
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className={cn(
+                  'px-3 py-2 rounded-lg bg-surface-0 border border-border/20 text-foreground leading-relaxed',
+                  chatFontSize === 'sm' ? 'text-sm' : chatFontSize === 'lg' ? 'text-lg' : 'text-[15px]'
+                )}>
+                  The quick brown fox jumps over the lazy dog.
+                </p>
               </div>
 
               {/* KHURK OS Dashboard on startup */}
