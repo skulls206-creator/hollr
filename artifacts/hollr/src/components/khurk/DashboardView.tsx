@@ -1,11 +1,12 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
-import { ExternalLink, Menu, MonitorPlay, Pin, PinOff, Sparkles } from 'lucide-react';
+import { ExternalLink, EyeOff, Grid2x2, Menu, MonitorPlay, Pin, PinOff, RotateCcw, Sparkles } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { cn } from '@/lib/utils';
 
-function AppCard({ app }: { app: KhurkApp }) {
+function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) {
   const { setActiveKhurkAppId } = useAppStore();
   const { show: showMenu } = useContextMenu();
 
@@ -40,9 +41,17 @@ function AppCard({ app }: { app: KhurkApp }) {
           icon: <ExternalLink size={14} />,
           onClick: () => window.open(app.url, '_blank', 'noopener'),
         },
+        ...(onDismiss ? [{
+          id: 'hide',
+          label: 'Hide from dock & dashboard',
+          icon: <EyeOff size={14} />,
+          onClick: onDismiss,
+          danger: true,
+          dividerBefore: true,
+        }] : []),
       ],
     });
-  }, [app, isTab, showMenu, handleLaunch]);
+  }, [app, isTab, showMenu, handleLaunch, onDismiss]);
 
   return (
     <button
@@ -135,6 +144,10 @@ interface DashboardViewProps {
 
 export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
   const { sidebarLocked, setSidebarLocked, layoutMode, setClassicChannelOpen } = useAppStore();
+  const { visibleApps, hasAnyDismissed, dismissOne, restoreAll } = useKhurkDismissals();
+  // Temporarily show all apps (ignores user's hidden list until they navigate away)
+  const [showAll, setShowAll] = useState(false);
+  const displayedApps = showAll ? KHURK_APPS : visibleApps;
 
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full bg-background">
@@ -238,13 +251,68 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
 
           {/* ── Apps grid ── */}
           <div className="w-full max-w-5xl px-6 md:px-10 pb-12">
-            <p className="text-[10px] font-bold uppercase mb-5 text-muted-foreground/60" style={{ letterSpacing: '0.2em' }}>
-              All Apps
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {KHURK_APPS.map((app) => (
-                <AppCard key={app.id} app={app} />
-              ))}
+            <div className="flex items-center justify-between mb-5">
+              <p className="text-[10px] font-bold uppercase text-muted-foreground/60" style={{ letterSpacing: '0.2em' }}>
+                {showAll ? 'All Apps' : `My Apps${hasAnyDismissed ? ` · ${visibleApps.length} of ${KHURK_APPS.length}` : ''}`}
+              </p>
+              {hasAnyDismissed && !showAll && (
+                <button
+                  onClick={() => restoreAll()}
+                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-primary/70 hover:text-primary transition-colors"
+                  style={{ letterSpacing: '0.1em' }}
+                >
+                  <RotateCcw size={11} />
+                  Restore all
+                </button>
+              )}
+            </div>
+
+            {displayedApps.length === 0 ? (
+              /* Empty state — user has dismissed all apps */
+              <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center">
+                  <Grid2x2 size={28} className="text-muted-foreground/40" />
+                </div>
+                <p className="text-sm text-muted-foreground/60">All apps are hidden.</p>
+                <button
+                  onClick={() => restoreAll()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-sm font-semibold transition-colors"
+                >
+                  <RotateCcw size={14} />
+                  Restore all apps
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {displayedApps.map((app) => (
+                  <AppCard
+                    key={app.id}
+                    app={app}
+                    onDismiss={showAll ? undefined : () => dismissOne(app.id)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Show all / back to my apps toggle */}
+            <div className="flex justify-center mt-8">
+              {showAll ? (
+                <button
+                  onClick={() => setShowAll(false)}
+                  className="flex items-center gap-2 px-5 py-2 rounded-full border border-border/40 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-border/70 transition-colors"
+                >
+                  <EyeOff size={13} />
+                  Back to my apps
+                </button>
+              ) : hasAnyDismissed ? (
+                <button
+                  onClick={() => setShowAll(true)}
+                  className="flex items-center gap-2 px-5 py-2 rounded-full border border-border/40 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-border/70 transition-colors"
+                >
+                  <Grid2x2 size={13} />
+                  Show all {KHURK_APPS.length} apps
+                </button>
+              ) : null}
             </div>
           </div>
 
