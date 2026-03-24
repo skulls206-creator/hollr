@@ -675,8 +675,8 @@ function UserProfilePanel({
   const [editingCustom, setEditingCustom] = useState(false);
   const [iosInstallOpen, setIosInstallOpen] = useState(false);
   const { canInstall, isIOS, promptInstall } = usePwaInstall();
-  const { permission, subscription, subscribe, unsubscribe } = usePushNotifications();
-  const notifOn = permission === 'granted' && subscription !== null;
+  const { permission, isSubscribed, subscribe, unsubscribe } = usePushNotifications();
+  const notifOn = isSubscribed;
   const { visibleApps, hasAnyDismissed, dismissAll: dismissAllApps, restoreAll: restoreAllApps } = useKhurkDismissals();
   const khurkAppsExplicitNeutral = useAppStore(s => s.khurkAppsExplicitNeutral);
   const setKhurkAppsExplicitNeutral = useAppStore(s => s.setKhurkAppsExplicitNeutral);

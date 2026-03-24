@@ -11,8 +11,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "hollr.chat";
   const options = {
     body: data.body || "",
-    icon: data.icon || "/images/icon-192.png",
-    badge: "/images/icon-192.png",
+    icon: data.icon || "./icon-192.png",
+    badge: "./icon-192.png",
     tag: data.tag || "hollr-message",
     renotify: true,
     silent: !!data.quiet,                // per-device quiet mode — no sound/vibration

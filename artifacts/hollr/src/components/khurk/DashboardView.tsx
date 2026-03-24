@@ -98,7 +98,7 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
-  const { sidebarLocked, setSidebarLocked } = useAppStore();
+  const { sidebarLocked, setSidebarLocked, layoutMode, setClassicChannelOpen, setMobileSidebarOpen } = useAppStore();
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full bg-surface-2">
       {/* Top bar */}
@@ -114,7 +114,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
           <Menu size={18} />
         </button>
         <button
-          onClick={() => setSidebarLocked(!sidebarLocked)}
+          onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next) { if (layoutMode === 'classic') setClassicChannelOpen(true); else { onOpenSidebar?.(); setMobileSidebarOpen(true); } } }}
           className={cn('w-7 h-7 flex items-center justify-center rounded-lg transition-colors', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
           title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
         >

@@ -53,7 +53,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
-  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, sidebarLocked, setSidebarLocked } = useAppStore();
+  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -289,7 +289,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
         </button>
         {/* Sidebar lock / pin toggle */}
         <button
-          onClick={() => setSidebarLocked(!sidebarLocked)}
+          onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next) { if (layoutMode === 'classic') setClassicChannelOpen(true); else setMobileSidebarOpen(true); } }}
           className={cn('mr-2 p-1 rounded transition-colors shrink-0', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
           title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
         >
