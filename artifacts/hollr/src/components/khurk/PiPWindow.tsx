@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useDragControls } from 'framer-motion';
 import { useAppStore, type PipWindowEntry } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon } from '@/lib/khurk-apps';
 import { X, Maximize2, GripHorizontal, RefreshCw, ChevronsUpDown } from 'lucide-react';
@@ -38,25 +38,33 @@ function SinglePipWindow({
   const x = useMotionValue(initX);
   const y = useMotionValue(initY);
 
+  // dragControls: FM only starts dragging when we explicitly call start() from
+  // the header. The resize handle is completely isolated — it never touches FM.
+  const dragControls = useDragControls();
+
   const app = KHURK_APPS.find(a => a.id === entry.appId);
   if (!app) return null;
 
   // ── Resize via raw pointer events on the bottom-right handle ──────────────
+  // We capture the DELTA between mouse-down position and current position, then
+  // add it to the size at the moment of mouse-down. FM drag is NOT involved here
+  // because dragListener={false} means FM never intercepts pointer events globally.
   const handleResizePointerDown = useCallback((e: React.PointerEvent) => {
-    e.stopPropagation(); // don't trigger window drag
+    e.stopPropagation();
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     const startX = e.clientX;
     const startY = e.clientY;
+    // Snapshot size at mouse-down — we don't close over the reactive `size` here
+    // because we read it only once at the start of the drag.
     const startW = size.w;
     const startH = size.h;
 
     const onMove = (ev: PointerEvent) => {
-      setSize({
-        w: Math.max(MIN_W, Math.min(MAX_W, startW + ev.clientX - startX)),
-        h: Math.max(MIN_H, Math.min(MAX_H, startH + ev.clientY - startY)),
-      });
+      const newW = Math.max(MIN_W, Math.min(MAX_W, startW + (ev.clientX - startX)));
+      const newH = Math.max(MIN_H, Math.min(MAX_H, startH + (ev.clientY - startY)));
+      setSize({ w: newW, h: newH });
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
@@ -64,6 +72,7 @@ function SinglePipWindow({
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+  // size.w / size.h are read once at drag-start; the snapshot is intentional
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.w, size.h]);
 
@@ -73,6 +82,8 @@ function SinglePipWindow({
     <motion.div
       key={entry.id}
       drag
+      dragControls={dragControls}
+      dragListener={false}   // FM never auto-starts drag — only fires when header calls dragControls.start()
       dragMomentum={false}
       dragElastic={0}
       style={{ x, y, width: size.w, height: totalH }}
@@ -86,10 +97,15 @@ function SinglePipWindow({
       )}
       onPointerDown={onFocus}
     >
-      {/* ── Drag handle / header ── */}
+      {/* ── Drag handle / header — the ONLY area that starts FM drag ── */}
       <div
         className="flex items-center gap-1.5 px-2 bg-surface-1/95 backdrop-blur-sm border-b border-border/20 cursor-grab active:cursor-grabbing shrink-0"
         style={{ height: HEADER_H }}
+        onPointerDown={(e) => {
+          // Only start drag from the header strip (not buttons inside it).
+          // Buttons call e.stopPropagation() so this won't fire for them.
+          dragControls.start(e);
+        }}
       >
         <GripHorizontal size={11} className="text-muted-foreground/50 shrink-0" />
 
@@ -106,13 +122,14 @@ function SinglePipWindow({
 
         <p className="flex-1 text-[11px] font-semibold text-foreground truncate leading-none">{app.name}</p>
 
-        {/* Size readout while hovering or after resize */}
+        {/* Live size readout */}
         <span className="text-[9px] text-muted-foreground/40 font-mono shrink-0 tabular-nums">
           {size.w}×{size.h}
         </span>
 
         <button
           title="Refresh"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); setRefreshCount(c => c + 1); }}
           className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
         >
@@ -120,6 +137,7 @@ function SinglePipWindow({
         </button>
         <button
           title="Restore to full window"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); restorePipWindow(entry.id); }}
           className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
         >
@@ -127,6 +145,7 @@ function SinglePipWindow({
         </button>
         <button
           title="Close"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); removePipWindow(entry.id); }}
           className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors"
         >
@@ -146,7 +165,7 @@ function SinglePipWindow({
         />
       </div>
 
-      {/* ── Resize handle — bottom-right corner ── */}
+      {/* ── Resize handle — bottom-right corner, completely FM-independent ── */}
       <div
         className="absolute bottom-0 right-0 w-5 h-5 flex items-end justify-end pb-0.5 pr-0.5 cursor-nwse-resize z-10 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
         style={{ touchAction: 'none' }}
