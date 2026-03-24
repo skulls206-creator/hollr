@@ -48,7 +48,7 @@ function AppCard({ app }: { app: KhurkApp }) {
       onClick={handleLaunch}
       onContextMenu={handleContextMenu}
       className="group flex flex-col rounded-xl overflow-hidden text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.07)' }}
+      style={{ background: '#0d0d11', border: '1px solid rgba(255,255,255,0.06)' }}
     >
       {/* Gradient thumbnail */}
       <div
@@ -86,7 +86,7 @@ function AppCard({ app }: { app: KhurkApp }) {
       <div className="px-3 pb-3">
         <div
           className="w-full h-8 flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors group-hover:bg-white/10"
-          style={{ background: '#252525', color: 'rgba(255,255,255,0.7)' }}
+          style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)' }}
         >
           {isTab ? 'Open' : 'Launch'}
           <ExternalLink size={10} className="opacity-50" />
