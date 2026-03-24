@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useDragControls } from 'framer-motion';
 import { useAppStore, type PipWindowEntry } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon } from '@/lib/khurk-apps';
-import { X, Maximize2, GripHorizontal, RefreshCw, ChevronsUpDown } from 'lucide-react';
+import { X, Maximize2, GripHorizontal, RefreshCw, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const DEFAULT_W  = 380;
@@ -32,32 +32,55 @@ function SinglePipWindow({
   const [refreshCount, setRefreshCount] = useState(0);
   const [size, setSize] = useState({ w: DEFAULT_W, h: DEFAULT_H });
 
+  // Snap-to-min state: remembers the last "real" size so we can restore it
+  const [isSnapped, setIsSnapped] = useState(false);
+  const savedSize = useRef({ w: DEFAULT_W, h: DEFAULT_H });
+
+  // isResizing ref: when true we skip CSS transition so resize feels instant
+  const isResizing = useRef(false);
+  const [, forceRender] = useState(0);
+
   // Initial position staggered from bottom-right
   const initX = Math.max(MARGIN, window.innerWidth  - DEFAULT_W - MARGIN - spawnIndex * STAGGER);
   const initY = Math.max(MARGIN, window.innerHeight - DEFAULT_H - HEADER_H - DOCK_CLEAR - spawnIndex * STAGGER);
   const x = useMotionValue(initX);
   const y = useMotionValue(initY);
 
-  // dragControls: FM only starts dragging when we explicitly call start() from
-  // the header. The resize handle is completely isolated — it never touches FM.
   const dragControls = useDragControls();
 
   const app = KHURK_APPS.find(a => a.id === entry.appId);
   if (!app) return null;
 
+  // ── Snap toggle ────────────────────────────────────────────────────────────
+  const handleSnapToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSnapped) {
+      // Restore to remembered size
+      setSize({ w: savedSize.current.w, h: savedSize.current.h });
+      setIsSnapped(false);
+    } else {
+      // Save current size then collapse to minimum
+      savedSize.current = { w: size.w, h: size.h };
+      setSize({ w: MIN_W, h: MIN_H });
+      setIsSnapped(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSnapped, size.w, size.h]);
+
   // ── Resize via raw pointer events on the bottom-right handle ──────────────
-  // We capture the DELTA between mouse-down position and current position, then
-  // add it to the size at the moment of mouse-down. FM drag is NOT involved here
-  // because dragListener={false} means FM never intercepts pointer events globally.
   const handleResizePointerDown = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
+    // Exit snap mode when user manually resizes — they're taking control again
+    setIsSnapped(false);
+
+    isResizing.current = true;
+    forceRender(n => n + 1); // re-render to remove CSS transition immediately
+
     const startX = e.clientX;
     const startY = e.clientY;
-    // Snapshot size at mouse-down — we don't close over the reactive `size` here
-    // because we read it only once at the start of the drag.
     const startW = size.w;
     const startH = size.h;
 
@@ -65,14 +88,17 @@ function SinglePipWindow({
       const newW = Math.max(MIN_W, Math.min(MAX_W, startW + (ev.clientX - startX)));
       const newH = Math.max(MIN_H, Math.min(MAX_H, startH + (ev.clientY - startY)));
       setSize({ w: newW, h: newH });
+      // Keep savedSize in sync so a subsequent snap restores to where the user landed
+      savedSize.current = { w: newW, h: newH };
     };
     const onUp = () => {
+      isResizing.current = false;
+      forceRender(n => n + 1); // re-render to restore CSS transition
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
-  // size.w / size.h are read once at drag-start; the snapshot is intentional
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.w, size.h]);
 
@@ -83,10 +109,19 @@ function SinglePipWindow({
       key={entry.id}
       drag
       dragControls={dragControls}
-      dragListener={false}   // FM never auto-starts drag — only fires when header calls dragControls.start()
+      dragListener={false}
       dragMomentum={false}
       dragElastic={0}
-      style={{ x, y, width: size.w, height: totalH }}
+      style={{
+        x,
+        y,
+        width: size.w,
+        height: totalH,
+        // Animate size changes (snap/restore) but skip transition during live resize
+        transition: isResizing.current
+          ? 'none'
+          : 'width 0.22s cubic-bezier(0.16,1,0.3,1), height 0.22s cubic-bezier(0.16,1,0.3,1)',
+      }}
       initial={{ opacity: 0, scale: 0.82 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.82 }}
@@ -97,15 +132,11 @@ function SinglePipWindow({
       )}
       onPointerDown={onFocus}
     >
-      {/* ── Drag handle / header — the ONLY area that starts FM drag ── */}
+      {/* ── Drag handle / header ── */}
       <div
         className="flex items-center gap-1.5 px-2 bg-surface-1/95 backdrop-blur-sm border-b border-border/20 cursor-grab active:cursor-grabbing shrink-0"
         style={{ height: HEADER_H }}
-        onPointerDown={(e) => {
-          // Only start drag from the header strip (not buttons inside it).
-          // Buttons call e.stopPropagation() so this won't fire for them.
-          dragControls.start(e);
-        }}
+        onPointerDown={(e) => dragControls.start(e)}
       >
         <GripHorizontal size={11} className="text-muted-foreground/50 shrink-0" />
 
@@ -126,6 +157,24 @@ function SinglePipWindow({
         <span className="text-[9px] text-muted-foreground/40 font-mono shrink-0 tabular-nums">
           {size.w}×{size.h}
         </span>
+
+        {/* Snap to min / Restore size */}
+        <button
+          title={isSnapped ? 'Restore size' : 'Snap to smallest'}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={handleSnapToggle}
+          className={cn(
+            'p-1 rounded transition-colors',
+            isSnapped
+              ? 'text-primary hover:text-primary/70'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {isSnapped
+            ? <ChevronsUpDown size={9} />
+            : <ChevronsDownUp size={9} />
+          }
+        </button>
 
         <button
           title="Refresh"
@@ -153,7 +202,7 @@ function SinglePipWindow({
         </button>
       </div>
 
-      {/* ── Iframe (fills remaining height) ── */}
+      {/* ── Iframe (fills remaining height, hidden when snapped to save resources) ── */}
       <div className="relative flex-1 min-h-0">
         <iframe
           key={`pip-${entry.id}-${refreshCount}`}
@@ -165,14 +214,16 @@ function SinglePipWindow({
         />
       </div>
 
-      {/* ── Resize handle — bottom-right corner, completely FM-independent ── */}
-      <div
-        className="absolute bottom-0 right-0 w-5 h-5 flex items-end justify-end pb-0.5 pr-0.5 cursor-nwse-resize z-10 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
-        style={{ touchAction: 'none' }}
-        onPointerDown={handleResizePointerDown}
-      >
-        <ChevronsUpDown size={11} className="rotate-45" />
-      </div>
+      {/* ── Resize handle — bottom-right corner, hidden when snapped ── */}
+      {!isSnapped && (
+        <div
+          className="absolute bottom-0 right-0 w-5 h-5 flex items-end justify-end pb-0.5 pr-0.5 cursor-nwse-resize z-10 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+          style={{ touchAction: 'none' }}
+          onPointerDown={handleResizePointerDown}
+        >
+          <ChevronsUpDown size={11} className="rotate-45" />
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -182,7 +233,6 @@ export function PiPWindow() {
   const { pipWindows } = useAppStore();
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
-  // Stable spawn-index per window so positions don't jump when others close
   const spawnIndexRef = useRef<Record<string, number>>({});
   pipWindows.forEach((entry) => {
     if (!(entry.id in spawnIndexRef.current)) {
