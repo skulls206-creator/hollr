@@ -964,6 +964,7 @@ function UserProfilePanel({
           <PopoverContent
             side="top"
             align="start"
+            alignOffset={-8}
             className="w-52 p-1.5 bg-[#111214] border-border/50"
             sideOffset={8}
           >
