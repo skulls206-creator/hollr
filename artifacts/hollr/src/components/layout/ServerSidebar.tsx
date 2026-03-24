@@ -243,7 +243,7 @@ export function ServerSidebar() {
     ];
     if (isOwner) actions.push({ id: 'settings', label: 'Server Settings', icon: <Settings size={14} />, onClick: () => { setActiveServer(server.id); setServerSettingsModalOpen(true); }, dividerBefore: true });
     if (!isOwner) actions.push({ id: 'leave', label: 'Leave Server', icon: <LogOut size={14} />, onClick: () => leaveServer(server.id, server.name), danger: true, dividerBefore: true });
-    showMenu({ x: e.clientX, y: e.clientY, actions });
+    showMenu({ x: e.clientX, y: e.clientY, actions, title: server.name, titleIcon: server.iconUrl || undefined });
   };
 
   const handleDmContextMenu = (e: React.MouseEvent) => {

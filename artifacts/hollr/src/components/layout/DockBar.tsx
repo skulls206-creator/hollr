@@ -1,6 +1,9 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { Plus, MessageSquare, ExternalLink, Trash2, RotateCcw, Copy, LayoutGrid, RefreshCw, Settings, ServerIcon } from 'lucide-react';
+import { Plus, MessageSquare, ExternalLink, Trash2, RotateCcw, Copy, LayoutGrid, RefreshCw, Settings, ServerIcon, Hash, UserPlus, LogOut } from 'lucide-react';
+import { useAuth } from '@workspace/replit-auth-web';
+import { useToast } from '@/hooks/use-toast';
+
 import {
   DndContext,
   DragOverlay,
@@ -26,6 +29,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
+
+const BASE = import.meta.env.BASE_URL;
 
 const ICON_BASE = 40;
 const MAX_SCALE = 1.7;
@@ -218,7 +223,10 @@ export function DockBar() {
     activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts, setNewDmModalOpen,
     setActiveKhurkAppId, activeDmThreadId, setActiveDmThread,
     khurkDashboardOpen, setKhurkDashboardOpen, openKhurkDashboard, activeKhurkAppId,
+    setInviteModalOpen, setServerSettingsModalOpen,
   } = useAppStore();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { data: servers = [] } = useListMyServers();
   const mouseX = useMotionValue(Infinity);
@@ -328,6 +336,32 @@ export function DockBar() {
     showMenu({ x: e.clientX, y: e.clientY, actions, title: 'hollr.chat', subtitle: 'Real-time messaging & voice' });
   };
 
+  const leaveServer = async (serverId: string, serverName: string) => {
+    if (!confirm(`Leave "${serverName}"? You can rejoin later if invited.`)) return;
+    try {
+      const res = await fetch(`${BASE}api/servers/${serverId}/leave`, { method: 'POST', credentials: 'include' });
+      if (!res.ok) throw new Error();
+      if (activeServerId === serverId) setActiveServer(null);
+      toast({ title: `Left ${serverName}` });
+    } catch {
+      toast({ title: 'Could not leave server', variant: 'destructive' });
+    }
+  };
+
+  const handleServerContextMenu = (e: React.MouseEvent, server: any) => {
+    e.preventDefault();
+    const isOwner = (server as any).ownerId === user?.id;
+    const actions: any[] = [
+      { id: 'go', label: server.id === activeServerId ? 'Currently Viewing' : 'Go to Server', icon: <Hash size={14} />, onClick: () => setActiveServer(server.id), disabled: server.id === activeServerId },
+      { id: 'invite', label: 'Invite People', icon: <UserPlus size={14} />, onClick: () => { setActiveServer(server.id); setInviteModalOpen(true); }, dividerBefore: true },
+      { id: 'copy-name', label: 'Copy Server Name', icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText(server.name) },
+      { id: 'copy-id', label: 'Copy Server ID', icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText(server.id) },
+    ];
+    if (isOwner) actions.push({ id: 'settings', label: 'Server Settings', icon: <Settings size={14} />, onClick: () => { setActiveServer(server.id); setServerSettingsModalOpen(true); }, dividerBefore: true });
+    if (!isOwner) actions.push({ id: 'leave', label: 'Leave Server', icon: <LogOut size={14} />, onClick: () => leaveServer(server.id, server.name), danger: true, dividerBefore: true });
+    showMenu({ x: e.clientX, y: e.clientY, actions, title: server.name, titleIcon: server.iconUrl || undefined });
+  };
+
   // Hollr icon magnification
   const hollrMotionRef = useRef<HTMLButtonElement>(null);
   const hollrDistance = useTransform(mouseX, (x: number) => {
@@ -352,6 +386,7 @@ export function DockBar() {
           label={server.name}
           isActive={activeServerId === server.id}
           onClick={() => setActiveServer(server.id)}
+          onContextMenu={(e) => handleServerContextMenu(e, server)}
         >
           {server.iconUrl ? (
             <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover rounded-xl" />
@@ -531,7 +566,7 @@ export function DockBar() {
                (which 'clip' does NOT cut off) so magnified icons can pop upward
                without being clipped. */}
           <div
-            className="flex items-end gap-3 min-w-0 [&::-webkit-scrollbar]:hidden"
+            className="flex items-end gap-4 min-w-0 [&::-webkit-scrollbar]:hidden"
             style={{
               overflowX: 'auto',
               overflowY: 'clip',
@@ -546,8 +581,8 @@ export function DockBar() {
               marginBottom: '-8px',
               // Left/right padding ensures the first and last icons are never
               // flush-clipped at the scroll boundary (especially when magnified).
-              paddingLeft: '8px',
-              paddingRight: '12px',
+              paddingLeft: '6px',
+              paddingRight: '6px',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch' as any,
