@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
-  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink,
+  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { DmReactionPills } from './DmReactionPills';
@@ -53,7 +53,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
-  const { setActiveDmThread, voicePanelHeight } = useAppStore();
+  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -279,9 +279,18 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
     <div className="flex-1 bg-surface-3 flex flex-col h-full min-w-0">
       {/* Header */}
       <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 shadow-sm z-10 bg-surface-3">
+        {/* Hamburger — toggles sidebar panel, visible at all sizes */}
+        <button
+          onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}
+          className="mr-2 -ml-1 p-1 text-muted-foreground hover:text-foreground transition-colors shrink-0 rounded-md"
+          title="Toggle sidebar"
+        >
+          <Menu size={22} />
+        </button>
+        {/* Back arrow — mobile only, returns to DM list */}
         <button
           onClick={() => setActiveDmThread(null)}
-          className="md:hidden mr-2 -ml-1 p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors shrink-0 rounded-md"
+          className="md:hidden mr-2 p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors shrink-0 rounded-md"
           title="Back to Direct Messages"
         >
           <ChevronLeft size={24} />

@@ -117,7 +117,7 @@ export function ChatArea() {
           <div className="flex items-center min-w-0">
             <button
               onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}
-              className={layoutMode === 'dock' ? 'md:hidden mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0' : 'mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0'}
+              className="mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0"
               title="Toggle sidebar"
             >
               <Menu size={22} />
