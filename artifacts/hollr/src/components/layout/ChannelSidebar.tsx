@@ -3,7 +3,7 @@ import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
-  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck,
+  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera,
 } from 'lucide-react';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
@@ -864,9 +864,26 @@ function UserProfilePanel({
             </button>
           </PopoverTrigger>
           <PopoverContent side="top" align="start" alignOffset={-8} className="w-64 p-2 bg-[#111214] border-border/50" sideOffset={8}>
-            <div className="px-2 py-1 mb-1">
-              <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
-              <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
+            <div className="flex items-center gap-3 px-2 py-1 mb-1">
+              <button
+                onClick={() => { setUserSettingsModalOpen(true); setQuickOpen(false); }}
+                className="relative shrink-0 group/avtedit"
+                title="Edit profile"
+              >
+                <Avatar className="h-10 w-10 rounded-full border border-border/50">
+                  <AvatarImage src={profile?.avatarUrl || undefined} />
+                  <AvatarFallback className="bg-primary text-white text-sm">
+                    {getInitials(displayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover/avtedit:opacity-100 transition-opacity flex items-center justify-center">
+                  <Camera size={14} className="text-white" />
+                </div>
+              </button>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
+              </div>
             </div>
             <div className="h-px bg-border/40 mb-1" />
             {permission !== 'unsupported' && (
