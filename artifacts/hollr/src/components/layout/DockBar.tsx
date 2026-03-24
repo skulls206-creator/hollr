@@ -442,7 +442,7 @@ export function DockBar() {
           style={{ overflow: 'visible', maxWidth: '100%', pointerEvents: 'auto' }}
         >
           {/* ── hollr logo — toggles the KHURK OS Dashboard ── */}
-          <div className="relative shrink-0">
+          <div className="relative shrink-0" style={{ paddingLeft: '30px', marginLeft: '-30px' }}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <motion.button
