@@ -207,8 +207,8 @@ function MemberRow({
           <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[2.5px] border-[#2B2D31] ${statusColor(member.user.status ?? '')}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1">
-            <span className="text-sm font-medium text-foreground truncate">
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-sm font-medium text-foreground truncate min-w-0">
               {member.user.displayName || member.user.username}
             </span>
             {member.role === 'owner' && <Crown size={12} className="text-yellow-400 shrink-0" />}
