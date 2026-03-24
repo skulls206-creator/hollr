@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Hash, Users, Bell, BellOff, Pin, Search, HelpCircle, Menu, X, Copy, ChevronsDown, ScrollText, Music } from 'lucide-react';
+import { Hash, Users, Bell, BellOff, Pin, Search, HelpCircle, Menu, X, Copy, ChevronsDown, ScrollText, Music, PinOff } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListChannels, getListChannelsQueryKey } from '@workspace/api-client-react';
 import { MessageList } from './MessageList';
@@ -30,6 +30,7 @@ export function ChatArea() {
     voicePanelHeight,
     layoutMode, toggleClassicChannel,
     triggerCommand,
+    sidebarLocked, setSidebarLocked,
   } = useAppStore();
 
   const { show: showMenu } = useContextMenu();
@@ -181,13 +182,20 @@ export function ChatArea() {
   if (!activeChannelId || !channel) {
     return (
       <div className="flex-1 bg-surface-0 flex flex-col min-w-0 h-full">
-        <div className="h-12 border-b border-border/20 flex items-center px-4 shrink-0 bg-surface-1">
+        <div className="h-12 border-b border-border/20 flex items-center gap-1 px-4 shrink-0 bg-surface-1">
           <button
-            onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            title="Toggle sidebar"
+            onClick={() => { if (!sidebarLocked) (layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar)(); }}
+            className={cn('transition-colors shrink-0', sidebarLocked ? 'text-muted-foreground/30 cursor-default' : 'text-muted-foreground hover:text-foreground')}
+            title={sidebarLocked ? 'Sidebar is pinned' : 'Toggle sidebar'}
           >
             <Menu size={22} />
+          </button>
+          <button
+            onClick={() => setSidebarLocked(!sidebarLocked)}
+            className={cn('transition-colors shrink-0 p-1 rounded', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
+            title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
+          >
+            {sidebarLocked ? <Pin size={14} /> : <PinOff size={14} />}
           </button>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
@@ -208,11 +216,18 @@ export function ChatArea() {
         <div className="h-12 border-b border-border/20 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-surface-1" onContextMenu={handleHeaderContextMenu}>
           <div className="flex items-center min-w-0">
             <button
-              onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}
-              className="mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              title="Toggle sidebar"
+              onClick={() => { if (!sidebarLocked) (layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar)(); }}
+              className={cn('mr-1 transition-colors shrink-0', sidebarLocked ? 'text-muted-foreground/30 cursor-default' : 'text-muted-foreground hover:text-foreground')}
+              title={sidebarLocked ? 'Sidebar is pinned' : 'Toggle sidebar'}
             >
               <Menu size={22} />
+            </button>
+            <button
+              onClick={() => setSidebarLocked(!sidebarLocked)}
+              className={cn('mr-3 p-1 rounded transition-colors shrink-0', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
+              title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
+            >
+              {sidebarLocked ? <Pin size={14} /> : <PinOff size={14} />}
             </button>
             <Hash size={24} className="text-muted-foreground mr-2 shrink-0" />
             <h2 className="font-bold text-foreground truncate text-[15px]">{channel.name}</h2>

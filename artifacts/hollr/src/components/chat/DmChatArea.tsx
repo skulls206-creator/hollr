@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
-  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu,
+  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { DmReactionPills } from './DmReactionPills';
@@ -53,7 +53,7 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
-  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel } = useAppStore();
+  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, sidebarLocked, setSidebarLocked } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -281,11 +281,19 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
       <div className="h-12 border-b border-border/20 flex items-center px-4 shrink-0 shadow-sm z-10 bg-surface-1">
         {/* Hamburger — toggles sidebar panel, visible at all sizes */}
         <button
-          onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}
-          className="mr-2 -ml-1 p-1 text-muted-foreground hover:text-foreground transition-colors shrink-0 rounded-md"
-          title="Toggle sidebar"
+          onClick={() => { if (!sidebarLocked) (layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar)(); }}
+          className={cn('mr-1 -ml-1 p-1 transition-colors shrink-0 rounded-md', sidebarLocked ? 'text-muted-foreground/30 cursor-default' : 'text-muted-foreground hover:text-foreground')}
+          title={sidebarLocked ? 'Sidebar is pinned' : 'Toggle sidebar'}
         >
           <Menu size={22} />
+        </button>
+        {/* Sidebar lock / pin toggle */}
+        <button
+          onClick={() => setSidebarLocked(!sidebarLocked)}
+          className={cn('mr-2 p-1 rounded transition-colors shrink-0', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
+          title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
+        >
+          {sidebarLocked ? <Pin size={14} /> : <PinOff size={14} />}
         </button>
         {/* Back arrow — mobile only, returns to DM list */}
         <button

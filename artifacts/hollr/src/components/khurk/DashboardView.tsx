@@ -1,8 +1,9 @@
 import { useCallback } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
-import { ExternalLink, Menu, MonitorPlay } from 'lucide-react';
+import { ExternalLink, Menu, MonitorPlay, Pin, PinOff } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { cn } from '@/lib/utils';
 
 function AppCard({ app }: { app: KhurkApp }) {
   const { setActiveKhurkAppId } = useAppStore();
@@ -97,19 +98,27 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
+  const { sidebarLocked, setSidebarLocked } = useAppStore();
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full bg-surface-2">
       {/* Top bar */}
       <div
-        className="flex items-center gap-3 px-4 shrink-0 bg-surface-1 border-b border-border"
+        className="flex items-center gap-1 px-4 shrink-0 bg-surface-1 border-b border-border"
         style={{ height: '52px' }}
       >
         <button
-          onClick={onOpenSidebar}
-          className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-muted-foreground hover:text-foreground"
-          title="Open sidebar"
+          onClick={() => { if (!sidebarLocked) onOpenSidebar?.(); }}
+          className={cn('w-8 h-8 flex items-center justify-center rounded-lg transition-colors', sidebarLocked ? 'text-muted-foreground/30 cursor-default' : 'text-muted-foreground hover:text-foreground')}
+          title={sidebarLocked ? 'Sidebar is pinned' : 'Open sidebar'}
         >
           <Menu size={18} />
+        </button>
+        <button
+          onClick={() => setSidebarLocked(!sidebarLocked)}
+          className={cn('w-7 h-7 flex items-center justify-center rounded-lg transition-colors', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
+          title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
+        >
+          {sidebarLocked ? <Pin size={13} /> : <PinOff size={13} />}
         </button>
         <div className="flex items-center gap-2">
           <img

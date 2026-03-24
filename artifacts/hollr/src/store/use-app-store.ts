@@ -101,6 +101,9 @@ interface AppState {
   removePipWindow: (windowId: string) => void;
   restorePipWindow: (windowId: string) => void;
 
+  sidebarLocked: boolean;
+  setSidebarLocked: (v: boolean) => void;
+
   // Actions
   setActiveServer: (id: string | null) => void;
   setActiveChannel: (id: string | null) => void;
@@ -455,6 +458,9 @@ export const useAppStore = create<AppState>()(
     musicEffects: { ...state.musicEffects, [effect]: enabled },
   })),
 
+  sidebarLocked: false,
+  setSidebarLocked: (v) => set({ sidebarLocked: v }),
+
   khurkOsEnabled: true,
   toggleKhurkOs: () => set((state) => ({ khurkOsEnabled: !state.khurkOsEnabled })),
 
@@ -480,6 +486,7 @@ export const useAppStore = create<AppState>()(
         musicEffects: state.musicEffects,
         khurkDashboardOpen: state.khurkDashboardOpen,
         khurkOsEnabled: state.khurkOsEnabled,
+        sidebarLocked: state.sidebarLocked,
       }),
     }
   )

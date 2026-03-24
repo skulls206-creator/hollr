@@ -37,6 +37,7 @@ export function Layout() {
     voiceConnection, layoutMode,
     activeKhurkAppId, khurkPipMode, khurkDashboardOpen, khurkOsEnabled,
     classicChannelOpen, toggleClassicChannel, setClassicChannelOpen,
+    sidebarLocked,
   } = useAppStore();
 
   const navApplied = useRef(false);
@@ -186,9 +187,13 @@ export function Layout() {
               : layoutMode === 'dock'
                 ? [
                     'bottom-[78px] md:bottom-0 h-[calc(100%-78px)] md:h-full',
-                    (showDashboard || showAppWindow)
-                      ? `fixed ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
-                      : `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
+                    sidebarLocked
+                      ? (showDashboard || showAppWindow)
+                        ? 'fixed translate-x-0'
+                        : 'fixed md:relative md:h-full translate-x-0'
+                      : (showDashboard || showAppWindow)
+                        ? `fixed ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+                        : `fixed md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
                   ].join(' ')
                 : `fixed h-full bottom-0 md:relative md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
           ].join(' ')}
