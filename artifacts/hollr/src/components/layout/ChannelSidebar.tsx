@@ -51,13 +51,16 @@ export function ChannelSidebar() {
     dmUnreadCounts, clearDmUnreadCount,
     voiceVolumes, setVoiceVolume,
     triggerMention,
-    layoutMode, toggleClassicChannel, toggleMobileSidebar,
+    layoutMode, setClassicChannelOpen, setMobileSidebarOpen,
   } = useAppStore();
 
-  // Closes the channel sidebar regardless of which layout mode is active
+  // Always closes (never opens) the sidebar — the pull-tab is how you reopen it.
+  // Using set(false) instead of toggle() prevents the bug where tapping the
+  // hamburger while the sidebar is already hidden opens it a second time on
+  // top of the content that is already showing the same view (e.g. DMs twice).
   const closeSidebar = () => {
-    if (layoutMode === 'classic') toggleClassicChannel();
-    else toggleMobileSidebar();
+    if (layoutMode === 'classic') setClassicChannelOpen(false);
+    else setMobileSidebarOpen(false);
   };
 
   const { user } = useAuth();
