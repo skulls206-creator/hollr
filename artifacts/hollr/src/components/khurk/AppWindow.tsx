@@ -46,8 +46,14 @@ export function AppWindow() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
   const vaultListenerRef = useRef<((e: MessageEvent) => void) | null>(null);
-  // Holds the last vault payload so it can be replayed when Ballpoint signals ready
-  const pendingVaultRef = useRef<{ name: string; files: { name: string; content: string; lastModified: number }[] } | null>(null);
+  // Holds the last vault payload so it can be replayed when Ballpoint signals ready.
+  // `handle` is the raw FileSystemDirectoryHandle — structured-cloneable via postMessage,
+  // giving the iframe unrestricted native read/write access to the folder.
+  const pendingVaultRef = useRef<{
+    name: string;
+    files: { name: string; content: string; lastModified: number }[];
+    handle?: FileSystemDirectoryHandle;
+  } | null>(null);
 
   const app = KHURK_APPS.find((a) => a.id === activeKhurkAppId);
 
@@ -207,12 +213,16 @@ export function AppWindow() {
     vaultListenerRef.current = listener;
     window.addEventListener('message', listener);
 
-    // Cache the payload — the ballpoint:ready listener will replay it if needed
-    pendingVaultRef.current = { name: dir.name, files };
+    // Cache the payload — the ballpoint:ready listener will replay it if needed.
+    // The FileSystemDirectoryHandle is structured-cloneable, so the iframe receives a
+    // live reference it can use directly for unrestricted read/write access.
+    pendingVaultRef.current = { name: dir.name, files, handle: dir };
 
-    // Send file contents to the iframe (not the handle)
+    // Send both the text copies AND the raw handle to the iframe.
+    // Apps that use the handle (foldr, etc.) get full native file system access;
+    // apps that only need text copies (Ballpoint) continue working as before.
     iframe.contentWindow.postMessage(
-      { type: 'khurk:vault-open', name: dir.name, files },
+      { type: 'khurk:vault-open', name: dir.name, files, handle: dir },
       '*',
     );
 
