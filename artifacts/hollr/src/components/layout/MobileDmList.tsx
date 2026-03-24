@@ -14,7 +14,7 @@ export function MobileDmList() {
   const {
     activeDmThreadId, setActiveDmThread,
     dmUnreadCounts, clearDmUnreadCount,
-    toggleMobileSidebar,
+    toggleMobileSidebar, layoutMode, setClassicChannelOpen,
   } = useAppStore();
 
   const { data: dmThreads = [] } = useListDmThreads({
@@ -26,9 +26,9 @@ export function MobileDmList() {
       {/* Header */}
       <div className="h-12 border-b border-border/10 flex items-center px-3 shrink-0 shadow-sm bg-surface-1 z-10 gap-2">
         <button
-          onClick={toggleMobileSidebar}
+          onClick={layoutMode === 'classic' ? () => setClassicChannelOpen(true) : toggleMobileSidebar}
           className="p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors rounded-md shrink-0"
-          title="Switch servers"
+          title="Open sidebar"
         >
           <Menu size={22} />
         </button>

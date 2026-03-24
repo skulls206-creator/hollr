@@ -105,13 +105,20 @@ export function Layout() {
     */
     <div className="flex flex-col h-screen w-full bg-background overflow-hidden font-sans text-foreground">
 
-      {/* Sidebar backdrop — mobile-only in classic mode (sidebar is always
-          visible on desktop there). In dock mode during dashboard/app it shows
-          on all screen sizes because the sidebar is an overlay even on desktop. */}
-      {mobileSidebarOpen && (
+      {/* Classic mode: backdrop only for channel sidebar on mobile */}
+      {layoutMode === 'classic' && classicChannelOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 md:hidden"
+          onClick={() => setClassicChannelOpen(false)}
+        />
+      )}
+
+      {/* Dock mode: backdrop for sidebar overlay — all sizes when dashboard/app
+          is active, mobile-only during normal chat */}
+      {layoutMode !== 'classic' && mobileSidebarOpen && (
         <div
           className={`fixed inset-0 bg-black/60 z-30 ${
-            layoutMode === 'dock' && (showDashboard || showAppWindow) ? '' : 'md:hidden'
+            (showDashboard || showAppWindow) ? '' : 'md:hidden'
           }`}
           onClick={() => setMobileSidebarOpen(false)}
         />
@@ -210,7 +217,9 @@ export function Layout() {
               <AppWindow />
             ) : showDashboard ? (
               /* ── KHURK OS Dashboard ── */
-              <DashboardView onOpenSidebar={() => setMobileSidebarOpen(true)} />
+              <DashboardView onOpenSidebar={
+                layoutMode === 'classic' ? toggleClassicChannel : () => setMobileSidebarOpen(true)
+              } />
             ) : activeDmThreadId ? (
               /* ── DM chat ── */
               <DmChatArea

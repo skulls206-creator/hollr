@@ -27,6 +27,7 @@ export function ChatArea() {
     isChannelMuted, toggleMuteChannel,
     setHelpModalOpen,
     voicePanelHeight,
+    layoutMode, toggleClassicChannel,
   } = useAppStore();
 
   const { data: channels = [] } = useListChannels(activeServerId || '', {
@@ -88,8 +89,12 @@ export function ChatArea() {
   if (!activeChannelId || !channel) {
     return (
       <div className="flex-1 bg-surface-3 flex flex-col min-w-0 h-full">
-        <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 md:hidden bg-surface-3">
-          <button onClick={toggleMobileSidebar} className="text-muted-foreground hover:text-foreground transition-colors" title="Open sidebar">
+        <div className="h-12 border-b border-border/10 flex items-center px-4 shrink-0 bg-surface-3">
+          <button
+            onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Toggle sidebar"
+          >
             <Menu size={22} />
           </button>
         </div>
@@ -111,9 +116,9 @@ export function ChatArea() {
         <div className="h-12 border-b border-border/10 flex items-center justify-between px-4 shrink-0 shadow-sm z-10 bg-surface-3">
           <div className="flex items-center min-w-0">
             <button
-              onClick={toggleMobileSidebar}
-              className="md:hidden mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              title="Open sidebar"
+              onClick={layoutMode === 'classic' ? toggleClassicChannel : toggleMobileSidebar}
+              className={layoutMode === 'dock' ? 'md:hidden mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0' : 'mr-3 text-muted-foreground hover:text-foreground transition-colors shrink-0'}
+              title="Toggle sidebar"
             >
               <Menu size={22} />
             </button>
