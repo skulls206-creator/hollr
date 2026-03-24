@@ -47,8 +47,7 @@ function AppCard({ app }: { app: KhurkApp }) {
     <button
       onClick={handleLaunch}
       onContextMenu={handleContextMenu}
-      className="group flex flex-col rounded-xl overflow-hidden text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      style={{ background: '#0d0d11', border: '1px solid rgba(255,255,255,0.06)' }}
+      className="group flex flex-col rounded-xl overflow-hidden text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-surface-0 border border-border"
     >
       {/* Gradient thumbnail */}
       <div
@@ -76,18 +75,15 @@ function AppCard({ app }: { app: KhurkApp }) {
 
       {/* Info */}
       <div className="px-3 pt-3 pb-2 flex flex-col gap-1 flex-1">
-        <p className="text-sm font-semibold text-white leading-tight">{app.name}</p>
-        <p className="text-xs leading-snug" style={{ color: 'rgba(255,255,255,0.4)' }}>
+        <p className="text-sm font-semibold text-foreground leading-tight">{app.name}</p>
+        <p className="text-xs leading-snug text-muted-foreground">
           {app.description}
         </p>
       </div>
 
       {/* Launch button */}
       <div className="px-3 pb-3">
-        <div
-          className="w-full h-8 flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors group-hover:bg-white/10"
-          style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)' }}
-        >
+        <div className="w-full h-8 flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors bg-secondary text-secondary-foreground group-hover:bg-secondary/70">
           {isTab ? 'Open' : 'Launch'}
           <ExternalLink size={10} className="opacity-50" />
         </div>
@@ -102,19 +98,15 @@ interface DashboardViewProps {
 
 export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
   return (
-    <div
-      className="flex flex-col flex-1 min-h-0 h-full"
-      style={{ background: '#07070a' }}
-    >
+    <div className="flex flex-col flex-1 min-h-0 h-full bg-surface-2">
       {/* Top bar */}
       <div
-        className="flex items-center gap-3 px-4 shrink-0"
-        style={{ height: '52px', background: '#0c0c10', borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+        className="flex items-center gap-3 px-4 shrink-0 bg-surface-1 border-b border-border"
+        style={{ height: '52px' }}
       >
         <button
           onClick={onOpenSidebar}
-          className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
-          style={{ color: 'rgba(255,255,255,0.45)' }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-muted-foreground hover:text-foreground"
           title="Open sidebar"
         >
           <Menu size={18} />
@@ -126,7 +118,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
             className="w-6 h-6 rounded-md object-cover shrink-0"
             draggable={false}
           />
-          <span className="text-sm font-bold tracking-tight" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          <span className="text-sm font-bold tracking-tight text-foreground">
             KHURK OS
           </span>
         </div>
@@ -146,10 +138,10 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
               style={{ boxShadow: '0 0 32px rgba(34,211,238,0.35)' }}
             />
             <div className="text-center">
-              <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'rgba(255,255,255,0.95)' }}>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
                 KHURK OS
               </h1>
-              <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <p className="text-sm mt-0.5 text-muted-foreground">
                 Your apps, all in one place
               </p>
             </div>
@@ -157,8 +149,8 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
 
           {/* Section label */}
           <p
-            className="w-full max-w-5xl text-xs font-bold uppercase mb-4"
-            style={{ color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em' }}
+            className="w-full max-w-5xl text-xs font-bold uppercase mb-4 text-muted-foreground/60"
+            style={{ letterSpacing: '0.15em' }}
           >
             All Apps
           </p>
@@ -170,7 +162,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
             ))}
           </div>
 
-          <p className="mt-10 text-xs" style={{ color: 'rgba(255,255,255,0.18)' }}>
+          <p className="mt-10 text-xs text-muted-foreground/40">
             2026 ® KHURK OS · powered by Hollr Chat
           </p>
         </div>
