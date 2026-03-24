@@ -537,6 +537,9 @@ export function DockBar() {
               marginTop: '-56px',
               paddingBottom: '8px',
               marginBottom: '-8px',
+              // Right padding ensures the last icon is never flush-clipped at
+              // the scroll boundary — gives it breathing room before the edge.
+              paddingRight: '12px',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch' as any,
