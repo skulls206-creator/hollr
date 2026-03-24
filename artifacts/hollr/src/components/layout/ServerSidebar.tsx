@@ -68,6 +68,7 @@ function SortableServerItem({
       {...listeners}
       {...attributes}
       style={{ transform: CSS.Transform.toString(transform), transition: transition ?? undefined, touchAction: 'none', opacity: isDragging ? 0 : 1 }}
+      className="py-0.5"
     >
       <Tooltip>
         <TooltipTrigger asChild>
