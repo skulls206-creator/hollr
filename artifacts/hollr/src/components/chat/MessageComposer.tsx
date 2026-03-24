@@ -412,7 +412,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Message… (type / for commands)"
+          placeholder="Holler…"
           className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-1.5 min-h-[36px] max-h-[200px] overflow-y-auto leading-normal"
           rows={1}
           style={{ height: '36px' }}
