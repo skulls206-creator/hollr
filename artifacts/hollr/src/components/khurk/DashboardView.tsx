@@ -66,10 +66,10 @@ function AppCard({ app }: { app: KhurkApp }) {
 }
 
 interface DashboardViewProps {
-  onOpenMobileSidebar?: () => void;
+  onOpenSidebar?: () => void;
 }
 
-export function DashboardView({ onOpenMobileSidebar }: DashboardViewProps) {
+export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
   return (
     <div
       className="flex flex-col flex-1 min-h-0 h-full overflow-y-auto no-scrollbar"
@@ -78,11 +78,12 @@ export function DashboardView({ onOpenMobileSidebar }: DashboardViewProps) {
         backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(93,55,177,0.10) 0%, transparent 55%)',
       }}
     >
-      {/* Mobile top bar — only shows on small screens; gives access to sidebar */}
-      <div className="flex md:hidden items-center gap-3 px-3 pt-3 pb-1 shrink-0">
+      {/* Top bar — always visible; hamburger opens the DM/channel sidebar */}
+      <div className="flex items-center gap-3 px-3 pt-3 pb-1 shrink-0">
         <button
-          onClick={onOpenMobileSidebar}
+          onClick={onOpenSidebar}
           className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/8 transition-colors"
+          title="Open sidebar"
         >
           <Menu size={18} />
         </button>
@@ -97,10 +98,10 @@ export function DashboardView({ onOpenMobileSidebar }: DashboardViewProps) {
         </div>
       </div>
 
-      <div className="flex flex-col items-center w-full max-w-2xl mx-auto px-3 pt-6 pb-12 md:pt-10 md:pb-16 md:px-4">
+      <div className="flex flex-col items-center w-full max-w-2xl mx-auto px-3 pt-4 pb-12 md:pt-6 md:pb-16 md:px-4">
 
-        {/* Header — hidden on mobile (replaced by top bar) */}
-        <div className="hidden md:flex flex-col items-center gap-3 mb-8">
+        {/* Header — large KHURK OS logo, always shown */}
+        <div className="flex flex-col items-center gap-3 mb-8">
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20"
             style={{ background: 'linear-gradient(135deg, #2d0a8c 0%, #5b21b6 100%)' }}

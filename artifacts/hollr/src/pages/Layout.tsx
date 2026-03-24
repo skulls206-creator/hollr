@@ -92,10 +92,11 @@ export function Layout() {
     */
     <div className="flex flex-col h-screen w-full bg-background overflow-hidden font-sans text-foreground">
 
-      {/* Mobile sidebar backdrop */}
+      {/* Sidebar backdrop — always shown on mobile; also shown on desktop when
+          the dashboard/app is active (sidebar is hidden by default there) */}
       {mobileSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-30 md:hidden"
+          className={`fixed inset-0 bg-black/60 z-30 ${(showDashboard || showAppWindow) ? '' : 'md:hidden'}`}
           onClick={() => setMobileSidebarOpen(false)}
         />
       )}
@@ -132,10 +133,17 @@ export function Layout() {
         <div
           className={[
             'flex z-40 shrink-0',
-            'md:relative md:translate-x-0 md:h-full',
+            'md:relative md:h-full',
             'fixed transition-transform duration-200',
             layoutMode === 'dock' ? 'bottom-[78px] md:bottom-0 h-[calc(100%-78px)] md:h-full' : 'h-full bottom-0',
-            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+            // When dashboard or app window is open, hide on ALL screen sizes
+            // and only show as a slide-out when mobileSidebarOpen is true.
+            // Otherwise on desktop the sidebar is always visible.
+            mobileSidebarOpen
+              ? 'translate-x-0 md:translate-x-0'
+              : (showDashboard || showAppWindow)
+                ? '-translate-x-full md:-translate-x-full'
+                : '-translate-x-full md:translate-x-0',
           ].join(' ')}
         >
           {layoutMode === 'classic' && <ServerSidebar />}
@@ -163,7 +171,7 @@ export function Layout() {
               <AppWindow />
             ) : showDashboard ? (
               /* ── KHURK OS Dashboard ── */
-              <DashboardView onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
+              <DashboardView onOpenSidebar={() => setMobileSidebarOpen(true)} />
             ) : activeDmThreadId ? (
               /* ── DM chat ── */
               <DmChatArea

@@ -100,19 +100,12 @@ export function AppWindow() {
           )}
         </div>
 
-        {/* App name + URL */}
+        {/* App name + tagline */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground leading-tight truncate">
             {app.name}
           </p>
-          <button
-            onClick={() => window.open(app.url, '_blank', 'noopener')}
-            className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/60 hover:text-primary leading-tight truncate transition-colors group"
-            title={app.url}
-          >
-            <span className="truncate">{app.url.replace(/^https?:\/\//, '')}</span>
-            <ExternalLink size={8} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </button>
+          <p className="text-[10px] text-muted-foreground/60 leading-tight truncate">{app.tagline}</p>
         </div>
 
         {/* Controls */}
