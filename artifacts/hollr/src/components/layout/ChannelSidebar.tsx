@@ -872,6 +872,31 @@ function UserProfilePanel({
               </div>
             </button>
             <button
+              onClick={() => {
+                if (khurkAppsMode === 'all') dismissAllApps();
+                else if (khurkAppsMode === 'none') restoreAllApps();
+                else restoreAllApps();
+              }}
+              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+            >
+              <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1 text-left">KHURK APPS</span>
+              <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
+                <span
+                  onClick={(e) => { e.stopPropagation(); restoreAllApps(); }}
+                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'all' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+                >All</span>
+                <span
+                  onClick={(e) => { e.stopPropagation(); }}
+                  className={cn("px-1.5 py-0.5 transition-colors cursor-default", khurkAppsMode === 'neutral' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                >Ø</span>
+                <span
+                  onClick={(e) => { e.stopPropagation(); dismissAllApps(); }}
+                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'none' ? "bg-destructive text-white" : "text-muted-foreground hover:text-foreground")}
+                >None</span>
+              </div>
+            </button>
+            <button
               onClick={() => setLayoutMode(layoutMode === 'classic' ? 'dock' : 'classic')}
               className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
             >
@@ -909,31 +934,6 @@ function UserProfilePanel({
                 </div>
               </button>
             )}
-            <button
-              onClick={() => {
-                if (khurkAppsMode === 'all') dismissAllApps();
-                else if (khurkAppsMode === 'none') restoreAllApps();
-                else restoreAllApps();
-              }}
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
-            >
-              <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
-              <span className="flex-1 text-left">KHURK APPS</span>
-              <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
-                <span
-                  onClick={(e) => { e.stopPropagation(); restoreAllApps(); }}
-                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'all' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-                >All</span>
-                <span
-                  onClick={(e) => { e.stopPropagation(); }}
-                  className={cn("px-1.5 py-0.5 transition-colors cursor-default", khurkAppsMode === 'neutral' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
-                >Ø</span>
-                <span
-                  onClick={(e) => { e.stopPropagation(); dismissAllApps(); }}
-                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'none' ? "bg-destructive text-white" : "text-muted-foreground hover:text-foreground")}
-                >None</span>
-              </div>
-            </button>
             <div className="h-px bg-border/40 my-1" />
             <button
               onClick={() => { logout(); setQuickOpen(false); }}
