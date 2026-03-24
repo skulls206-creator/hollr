@@ -868,6 +868,38 @@ function UserProfilePanel({
         </div>
       </div>
 
+      {/* ── Install App banner — only visible when PWA is not yet installed ── */}
+      {canInstall && (
+        <div className="mx-2 mb-1">
+          {isIOS ? (
+            <Popover open={iosInstallOpen} onOpenChange={setIosInstallOpen}>
+              <PopoverTrigger asChild>
+                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 text-primary transition-all duration-150 group/install">
+                  <Share2 size={15} className="shrink-0" />
+                  <span className="flex-1 text-left text-xs font-semibold">Add to Home Screen</span>
+                  <ChevronDown size={12} className="shrink-0 opacity-60 -rotate-90" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" className="w-64 p-3 bg-[#111214] border-border/50 text-sm" sideOffset={6}>
+                <p className="font-semibold text-foreground mb-1">Add to Home Screen</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Tap the <span className="font-semibold text-foreground">Share</span> button in Safari, then choose <span className="font-semibold text-foreground">Add to Home Screen</span>.
+                </p>
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <button
+              onClick={promptInstall}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 text-primary transition-all duration-150"
+            >
+              <MonitorDown size={15} className="shrink-0" />
+              <span className="flex-1 text-left text-xs font-semibold">Install App</span>
+              <ChevronDown size={12} className="shrink-0 opacity-60 -rotate-90" />
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="mx-2 mb-2 mt-1 flex items-center px-3 py-2 gap-2 group/profile bg-background/80 backdrop-blur-xl border border-border/30 shadow-xl shadow-black/30 rounded-2xl">
         {/* Avatar — click to open quick actions (sign out, KHURK OS toggle) */}
         <Popover open={quickOpen} onOpenChange={setQuickOpen}>
@@ -1103,42 +1135,6 @@ function UserProfilePanel({
 
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 shrink-0">
-          {/* Install app — slides in when hovering the profile strip */}
-          {canInstall && (
-            <div className="overflow-hidden w-0 opacity-0 group-hover/profile:w-7 group-hover/profile:opacity-100 transition-all duration-200 ease-out shrink-0 flex items-center">
-              {isIOS ? (
-                <Popover open={iosInstallOpen} onOpenChange={setIosInstallOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      title="Add to Home Screen"
-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
-                    >
-                      <Share2 size={18} />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    side="top"
-                    align="end"
-                    className="w-56 p-3 bg-[#111214] border-border/50 text-sm"
-                    sideOffset={8}
-                  >
-                    <p className="font-semibold text-foreground mb-1">Add to Home Screen</p>
-                    <p className="text-muted-foreground text-xs leading-relaxed">
-                      Tap the <span className="font-semibold text-foreground">Share</span> button in Safari, then choose <span className="font-semibold text-foreground">Add to Home Screen</span>.
-                    </p>
-                  </PopoverContent>
-                </Popover>
-              ) : (
-                <button
-                  onClick={promptInstall}
-                  title="Install app"
-                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
-                >
-                  <MonitorDown size={18} />
-                </button>
-              )}
-            </div>
-          )}
           {/* Mic toggle + input device picker */}
           <div className="flex items-center rounded-md">
             <button
