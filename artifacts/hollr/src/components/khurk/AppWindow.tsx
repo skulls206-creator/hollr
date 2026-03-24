@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon } from '@/lib/khurk-apps';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
-import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, Menu } from 'lucide-react';
+import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, Menu, FolderOpen, FolderCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const MAX_PIP = 4;
 
@@ -17,18 +18,23 @@ export function AppWindow() {
   const { show: showMenu } = useContextMenu();
   const [refreshCount, setRefreshCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [connectedFolderName, setConnectedFolderName] = useState<string | null>(null);
+
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const app = KHURK_APPS.find((a) => a.id === activeKhurkAppId);
 
-  // Reset iframe and loading state whenever the active app changes
+  // Reset iframe, loading state, and connected folder whenever the active app changes
   useEffect(() => {
     setRefreshCount(0);
     setLoading(true);
+    setConnectedFolderName(null);
   }, [activeKhurkAppId]);
 
   const refresh = useCallback(() => {
     setRefreshCount((c) => c + 1);
     setLoading(true);
+    setConnectedFolderName(null);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -46,6 +52,52 @@ export function AppWindow() {
     setActiveKhurkAppId(null);
   }, [activeKhurkAppId, pipWindows.length, addPipWindow, setActiveKhurkAppId, toast]);
 
+  // ── Folder picker bridge ────────────────────────────────────────────────────
+  // The app inside the iframe is cross-origin and can't call showDirectoryPicker()
+  // itself. Hollr (the parent) picks the folder, then passes the FileSystemDirectoryHandle
+  // to the iframe via postMessage. The iframe app listens for { type: 'khurk:fs-directory' }
+  // and uses the handle to read/write .md files directly.
+  const handlePickFolder = useCallback(async () => {
+    if (!('showDirectoryPicker' in window)) {
+      toast({
+        title: 'Not supported in this browser',
+        description: 'File System Access requires Chrome or Edge on desktop.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    let dirHandle: FileSystemDirectoryHandle;
+    try {
+      dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+    } catch (err: any) {
+      // User cancelled — do nothing
+      if (err?.name === 'AbortError') return;
+      toast({ title: 'Could not open folder', description: String(err?.message ?? err), variant: 'destructive' });
+      return;
+    }
+
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) {
+      toast({ title: 'App not ready', description: 'Wait for the app to finish loading first.', variant: 'destructive' });
+      return;
+    }
+
+    // Post the handle to the embedded app.
+    // The app should listen: window.addEventListener('message', (e) => { if (e.data?.type === 'khurk:fs-directory') ... })
+    // It will receive e.data.handle (a FileSystemDirectoryHandle) and e.data.name (folder name string).
+    iframe.contentWindow.postMessage(
+      { type: 'khurk:fs-directory', handle: dirHandle, name: dirHandle.name },
+      '*',
+    );
+
+    setConnectedFolderName(dirHandle.name);
+    toast({
+      title: `Folder connected: ${dirHandle.name}`,
+      description: 'The app can now read and write files in this folder.',
+    });
+  }, [toast]);
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       if (!app) return;
@@ -62,6 +114,12 @@ export function AppWindow() {
             label: 'Refresh App',
             icon: <RefreshCw size={14} />,
             onClick: refresh,
+          },
+          {
+            id: 'pick-folder',
+            label: 'Connect a Folder…',
+            icon: <FolderOpen size={14} />,
+            onClick: handlePickFolder,
           },
           {
             id: 'pip',
@@ -87,7 +145,7 @@ export function AppWindow() {
         ],
       });
     },
-    [app, showMenu, refresh, handlePip, handleClose]
+    [app, showMenu, refresh, handlePickFolder, handlePip, handleClose]
   );
 
   if (!app) return null;
@@ -99,7 +157,7 @@ export function AppWindow() {
         className="flex items-center gap-2 px-3 py-2 bg-surface-1 border-b border-border/30 shrink-0 select-none cursor-default"
         onContextMenu={handleContextMenu}
       >
-        {/* Hamburger — opens channel/DM panel from inside the app window */}
+        {/* Hamburger */}
         <button
           title="Toggle messages panel"
           onClick={() => layoutMode === 'classic' ? toggleClassicChannel() : toggleMobileSidebar()}
@@ -111,9 +169,7 @@ export function AppWindow() {
         {/* App icon */}
         <div
           className="w-7 h-7 rounded-lg overflow-hidden shrink-0 shadow-sm"
-          style={{
-            background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
-          }}
+          style={{ background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)` }}
         >
           {app.imageSrc ? (
             <img src={app.imageSrc} alt={app.name} className="w-full h-full object-cover" />
@@ -126,14 +182,27 @@ export function AppWindow() {
 
         {/* App name + tagline */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground leading-tight truncate">
-            {app.name}
-          </p>
+          <p className="text-sm font-semibold text-foreground leading-tight truncate">{app.name}</p>
           <p className="text-[10px] text-muted-foreground/60 leading-tight truncate">{app.tagline}</p>
         </div>
 
         {/* Controls */}
         <div className="flex items-center gap-0.5 shrink-0">
+
+          {/* Connect Folder — hollr picks the dir, passes handle to the iframe app */}
+          <button
+            title={connectedFolderName ? `Connected: ${connectedFolderName} — click to change` : 'Connect a folder of files'}
+            onClick={handlePickFolder}
+            className={cn(
+              'p-1.5 rounded-md transition-colors',
+              connectedFolderName
+                ? 'text-emerald-400 hover:text-emerald-300 hover:bg-white/5'
+                : 'text-muted-foreground hover:text-foreground hover:bg-white/5',
+            )}
+          >
+            {connectedFolderName ? <FolderCheck size={13} /> : <FolderOpen size={13} />}
+          </button>
+
           <button
             title="Refresh"
             onClick={refresh}
@@ -168,14 +237,11 @@ export function AppWindow() {
 
       {/* ── Iframe area ── */}
       <div className="relative flex-1 min-h-0 overflow-hidden">
-        {/* Loading overlay — fades out when iframe fires onLoad */}
         {loading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10 gap-4 pointer-events-none">
             <div
               className="w-14 h-14 rounded-2xl overflow-hidden shadow-lg"
-              style={{
-                background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
-              }}
+              style={{ background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)` }}
             >
               {app.imageSrc ? (
                 <img src={app.imageSrc} alt={app.name} className="w-full h-full object-cover" />
@@ -191,14 +257,12 @@ export function AppWindow() {
         )}
 
         <iframe
+          ref={iframeRef}
           key={`${app.id}-${refreshCount}`}
           src={app.url}
           title={app.name}
           className="w-full h-full border-none"
-          style={{
-            opacity: loading ? 0 : 1,
-            transition: 'opacity 0.35s ease',
-          }}
+          style={{ opacity: loading ? 0 : 1, transition: 'opacity 0.35s ease' }}
           onLoad={() => setLoading(false)}
           allow="camera; microphone; fullscreen; clipboard-read; clipboard-write; autoplay"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation"
