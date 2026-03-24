@@ -104,12 +104,12 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
   return (
     <div
       className="flex flex-col flex-1 min-h-0 h-full"
-      style={{ background: '#111111' }}
+      style={{ background: '#07070a' }}
     >
       {/* Top bar */}
       <div
         className="flex items-center gap-3 px-4 shrink-0"
-        style={{ height: '52px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        style={{ height: '52px', background: '#0c0c10', borderBottom: '1px solid rgba(255,255,255,0.08)' }}
       >
         <button
           onClick={onOpenSidebar}
