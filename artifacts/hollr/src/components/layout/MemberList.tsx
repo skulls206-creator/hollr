@@ -191,16 +191,16 @@ function MemberRow({
   return (
     <div
       onContextMenu={handleContextMenu}
-      className={`flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-secondary/50 transition-colors group ${!isOnline ? 'opacity-50' : ''}`}
+      className={`flex items-center gap-3 px-2 py-2 rounded-md hover:bg-secondary/50 transition-colors group ${!isOnline ? 'opacity-50' : ''}`}
     >
       <button
         onClick={handleClick}
-        className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
+        className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
       >
         <div className="relative shrink-0">
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-10 w-10">
             <AvatarImage src={member.user.avatarUrl || undefined} />
-            <AvatarFallback className="bg-primary text-white text-xs">
+            <AvatarFallback className="bg-primary text-white text-sm">
               {getInitials(member.user.displayName || member.user.username)}
             </AvatarFallback>
           </Avatar>
@@ -208,11 +208,11 @@ function MemberRow({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 min-w-0">
-            <span className="text-sm font-medium text-foreground truncate min-w-0">
+            <span className="text-sm font-semibold text-foreground truncate min-w-0">
               {member.user.displayName || member.user.username}
             </span>
-            {member.role === 'owner' && <Crown size={12} className="text-yellow-400 shrink-0" />}
-            {member.role === 'admin' && <ShieldCheck size={12} className="text-primary shrink-0" />}
+            {member.role === 'owner' && <Crown size={13} className="text-yellow-400 shrink-0" />}
+            {member.role === 'admin' && <ShieldCheck size={13} className="text-primary shrink-0" />}
           </div>
           {member.user.customStatus && (
             <p className="text-xs text-muted-foreground truncate">{member.user.customStatus}</p>
