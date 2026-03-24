@@ -315,8 +315,10 @@ export function ServerSidebar() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
+      <div className="w-[72px] h-full bg-surface-0 shrink-0 flex flex-col overflow-hidden border-r border-border/10 z-20">
+      {/* ── Scrollable section (servers + apps) ── */}
       <div className={cn(
-        "w-[72px] h-full bg-surface-0 shrink-0 flex flex-col items-center py-3 gap-2 overflow-x-hidden no-scrollbar border-r border-border/10 z-20",
+        "flex-1 flex flex-col items-center py-3 gap-2 overflow-x-hidden no-scrollbar",
         isAnyDragging ? "overflow-y-hidden" : "overflow-y-auto"
       )}>
 
@@ -436,52 +438,51 @@ export function ServerSidebar() {
           </>
         )}
 
-        {/* Spacer */}
-        <div className="flex-1" />
+      </div>{/* end scrollable section */}
 
-        {/* ── Hollr icon — pinned to bottom ── */}
-        <div
-          className="w-full shrink-0 flex flex-col items-center gap-1 px-3"
-          style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
-        >
-          <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent mb-1" />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <motion.button
-                onClick={() => {
-                  const dashboardActive = khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp;
-                  if (dashboardActive) setKhurkDashboardOpen(false);
-                  else openKhurkDashboard();
-                }}
-                onContextMenu={handleHollrContextMenu}
-                className="relative group flex items-center justify-center w-full h-12"
-                whileTap={{ scale: 0.92 }}
+      {/* ── Hollr / KHURK OS icon — always pinned to the bottom, never scrolls ── */}
+      <div
+        className="shrink-0 flex flex-col items-center gap-1 px-3"
+        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+      >
+        <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent mb-1" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <motion.button
+              onClick={() => {
+                const dashboardActive = khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp;
+                if (dashboardActive) setKhurkDashboardOpen(false);
+                else openKhurkDashboard();
+              }}
+              onContextMenu={handleHollrContextMenu}
+              className="relative group flex items-center justify-center w-full h-12"
+              whileTap={{ scale: 0.92 }}
+            >
+              <div className={cn(
+                'w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden rounded-[24px] group-hover:rounded-2xl group-hover:scale-105',
+                'shadow-lg group-hover:shadow-[0_0_16px_3px_rgba(34,211,238,0.35)]',
+                khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp
+                  ? 'ring-2 ring-[#22d3ee] ring-offset-2 ring-offset-surface-0 rounded-2xl'
+                  : ''
+              )}
+                style={{ background: '#0a1a1f' }}
               >
-                <div className={cn(
-                  'w-12 h-12 flex items-center justify-center transition-all duration-300 overflow-hidden rounded-[24px] group-hover:rounded-2xl group-hover:scale-105',
-                  'shadow-lg group-hover:shadow-[0_0_16px_3px_rgba(34,211,238,0.35)]',
-                  khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeApp
-                    ? 'ring-2 ring-[#22d3ee] ring-offset-2 ring-offset-surface-0 rounded-2xl'
-                    : ''
-                )}
-                  style={{ background: '#0a1a1f' }}
-                >
-                  <img
-                    src="/khurk-logo.png"
-                    alt="KHURK OS"
-                    className="w-full h-full object-cover"
-                    draggable={false}
-                  />
-                </div>
-              </motion.button>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="ml-2 p-2">
-              <p className="font-bold text-xs">KHURK OS</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">Click to toggle · Right-click for menu</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
+                <img
+                  src="/khurk-logo.png"
+                  alt="KHURK OS"
+                  className="w-full h-full object-cover"
+                  draggable={false}
+                />
+              </div>
+            </motion.button>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="ml-2 p-2">
+            <p className="font-bold text-xs">KHURK OS</p>
+            <p className="text-[10px] text-muted-foreground leading-tight">Click to toggle · Right-click for menu</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
+      </div>{/* end outer sidebar wrapper */}
 
       {/* DragOverlay — portalled to document.body, handles both server and KHURK ghosts */}
       <DragOverlay dropAnimation={{ duration: 160, easing: 'ease' }}>
