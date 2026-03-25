@@ -1,0 +1,50 @@
+You want to tell an AI that the “Direct Messages” title in your top bar should become an interactive search control that turns into a search field and lets users search by username or any message text across their DMs.
+
+Here’s a prompt you can paste directly:
+
+I am designing the top navigation bar of a mobile Discord‑style “Direct Messages” screen (see screenshot). I want to add a search interaction that lives in that top bar in a beautiful, minimal way.
+
+Requirements:
+
+Search entry in the top bar
+
+The bar currently shows a title text “Direct Messages”.
+
+Add a search affordance (icon or tap area) in or near that title, so it feels native to iOS/Android chat apps and does not clutter the bar.
+
+When the user taps either the search icon or the “Direct Messages” text, the title should smoothly transform into a search field.
+
+Title → search transformation
+
+Animate the “Direct Messages” title into a rounded search input that stretches across most of the top bar.
+
+The input should show a subtle magnifying glass icon on the left and placeholder text like “Search messages and users”.
+
+Autofocus the field and open the keyboard so users can start typing immediately.
+
+What search can do
+
+The search should filter across:
+
+Usernames and display names in the DM list.
+
+Any message text inside existing DM conversations (global DM search, not just one channel).
+
+As the user types, show live results below: matching conversations grouped by user, with a snippet of the matched message text.
+
+Interaction details
+
+Include a clear way to cancel search: an “X” icon inside the input or a “Cancel” label on the right of the bar.
+
+Canceling should close the search field and restore the original “Direct Messages” title and layout.
+
+Keep the styling consistent with a dark Discord‑like theme: dark background, high‑contrast text, and a subtle accent color for the active search state.
+
+Output:
+
+A refined visual layout for the top bar in both “title” and “search active” states.
+
+UX notes for the animation between those states and how the search results list should appear under the bar.
+
+Any suggestions to make the search entry point obvious but still clean and premium‑looking.
+

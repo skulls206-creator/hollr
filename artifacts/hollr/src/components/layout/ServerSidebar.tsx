@@ -1,4 +1,4 @@
-import { Plus, MessageSquare, UserPlus, Settings, LogOut, Copy, Bell, Hash, ExternalLink, Trash2, RotateCcw, LayoutGrid, RefreshCw, HelpCircle, ServerIcon, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, MessageSquare, UserPlus, Settings, LogOut, Copy, Bell, Hash, ExternalLink, Trash2, RotateCcw, LayoutGrid, RefreshCw, HelpCircle, ServerIcon, ArrowUp, ArrowDown, Lock, Unlock } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListMyServers } from '@workspace/api-client-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -64,9 +64,9 @@ function KhurkAppIcon({ app }: { app: KhurkApp }) {
 
 // ─── Sortable server icon ──────────────────────────────────────────────────────
 function SortableServerItem({
-  server, isActive, onClick, onContextMenu,
+  server, isActive, isPrivate, onClick, onContextMenu,
 }: {
-  server: any; isActive: boolean; onClick: () => void; onContextMenu: (e: React.MouseEvent) => void;
+  server: any; isActive: boolean; isPrivate?: boolean; onClick: () => void; onContextMenu: (e: React.MouseEvent) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: server.id });
   return (
@@ -100,6 +100,11 @@ function SortableServerItem({
                 : <span className="font-medium text-lg tracking-wider">{getInitials(server.name)}</span>
               }
             </div>
+            {isPrivate && (
+              <span className="absolute top-0 right-0 w-4 h-4 flex items-center justify-center rounded-full bg-surface-0 ring-1 ring-border/30 shadow-sm pointer-events-none">
+                <Lock size={8} className="text-muted-foreground" />
+              </span>
+            )}
           </motion.button>
         </TooltipTrigger>
         <TooltipContent side="right" className="font-semibold ml-2">{server.name}</TooltipContent>
@@ -152,6 +157,7 @@ export function ServerSidebar() {
     activeServerId, setActiveServer, setCreateServerModalOpen,
     dmUnreadCounts, activeDmThreadId, setInviteModalOpen, setServerSettingsModalOpen,
     setUserSettingsModalOpen, setJoinServerModalOpen, setHelpModalOpen,
+    toggleServerPrivacy, isServerPrivate,
   } = useAppStore();
   const { data: rawServers = [] } = useListMyServers();
   const { user } = useAuth();
@@ -257,6 +263,14 @@ export function ServerSidebar() {
       { id: 'copy-id', label: 'Copy Server ID', icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText(server.id) },
     ];
     if (isOwner) actions.push({ id: 'settings', label: 'Server Settings', icon: <Settings size={14} />, onClick: () => { setActiveServer(server.id); setServerSettingsModalOpen(true); }, dividerBefore: true });
+    const isPrivate = isServerPrivate(server.id);
+    actions.push({
+      id: 'privacy',
+      label: isPrivate ? 'Make Public (Remove Privacy)' : 'Make Private (Hide from Search)',
+      icon: isPrivate ? <Unlock size={14} /> : <Lock size={14} />,
+      onClick: () => toggleServerPrivacy(server.id),
+      dividerBefore: !isOwner,
+    });
     if (!isOwner) actions.push({ id: 'leave', label: 'Leave Server', icon: <LogOut size={14} />, onClick: () => leaveServer(server.id, server.name), danger: true, dividerBefore: true });
     showMenu({ x: e.clientX, y: e.clientY, actions, title: server.name, titleIcon: server.iconUrl || undefined });
   };
@@ -407,6 +421,7 @@ export function ServerSidebar() {
               key={server.id}
               server={server}
               isActive={activeServerId === server.id}
+              isPrivate={isServerPrivate(server.id)}
               onClick={() => setActiveServer(server.id)}
               onContextMenu={(e) => handleServerContextMenu(e, server)}
             />

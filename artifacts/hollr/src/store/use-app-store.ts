@@ -214,6 +214,34 @@ interface AppState {
   // Chat message text size preference
   chatFontSize: 'sm' | 'md' | 'lg';
   setChatFontSize: (size: 'sm' | 'md' | 'lg') => void;
+
+  // DM voice/call state
+  dmCall: {
+    state: 'idle' | 'outgoing_ringing' | 'incoming_request' | 'incoming_ringing' | 'connected';
+    targetUserId: string | null;
+    targetDisplayName: string | null;
+    targetAvatarUrl: string | null;
+    dmThreadId: string | null;
+    startedAt: number | null;
+    minimized: boolean;
+  };
+  setDmCallState: (patch: Partial<AppState['dmCall']>) => void;
+  endDmCall: () => void;
+
+  // Call privacy settings
+  allowCallsFrom: 'everyone' | 'approved_only' | 'nobody';
+  setAllowCallsFrom: (v: 'everyone' | 'approved_only' | 'nobody') => void;
+
+  // Per-user approved caller list (Signal-style consent)
+  approvedCallers: string[];
+  approveCallsFrom: (userId: string) => void;
+  revokeCallsFrom: (userId: string) => void;
+  isCallerApproved: (userId: string) => boolean;
+
+  // Server privacy — servers marked private won't show in discovery/search
+  privateServerIds: string[];
+  toggleServerPrivacy: (serverId: string) => void;
+  isServerPrivate: (serverId: string) => boolean;
 }
 
 export const useAppStore = create<AppState>()(
@@ -476,6 +504,53 @@ export const useAppStore = create<AppState>()(
 
   chatFontSize: 'md',
   setChatFontSize: (size) => set({ chatFontSize: size }),
+
+  dmCall: {
+    state: 'idle',
+    targetUserId: null,
+    targetDisplayName: null,
+    targetAvatarUrl: null,
+    dmThreadId: null,
+    startedAt: null,
+    minimized: false,
+  },
+  setDmCallState: (patch) => set((state) => ({ dmCall: { ...state.dmCall, ...patch } })),
+  endDmCall: () => set({
+    dmCall: {
+      state: 'idle',
+      targetUserId: null,
+      targetDisplayName: null,
+      targetAvatarUrl: null,
+      dmThreadId: null,
+      startedAt: null,
+      minimized: false,
+    },
+  }),
+
+  allowCallsFrom: 'approved_only',
+  setAllowCallsFrom: (v) => set({ allowCallsFrom: v }),
+
+  approvedCallers: [],
+  approveCallsFrom: (userId) => set((state) => ({
+    approvedCallers: state.approvedCallers.includes(userId)
+      ? state.approvedCallers
+      : [...state.approvedCallers, userId],
+  })),
+  revokeCallsFrom: (userId) => set((state) => ({
+    approvedCallers: state.approvedCallers.filter(id => id !== userId),
+  })),
+  isCallerApproved: (userId) => {
+    const s = get();
+    return s.allowCallsFrom === 'everyone' || s.approvedCallers.includes(userId);
+  },
+
+  privateServerIds: [],
+  toggleServerPrivacy: (serverId) => set((state) => ({
+    privateServerIds: state.privateServerIds.includes(serverId)
+      ? state.privateServerIds.filter(id => id !== serverId)
+      : [...state.privateServerIds, serverId],
+  })),
+  isServerPrivate: (serverId) => get().privateServerIds.includes(serverId),
     }),
     {
       name: 'hollr-nav',
@@ -495,6 +570,9 @@ export const useAppStore = create<AppState>()(
         khurkOsEnabled: state.khurkOsEnabled,
         sidebarLocked: state.sidebarLocked,
         chatFontSize: state.chatFontSize,
+        allowCallsFrom: state.allowCallsFrom,
+        approvedCallers: state.approvedCallers,
+        privateServerIds: state.privateServerIds,
       }),
     }
   )

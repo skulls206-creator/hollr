@@ -16,6 +16,7 @@ import { UserSettingsModal } from '@/components/modals/UserSettingsModal';
 import { ThreadSidebar } from '@/components/chat/ThreadSidebar';
 import { UserProfileCard } from '@/components/chat/UserProfileCard';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
+import { DmCallOverlay } from '@/components/call/DmCallOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { MobileDmList } from '@/components/layout/MobileDmList';
 import { DockBar } from '@/components/layout/DockBar';
@@ -234,6 +235,7 @@ export function Layout() {
               /* ── DM chat ── */
               <DmChatArea
                 threadId={activeDmThreadId}
+                recipientId={dmRecipient?.id}
                 recipientName={dmRecipient?.displayName || dmRecipient?.username || 'Unknown'}
                 recipientAvatar={dmRecipient?.avatarUrl}
               />
@@ -391,6 +393,8 @@ export function Layout() {
           onClose={closeProfileCard}
         />
       )}
+
+      <DmCallOverlay />
     </div>
   );
 }

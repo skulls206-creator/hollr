@@ -19,6 +19,21 @@ let _onNewPeer: ((userId: string) => void) | null = null;
 // Music state listener — called whenever a MUSIC_STATE_UPDATE arrives
 let _onMusicStateUpdate: ((payload: MusicState) => void) | null = null;
 
+// DM call signal handler (set by DmCallOverlay)
+let _onDmCallSignal: ((payload: any) => void) | null = null;
+
+export function setDmCallSignalListener(listener: ((payload: any) => void) | null) {
+  _onDmCallSignal = listener;
+}
+
+export function sendDmCallSignal(payload: any) {
+  if (_sendRaw) {
+    _sendRaw({ type: 'DM_CALL_SIGNAL', payload });
+  } else {
+    console.warn('[WS] sendDmCallSignal called before WebSocket connected');
+  }
+}
+
 export function setMusicStateListener(listener: ((payload: MusicState) => void) | null) {
   _onMusicStateUpdate = listener;
 }
@@ -81,6 +96,7 @@ type WsEvent =
   | { type: 'VOICE_SPEAKING_STOP'; payload: { channelId: string; userId: string } }
   | { type: 'PRESENCE_UPDATE'; payload: { userId: string; status: string } }
   | { type: 'MUSIC_STATE_UPDATE'; payload: MusicState }
+  | { type: 'DM_CALL_SIGNAL'; payload: any }
   | { type: 'CONNECTED' };
 
 export function useRealtime(userId?: string) {
@@ -95,6 +111,10 @@ export function useRealtime(userId?: string) {
     incrementUnreadCount,
     clearUnreadCount,
     incrementDmUnreadCount,
+    setDmCallState,
+    endDmCall,
+    isCallerApproved,
+    allowCallsFrom,
   } = useAppStore();
 
   // Request notification permission early
@@ -299,6 +319,40 @@ export function useRealtime(userId?: string) {
 
           case 'MUSIC_STATE_UPDATE': {
             if (_onMusicStateUpdate) _onMusicStateUpdate(data.payload);
+            break;
+          }
+
+          case 'DM_CALL_SIGNAL': {
+            if (_onDmCallSignal) {
+              _onDmCallSignal(data.payload);
+              break;
+            }
+            // Handle incoming signals when no explicit listener is set
+            const { type: ctype, callerId, callerName, callerAvatar, dmThreadId } = data.payload ?? {};
+            if (ctype === 'call_ring') {
+              // Someone is calling — decide: approved full ring, or request flow
+              const approved = allowCallsFrom === 'nobody'
+                ? null
+                : isCallerApproved(callerId)
+                  ? 'incoming_ringing'
+                  : allowCallsFrom === 'everyone'
+                    ? 'incoming_ringing'
+                    : 'incoming_request';
+              if (approved) {
+                setDmCallState({
+                  state: approved,
+                  targetUserId: callerId,
+                  targetDisplayName: callerName,
+                  targetAvatarUrl: callerAvatar ?? null,
+                  dmThreadId: dmThreadId ?? null,
+                  minimized: false,
+                });
+              }
+            } else if (ctype === 'call_accept') {
+              setDmCallState({ state: 'connected', startedAt: Date.now() });
+            } else if (ctype === 'call_decline' || ctype === 'call_end') {
+              endDmCall();
+            }
             break;
           }
         }

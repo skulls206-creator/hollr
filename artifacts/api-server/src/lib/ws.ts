@@ -246,6 +246,14 @@ export function initWebSocket(server: Server) {
             break;
           }
 
+          case "DM_CALL_SIGNAL": {
+            const { targetId } = msg.payload ?? {};
+            if (targetId) {
+              sendToUser(targetId, { type: "DM_CALL_SIGNAL", payload: msg.payload });
+            }
+            break;
+          }
+
           case "PRESENCE_UPDATE": {
             const { userId: presenceUserId, status } = msg.payload ?? {};
             const validStatuses = ["online", "idle", "dnd", "invisible"];

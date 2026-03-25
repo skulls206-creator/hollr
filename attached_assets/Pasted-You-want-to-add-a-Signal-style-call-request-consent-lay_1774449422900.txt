@@ -1,0 +1,71 @@
+You want to add a Signal-style “call request / consent” layer on top of the iPhone‑like call UI, so people can’t just cold‑call each other and PWAs can notify but not auto‑ring strangers.
+
+Here’s an updated prompt you can use with AI (this replaces/extends the earlier one):
+
+Updated prompt for AI (with call request + PWA)
+In my Discord‑style mobile DM app, I’m adding a “phone call mode” that looks like an iPhone in‑call screen, plus a Signal‑style call request system:
+
+Call permission model
+
+By default, new contacts cannot immediately ring each other.
+
+When user A tries to call user B for the first time (or when B has not approved calls from A), A sends a call request instead of a direct ring.
+
+User B must explicitly accept that A is allowed to call them before any full‑screen “phone call” UI appears, similar to Signal’s message/call requests.
+​
+
+Call request UX
+
+Call request is delivered as:
+
+An in‑app banner inside the DM thread, and
+
+A push notification if the app is installed as a PWA and the browser supports push. The notification should look like “Danny wants to call you – tap to review.”
+
+When B taps this, show a lightweight screen or modal with:
+
+A small avatar, username, and context (“This user wants to call you”).
+
+Actions: Allow calls, Deny, Block.
+
+If B taps Allow calls, future calls from A may ring like a normal phone call (full‑screen in‑call UI) when B is active in the app; otherwise, only show a silent banner or standard notification.
+
+Incoming call after approval
+
+Once B has allowed calls from A, show an incoming call screen modeled after iOS: avatar, name, call type, and large Accept and Decline buttons, or a compact banner if the user is already inside the app.
+
+Accepting transitions into the existing iPhone‑style in‑call layout I described earlier (large avatar, status text, mute/speaker/end buttons, hideable sidebar).
+
+Declining dismisses the call and may optionally send a “missed call” message in the chat.
+
+PWA + notification behavior
+
+If the app is running or recently active, incoming call requests and approved calls should show in‑app banners plus web push notifications via the service worker.
+
+If the app is not open, the PWA should rely on push notifications only; tapping the notification should open the app to the correct DM and state (review request, accept/decline, or join ongoing call).
+
+Make sure all notifications clearly distinguish between: “X wants permission to call you” vs. “X is calling you now.”
+
+States to design
+
+Design and describe UI states for:
+
+No call permission yet (call button sends request).
+
+Pending call request.
+
+Request accepted / denied / blocked.
+
+Incoming call from an approved contact (ringing).
+
+Missed call and how it appears in the chat history.
+
+Keep everything consistent with a Discord‑like dark theme while still reading as a phone call experience.
+
+Output:
+
+A UX flow and screen descriptions for the call permission + request system.
+
+Wireframe‑level layouts for: call request modal, incoming call request banner, full incoming call screen, and missed call in the chat.
+
+Suggestions for how to map these states to enums or status flags that an engineer could implement.

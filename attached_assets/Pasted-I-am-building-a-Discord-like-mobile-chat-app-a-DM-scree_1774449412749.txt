@@ -1,0 +1,61 @@
+I am building a Discord-like mobile chat app (a DM screen similar to Discord’s mobile UI). When the user taps the phone icon in the top right of a conversation, I want the UI to transition into a “phone call mode” that visually feels like a native iPhone in-call screen, but still fits my Discord-style design.
+
+Design and describe this call experience:
+
+Entry into call state
+
+Starting point is a 1‑on‑1 DM screen: header with the other user’s name and avatar, messages list, and a bottom message input bar.
+
+There is a phone icon in the top right of the header; when tapped, it initiates a voice call.
+
+While the call is connecting, show a calling state at the top (e.g., “Calling [username]…” with a subtle animation or status text).
+
+Main in‑call layout
+
+Once connected, switch to a full “in‑call” layout that feels like an iPhone phone-call screen:
+
+Large avatar or profile image centered.
+
+User’s name and call status text under it (e.g., “Danny – 02:15”).
+
+A row or grid of circular call controls at the bottom: mute, speaker, keypad (optional), end call, and maybe more (like add user, video, etc.).
+
+Use a dark theme that matches a Discord clone (dark background, accent color similar to Discord’s blurple) while still clearly reading as a phone call.
+
+Make sure the end-call button is clearly emphasized (e.g., red circular button).
+
+Sidebar behavior
+
+There is a left or right sidebar (similar to Discord server/member list) that can be toggled.
+
+When the call starts, default to hiding this sidebar so the call UI looks clean and similar to an iPhone call screen.
+
+Provide a clear affordance (e.g., a handle, swipe gesture, or icon) to reveal the sidebar.
+
+When the sidebar is open, it should slide in over or next to the call screen without breaking the feeling that the user is still “in a phone call.”
+
+The user can hide the sidebar again to return to the clean in‑call look.
+
+Controls while chatting
+
+Allow the user to go back to the chat messages while staying in the call.
+
+When viewing chat, show a compact “call bar” pinned at the top that displays call duration, the user’s avatar, and quick controls (mute, speaker, hang up), similar to how iOS shows a green call bar at the top during a phone call.
+
+Tapping this call bar should expand back to the full-screen call view.
+
+Interactions and states
+
+Define states for: ringing, in call, reconnecting/poor connection, and call ended.
+
+Include micro-interactions or animations (e.g., smooth transition from chat to call screen, fade/slide of controls, sidebar slide in/out).
+
+Make sure the design stays usable on small mobile screens like the screenshot I provided, with one-handed thumb reach in mind.
+
+Output:
+
+A written UX description of each state (chat, calling, in‑call, sidebar open, minimized call in chat).
+
+A simple wireframe or layout description for mobile (safe to use as a reference for implementation in React/React Native).
+
+Any suggestions for color, spacing, and icon placement that keep it consistent with a Discord-style mobile UI and make it obvious that the user is in a phone call.

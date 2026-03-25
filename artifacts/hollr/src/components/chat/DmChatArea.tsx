@@ -9,8 +9,9 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
-  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff,
+  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone,
 } from 'lucide-react';
+import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { useAppStore } from '@/store/use-app-store';
 import { DmReactionPills } from './DmReactionPills';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
@@ -45,15 +46,16 @@ function formatContent(content: string) {
   );
 }
 
-export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
+export function DmChatArea({ threadId, recipientId, recipientName, recipientAvatar }: {
   threadId: string;
+  recipientId?: string | null;
   recipientName: string;
   recipientAvatar?: string | null;
 }) {
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
-  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked } = useAppStore();
+  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -308,6 +310,47 @@ export function DmChatArea({ threadId, recipientName, recipientAvatar }: {
           <AvatarFallback className="bg-primary text-white text-xs">{getInitials(recipientName)}</AvatarFallback>
         </Avatar>
         <h2 className="font-bold text-foreground text-[15px]">{recipientName}</h2>
+
+        {/* Phone call button — right side */}
+        <div className="ml-auto flex items-center gap-1 shrink-0">
+          {dmCall.state === 'connected' && dmCall.targetUserId === recipientId && (
+            <button
+              onClick={() => setDmCallState({ minimized: false })}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 text-xs font-semibold transition-colors"
+              title="Return to call"
+            >
+              <Phone size={13} />
+              <span className="hidden sm:inline">In Call</span>
+            </button>
+          )}
+          {(dmCall.state === 'idle' || dmCall.targetUserId !== recipientId) && recipientId && (
+            <button
+              onClick={() => {
+                setDmCallState({
+                  state: 'outgoing_ringing',
+                  targetUserId: recipientId,
+                  targetDisplayName: recipientName,
+                  targetAvatarUrl: recipientAvatar ?? null,
+                  dmThreadId: threadId,
+                  minimized: false,
+                  startedAt: null,
+                });
+                sendDmCallSignal({
+                  type: 'call_ring',
+                  targetId: recipientId,
+                  callerId: user?.id,
+                  callerName: (user as any)?.displayName || (user as any)?.username || 'Someone',
+                  callerAvatar: (user as any)?.avatarUrl ?? null,
+                  dmThreadId: threadId,
+                });
+              }}
+              className="p-2 rounded-full text-muted-foreground hover:text-emerald-400 hover:bg-emerald-400/10 transition-all active:scale-95"
+              title={`Call ${recipientName}`}
+            >
+              <Phone size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}

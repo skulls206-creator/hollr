@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
-  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera, RefreshCw, Menu,
+  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera, RefreshCw, Menu, Search,
 } from 'lucide-react';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
@@ -69,6 +69,41 @@ export function ChannelSidebar() {
   const [serverMenuOpen, setServerMenuOpen] = useState(false);
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [editChannelName, setEditChannelName] = useState('');
+
+  // DM search state
+  const [dmSearch, setDmSearch] = useState('');
+  const [dmSearchActive, setDmSearchActive] = useState(false);
+  const [dmMsgResults, setDmMsgResults] = useState<any[]>([]);
+  const [dmSearching, setDmSearching] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openSearch = useCallback(() => {
+    setDmSearchActive(true);
+    setTimeout(() => searchInputRef.current?.focus(), 80);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setDmSearchActive(false);
+    setDmSearch('');
+    setDmMsgResults([]);
+    setDmSearching(false);
+  }, []);
+
+  const handleDmSearchChange = useCallback((q: string) => {
+    setDmSearch(q);
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    if (q.trim().length < 2) { setDmMsgResults([]); setDmSearching(false); return; }
+    setDmSearching(true);
+    searchDebounce.current = setTimeout(async () => {
+      try {
+        const base = import.meta.env.BASE_URL;
+        const res = await fetch(`${base}api/dms/search?q=${encodeURIComponent(q.trim())}`, { credentials: 'include' });
+        if (res.ok) setDmMsgResults(await res.json());
+      } catch {}
+      setDmSearching(false);
+    }, 350);
+  }, []);
 
   // Fetch initial unread counts from server when activeServerId changes
   const { data: unreadData } = useQuery({
@@ -240,33 +275,121 @@ export function ChannelSidebar() {
   };
 
   if (!activeServerId) {
+    // Filter threads by search query (client-side username match)
+    const filteredThreads = dmSearch.trim()
+      ? dmThreads.filter(thread => {
+          const other = thread.participants?.find((p: any) => p.id !== user?.id) ?? thread.participants?.[0];
+          const name = (other?.displayName || other?.username || '').toLowerCase();
+          return name.includes(dmSearch.toLowerCase());
+        })
+      : dmThreads;
+
     return (
       <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
-        <div className="h-12 border-b border-border/10 flex items-center pl-2 pr-4 font-bold text-foreground shadow-sm">
-          <button
-            onClick={closeSidebar}
-            title="Close sidebar"
-            className="p-1.5 mr-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors shrink-0"
-          >
-            <Menu size={16} />
-          </button>
-          <span className="flex-1">Direct Messages</span>
+        {/* ── Header: title ↔ search input ── */}
+        <div className="h-12 border-b border-border/10 flex items-center pl-2 pr-3 shadow-sm shrink-0">
+          {dmSearchActive ? (
+            /* Search active: full-width input */
+            <div className="flex-1 flex items-center gap-2 bg-surface-0 rounded-lg px-2.5 py-1.5 border border-primary/30">
+              <Search size={13} className="text-muted-foreground shrink-0" />
+              <input
+                ref={searchInputRef}
+                value={dmSearch}
+                onChange={e => handleDmSearchChange(e.target.value)}
+                onKeyDown={e => e.key === 'Escape' && closeSearch()}
+                placeholder="Search messages & users…"
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none min-w-0"
+              />
+              {dmSearch && (
+                <button onClick={() => { setDmSearch(''); setDmMsgResults([]); }} className="text-muted-foreground hover:text-foreground shrink-0 transition-colors">
+                  <X size={13} />
+                </button>
+              )}
+              <button onClick={closeSearch} className="text-muted-foreground hover:text-foreground text-xs font-medium shrink-0 pl-1 transition-colors">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            /* Normal: title + icons */
+            <>
+              <button
+                onClick={closeSidebar}
+                title="Close sidebar"
+                className="p-1.5 mr-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors shrink-0"
+              >
+                <Menu size={16} />
+              </button>
+              <span
+                className="flex-1 font-bold text-foreground cursor-pointer select-none hover:text-primary/80 transition-colors"
+                onClick={openSearch}
+                title="Search messages & users"
+              >
+                Direct Messages
+              </span>
+              <button
+                onClick={openSearch}
+                title="Search messages & users"
+                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors shrink-0"
+              >
+                <Search size={15} />
+              </button>
+              <button
+                title="New Direct Message"
+                onClick={() => useAppStore.getState().setNewDmModalOpen(true)}
+                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors shrink-0"
+              >
+                <MessageSquarePlus size={15} />
+              </button>
+            </>
+          )}
         </div>
+
         <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
-          <div className="flex items-center justify-between px-2 py-2">
-            <span />
-            <button
-              title="New Direct Message"
-              onClick={() => useAppStore.getState().setNewDmModalOpen(true)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <MessageSquarePlus size={14} />
-            </button>
-          </div>
-          {dmThreads.length === 0 && (
+          {/* ── Message search results ── */}
+          {dmSearchActive && dmSearch.trim().length >= 2 && (
+            <div className="mb-2">
+              {dmSearching && (
+                <p className="px-2 py-2 text-xs text-muted-foreground animate-pulse">Searching messages…</p>
+              )}
+              {!dmSearching && dmMsgResults.length > 0 && (
+                <div className="mb-3">
+                  <p className="px-2 pb-1 text-[10px] font-black tracking-widest text-muted-foreground/50 uppercase">Messages</p>
+                  {dmMsgResults.map((result: any) => {
+                    const other = result.thread?.participants?.find((p: any) => p.id !== user?.id) ?? result.thread?.participants?.[0];
+                    return result.messages?.map((msg: any) => (
+                      <button
+                        key={msg.id}
+                        onClick={() => { setActiveDmThread(result.thread.id); closeSearch(); }}
+                        className="w-full flex items-start gap-2.5 px-2 py-2 rounded-md hover:bg-secondary/50 transition-colors text-left"
+                      >
+                        <Avatar className="h-8 w-8 shrink-0 mt-0.5">
+                          <AvatarImage src={other?.avatarUrl || undefined} />
+                          <AvatarFallback className="bg-primary text-white text-xs">
+                            {getInitials(other?.displayName || other?.username || '?')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-foreground truncate">{other?.displayName || other?.username}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">{msg.content}</p>
+                        </div>
+                      </button>
+                    ));
+                  })}
+                </div>
+              )}
+              {!dmSearching && dmMsgResults.length === 0 && dmSearch.trim().length >= 2 && filteredThreads.length === 0 && (
+                <p className="px-2 py-2 text-xs text-muted-foreground italic">No results for "{dmSearch}"</p>
+              )}
+              {filteredThreads.length > 0 && (
+                <p className="px-2 pb-1 text-[10px] font-black tracking-widest text-muted-foreground/50 uppercase">People</p>
+              )}
+            </div>
+          )}
+
+          {!dmSearchActive && dmThreads.length === 0 && (
             <p className="px-2 py-2 text-sm text-muted-foreground italic">No DMs yet.</p>
           )}
-          {dmThreads.map(thread => {
+          {filteredThreads.map(thread => {
             const other = thread.participants?.find((p: any) => p.id !== user?.id) ?? thread.participants?.[0];
             const dmUnread = dmUnreadCounts[thread.id] ?? 0;
             return (

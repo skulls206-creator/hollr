@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, messageReactionsTable } from "@workspace/db/schema";
-import { eq, and, lt, inArray, sql as drizzleSql } from "drizzle-orm";
+import { eq, and, lt, inArray, sql as drizzleSql, ilike } from "drizzle-orm";
 import { OpenDmThreadBody, SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
 import { sendPushToUser, getNotifPrefs } from "../lib/push";
@@ -124,6 +124,44 @@ router.get("/dms", async (req, res) => {
 
   const threads = await Promise.all(participations.map((p) => formatThread(p.threadId)));
   res.json(threads.filter(Boolean));
+});
+
+// ─── Search DM messages (across all threads) ─────────────────────────────────
+router.get("/dms/search", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const q = String(req.query.q || "").trim();
+  if (q.length < 2) { res.json([]); return; }
+
+  // Get all thread IDs this user participates in
+  const participations = await db.query.dmParticipantsTable.findMany({
+    where: eq(dmParticipantsTable.userId, req.user.id),
+  });
+  const threadIds = participations.map((p) => p.threadId);
+  if (threadIds.length === 0) { res.json([]); return; }
+
+  // Search messages across all these threads
+  const messages = await db.query.messagesTable.findMany({
+    where: and(inArray(messagesTable.dmThreadId, threadIds), ilike(messagesTable.content, `%${q}%`)),
+    limit: 50,
+    orderBy: (m, { desc }) => [desc(m.createdAt)],
+  });
+
+  // Group results by thread
+  const grouped: Record<string, { threadId: string; messages: any[] }> = {};
+  await Promise.all(messages.map(async (msg) => {
+    const tid = msg.dmThreadId!;
+    if (!grouped[tid]) grouped[tid] = { threadId: tid, messages: [] };
+    grouped[tid].messages.push(await formatMessage(msg, req.user.id));
+  }));
+
+  // Attach thread/participant info
+  const results = await Promise.all(Object.values(grouped).map(async (g) => {
+    const thread = await formatThread(g.threadId);
+    return { thread, messages: g.messages };
+  }));
+
+  res.json(results.filter(r => r.thread));
 });
 
 // ─── Open / create DM thread ─────────────────────────────────────────────────
