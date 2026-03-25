@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { PlusCircle, Smile, Music2, Slash, SendHorizonal } from 'lucide-react';
-import { useSendMessage, useRequestUploadUrl, useListServerMembers, getListServerMembersQueryKey } from '@workspace/api-client-react';
+import { useSendMessage, useRequestUploadUrl, useListServerMembers, getListServerMembersQueryKey, getListMessagesQueryKey } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { cn, formatBytes } from '@/lib/utils';
 import { useAppStore } from '@/store/use-app-store';
@@ -74,6 +75,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, [pendingCommand]);
 
+  const qc = useQueryClient();
   const { mutate: sendMessage, isPending: isSending } = useSendMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
   const { toast } = useToast();
@@ -237,9 +239,13 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     }
 
     sendMessage({ channelId, data: { content: trimmed } }, {
-      onSuccess: () => {
+      onSuccess: (newMsg) => {
         setContent('');
         if (textareaRef.current) textareaRef.current.style.height = '36px';
+        qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), (old = []) => {
+          if (old.some((m: any) => m.id === newMsg.id)) return old;
+          return [...old, newMsg];
+        });
       },
       onError: () => toast({ title: "Failed to send", variant: "destructive" })
     });
@@ -304,9 +310,13 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           attachments: [{ objectPath, name: file.name, contentType: file.type, size: file.size }]
         }
       }, {
-        onSuccess: () => {
+        onSuccess: (newMsg) => {
           setContent('');
           toast({ title: "File uploaded successfully" });
+          qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), (old = []) => {
+            if (old.some((m: any) => m.id === newMsg.id)) return old;
+            return [...old, newMsg];
+          });
         }
       });
 

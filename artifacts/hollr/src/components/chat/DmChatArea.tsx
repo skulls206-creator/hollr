@@ -305,9 +305,13 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   const handleSend = () => {
     if (!content.trim()) return;
     sendMessage({ threadId, data: { content: content.trim() } }, {
-      onSuccess: () => {
+      onSuccess: (newMsg) => {
         setContent('');
         if (textareaRef.current) textareaRef.current.style.height = '44px';
+        qc.setQueryData<any[]>(getListDmMessagesQueryKey(threadId), (old = []) => {
+          if (old.some((m: any) => m.id === newMsg.id)) return old;
+          return [...old, newMsg];
+        });
       },
       onError: () => toast({ title: 'Failed to send', variant: 'destructive' }),
     });
@@ -354,10 +358,14 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
           attachments: [{ objectPath, name: file.name, contentType: file.type, size: file.size }],
         },
       }, {
-        onSuccess: () => {
+        onSuccess: (newMsg) => {
           setContent('');
           if (textareaRef.current) textareaRef.current.style.height = '44px';
           toast({ title: 'File uploaded' });
+          qc.setQueryData<any[]>(getListDmMessagesQueryKey(threadId), (old = []) => {
+            if (old.some((m: any) => m.id === newMsg.id)) return old;
+            return [...old, newMsg];
+          });
         },
         onError: () => toast({ title: 'Failed to send file', variant: 'destructive' }),
       });
