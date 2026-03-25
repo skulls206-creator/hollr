@@ -64,12 +64,9 @@ export function VoiceOverlay() {
     document.addEventListener('mouseup', onUp);
   };
 
-  // VoiceOverlay is rendered inside the chat column — sidebars are already excluded by the
-  // three-column layout. Use a small fixed inset so it spans the full chat area width.
   const panelLeft = 8;
   const panelRight = 8;
 
-  // Measure expanded panel height so ChatArea can add matching spacer
   useEffect(() => {
     if (voiceMinimized || voiceConnection.status === 'disconnected' || (isMobile && (mobileSidebarOpen || memberListOpen || pinnedPanelOpen))) {
       setVoicePanelHeight(0);
@@ -77,7 +74,7 @@ export function VoiceOverlay() {
     }
     const el = panelRef.current;
     if (!el) return;
-    const BOTTOM_OFFSET = 32; // matches bottom-8 (2rem = 32px)
+    const BOTTOM_OFFSET = 32;
     const ro = new ResizeObserver(entries => {
       for (const entry of entries) {
         setVoicePanelHeight(entry.contentRect.height + BOTTOM_OFFSET);
@@ -96,8 +93,6 @@ export function VoiceOverlay() {
   const localUserData = channelUsers.find(u => u.userId === myUserId);
   const remoteUsers = channelUsers.filter(u => u.userId !== myUserId);
 
-  // ALL hooks must be declared before any early returns
-  // Stop watching if the streaming user stops sharing
   useEffect(() => {
     if (watchingUserId && watchingUserId !== myUserId) {
       const watcher = channelUsers.find(u => u.userId === watchingUserId);
@@ -108,8 +103,6 @@ export function VoiceOverlay() {
   }, [channelUsers, remoteVideoStreams, watchingUserId, myUserId]);
 
   if (voiceConnection.status === 'disconnected') return null;
-
-  // Hide while any mobile overlay panel is open to avoid stacking conflicts
   if (isMobile && (mobileSidebarOpen || memberListOpen || pinnedPanelOpen)) return null;
 
   const handleToggleDeafen = () => {
@@ -127,7 +120,7 @@ export function VoiceOverlay() {
     startScreenShare(surface);
   };
 
-  // --- Minimized pill ---
+  // ── Minimized pill ──────────────────────────────────────────────────────────
   if (voiceMinimized) {
     return (
       <AnimatePresence>
@@ -135,10 +128,9 @@ export function VoiceOverlay() {
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 40, opacity: 0 }}
-          className="absolute bottom-3 bg-[#18191c]/95 backdrop-blur-md rounded-2xl border border-white/10 shadow-[0_4px_24px_rgba(0,0,0,0.6)] z-50 flex items-center gap-2 px-3 py-2"
+          className="absolute bottom-3 bg-surface-2/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-lg z-50 flex items-center gap-2 px-3 py-2"
           style={{ left: panelLeft, right: panelRight }}
         >
-          {/* Live dot */}
           <span className="relative flex h-2 w-2 mr-0.5 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
@@ -146,7 +138,7 @@ export function VoiceOverlay() {
 
           <div className="flex -space-x-1.5">
             {channelUsers.slice(0, 4).map(u => (
-              <Avatar key={u.userId} className="h-6 w-6 border-2 border-[#18191c]">
+              <Avatar key={u.userId} className="h-6 w-6 border-2 border-surface-2">
                 <AvatarImage src={u.avatarUrl || undefined} />
                 <AvatarFallback className="bg-indigo-600 text-white text-[10px]">{getInitials(u.displayName)}</AvatarFallback>
               </Avatar>
@@ -154,14 +146,14 @@ export function VoiceOverlay() {
           </div>
           <span className="text-xs text-foreground/80 font-medium">{channelUsers.length} in voice</span>
 
-          <div className="w-px h-4 bg-white/10 mx-0.5" />
+          <div className="w-px h-4 bg-border/50 mx-0.5" />
 
           <button
             onClick={toggleMicMuted}
             title={micMuted ? 'Unmute' : 'Mute'}
             className={cn(
               "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
-              micMuted ? "bg-destructive/80 text-white" : "bg-white/5 text-foreground/70 hover:bg-white/15 hover:text-foreground"
+              micMuted ? "bg-destructive/80 text-white" : "bg-muted text-foreground/70 hover:bg-muted/80 hover:text-foreground"
             )}
           >
             {micMuted ? <MicOff size={13} /> : <Mic size={13} />}
@@ -172,7 +164,7 @@ export function VoiceOverlay() {
             title={deafened ? 'Undeafen' : 'Deafen'}
             className={cn(
               "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
-              deafened ? "bg-destructive/80 text-white" : "bg-white/5 text-foreground/70 hover:bg-white/15 hover:text-foreground"
+              deafened ? "bg-destructive/80 text-white" : "bg-muted text-foreground/70 hover:bg-muted/80 hover:text-foreground"
             )}
           >
             {deafened ? <VolumeX size={13} /> : <Headphones size={13} />}
@@ -186,12 +178,12 @@ export function VoiceOverlay() {
             <PhoneOff size={13} />
           </button>
 
-          <div className="w-px h-4 bg-white/10 mx-0.5" />
+          <div className="w-px h-4 bg-border/50 mx-0.5" />
 
           <button
             onClick={() => setVoiceMinimized(false)}
             title="Expand"
-            className="w-7 h-7 rounded-full flex items-center justify-center bg-white/5 text-foreground/70 hover:bg-white/15 hover:text-foreground transition-colors"
+            className="w-7 h-7 rounded-full flex items-center justify-center bg-muted text-foreground/70 hover:bg-muted/80 hover:text-foreground transition-colors"
           >
             <ChevronUp size={14} />
           </button>
@@ -200,10 +192,9 @@ export function VoiceOverlay() {
     );
   }
 
-  // --- Watch Stream full-screen view ---
+  // ── Watch Stream full-screen view (always dark — video theatre) ─────────────
   if (watchingUserId) {
     const isLocal = watchingUserId === myUserId;
-    // For local: prefer screen share, fall back to camera
     const videoStream = isLocal
       ? (screenStream ?? cameraStream)
       : (remoteVideoStreams[watchingUserId] ?? null);
@@ -221,8 +212,7 @@ export function VoiceOverlay() {
           className="absolute inset-x-0 bottom-0 top-0 bg-black/95 backdrop-blur-md z-50 flex flex-col"
           style={{ left: 0 }}
         >
-          {/* Top bar */}
-          <div className="flex items-center justify-between px-5 py-3 bg-black/60 border-b border-border/20 shrink-0">
+          <div className="flex items-center justify-between px-5 py-3 bg-black/60 border-b border-white/10 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm font-semibold text-white">
@@ -249,7 +239,6 @@ export function VoiceOverlay() {
             </div>
           </div>
 
-          {/* Video area */}
           <div className="flex-1 flex items-center justify-center bg-black min-h-0">
             {videoStream ? (
               <video
@@ -261,8 +250,8 @@ export function VoiceOverlay() {
                 className="max-w-full max-h-full object-contain rounded-lg"
               />
             ) : (
-              <div className="flex flex-col items-center gap-4 text-muted-foreground">
-                <Avatar className="h-24 w-24 border-2 border-border/30">
+              <div className="flex flex-col items-center gap-4 text-white/50">
+                <Avatar className="h-24 w-24 border-2 border-white/20">
                   <AvatarImage src={watchUser?.avatarUrl || undefined} />
                   <AvatarFallback className="bg-slate-700 text-white text-3xl">{getInitials(watchName)}</AvatarFallback>
                 </Avatar>
@@ -271,9 +260,7 @@ export function VoiceOverlay() {
             )}
           </div>
 
-          {/* Bottom bar: participant thumbnails + controls */}
-          <div className="shrink-0 bg-black/70 border-t border-border/20 px-4 py-3 flex items-center gap-3">
-            {/* Thumbnails */}
+          <div className="shrink-0 bg-black/70 border-t border-white/10 px-4 py-3 flex items-center gap-3">
             <div className="flex gap-2 flex-1 overflow-x-auto min-w-0">
               {channelUsers.map(u => (
                 <button
@@ -284,12 +271,12 @@ export function VoiceOverlay() {
                   }}
                   className={cn(
                     "relative shrink-0 rounded-lg overflow-hidden border-2 transition-colors",
-                    watchingUserId === u.userId ? "border-primary" : "border-border/30 hover:border-border"
+                    watchingUserId === u.userId ? "border-primary" : "border-white/20 hover:border-white/40"
                   )}
                   style={{ width: 80, height: 54 }}
                   title={u.displayName}
                 >
-                  <div className="w-full h-full bg-surface-0 flex items-center justify-center">
+                  <div className="w-full h-full bg-black/60 flex items-center justify-center">
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={u.avatarUrl || undefined} />
                       <AvatarFallback className="bg-indigo-600 text-white text-sm">{getInitials(u.displayName)}</AvatarFallback>
@@ -305,16 +292,15 @@ export function VoiceOverlay() {
               ))}
             </div>
 
-            {/* Controls */}
             <div className="flex items-center gap-2 shrink-0">
               <button onClick={toggleMicMuted} title={micMuted ? 'Unmute' : 'Mute'}
                 className={cn("w-9 h-9 rounded-full flex items-center justify-center transition-colors",
-                  micMuted ? "bg-destructive text-white" : "bg-surface-1 text-foreground hover:bg-[#383A40]")}>
+                  micMuted ? "bg-destructive text-white" : "bg-white/10 text-white hover:bg-white/20")}>
                 {micMuted ? <MicOff size={16} /> : <Mic size={16} />}
               </button>
               <button onClick={handleToggleDeafen} title={deafened ? 'Undeafen' : 'Deafen'}
                 className={cn("w-9 h-9 rounded-full flex items-center justify-center transition-colors",
-                  deafened ? "bg-destructive text-white" : "bg-surface-1 text-foreground hover:bg-[#383A40]")}>
+                  deafened ? "bg-destructive text-white" : "bg-white/10 text-white hover:bg-white/20")}>
                 {deafened ? <VolumeX size={16} /> : <Headphones size={16} />}
               </button>
             </div>
@@ -324,46 +310,46 @@ export function VoiceOverlay() {
     );
   }
 
-  // --- Full voice overlay ---
+  // ── Full voice overlay ──────────────────────────────────────────────────────
   return (
     <AnimatePresence>
       <motion.div
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="absolute bottom-8 bg-[#000000]/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
+        className="absolute bottom-8 bg-surface-2/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl z-50 flex flex-col overflow-hidden"
         style={{ left: panelLeft, right: panelRight, ...(resizeHeight ? { height: resizeHeight } : {}) }}
         ref={panelRef}
       >
-        {/* Resize handle — drag up/down to resize the panel */}
+        {/* Resize handle */}
         <div
           onMouseDown={handleResizeMouseDown}
           className="h-4 flex items-center justify-center cursor-ns-resize shrink-0 group/rh"
           title="Drag to resize"
         >
-          <div className="w-8 h-1 rounded-full bg-white/15 group-hover/rh:bg-white/40 transition-colors" />
+          <div className="w-8 h-1 rounded-full bg-border/60 group-hover/rh:bg-border transition-colors" />
         </div>
 
-        {/* Title bar with minimize */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border/20 shrink-0">
+        {/* Title bar */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 shrink-0">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Voice · {channelUsers.length} connected
           </span>
           <button
             onClick={() => setVoiceMinimized(true)}
             title="Minimize"
-            className="w-7 h-7 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/15 transition-colors text-muted-foreground hover:text-foreground"
+            className="w-7 h-7 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 transition-colors text-muted-foreground hover:text-foreground"
           >
             <ChevronDown size={15} />
           </button>
         </div>
 
         {screenStream && (
-          <div className="bg-emerald-500/20 border-b border-emerald-500/50 text-emerald-400 py-1.5 px-4 text-center text-sm font-semibold flex items-center justify-center gap-2">
+          <div className="bg-emerald-500/20 border-b border-emerald-500/40 text-emerald-600 dark:text-emerald-400 py-1.5 px-4 text-center text-sm font-semibold flex items-center justify-center gap-2">
             <MonitorUp size={16} />
             You are sharing your screen.
-            <button onClick={() => setWatchingUserId(myUserId ?? null)} className="ml-2 underline text-white hover:text-emerald-200">Watch</button>
-            <button onClick={stopScreenShare} className="ml-2 underline text-white hover:text-emerald-200">Stop</button>
+            <button onClick={() => setWatchingUserId(myUserId ?? null)} className="ml-2 underline hover:text-emerald-700 dark:hover:text-emerald-200">Watch</button>
+            <button onClick={stopScreenShare} className="ml-2 underline hover:text-emerald-700 dark:hover:text-emerald-200">Stop</button>
           </div>
         )}
 
@@ -407,25 +393,25 @@ export function VoiceOverlay() {
           })}
         </div>
 
-        <div className="h-16 bg-surface-0 border-t border-border/20 flex items-center justify-center gap-3 px-6 shrink-0">
+        {/* Control bar */}
+        <div className="h-16 bg-surface-0 border-t border-border/30 flex items-center justify-center gap-3 px-6 shrink-0">
           <button onClick={toggleMicMuted} title={micMuted ? 'Unmute' : 'Mute'}
             className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors",
-              micMuted ? "bg-destructive text-white hover:bg-destructive/90" : "bg-surface-1 text-foreground hover:bg-[#383A40]")}>
+              micMuted ? "bg-destructive text-white hover:bg-destructive/90" : "bg-muted text-foreground hover:bg-muted/70")}>
             {micMuted ? <MicOff size={22} /> : <Mic size={22} />}
           </button>
 
           <button onClick={handleToggleDeafen} title={deafened ? 'Undeafen' : 'Deafen'}
             className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors",
-              deafened ? "bg-destructive text-white hover:bg-destructive/90" : "bg-surface-1 text-foreground hover:bg-[#383A40]")}>
+              deafened ? "bg-destructive text-white hover:bg-destructive/90" : "bg-muted text-foreground hover:bg-muted/70")}>
             {deafened ? <VolumeX size={22} /> : <Headphones size={22} />}
           </button>
 
-          {/* Camera toggle */}
           <button
             onClick={cameraStream ? stopCamera : startCamera}
             title={cameraStream ? 'Turn off camera' : 'Turn on camera'}
             className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors",
-              cameraStream ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-surface-1 text-foreground hover:bg-[#383A40]"
+              cameraStream ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-muted text-foreground hover:bg-muted/70"
             )}
           >
             {cameraStream ? <Video size={22} /> : <VideoOff size={22} />}
@@ -440,15 +426,15 @@ export function VoiceOverlay() {
             <Popover open={shareMenuOpen} onOpenChange={setShareMenuOpen}>
               <PopoverTrigger asChild>
                 <button title="Share Screen"
-                  className="h-12 px-3 rounded-full flex items-center gap-1.5 transition-colors bg-surface-1 text-foreground hover:bg-[#383A40]">
+                  className="h-12 px-3 rounded-full flex items-center gap-1.5 transition-colors bg-muted text-foreground hover:bg-muted/70">
                   <MonitorUp size={20} />
                   <ChevronDown size={14} className="opacity-60" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent side="top" align="center" className="w-52 p-1.5 bg-[#111214] border-border/50" sideOffset={8}>
+              <PopoverContent side="top" align="center" className="w-52 p-1.5 border-border/50" sideOffset={8}>
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-1 pb-1.5">Share Your Screen</p>
                 <button onClick={() => handleShare('monitor')}
-                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm hover:bg-white/10 transition-colors">
+                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm hover:bg-accent transition-colors">
                   <Monitor size={16} className="text-primary shrink-0" />
                   <div className="text-left">
                     <div className="font-semibold">Entire Screen</div>
@@ -456,7 +442,7 @@ export function VoiceOverlay() {
                   </div>
                 </button>
                 <button onClick={() => handleShare('window')}
-                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm hover:bg-white/10 transition-colors">
+                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm hover:bg-accent transition-colors">
                   <AppWindow size={16} className="text-primary shrink-0" />
                   <div className="text-left">
                     <div className="font-semibold">Application Window</div>
@@ -464,7 +450,7 @@ export function VoiceOverlay() {
                   </div>
                 </button>
                 <button onClick={() => handleShare('browser')}
-                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm hover:bg-white/10 transition-colors">
+                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm hover:bg-accent transition-colors">
                   <MonitorUp size={16} className="text-primary shrink-0" />
                   <div className="text-left">
                     <div className="font-semibold">Browser Tab</div>
@@ -531,9 +517,8 @@ function LocalUserTile({
   return (
     <div className={cn(
       "relative aspect-video bg-surface-0 rounded-xl flex items-center justify-center overflow-hidden border transition-colors",
-      isMuted ? "border-destructive/40" : speaking ? "border-emerald-500/60" : "border-border/20"
+      isMuted ? "border-destructive/40" : speaking ? "border-emerald-500/60" : "border-border/30"
     )}>
-      {/* Local camera feed */}
       {cameraStream && (
         <video
           ref={cameraRef}
@@ -558,9 +543,9 @@ function LocalUserTile({
           </Avatar>
         </SpeakingRing>
       )}
-      <div className="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm flex items-center gap-1 z-20">
-        {isDeafened && <VolumeX size={12} className="text-destructive shrink-0" />}
-        {isMuted && !isDeafened && <MicOff size={12} className="text-destructive shrink-0" />}
+      <div className="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm text-white flex items-center gap-1 z-20">
+        {isDeafened && <VolumeX size={12} className="text-red-300 shrink-0" />}
+        {isMuted && !isDeafened && <MicOff size={12} className="text-red-300 shrink-0" />}
         <span className="truncate max-w-[90px]">{label} (You)</span>
       </div>
       {streaming && (
@@ -630,151 +615,87 @@ function RemoteUserTile({
   onVolumeChange: (v: number) => void;
   onWatch: () => void;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (videoRef.current && videoStream) videoRef.current.srcObject = videoStream;
+    const el = audioRef.current;
+    if (!el || !stream) return;
+    el.srcObject = stream;
+    if (outputDeviceId && typeof (el as any).setSinkId === 'function') {
+      (el as any).setSinkId(outputDeviceId).catch(() => {});
+    }
+    if (!deafened) el.play().catch(() => {});
+    else el.pause();
+  }, [stream, deafened, outputDeviceId]);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.srcObject = videoStream ?? null;
+    if (videoStream) el.play().catch(() => {});
   }, [videoStream]);
 
-  // Set the incoming WebRTC stream on the audio element whenever it changes
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
-    if (stream) {
-      el.srcObject = stream;
-      el.volume = deafened ? 0 : Math.min(volume, 1);
-      el.muted = false;
-      el.play().catch(() => {});
-    } else {
-      el.srcObject = null;
-      el.pause();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stream]);
-
-  // Sync volume and deafening directly on the audio element — always works
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    el.volume = deafened ? 0 : Math.min(volume, 1);
-    el.muted = deafened;
-  }, [volume, deafened]);
-
-  // Output device routing via setSinkId — Chrome/Edge only
-  useEffect(() => {
-    const el = audioRef.current as any;
-    if (!el || !outputDeviceId) return;
-    if (typeof el.setSinkId === 'function') {
-      el.setSinkId(outputDeviceId).catch((err: unknown) => {
-        console.warn('[Audio] setSinkId failed:', err);
-      });
-    }
-  }, [outputDeviceId]);
-
+    el.volume = Math.max(0, Math.min(1, volume));
+  }, [volume]);
 
   return (
-    <div className={cn(
-      "relative aspect-video bg-surface-0 rounded-xl flex items-center justify-center overflow-hidden border group transition-colors",
-      speaking ? "border-emerald-500/60" : "border-border/20"
-    )}>
-      <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />
+    <div
+      className={cn(
+        "relative aspect-video bg-surface-0 rounded-xl flex items-center justify-center overflow-hidden border transition-colors cursor-pointer",
+        muted ? "border-destructive/30" : speaking ? "border-emerald-500/60" : "border-border/30"
+      )}
+      onClick={(e) => onOpenProfile(e.clientX, e.clientY)}
+    >
+      <audio ref={audioRef} autoPlay playsInline className="hidden" />
 
-      {/* Video feed — camera or screen share */}
-      {videoStream && (
+      {videoStream ? (
         <video
           ref={videoRef}
           autoPlay playsInline muted
           className="absolute inset-0 w-full h-full object-cover"
         />
+      ) : (
+        <SpeakingRing speaking={speaking}>
+          <Avatar className="h-16 w-16 shadow-xl">
+            <AvatarImage src={avatarUrl || undefined} />
+            <AvatarFallback className="bg-indigo-600 text-white text-xl">{getInitials(displayName)}</AvatarFallback>
+          </Avatar>
+        </SpeakingRing>
       )}
 
-      <button onClick={(e) => { e.stopPropagation(); onOpenProfile(e.clientX, e.clientY); }}
-        title="View profile"
-        className="absolute inset-0 w-full h-full flex flex-col items-center justify-center hover:bg-black/20 transition-colors z-10">
-        {/* Hide avatar when video is live — camera/screen fills the tile */}
-        {!videoStream && (
-          <div className="relative">
-            <SpeakingRing speaking={speaking}>
-              <Avatar className="h-16 w-16 shadow-xl border-2 border-transparent group-hover:border-primary/50 transition-colors">
-                <AvatarImage src={avatarUrl || undefined} />
-                <AvatarFallback className={cn(isBot ? 'bg-violet-700' : 'bg-slate-700', 'text-white text-xl')}>
-                  {isBot ? '♪' : getInitials(displayName)}
-                </AvatarFallback>
-              </Avatar>
-            </SpeakingRing>
-            {isBot && (
-              <span className="absolute -bottom-1 -right-1 bg-violet-500 rounded-full p-1 border-2 border-[#1E1F22]">
-                <Music2 size={8} className="text-white" />
-              </span>
-            )}
-          </div>
-        )}
-      </button>
-
-      {/* Watch hover overlay — shown when streaming */}
       {(streaming || videoStream) && (
-        <button onClick={(e) => { e.stopPropagation(); onWatch(); }}
-          className="absolute inset-0 w-full h-full items-center justify-center bg-black/50 hidden group-hover:flex transition-opacity z-20 cursor-pointer">
+        <button
+          onClick={(e) => { e.stopPropagation(); onWatch(); }}
+          className="absolute inset-0 w-full h-full flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity z-10 cursor-pointer"
+        >
           <div className="flex items-center gap-1.5 bg-black/70 px-3 py-1.5 rounded-lg">
             <Maximize2 size={14} className="text-white" />
-            <span className="text-xs text-white font-semibold">Watch stream</span>
+            <span className="text-xs text-white font-semibold">Watch</span>
           </div>
         </button>
       )}
 
-      <div className="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm z-30 pointer-events-none flex items-center gap-1">
-        {muted && <MicOff size={11} className="text-destructive shrink-0" />}
-        {isDeafened && <VolumeX size={11} className="text-destructive shrink-0" />}
+      <div className="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs font-semibold backdrop-blur-sm text-white flex items-center gap-1 z-20">
+        {isDeafened && <VolumeX size={12} className="text-red-300 shrink-0" />}
+        {muted && !isDeafened && <MicOff size={12} className="text-red-300 shrink-0" />}
+        {isBot && <Music2 size={12} className="text-blue-300 shrink-0" />}
         <span className="truncate max-w-[90px]">{displayName}</span>
       </div>
 
-      {isDeafened && (
-        <div className="absolute top-3 right-3 bg-destructive/90 p-1.5 rounded-full z-30 pointer-events-none">
-          <VolumeX size={13} className="text-white" />
-        </div>
-      )}
-
       {streaming && (
-        <div className="absolute top-2 right-2 bg-emerald-500/90 rounded px-1.5 py-0.5 flex items-center gap-1 z-30 pointer-events-none">
+        <div className="absolute top-2 right-2 bg-emerald-500/90 rounded px-1.5 py-0.5 flex items-center gap-1 z-20">
           <Radio size={9} className="text-white" />
           <span className="text-[10px] text-white font-bold">LIVE</span>
         </div>
       )}
 
       <ConnectionBadge type={connectionType} />
-
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Voice Profile Card — opens when clicking a participant tile
-// Shows profile info + DM + mention + per-participant volume
-// ---------------------------------------------------------------------------
-
-async function fetchUserProfile(userId: string) {
-  const base = import.meta.env.BASE_URL;
-  const res = await fetch(`${base}api/users/${userId}`, { credentials: 'include' });
-  if (!res.ok) throw new Error('Failed to load profile');
-  return res.json();
-}
-
-function vcStatusColor(status: string) {
-  switch (status) {
-    case 'online': return 'bg-emerald-500';
-    case 'idle':   return 'bg-yellow-400';
-    case 'dnd':    return 'bg-destructive';
-    default:       return 'bg-muted-foreground/40';
-  }
-}
-function vcStatusLabel(status: string) {
-  switch (status) {
-    case 'online': return 'Online';
-    case 'idle':   return 'Idle';
-    case 'dnd':    return 'Do Not Disturb';
-    default:       return 'Offline';
-  }
 }
 
 function VoiceProfileCard({
@@ -787,174 +708,55 @@ function VoiceProfileCard({
   onVolumeChange: (v: number) => void;
   onClose: () => void;
 }) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [dmLoading, setDmLoading] = useState(false);
-  const { activeChannelId, setActiveDmThread, triggerMention } = useAppStore();
-  const qc = useQueryClient();
+  const { voiceChannelUsers, voiceConnection } = useAppStore();
+  const channelUsers = voiceConnection.channelId
+    ? (voiceChannelUsers[voiceConnection.channelId] ?? [])
+    : [];
+  const user = channelUsers.find(u => u.userId === userId);
 
-  const { data: profile, isLoading } = useQuery({
-    queryKey: ['voice-profile', userId],
-    queryFn: () => fetchUserProfile(userId),
-    staleTime: 60_000,
-  });
+  if (!user) return null;
 
-  // Close on outside click or Escape
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (cardRef.current && !cardRef.current.contains(e.target as Node)) onClose();
-    };
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [onClose]);
-
-  // Smart positioning: keep card inside viewport
-  const CARD_W = 280;
-  const CARD_H = 380;
-  const left = Math.min(x + 8, window.innerWidth - CARD_W - 8);
-  const top  = Math.min(y + 8, window.innerHeight - CARD_H - 8);
-
-  const handleMessage = async () => {
-    if (!profile || dmLoading) return;
-    setDmLoading(true);
-    try {
-      const base = import.meta.env.BASE_URL;
-      const res = await fetch(`${base}api/dms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ userId }),
-      });
-      if (!res.ok) throw new Error('Failed to open DM');
-      const thread = await res.json();
-      qc.setQueryData(getListDmThreadsQueryKey(), (old: any[]) => {
-        const existing = (old || []).filter((t: any) => t.id !== thread.id);
-        return [...existing, thread];
-      });
-      setActiveDmThread(thread.id);
-      onClose();
-    } catch (err) {
-      console.error('[VoiceProfileCard] DM open failed:', err);
-    } finally {
-      setDmLoading(false);
-    }
-  };
-
-  const handleMention = () => {
-    if (!profile) return;
-    triggerMention(profile.displayName || profile.username);
-    onClose();
-  };
+  const cardW = 220;
+  const cardH = 120;
+  const left = Math.min(x, window.innerWidth - cardW - 12);
+  const top = Math.min(y, window.innerHeight - cardH - 12);
 
   return (
-    <div
-      ref={cardRef}
-      style={{ position: 'fixed', left, top, zIndex: 200 }}
-      className="w-[280px] bg-surface-0 rounded-2xl shadow-2xl border border-border/20 overflow-hidden"
-    >
-      {/* Banner */}
-      <div className="h-14 bg-gradient-to-br from-indigo-600 to-purple-700" />
-
-      <div className="px-4 pb-4">
-        {/* Avatar + close */}
-        <div className="flex items-start justify-between -mt-7 mb-3">
-          <div className="relative">
-            <Avatar className="h-14 w-14 border-[4px] border-[#1E1F22] rounded-full">
-              <AvatarImage src={profile?.avatarUrl || undefined} />
-              <AvatarFallback className="bg-primary text-white text-lg">
-                {isLoading ? '…' : getInitials(profile?.displayName || profile?.username || '?')}
-              </AvatarFallback>
-            </Avatar>
-            {profile && (
-              <div className={cn(
-                'absolute -bottom-0.5 -right-0.5 rounded-full border-[3px] border-[#1E1F22]',
-                vcStatusColor(profile.status)
-              )} style={{ width: 16, height: 16 }} />
-            )}
+    <>
+      <div className="fixed inset-0 z-[60]" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.92 }}
+        className="fixed z-[61] bg-popover border border-border/50 rounded-xl shadow-xl p-4 flex flex-col gap-3"
+        style={{ left, top, width: cardW }}
+      >
+        <button onClick={onClose} className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+          <X size={13} />
+        </button>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10 shrink-0">
+            <AvatarImage src={user.avatarUrl || undefined} />
+            <AvatarFallback className="bg-indigo-600 text-white text-sm">{getInitials(user.displayName)}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate">{user.displayName}</p>
+            <p className="text-xs text-muted-foreground">Voice volume</p>
           </div>
-          <button onClick={onClose} className="mt-1 text-muted-foreground hover:text-foreground transition-colors">
-            <X size={15} />
-          </button>
         </div>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 size={20} className="animate-spin text-muted-foreground" />
-          </div>
-        ) : profile ? (
-          <div className="space-y-3">
-            <div>
-              <h3 className="font-bold text-foreground text-sm leading-tight">{profile.displayName}</h3>
-              <p className="text-xs text-muted-foreground">@{profile.username}</p>
-            </div>
-
-            {profile.customStatus && (
-              <p className="text-xs text-muted-foreground italic">{profile.customStatus}</p>
-            )}
-
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <div className={cn('w-2 h-2 rounded-full shrink-0', vcStatusColor(profile.status))} />
-              <span>{vcStatusLabel(profile.status)}</span>
-            </div>
-
-            <div className="h-px bg-border/20" />
-
-            {/* DM + Mention */}
-            <div className="flex gap-2">
-              <button
-                onClick={handleMessage}
-                disabled={dmLoading}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-secondary hover:bg-secondary/80 rounded-lg text-xs font-medium text-foreground transition-colors disabled:opacity-60"
-              >
-                {dmLoading ? <Loader2 size={12} className="animate-spin" /> : <MessageSquare size={12} />}
-                Message
-              </button>
-              <button
-                onClick={handleMention}
-                disabled={!activeChannelId}
-                title={!activeChannelId ? 'Open a text channel first' : 'Insert mention in composer'}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-secondary hover:bg-secondary/80 rounded-lg text-xs font-medium text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <AtSign size={12} />
-                Mention
-              </button>
-            </div>
-
-            <div className="h-px bg-border/20" />
-
-            {/* Volume slider */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Volume2 size={12} />
-                  Volume
-                </span>
-                <span className="font-bold tabular-nums text-foreground">
-                  {Math.round(volume * 100)}%
-                </span>
-              </div>
-              <Slider
-                value={[volume]}
-                min={0}
-                max={1}
-                step={0.01}
-                onValueChange={(val) => onVolumeChange(val[0])}
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground/60">
-                <span>0%</span>
-                <span>50%</span>
-                <span>100%</span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground py-2">Profile not found.</p>
-        )}
-      </div>
-    </div>
+        <div className="flex items-center gap-2">
+          <Volume2 size={14} className="text-muted-foreground shrink-0" />
+          <Slider
+            min={0} max={2} step={0.05}
+            value={[volume]}
+            onValueChange={([v]) => onVolumeChange(v)}
+            className="flex-1"
+          />
+          <span className="text-xs text-muted-foreground w-8 text-right tabular-nums">
+            {Math.round(volume * 100)}%
+          </span>
+        </div>
+      </motion.div>
+    </>
   );
 }
