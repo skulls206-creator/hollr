@@ -4,6 +4,7 @@ import { Server } from "http";
 import { db } from "@workspace/db";
 import { userProfilesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { sendPushToUser } from "./push";
 
 let wss: WebSocketServer | null = null;
 
@@ -247,30 +248,69 @@ export function initWebSocket(server: Server) {
           }
 
           case "DM_CALL_SIGNAL": {
-            const { targetId, type: signalType } = msg.payload ?? {};
+            const { targetId, type: signalType, callerName, callerAvatar, dmThreadId, callerId } = msg.payload ?? {};
             if (targetId) {
               const delivered = sendToUser(targetId, { type: "DM_CALL_SIGNAL", payload: msg.payload });
-              // If ring can't be delivered, tell the caller immediately
-              if (!delivered && signalType === "call_ring" && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                  type: "DM_CALL_SIGNAL",
-                  payload: { type: "call_unavailable", targetId },
-                }));
+
+              if (signalType === "call_ring") {
+                if (!delivered) {
+                  // Target is offline — send push notification to wake them up
+                  const navParams = new URLSearchParams({ navType: "dm", threadId: dmThreadId ?? "" });
+                  sendPushToUser(targetId, {
+                    title: `📞 Incoming call`,
+                    body: `${callerName ?? "Someone"} is calling you`,
+                    icon: callerAvatar || "/images/icon-192.png",
+                    tag: "incoming-call",
+                    url: `/app?${navParams.toString()}`,
+                    nav: dmThreadId ? { type: "dm", threadId: dmThreadId } : undefined,
+                    notifType: "call",
+                    callerId,
+                    callerName,
+                    dmThreadId,
+                  }).catch(() => {});
+
+                  // Tell caller the ring couldn't be delivered in real-time
+                  if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                      type: "DM_CALL_SIGNAL",
+                      payload: { type: "call_unavailable", targetId },
+                    }));
+                  }
+                }
               }
             }
             break;
           }
 
           case "VIDEO_CALL_SIGNAL": {
-            const { targetId, type: signalType } = msg.payload ?? {};
+            const { targetId, type: signalType, callerName, callerAvatar, dmThreadId, callerId } = msg.payload ?? {};
             if (targetId) {
               const delivered = sendToUser(targetId, { type: "VIDEO_CALL_SIGNAL", payload: msg.payload });
-              // If ring can't be delivered, tell the caller immediately
-              if (!delivered && signalType === "video_ring" && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                  type: "VIDEO_CALL_SIGNAL",
-                  payload: { type: "video_unavailable", targetId },
-                }));
+
+              if (signalType === "video_ring") {
+                if (!delivered) {
+                  // Target is offline — send push notification
+                  const navParams = new URLSearchParams({ navType: "dm", threadId: dmThreadId ?? "" });
+                  sendPushToUser(targetId, {
+                    title: `📹 Incoming video call`,
+                    body: `${callerName ?? "Someone"} is video calling you`,
+                    icon: callerAvatar || "/images/icon-192.png",
+                    tag: "incoming-call",
+                    url: `/app?${navParams.toString()}`,
+                    nav: dmThreadId ? { type: "dm", threadId: dmThreadId } : undefined,
+                    notifType: "video_call",
+                    callerId,
+                    callerName,
+                    dmThreadId,
+                  }).catch(() => {});
+
+                  if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                      type: "VIDEO_CALL_SIGNAL",
+                      payload: { type: "video_unavailable", targetId },
+                    }));
+                  }
+                }
               }
             }
             break;

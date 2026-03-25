@@ -82,18 +82,53 @@ function requestNotificationPermission() {
   }
 }
 
+/** Show a notification via the Service Worker — works on locked screens and backgrounded tabs. */
+async function showSwNotification(
+  title: string,
+  body: string,
+  opts: {
+    icon?: string | null;
+    tag?: string;
+    requireInteraction?: boolean;
+    silent?: boolean;
+    vibrate?: number[];
+    actions?: { action: string; title: string }[];
+    data?: Record<string, unknown>;
+  } = {},
+) {
+  if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
+  if (!document.hidden && !opts.requireInteraction) return; // only when backgrounded (unless forced)
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.showNotification(title, {
+      body,
+      icon: opts.icon ?? '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: opts.tag ?? 'hollr-notification',
+      renotify: true,
+      silent: opts.silent ?? true,
+      vibrate: opts.vibrate ?? (opts.silent === false ? [150, 80, 150] : []),
+      requireInteraction: opts.requireInteraction ?? false,
+      data: opts.data ?? {},
+      actions: opts.actions ?? [
+        { action: 'open', title: 'Open' },
+        { action: 'dismiss', title: 'Dismiss' },
+      ],
+    } as NotificationOptions);
+  } catch { /* ignore — push may not be set up */ }
+}
+
+/** Dismiss any open call notification (e.g. when call is answered/declined). */
+async function dismissCallNotification() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const notifs = await reg.getNotifications({ tag: 'incoming-call' });
+    notifs.forEach((n) => n.close());
+  } catch {}
+}
+
 function showBrowserNotification(title: string, body: string, avatarUrl?: string | null) {
-  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-    try {
-      const n = new Notification(title, {
-        body,
-        icon: avatarUrl ?? '/favicon.ico',
-        tag: 'hollr-message',
-        silent: true,
-      });
-      setTimeout(() => n.close(), 6000);
-    } catch {}
-  }
+  showSwNotification(title, body, { icon: avatarUrl, tag: 'hollr-message', silent: true });
 }
 
 type WsEvent =
@@ -141,6 +176,46 @@ export function useRealtime(userId?: string) {
   // Request notification permission early
   useEffect(() => {
     requestNotificationPermission();
+  }, []);
+
+  // Listen for messages from the service worker (notification actions)
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const onSwMessage = (event: MessageEvent) => {
+      const { type, callerId, notifType } = event.data ?? {};
+
+      if (type === 'CALL_DECLINE_FROM_NOTIFICATION') {
+        const snap = useAppStore.getState();
+        const { dmCall } = snap;
+        // Decline the call if it's still in incoming state
+        if (
+          (dmCall.state === 'incoming_ringing' || dmCall.state === 'incoming_request') &&
+          dmCall.targetUserId === callerId
+        ) {
+          if (_sendRaw) {
+            _sendRaw({ type: 'DM_CALL_SIGNAL', payload: { type: 'call_decline', targetId: callerId } });
+          }
+          stopCallRinging();
+          dismissCallNotification();
+          snap.endDmCall();
+        } else if (notifType === 'video_call') {
+          // Video call decline from notification
+          const { videoCall } = snap;
+          if (videoCall.state === 'incoming_ringing' && videoCall.targetUserId === callerId) {
+            if (_sendRaw) {
+              _sendRaw({ type: 'VIDEO_CALL_SIGNAL', payload: { type: 'video_decline', targetId: callerId } });
+            }
+            stopCallRinging();
+            dismissCallNotification();
+            snap.endVideoCall();
+          }
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', onSwMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onSwMessage);
   }, []);
 
   useEffect(() => {
@@ -367,13 +442,25 @@ export function useRealtime(userId?: string) {
                   dmThreadId: dmThreadId ?? null,
                 });
                 startCallRinging(useAppStore.getState().ringtoneId);
-                showBrowserNotification(
-                  `📹 Incoming video call from ${callerName ?? 'Someone'}`,
-                  'Tap to answer',
-                  callerAvatar,
+                showSwNotification(
+                  `📹 Incoming video call`,
+                  `${callerName ?? 'Someone'} is calling you`,
+                  {
+                    icon: callerAvatar,
+                    tag: 'incoming-call',
+                    requireInteraction: true,
+                    silent: false,
+                    vibrate: [200, 100, 200],
+                    actions: [{ action: 'answer', title: '📹 Answer' }, { action: 'decline', title: '🚫 Decline' }],
+                    data: { notifType: 'video_call', callerId, callerName, dmThreadId, url: '/app' },
+                  },
                 );
+              } else if (vtype === 'video_accept') {
+                stopCallRinging();
+                dismissCallNotification();
               } else if (vtype === 'video_decline' || vtype === 'video_end') {
                 stopCallRinging();
+                dismissCallNotification();
                 snap.endVideoCall();
               }
             }
@@ -406,17 +493,27 @@ export function useRealtime(userId?: string) {
                   minimized: false,
                 });
                 startCallRinging(useAppStore.getState().ringtoneId);
-                showBrowserNotification(
-                  `📞 Incoming call from ${callerName ?? 'Someone'}`,
-                  callState === 'incoming_request' ? 'Tap to review the call request' : 'Tap to answer',
-                  callerAvatar,
+                showSwNotification(
+                  `📞 Incoming call`,
+                  `${callerName ?? 'Someone'} is calling you`,
+                  {
+                    icon: callerAvatar,
+                    tag: 'incoming-call',
+                    requireInteraction: true,
+                    silent: false,
+                    vibrate: [200, 100, 200],
+                    actions: [{ action: 'answer', title: '📞 Answer' }, { action: 'decline', title: '🚫 Decline' }],
+                    data: { notifType: 'call', callerId, callerName, dmThreadId, url: '/app' },
+                  },
                 );
               }
             } else if (ctype === 'call_accept') {
               stopCallRinging();
+              dismissCallNotification();
               storeSnap.setDmCallState({ state: 'connected', startedAt: Date.now() });
             } else if (ctype === 'call_decline' || ctype === 'call_end' || ctype === 'call_unavailable') {
               stopCallRinging();
+              dismissCallNotification();
               storeSnap.endDmCall();
             }
 

@@ -24,6 +24,11 @@ export interface PushPayload {
   url?: string;
   tag?: string;
   nav?: PushNav;
+  // Call-specific fields — passed through to the service worker for action handling
+  notifType?: "message" | "call" | "video_call";
+  callerId?: string;
+  callerName?: string;
+  dmThreadId?: string;
   // Note: `quiet` is NOT set by callers — it is injected per-device from the DB
 }
 
