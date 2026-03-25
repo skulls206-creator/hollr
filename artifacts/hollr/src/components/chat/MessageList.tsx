@@ -71,7 +71,9 @@ export function MessageList({
   channelId: string;
   highlightedMessageId?: string | null;
 }) {
-  const { data: messages = [], isLoading } = useListMessages(channelId);
+  const { data: messages = [], isLoading } = useListMessages(channelId, undefined, {
+    query: { refetchInterval: 2000, refetchIntervalInBackground: false },
+  });
   const { mutate: editMessage } = useEditMessage();
   const { mutate: deleteMessage } = useDeleteMessage();
   const qc = useQueryClient();
@@ -80,6 +82,7 @@ export function MessageList({
   const { openThread, openProfileCard, chatFontSize } = useAppStore();
   const { show: showMenu } = useContextMenu();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [emojiHoverMsg, setEmojiHoverMsg] = useState<string | null>(null);
 
@@ -88,7 +91,12 @@ export function MessageList({
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distanceFromBottom < 150) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -247,7 +255,7 @@ export function MessageList({
   }
 
   return (
-    <div data-messages-scroll className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
+    <div ref={scrollContainerRef} data-messages-scroll className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
       <div className="mt-auto" />
 
       {messages.length === 0 && (

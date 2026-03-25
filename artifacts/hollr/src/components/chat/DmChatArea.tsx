@@ -72,7 +72,9 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   recipientName: string;
   recipientAvatar?: string | null;
 }) {
-  const { data: messages = [], isLoading } = useListDmMessages(threadId);
+  const { data: messages = [], isLoading } = useListDmMessages(threadId, undefined, {
+    query: { refetchInterval: 2000, refetchIntervalInBackground: false },
+  });
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
   const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState, videoCall, openProfileCard } = useAppStore();
@@ -90,6 +92,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   const [composerEmojiOpen, setComposerEmojiOpen] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
@@ -101,7 +104,12 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distanceFromBottom < 150) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -487,7 +495,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
         <div className="mt-auto" />
 
         {messages.length === 0 && !isLoading && (
