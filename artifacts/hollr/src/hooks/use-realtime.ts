@@ -434,6 +434,12 @@ export function useRealtime(userId?: string) {
               const snap = useAppStore.getState();
               const { type: vtype, callerId, callerName, callerAvatar, dmThreadId } = data.payload ?? {};
               if (vtype === 'video_ring' && callerId !== userId) {
+                // Guard: already showing this caller's ring — don't re-alert
+                const vcAlreadyRinging =
+                  (snap.videoCall.state === 'incoming_ringing') &&
+                  snap.videoCall.targetUserId === callerId;
+                if (vcAlreadyRinging) break;
+
                 snap.setVideoCallState({
                   state: 'incoming_ringing',
                   targetUserId: callerId,
@@ -476,6 +482,14 @@ export function useRealtime(userId?: string) {
             if (ctype === 'call_ring') {
               // Ignore call from ourselves (same-account test)
               if (callerId === (userId as string)) break;
+
+              // Re-ring guard: if we're already showing this caller's ring, don't
+              // restart the ringtone or fire another notification — just let it ring.
+              const alreadyRinging =
+                (storeSnap.dmCall.state === 'incoming_ringing' || storeSnap.dmCall.state === 'incoming_request') &&
+                storeSnap.dmCall.targetUserId === callerId;
+              if (alreadyRinging) break;
+
               const liveAllowCalls = storeSnap.allowCallsFrom;
               const liveIsApproved = storeSnap.isCallerApproved(callerId);
               const callState = liveAllowCalls === 'nobody'

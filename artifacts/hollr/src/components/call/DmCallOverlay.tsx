@@ -54,6 +54,23 @@ export function DmCallOverlay() {
     return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
   }, [state]);
 
+  // Re-ring every 5 s while outgoing so the callee gets the signal when they
+  // reconnect (e.g. after opening the app from a push notification).
+  useEffect(() => {
+    if (state !== 'outgoing_ringing' || !targetUserId) return;
+    const id = setInterval(() => {
+      sendDmCallSignal({
+        type: 'call_ring',
+        targetId: targetUserId,
+        callerId: user?.id,
+        callerName: (user as any)?.displayName || (user as any)?.username || 'Someone',
+        callerAvatar: (user as any)?.avatarUrl ?? null,
+        dmThreadId: dmThreadId ?? undefined,
+      });
+    }, 5000);
+    return () => clearInterval(id);
+  }, [state, targetUserId, dmThreadId, user?.id]);
+
   // Stop ringing when call leaves incoming states
   useEffect(() => {
     if (state !== 'incoming_ringing' && state !== 'incoming_request') {

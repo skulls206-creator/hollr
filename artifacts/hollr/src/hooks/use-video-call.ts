@@ -59,6 +59,7 @@ export function useVideoCall() {
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerIdRef = useRef<string | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ICE candidate buffer: candidates that arrive before remoteDescription is set
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
@@ -68,6 +69,7 @@ export function useVideoCall() {
 
   const stopTimeout = useCallback(() => {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    if (ringIntervalRef.current) { clearInterval(ringIntervalRef.current); ringIntervalRef.current = null; }
   }, []);
 
   const cleanupMedia = useCallback(() => {
@@ -194,17 +196,25 @@ export function useVideoCall() {
       startedAt: null,
     });
 
-    sendVideoCallSignal({
-      type: 'video_ring',
+    const ringPayload = {
+      type: 'video_ring' as const,
       targetId: targetUserId,
       callerId: callerInfo.id,
       callerName: callerInfo.displayName,
       callerAvatar: callerInfo.avatarUrl,
       dmThreadId,
-    });
+    };
+    sendVideoCallSignal(ringPayload);
+
+    // Re-ring every 5 s so the callee receives it after reconnecting from push
+    if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
+    ringIntervalRef.current = setInterval(() => {
+      sendVideoCallSignal(ringPayload);
+    }, 5000);
 
     // Auto-cancel if no answer in 30s
     timeoutRef.current = setTimeout(() => {
+      if (ringIntervalRef.current) { clearInterval(ringIntervalRef.current); ringIntervalRef.current = null; }
       sendVideoCallSignal({ type: 'video_end', targetId: targetUserId });
       cleanup();
       useAppStore.getState().endVideoCall();
@@ -304,6 +314,10 @@ export function useVideoCall() {
       // ── Incoming call ring ─────────────────────────────────────────────────
       if (type === 'video_ring') {
         if (callerId === userIdRef.current) return; // ignore self-calls
+        // Re-ring guard: already alerting for this caller — don't restart ringtone
+        const vcSnap = useAppStore.getState().videoCall;
+        if (vcSnap.state === 'incoming_ringing' && vcSnap.targetUserId === callerId) return;
+
         useAppStore.getState().setVideoCallState({
           state: 'incoming_ringing',
           targetUserId: callerId,
