@@ -2,27 +2,11 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { sendVoiceSignal, setVoiceSignalListener, setNewPeerHandler } from './use-realtime';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
+import { fetchIceServers } from '@/lib/ice-servers';
 
 const SPEAKING_THRESHOLD = 18;
 const SPEAKING_DEBOUNCE_MS = 600;
 
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  // Free TURN relay — ensures connectivity through strict NAT, proxies, and
-  // environments like Replit's proxied iframe preview.
-  {
-    urls: [
-      'turn:openrelay.metered.ca:80',
-      'turn:openrelay.metered.ca:443',
-      'turn:openrelay.metered.ca:80?transport=tcp',
-      'turn:openrelay.metered.ca:443?transport=tcp',
-    ],
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-];
 
 export function useWebRTC(
   channelId: string | null,
@@ -110,12 +94,13 @@ export function useWebRTC(
   };
 
   // Create or replace a peer connection to a given remote user
-  const createPeer = useCallback((peerId: string): RTCPeerConnection => {
+  const createPeer = useCallback(async (peerId: string): Promise<RTCPeerConnection> => {
     if (peersRef.current[peerId]) {
       peersRef.current[peerId].close();
     }
 
-    const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const iceServers = await fetchIceServers();
+    const peer = new RTCPeerConnection({ iceServers });
 
     // Add local audio tracks
     if (localStreamRef.current) {
@@ -239,7 +224,7 @@ export function useWebRTC(
 
           // Recreate if missing, closed, or connection has failed
           if (!peer || peer.signalingState === 'closed' || peer.connectionState === 'failed') {
-            peer = createPeer(fromId);
+            peer = await createPeer(fromId);
           }
 
           // Glare resolution: we sent an offer that was never answered (e.g. from a
@@ -286,9 +271,9 @@ export function useWebRTC(
 
   // Register new peer handler — called when an existing or new participant appears
   useEffect(() => {
-    setNewPeerHandler((peerId: string) => {
+    setNewPeerHandler(async (peerId: string) => {
       if (!channelIdRef.current) return;
-      createPeer(peerId);
+      await createPeer(peerId);
     });
     return () => setNewPeerHandler(null);
   }, [createPeer]);

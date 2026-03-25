@@ -3,6 +3,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
 import { sendVideoCallSignal, setVideoCallSignalListener } from './use-realtime';
 import { startCallRinging, stopCallRinging } from '@/lib/notification-sound';
+import { fetchIceServers } from '@/lib/ice-servers';
 
 // ─── Module-level singleton ───────────────────────────────────────────────────
 // Lets DmChatArea trigger video calls without mounting the hook itself.
@@ -34,22 +35,6 @@ export function initiateVideoCall(
   }
 }
 
-// ─── ICE / STUN / TURN servers ───────────────────────────────────────────────
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  {
-    urls: [
-      'turn:openrelay.metered.ca:80',
-      'turn:openrelay.metered.ca:443',
-      'turn:openrelay.metered.ca:80?transport=tcp',
-      'turn:openrelay.metered.ca:443?transport=tcp',
-    ],
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-];
 
 const CALL_TIMEOUT_MS = 30_000;
 
@@ -140,13 +125,14 @@ export function useVideoCall() {
   // Creates an RTCPeerConnection wired to the current local stream.
   // peerId = the remote user we're connecting to.
 
-  const createPeer = useCallback((peerId: string): RTCPeerConnection => {
+  const createPeer = useCallback(async (peerId: string): Promise<RTCPeerConnection> => {
     closePeer();
     peerIdRef.current = peerId;
     remoteDescSetRef.current = false;
     pendingIceRef.current = [];
 
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const iceServers = await fetchIceServers();
+    const pc = new RTCPeerConnection({ iceServers });
 
     // Add local audio+video tracks to peer
     if (localStreamRef.current) {
@@ -223,7 +209,7 @@ export function useVideoCall() {
     stopTimeout();
     stopCallRinging();
     await getLocalStream('user');
-    createPeer(callerId);
+    await createPeer(callerId);
     // Send accept; include our own userId so initiator knows who accepted
     sendVideoCallSignal({
       type: 'video_accept',
@@ -317,7 +303,7 @@ export function useVideoCall() {
       if (type === 'video_accept') {
         stopTimeout();
         const peerId = acceptorId ?? targetId; // acceptorId is the correct peer
-        const pc = createPeer(peerId);
+        const pc = await createPeer(peerId);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         sendVideoCallSignal({ type: 'video_offer', targetId: peerId, sdp: offer });
