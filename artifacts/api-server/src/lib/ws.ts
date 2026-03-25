@@ -100,6 +100,7 @@ export function initWebSocket(server: Server) {
             if (userId) {
               userSockets.set(userId, ws);
               socketUsers.set(ws, userId);
+              console.log(`[WS] IDENTIFY userId=${userId} totalSockets=${clients.size}`);
 
               // Read the user's saved status preference from DB and broadcast it.
               // Invisible users appear as offline to everyone else.
@@ -278,8 +279,10 @@ export function initWebSocket(server: Server) {
 
           case "DM_CALL_SIGNAL": {
             const { targetId, type: signalType, callerName, callerAvatar, dmThreadId, callerId } = msg.payload ?? {};
+            console.log(`[WS] DM_CALL_SIGNAL type=${signalType} targetId=${targetId} callerId=${callerId} inMap=${userSockets.has(targetId)} mapSize=${userSockets.size}`);
             if (targetId) {
               const delivered = sendToUser(targetId, { type: "DM_CALL_SIGNAL", payload: msg.payload });
+              console.log(`[WS] DM_CALL_SIGNAL delivered=${delivered} targetSocket=${userSockets.get(targetId)?.readyState}`);
 
               if (signalType === "call_ring" && !delivered) {
                 // Target is offline — send push so their device wakes up.
