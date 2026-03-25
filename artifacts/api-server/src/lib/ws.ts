@@ -12,6 +12,9 @@ const clients = new Set<WebSocket>();
 const userSockets = new Map<string, WebSocket>();
 const socketUsers = new Map<WebSocket, string>();
 
+// Track liveness for each socket so we can terminate zombie connections
+const socketAlive = new WeakMap<WebSocket, boolean>();
+
 interface VoiceParticipant {
   userId: string;
   displayName: string;
@@ -58,14 +61,40 @@ function visibleStatus(status: string): string {
 export function initWebSocket(server: Server) {
   wss = new WebSocketServer({ server, path: "/api/ws" });
 
+  // Ping every client every 30 s. Any client that hasn't responded to the
+  // previous ping is a zombie — terminate it so cleanup fires and the user
+  // is correctly marked offline. This is essential behind proxies (Replit
+  // production) that silently drop idle WebSocket connections.
+  const pingInterval = setInterval(() => {
+    if (!wss) return;
+    for (const client of clients) {
+      if (socketAlive.get(client) === false) {
+        client.terminate();
+        continue;
+      }
+      socketAlive.set(client, false);
+      client.ping();
+    }
+  }, 30_000);
+
+  wss.on("close", () => clearInterval(pingInterval));
+
   wss.on("connection", (ws: WebSocket, _req: IncomingMessage) => {
     clients.add(ws);
+    socketAlive.set(ws, true);
+    ws.on("pong", () => socketAlive.set(ws, true));
 
     ws.on("message", async (data) => {
       try {
         const msg = JSON.parse(data.toString());
 
         switch (msg.type) {
+          case "PING": {
+            socketAlive.set(ws, true);
+            ws.send(JSON.stringify({ type: "PONG" }));
+            break;
+          }
+
           case "IDENTIFY": {
             const userId = msg.payload?.userId;
             if (userId) {

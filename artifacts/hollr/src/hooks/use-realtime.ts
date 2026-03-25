@@ -148,7 +148,8 @@ type WsEvent =
   | { type: 'MUSIC_STATE_UPDATE'; payload: MusicState }
   | { type: 'DM_CALL_SIGNAL'; payload: any }
   | { type: 'VIDEO_CALL_SIGNAL'; payload: any }
-  | { type: 'CONNECTED' };
+  | { type: 'CONNECTED' }
+  | { type: 'PONG' };
 
 export function useRealtime(userId?: string) {
   const queryClient = useQueryClient();
@@ -156,6 +157,7 @@ export function useRealtime(userId?: string) {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelay = useRef(1000);
   const isDestroyed = useRef(false);
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Messages queued while the socket is connecting (before onopen fires)
   const sendQueue = useRef<object[]>([]);
 
@@ -251,6 +253,15 @@ export function useRealtime(userId?: string) {
         // Flush any messages queued while we were reconnecting
         const queued = sendQueue.current.splice(0);
         for (const m of queued) newWs.send(JSON.stringify(m));
+
+        // Send a JSON ping every 25 s to keep the connection alive through
+        // production proxies that close idle WebSocket connections.
+        if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = setInterval(() => {
+          if (newWs.readyState === WebSocket.OPEN) {
+            newWs.send(JSON.stringify({ type: 'PING' }));
+          }
+        }, 25_000);
       };
 
       newWs.onmessage = (event) => {
@@ -555,6 +566,7 @@ export function useRealtime(userId?: string) {
     };
 
       newWs.onclose = () => {
+        if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
         if (isDestroyed.current) return;
         // Exponential backoff: 1s → 2s → 4s → … → 30s
         reconnectTimer.current = setTimeout(() => {
@@ -573,6 +585,7 @@ export function useRealtime(userId?: string) {
     return () => {
       isDestroyed.current = true;
       if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
+      if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
       _sendSignal = null;
       _sendRaw = null;
       if (ws.current?.readyState === WebSocket.OPEN) {
