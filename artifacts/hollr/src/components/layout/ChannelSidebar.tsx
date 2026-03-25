@@ -53,7 +53,7 @@ export function ChannelSidebar() {
     dmUnreadCounts, clearDmUnreadCount,
     voiceVolumes, setVoiceVolume,
     triggerMention,
-    layoutMode, setClassicChannelOpen, setMobileSidebarOpen,
+    layoutMode, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked,
   } = useAppStore();
 
   // Always closes (never opens) the sidebar — the pull-tab is how you reopen it.
@@ -410,7 +410,7 @@ export function ChannelSidebar() {
                     return result.messages?.map((msg: any) => (
                       <button
                         key={msg.id}
-                        onClick={() => { setActiveDmThread(result.thread.id); closeSearch(); }}
+                        onClick={() => { setActiveDmThread(result.thread.id); closeSearch(); if (!sidebarLocked) closeSidebar(); }}
                         className="w-full flex items-start gap-2.5 px-2 py-2 rounded-md hover:bg-secondary/50 transition-colors text-left"
                       >
                         <Avatar className="h-8 w-8 shrink-0 mt-0.5">
@@ -446,7 +446,11 @@ export function ChannelSidebar() {
             return (
               <button
                 key={thread.id}
-                onClick={() => { setActiveDmThread(thread.id); clearDmUnreadCount(thread.id); }}
+                onClick={() => {
+                  setActiveDmThread(thread.id);
+                  clearDmUnreadCount(thread.id);
+                  if (!sidebarLocked) closeSidebar();
+                }}
                 onContextMenu={e => handleDmContextMenu(e, thread, other)}
                 className={cn(
                   'w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors',
