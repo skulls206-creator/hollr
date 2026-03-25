@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useListMessages, useEditMessage, useDeleteMessage, getListMessagesQueryKey } from '@workspace/api-client-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
-import { format } from 'date-fns';
+import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
 import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare, Copy, ExternalLink } from 'lucide-react';
@@ -42,6 +42,25 @@ function formatContent(content: string) {
     ) : (
       <span key={i}>{part}</span>
     )
+  );
+}
+
+function formatDateLabel(date: Date): string {
+  if (isToday(date)) return 'Today';
+  if (isYesterday(date)) return 'Yesterday';
+  const currentYear = new Date().getFullYear();
+  return date.getFullYear() === currentYear
+    ? format(date, 'MMMM d')
+    : format(date, 'MMMM d, yyyy');
+}
+
+function DateSeparator({ date }: { date: Date }) {
+  return (
+    <div className="flex items-center justify-center my-4 select-none pointer-events-none">
+      <div className="bg-muted text-muted-foreground text-xs font-semibold px-3 py-1 rounded-full">
+        {formatDateLabel(date)}
+      </div>
+    </div>
   );
 }
 
@@ -240,7 +259,12 @@ export function MessageList({
 
       {messages.map((msg, index) => {
         const prev = messages[index - 1];
+        const msgDate = new Date(msg.createdAt);
+        const prevDate = prev ? new Date(prev.createdAt) : null;
+        const showDateSeparator = !prevDate || !isSameDay(msgDate, prevDate);
+
         const showHeader = index === 0
+          || showDateSeparator
           || prev.authorId !== msg.authorId
           || (new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60000);
 
@@ -252,8 +276,9 @@ export function MessageList({
         const replyCount = (msg as any).replyCount || 0;
 
         return (
+          <Fragment key={msg.id}>
+          {showDateSeparator && <DateSeparator date={msgDate} />}
           <div
-            key={msg.id}
             ref={el => { messageRefs.current[msg.id] = el; }}
             className={cn(
               'group relative flex py-0.5 px-4 -mx-4 rounded-sm transition-colors',
@@ -297,7 +322,7 @@ export function MessageList({
                     {msg.author.displayName || msg.author.username}
                   </button>
                   <span className="text-xs text-muted-foreground">
-                    {format(new Date(msg.createdAt), 'MM/dd/yyyy h:mm a')}
+                    {format(new Date(msg.createdAt), 'h:mm a')}
                   </span>
                   {msg.pinned && (
                     <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-0.5">
@@ -457,6 +482,7 @@ export function MessageList({
               </div>
             )}
           </div>
+          </Fragment>
         );
       })}
       <div ref={bottomRef} />

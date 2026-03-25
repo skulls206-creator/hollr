@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useListDmMessages, useSendDmMessage, useRequestUploadUrl, getListDmMessagesQueryKey } from '@workspace/api-client-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
-import { format } from 'date-fns';
+import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -44,6 +44,25 @@ function formatContent(content: string) {
     ) : (
       <span key={i}>{part}</span>
     )
+  );
+}
+
+function formatDateLabel(date: Date): string {
+  if (isToday(date)) return 'Today';
+  if (isYesterday(date)) return 'Yesterday';
+  const currentYear = new Date().getFullYear();
+  return date.getFullYear() === currentYear
+    ? format(date, 'MMMM d')
+    : format(date, 'MMMM d, yyyy');
+}
+
+function DateSeparator({ date }: { date: Date }) {
+  return (
+    <div className="flex items-center justify-center my-4 select-none pointer-events-none">
+      <div className="bg-muted text-muted-foreground text-xs font-semibold px-3 py-1 rounded-full">
+        {formatDateLabel(date)}
+      </div>
+    </div>
   );
 }
 
@@ -476,7 +495,12 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
 
         {messages.map((msg: any, index: number) => {
           const prev = messages[index - 1] as any;
+          const msgDate = new Date(msg.createdAt);
+          const prevDate = prev ? new Date(prev.createdAt) : null;
+          const showDateSeparator = !prevDate || !isSameDay(msgDate, prevDate);
+
           const showHeader = index === 0
+            || showDateSeparator
             || prev.authorId !== msg.authorId
             || (new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60000);
 
@@ -486,8 +510,9 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
           const reactions = (msg as any).reactions || [];
 
           return (
+            <Fragment key={msg.id}>
+            {showDateSeparator && <DateSeparator date={msgDate} />}
             <div
-              key={msg.id}
               className={cn(
                 'group relative flex py-0.5 px-4 -mx-4 rounded-sm transition-colors',
                 showHeader ? 'mt-4' : 'mt-0',
@@ -522,7 +547,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                       {msg.author.displayName || msg.author.username}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {format(new Date(msg.createdAt), 'MM/dd/yyyy h:mm a')}
+                      {format(new Date(msg.createdAt), 'h:mm a')}
                     </span>
                   </div>
                 )}
@@ -635,6 +660,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                 </div>
               )}
             </div>
+            </Fragment>
           );
         })}
         <div ref={bottomRef} />
