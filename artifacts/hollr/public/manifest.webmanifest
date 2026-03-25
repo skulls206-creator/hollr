@@ -1,6 +1,6 @@
 {
-  "name": "Hollr Chat",
-  "short_name": "Hollr Chat",
+  "name": "HOLLR",
+  "short_name": "HOLLR",
   "description": "Real-time chat, voice, and the full KHURK ecosystem in one place.",
   "start_url": "/app",
   "scope": "/",
