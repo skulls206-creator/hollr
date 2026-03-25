@@ -33,7 +33,7 @@ router.post("/khurk-apps/dismiss/:appId", async (req: Request, res: Response) =>
   }
   await db
     .insert(khurkAppDismissalsTable)
-    .values({ userId: req.user.id, appId })
+    .values({ userId: req.user.id, appId: String(appId) })
     .onConflictDoNothing();
   res.json({ success: true });
 });

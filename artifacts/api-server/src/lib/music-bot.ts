@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { ServerResponse } from 'http';
-import playdl from 'play-dl';
+import playdl, { type SoundCloudTrack } from 'play-dl';
 import type { Track, MusicState } from '@workspace/api-zod';
 
 export const BOT_USER_ID = 'hollr-music-bot';
@@ -77,7 +77,7 @@ export async function resolveTrack(input: string): Promise<Resolved> {
   if (isSoundCloudUrl(input)) {
     const info = await playdl.soundcloud(input);
     if (info.type !== 'track') throw new Error('Only SoundCloud track URLs are supported (not playlists)');
-    const t = info as playdl.SoundCloudTrack;
+    const t = info as SoundCloudTrack;
     return {
       track: {
         url: input,
@@ -160,10 +160,10 @@ export async function resolveTrack(input: string): Promise<Resolved> {
       songName,
     ].filter((q, i, arr) => q && arr.indexOf(q) === i);
 
-    let scResults: playdl.SoundCloudTrack[] = [];
+    let scResults: SoundCloudTrack[] = [];
     for (const q of queries) {
       console.log(`[music] Searching SoundCloud: "${q}"`);
-      const found = await playdl.search(q, { source: { soundcloud: 'tracks' }, limit: 10 }) as playdl.SoundCloudTrack[];
+      const found = await playdl.search(q, { source: { soundcloud: 'tracks' }, limit: 10 }) as SoundCloudTrack[];
       if (found.length > 0) { scResults = found; break; }
     }
 
@@ -179,7 +179,7 @@ export async function resolveTrack(input: string): Promise<Resolved> {
     const songNameLower = songName.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
     const artistLower = artistName.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
 
-    interface Candidate { r: playdl.SoundCloudTrack; score: number; diff: number; }
+    interface Candidate { r: SoundCloudTrack; score: number; diff: number; }
     const candidates: Candidate[] = scResults.map(r => {
       const rLower = r.name.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
       const diff = Math.abs(r.durationInSec - ytDurationSec);
@@ -229,7 +229,7 @@ export async function resolveTrack(input: string): Promise<Resolved> {
   if (results.length === 0) {
     throw new Error(`No results found for "${input}" on SoundCloud`);
   }
-  const t = results[0] as playdl.SoundCloudTrack;
+  const t = results[0] as SoundCloudTrack;
   console.log(`[music] Search resolved to: "${t.name}" by ${t.user?.name}`);
   return {
     track: {

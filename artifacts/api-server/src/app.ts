@@ -73,11 +73,11 @@ const messageLimiter = rateLimit({
 });
 
 app.use("/api/channels/:channelId/messages", (req, _res, next) => {
-  if (req.method === "POST") return messageLimiter(req, _res, next);
+  if (req.method === "POST") { messageLimiter(req, _res, next); return; }
   next();
 });
 app.use("/api/dms/:threadId/messages", (req, _res, next) => {
-  if (req.method === "POST") return messageLimiter(req, _res, next);
+  if (req.method === "POST") { messageLimiter(req, _res, next); return; }
   next();
 });
 
