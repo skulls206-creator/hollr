@@ -59,7 +59,23 @@ function visibleStatus(status: string): string {
 }
 
 export function initWebSocket(server: Server) {
-  wss = new WebSocketServer({ server, path: "/api/ws" });
+  // Use noServer mode so we can manually intercept the HTTP upgrade event.
+  // This lets us accept connections at BOTH /api/ws (dev Vite proxy, which
+  // forwards the full path) AND /ws (Replit production proxy, which strips
+  // the /api prefix before forwarding to port 8080).
+  wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (req, socket, head) => {
+    const url = req.url ?? "";
+    const pathname = url.split("?")[0];
+    if (pathname === "/api/ws" || pathname === "/ws") {
+      wss!.handleUpgrade(req, socket as any, head, (ws) => {
+        wss!.emit("connection", ws, req);
+      });
+    } else {
+      socket.destroy();
+    }
+  });
 
   // Ping every client every 30 s. Any client that hasn't responded to the
   // previous ping is a zombie — terminate it so cleanup fires and the user

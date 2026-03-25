@@ -1,0 +1,37 @@
+Any hard‑coded URLs (WebSocket, signaling server, TURN, callback URLs, notification endpoints) that point at the preview origin will fail in the published app.
+Missing or different environment variables
+Publishing is a snapshot of files and config at that moment, but env vars must be set for the deployed instance too; they are not magically inherited from your dev shell.�
+If your call logic depends on things like TURN keys, API keys, or a specific WS URL from env, the published app may be running with empty or wrong values.
+HTTPS / permissions differences on device
+On iPhone Safari, camera/mic prompts are stricter when the site is on a “real” HTTPS domain vs. a dev URL, and any mismatch (like insecure ws:// instead of wss://) can silently break WebRTC calls.�
+If your published URL is different, some stored permissions or notifications settings might not carry over.
+Different backend / signaling instance
+If you’re using a separate signaling server or Cloudflare Calls/TURN, preview may be talking to one instance and production to another (or none at all) because of base URLs or keys.�
+Quick debugging checklist
+Run these in the published URL (not preview), ideally on your iPhone and on desktop dev tools:
+Console errors
+Open DevTools on desktop at the published URL and try making a call.
+Look for errors like “failed to construct WebSocket”, “getUserMedia not allowed”, CORS errors, or 4xx/5xx on your signaling endpoints.
+Network tab
+Filter for ws, webrtc, or whatever your signaling endpoint path is.
+Confirm the WebSocket connects on the published domain, and that any REST endpoints for starting calls return 200 instead of 404/500.
+Env / config verification
+In the deployed code, log out the values that define:
+Signaling server URL
+TURN / STUN config
+Any “base URL” used for API calls
+Compare preview vs published; they should be identical or intentionally different but valid.
+iPhone‑specific checks
+Test the published URL in Safari and see whether:
+The call button UI still appears.
+Tapping it triggers any permission prompts.
+The call state updates in the UI (even if audio/video doesn’t).
+Likely fixes for your case
+Given hollr.chat and the iPhone call UI you described earlier, these are the first things I’d patch:�
+Replace any hard‑coded preview URLs with something derived from env (e.g. VITE_API_BASE_URL) and set that env for the deployment.�
+Ensure your WebSocket and WebRTC signaling are using wss:// with the published domain, not ws:// or the preview host.�
+Double‑check that your Cloudflare Calls / TURN keys are present in the deployed env and not only in the Replit workspace.�
+Add temporary logging around the exact point where you:
+Emit “start call” to the backend
+Receive “incoming call” events / notifications
+Transition UI into “ringing” state
