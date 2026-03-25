@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
-import { ExternalLink, EyeOff, Grid2x2, Menu, MonitorPlay, Pin, PinOff, RotateCcw, Sparkles } from 'lucide-react';
+import { ExternalLink, EyeOff, Grid2x2, LayoutList, Menu, MonitorPlay, Pin, PinOff, RotateCcw, Sparkles } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { useDockOrder } from '@/hooks/use-dock-order';
@@ -139,6 +139,64 @@ function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) 
   );
 }
 
+function AppListRow({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) {
+  const { setActiveKhurkAppId } = useAppStore();
+  const { show: showMenu } = useContextMenu();
+  const isTab = app.openMode === 'tab';
+
+  const handleLaunch = () => {
+    if (isTab) window.open(app.url, '_blank', 'noopener');
+    else setActiveKhurkAppId(app.id);
+  };
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showMenu({
+      x: e.clientX, y: e.clientY,
+      title: app.name,
+      subtitle: app.tagline,
+      titleIcon: app.imageSrc,
+      actions: [
+        { id: 'launch', label: isTab ? 'Open' : 'Launch in Window', icon: isTab ? <ExternalLink size={14} /> : <MonitorPlay size={14} />, onClick: handleLaunch },
+        { id: 'open-tab', label: 'Open in New Tab', icon: <ExternalLink size={14} />, onClick: () => window.open(app.url, '_blank', 'noopener') },
+        ...(onDismiss ? [{ id: 'hide', label: 'Hide from dock & dashboard', icon: <EyeOff size={14} />, onClick: onDismiss, danger: true, dividerBefore: true }] : []),
+      ],
+    });
+  }, [app, isTab, showMenu, handleLaunch, onDismiss]);
+
+  return (
+    <button
+      onClick={handleLaunch}
+      onContextMenu={handleContextMenu}
+      className="group w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-150 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-left"
+    >
+      {/* Icon */}
+      <div
+        className="w-11 h-11 rounded-xl shrink-0 overflow-hidden flex items-center justify-center"
+        style={{ background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)` }}
+      >
+        {app.imageSrc ? (
+          <img src={app.imageSrc} alt={app.name} className="w-7 h-7 object-contain" style={{ filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.5))' }} />
+        ) : (
+          <HollrIcon size={28} />
+        )}
+      </div>
+
+      {/* Text */}
+      <div className="flex flex-col flex-1 min-w-0">
+        <span className="text-sm font-bold text-foreground leading-tight truncate">{app.name}</span>
+        <span className="text-xs text-muted-foreground leading-snug truncate">{app.description}</span>
+      </div>
+
+      {/* Launch */}
+      <div className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-secondary text-secondary-foreground border border-border/50 opacity-0 group-hover:opacity-100 transition-opacity">
+        {isTab ? 'Open' : 'Launch'}
+      </div>
+    </button>
+  );
+}
+
 interface DashboardViewProps {
   onOpenSidebar?: () => void;
 }
@@ -149,6 +207,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
   const dockOrder = useDockOrder();
   // Temporarily show all apps (ignores user's hidden list until they navigate away)
   const [showAll, setShowAll] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Sort a list of apps to match the user's dock order.
   // Apps that appear in the dock come first (in dock sequence).
@@ -208,6 +267,28 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
         <div className="flex items-center gap-2 ml-1">
           <img src="/khurk-logo.png" alt="KHURK OS" className="w-6 h-6 rounded-md object-cover shrink-0" draggable={false} />
           <span className="text-sm font-bold tracking-tight text-foreground">KHURK OS</span>
+        </div>
+        <div className="flex items-center gap-1 ml-auto">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={cn(
+              'w-7 h-7 flex items-center justify-center rounded-lg transition-colors',
+              viewMode === 'grid' ? 'bg-accent text-foreground' : 'text-muted-foreground/50 hover:text-foreground hover:bg-accent/60',
+            )}
+            title="Grid view"
+          >
+            <Grid2x2 size={14} />
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={cn(
+              'w-7 h-7 flex items-center justify-center rounded-lg transition-colors',
+              viewMode === 'list' ? 'bg-accent text-foreground' : 'text-muted-foreground/50 hover:text-foreground hover:bg-accent/60',
+            )}
+            title="List view"
+          >
+            <LayoutList size={14} />
+          </button>
         </div>
       </div>
 
@@ -295,7 +376,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
             {displayedApps.length === 0 ? (
               /* Empty state — user has dismissed all apps */
               <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-2xl bg-accent/50 flex items-center justify-center">
                   <Grid2x2 size={28} className="text-muted-foreground/40" />
                 </div>
                 <p className="text-sm text-muted-foreground/60">All apps are hidden.</p>
@@ -307,10 +388,20 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
                   Restore all apps
                 </button>
               </div>
-            ) : (
+            ) : viewMode === 'grid' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {displayedApps.map((app) => (
                   <AppCard
+                    key={app.id}
+                    app={app}
+                    onDismiss={showAll ? undefined : () => dismissOne(app.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {displayedApps.map((app) => (
+                  <AppListRow
                     key={app.id}
                     app={app}
                     onDismiss={showAll ? undefined : () => dismissOne(app.id)}
@@ -344,7 +435,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
           {/* ── Footer ── */}
           <div className="w-full flex items-center justify-center gap-2 py-5 mt-auto border-t border-border text-muted-foreground/40">
             <Sparkles size={12} />
-            <span className="text-[11px]">2026 ® KHURK OS · powered by Hollr Chat</span>
+            <span className="text-[11px]">2026 ® KHURK OS · Powered by HOLLR CHAT</span>
           </div>
 
         </div>

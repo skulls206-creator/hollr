@@ -1,4 +1,4 @@
-import { Plus, MessageSquare, UserPlus, Settings, LogOut, Copy, Bell, Hash, ExternalLink, Trash2, RotateCcw, LayoutGrid, RefreshCw, HelpCircle, ServerIcon } from 'lucide-react';
+import { Plus, MessageSquare, UserPlus, Settings, LogOut, Copy, Bell, Hash, ExternalLink, Trash2, RotateCcw, LayoutGrid, RefreshCw, HelpCircle, ServerIcon, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListMyServers } from '@workspace/api-client-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -281,9 +281,22 @@ export function ServerSidebar() {
 
   const handleAppContextMenu = (e: React.MouseEvent, app: KhurkApp) => {
     e.preventDefault();
+    const idx = khurkOrder.indexOf(app.id);
+    const canMoveUp = idx > 0;
+    const canMoveDown = idx < khurkOrder.length - 1;
+    const moveApp = (from: number, to: number) => {
+      setKhurkOrder(prev => {
+        const next = [...prev];
+        [next[from], next[to]] = [next[to], next[from]];
+        saveOrder(KHURK_ORDER_KEY, next);
+        return next;
+      });
+    };
     const actions: any[] = [
       { id: 'open', label: app.openMode === 'tab' ? 'Open in New Tab' : 'Open App', icon: <LayoutGrid size={14} />, onClick: () => handleAppClick(app) },
       { id: 'open-tab', label: 'Open in New Tab', icon: <ExternalLink size={14} />, onClick: () => window.open(app.url, '_blank', 'noopener') },
+      ...(canMoveUp ? [{ id: 'move-up', label: 'Move Up', icon: <ArrowUp size={14} />, onClick: () => moveApp(idx, idx - 1), dividerBefore: true }] : []),
+      ...(canMoveDown ? [{ id: 'move-down', label: 'Move Down', icon: <ArrowDown size={14} />, onClick: () => moveApp(idx, idx + 1), dividerBefore: !canMoveUp }] : []),
       { id: 'copy-url', label: 'Copy Link', icon: <Copy size={14} />, onClick: () => navigator.clipboard.writeText(app.url), dividerBefore: true },
       { id: 'remove', label: 'Remove from Sidebar', icon: <Trash2 size={14} />, onClick: () => dismissOne(app.id), danger: true, dividerBefore: true },
       { id: 'remove-all', label: 'Remove All KHURK Apps', icon: <Trash2 size={14} />, onClick: dismissAll, danger: true },

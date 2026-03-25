@@ -246,7 +246,7 @@ export function ChannelSidebar() {
           <button
             onClick={closeSidebar}
             title="Close sidebar"
-            className="p-1.5 mr-1 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors shrink-0"
+            className="p-1.5 mr-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors shrink-0"
           >
             <Menu size={16} />
           </button>
@@ -345,7 +345,7 @@ export function ChannelSidebar() {
           <button
             onClick={closeSidebar}
             title="Close sidebar"
-            className="p-1.5 ml-2 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors shrink-0"
+            className="p-1.5 ml-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors shrink-0"
           >
             <Menu size={16} />
           </button>
@@ -358,7 +358,7 @@ export function ChannelSidebar() {
           </button>
         </div>
         {serverMenuOpen && (
-          <div className="absolute top-full left-0 right-0 z-50 bg-[#111214] border border-border/20 rounded-lg shadow-2xl py-1 mx-2 mt-1">
+          <div className="absolute top-full left-0 right-0 z-50 bg-popover border border-border/20 rounded-lg shadow-2xl py-1 mx-2 mt-1">
             <button
               onClick={() => { setInviteModalOpen(true); setServerMenuOpen(false); }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-indigo-400 hover:bg-indigo-500/10 transition-colors font-medium"
@@ -824,7 +824,7 @@ function UserProfilePanel({
       {/* Input device picker — rolls up flush with sidebar left edge */}
       <div
         className={cn(
-          "absolute bottom-full left-0 w-full bg-[#111214] border-t border-x border-border/50 rounded-t-lg p-2 z-50 transition-all duration-200 origin-bottom",
+          "absolute bottom-full left-0 w-full bg-popover border-t border-x border-border/50 rounded-t-lg p-2 z-50 transition-all duration-200 origin-bottom",
           micPickerOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"
         )}
       >
@@ -839,7 +839,7 @@ function UserProfilePanel({
               onClick={() => { setAudioInputDeviceId(dev.deviceId); setMicPickerOpen(false); }}
               className={cn(
                 "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2 min-w-0",
-                isSelected ? "text-foreground bg-white/10" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                isSelected ? "text-foreground bg-accent" : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
               )}
             >
               <span className="truncate flex-1 min-w-0">{dev.label}</span>
@@ -850,7 +850,7 @@ function UserProfilePanel({
         <div className="border-t border-border/30 mt-1.5 pt-1.5">
           <button
             onClick={() => { setUserSettingsModalOpen(true); setMicPickerOpen(false); }}
-            className="w-full text-left text-sm px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center gap-2"
+            className="w-full text-left text-sm px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 flex items-center gap-2"
           >
             <Settings size={12} />
             Voice Settings
@@ -861,7 +861,7 @@ function UserProfilePanel({
       {/* Output device picker — rolls up flush with sidebar left edge */}
       <div
         className={cn(
-          "absolute bottom-full left-0 w-full bg-[#111214] border-t border-x border-border/50 rounded-t-lg p-2 z-50 transition-all duration-200 origin-bottom",
+          "absolute bottom-full left-0 w-full bg-popover border-t border-x border-border/50 rounded-t-lg p-2 z-50 transition-all duration-200 origin-bottom",
           outputPickerOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"
         )}
       >
@@ -876,7 +876,7 @@ function UserProfilePanel({
               onClick={() => { setAudioOutputDeviceId(dev.deviceId); setOutputPickerOpen(false); }}
               className={cn(
                 "w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors flex items-center gap-2 min-w-0",
-                isSelected ? "text-foreground bg-white/10" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                isSelected ? "text-foreground bg-accent" : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
               )}
             >
               <span className="truncate flex-1 min-w-0">{dev.label}</span>
@@ -887,7 +887,7 @@ function UserProfilePanel({
         <div className="border-t border-border/30 mt-1.5 pt-1.5">
           <button
             onClick={() => { setUserSettingsModalOpen(true); setOutputPickerOpen(false); }}
-            className="w-full text-left text-sm px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center gap-2"
+            className="w-full text-left text-sm px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 flex items-center gap-2"
           >
             <Settings size={12} />
             Voice Settings
@@ -907,7 +907,7 @@ function UserProfilePanel({
                   <ChevronDown size={12} className="shrink-0 opacity-60 -rotate-90" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent side="top" align="start" className="w-64 p-3 bg-[#111214] border-border/50 text-sm" sideOffset={6}>
+              <PopoverContent side="top" align="start" className="w-64 p-3 bg-popover border-border/50 text-sm" sideOffset={6}>
                 <p className="font-semibold text-foreground mb-1">Add to Home Screen</p>
                 <p className="text-muted-foreground text-xs leading-relaxed">
                   Tap the <span className="font-semibold text-foreground">Share</span> button in Safari, then choose <span className="font-semibold text-foreground">Add to Home Screen</span>.
@@ -944,7 +944,7 @@ function UserProfilePanel({
               )} />
             </button>
           </PopoverTrigger>
-          <PopoverContent side="top" align="start" alignOffset={-20} className="w-64 p-2 bg-[#111214] border-border/50" sideOffset={8}>
+          <PopoverContent side="top" align="start" alignOffset={-20} className="w-64 p-2 bg-popover border-border/50" sideOffset={8}>
             <div className="flex items-center gap-3 px-2 py-1 mb-1">
               <button
                 onClick={() => { setUserSettingsModalOpen(true); setQuickOpen(false); }}
@@ -970,7 +970,7 @@ function UserProfilePanel({
             {permission !== 'unsupported' && (
               <button
                 onClick={() => notifOn ? unsubscribe() : subscribe()}
-                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
               >
                 {notifOn
                   ? <Bell size={14} className="shrink-0 text-muted-foreground" />
@@ -979,7 +979,7 @@ function UserProfilePanel({
                 <span className="flex-1 text-left">NOTIFICATIONS</span>
                 <div className={cn(
                   "w-8 h-4 rounded-full transition-colors relative shrink-0",
-                  notifOn ? "bg-primary" : "bg-white/20"
+                  notifOn ? "bg-primary" : "bg-muted"
                 )}>
                   <div className={cn(
                     "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
@@ -990,13 +990,13 @@ function UserProfilePanel({
             )}
             <button
               onClick={toggleKhurkOs}
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
             >
               <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
               <span className="flex-1 text-left">KHURK OS</span>
               <div className={cn(
                 "w-8 h-4 rounded-full transition-colors relative shrink-0",
-                khurkOsEnabled ? "bg-primary" : "bg-white/20"
+                khurkOsEnabled ? "bg-primary" : "bg-muted"
               )}>
                 <div className={cn(
                   "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
@@ -1010,7 +1010,7 @@ function UserProfilePanel({
                 else if (khurkAppsMode === 'none') { setKhurkAppsExplicitNeutral(false); restoreAllApps(); }
                 // neutral: do nothing
               }}
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
             >
               <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
               <span className="flex-1 text-left">KHURK APPS</span>
@@ -1031,7 +1031,7 @@ function UserProfilePanel({
             </button>
             <button
               onClick={() => setLayoutMode(layoutMode === 'classic' ? 'dock' : 'classic')}
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10"
+              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
             >
               <PanelLeft size={14} className="shrink-0 text-muted-foreground" />
               <span className="flex-1 text-left">LAYOUT</span>
@@ -1060,7 +1060,7 @@ function UserProfilePanel({
         {/* Username area — click to pick status */}
         <Popover open={statusOpen} onOpenChange={setStatusOpen}>
           <PopoverTrigger asChild>
-            <button className="flex flex-col flex-1 min-w-0 cursor-pointer hover:bg-white/10 rounded-md px-2 py-1 text-left transition-colors">
+            <button className="flex flex-col flex-1 min-w-0 cursor-pointer hover:bg-accent rounded-md px-2 py-1 text-left transition-colors">
               <span className="text-sm font-bold text-foreground truncate leading-tight">
                 {displayName}
               </span>
@@ -1077,7 +1077,7 @@ function UserProfilePanel({
             side="top"
             align="start"
             alignOffset={-44}
-            className="w-[232px] p-1.5 bg-[#111214] border-border/50"
+            className="w-[232px] p-1.5 bg-popover border-border/50"
             sideOffset={8}
           >
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-1 pb-1.5">
@@ -1088,8 +1088,8 @@ function UserProfilePanel({
                 key={opt.value}
                 onClick={() => handleStatusChange(opt.value)}
                 className={cn(
-                  "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10",
-                  currentStatus === opt.value && "bg-white/5 font-semibold"
+                  "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent",
+                  currentStatus === opt.value && "bg-accent/50 font-semibold"
                 )}
               >
                 <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", opt.color)} />
@@ -1109,7 +1109,7 @@ function UserProfilePanel({
             {!editingCustom ? (
               <button
                 onClick={() => setEditingCustom(true)}
-                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-white/10 text-left"
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent text-left"
               >
                 <Smile size={14} className="shrink-0 text-muted-foreground" />
                 <span className={profile?.customStatus ? 'text-foreground' : 'text-muted-foreground italic'}>
@@ -1136,7 +1136,7 @@ function UserProfilePanel({
                   }}
                   maxLength={128}
                   placeholder="What's your status?"
-                  className="w-full rounded-md bg-[#1a1b1e] border border-border/50 text-sm text-foreground px-2.5 py-1.5 focus:outline-none focus:border-primary placeholder:text-muted-foreground"
+                  className="w-full rounded-md bg-input border border-border/50 text-sm text-foreground px-2.5 py-1.5 focus:outline-none focus:border-primary placeholder:text-muted-foreground"
                 />
                 <div className="flex gap-1.5">
                   <button
@@ -1149,7 +1149,7 @@ function UserProfilePanel({
                   </button>
                   <button
                     onClick={() => setEditingCustom(false)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-md bg-white/5 text-muted-foreground text-xs font-semibold hover:bg-white/10 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-md bg-accent/50 text-muted-foreground text-xs font-semibold hover:bg-accent transition-colors"
                   >
                     <X size={12} />
                     Cancel
@@ -1171,7 +1171,7 @@ function UserProfilePanel({
                 "p-1.5 rounded-l-md transition-colors",
                 micMuted
                   ? "text-destructive hover:bg-destructive/10"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/10"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
             >
               {micMuted ? <MicOff size={18} /> : <Mic size={18} />}
@@ -1179,7 +1179,7 @@ function UserProfilePanel({
             <button
               title="Choose microphone"
               onClick={() => { enumerateInputDevices(); setMicPickerOpen(o => !o); setOutputPickerOpen(false); }}
-              className="py-2 px-0.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-r-md transition-colors"
+              className="py-2 px-0.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-r-md transition-colors"
             >
               <ChevronUp size={10} />
             </button>
@@ -1194,7 +1194,7 @@ function UserProfilePanel({
                 "p-1.5 rounded-l-md transition-colors",
                 deafened
                   ? "text-destructive hover:bg-destructive/10"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/10"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
             >
               {deafened ? <VolumeX size={18} /> : <Headphones size={18} />}
@@ -1202,7 +1202,7 @@ function UserProfilePanel({
             <button
               title="Choose speaker / headset"
               onClick={() => { enumerateOutputDevices(); setOutputPickerOpen(o => !o); setMicPickerOpen(false); }}
-              className="py-2 px-0.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-r-md transition-colors"
+              className="py-2 px-0.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-r-md transition-colors"
             >
               <ChevronUp size={10} />
             </button>
@@ -1210,7 +1210,7 @@ function UserProfilePanel({
           <button
             onClick={() => setUserSettingsModalOpen(true)}
             title="User Settings"
-            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/10 rounded-md transition-colors"
+            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
           >
             <Settings size={18} />
           </button>
@@ -1331,7 +1331,7 @@ function VoiceSidebarUser({
       <PopoverTrigger asChild>
         <div
           onContextMenu={handleVoiceUserContextMenu}
-          className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-white/5 transition-colors group/vu"
+          className="flex items-center gap-1.5 px-1 py-0.5 rounded cursor-pointer hover:bg-accent/60 transition-colors group/vu"
         >
           <div className={cn(
             'relative shrink-0 rounded-full transition-all duration-150',
@@ -1360,7 +1360,7 @@ function VoiceSidebarUser({
           </div>
         </div>
       </PopoverTrigger>
-      <PopoverContent side="right" align="start" className="w-64 p-3 bg-[#111214] border-border/30">
+      <PopoverContent side="right" align="start" className="w-64 p-3 bg-popover border-border/30">
         <div className="flex items-center gap-2 mb-3">
           <Avatar className="h-8 w-8">
             <AvatarImage src={u.avatarUrl || undefined} />
@@ -1399,14 +1399,14 @@ function VoiceSidebarUser({
               <button
                 onClick={handleDm}
                 disabled={dmLoading}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-accent/50 hover:bg-accent text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 <MessageSquare size={12} />
                 Message
               </button>
               <button
                 onClick={handleMention}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-white/5 hover:bg-white/10 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-accent/50 hover:bg-accent text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 <AtSign size={12} />
                 Mention
