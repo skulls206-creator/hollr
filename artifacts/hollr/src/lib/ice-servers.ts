@@ -4,9 +4,26 @@ interface IceServerConfig {
   credential?: string;
 }
 
+// Free public TURN relay (Open Relay Project by Metered.ca).
+// These are good enough for cross-NAT calls when Cloudflare keys aren't set.
 const FALLBACK: IceServerConfig[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turns:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
 ];
 
 let cached: IceServerConfig[] | null = null;

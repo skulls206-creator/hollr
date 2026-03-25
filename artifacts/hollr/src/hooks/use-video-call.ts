@@ -88,6 +88,7 @@ export function useVideoCall() {
     if (pcRef.current) {
       pcRef.current.ontrack = null;
       pcRef.current.onicecandidate = null;
+      pcRef.current.oniceconnectionstatechange = null;
       pcRef.current.onconnectionstatechange = null;
       pcRef.current.close();
       pcRef.current = null;
@@ -153,8 +154,13 @@ export function useVideoCall() {
       setRemoteStream(stream);
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log('[Video call] ICE state:', pc.iceConnectionState);
+    };
+
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
+      console.log('[Video call] Connection state:', state);
       if (state === 'connected') {
         stopTimeout();
         useAppStore.getState().setVideoCallState({ state: 'connected', startedAt: Date.now() });

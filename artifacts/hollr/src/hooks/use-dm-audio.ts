@@ -13,12 +13,20 @@ export function useDmCallAudio() {
   const peerIdRef = useRef<string | null>(null);
 
   const cleanupAudio = useCallback(() => {
-    pcRef.current?.close();
-    pcRef.current = null;
+    if (pcRef.current) {
+      pcRef.current.ontrack = null;
+      pcRef.current.onicecandidate = null;
+      pcRef.current.oniceconnectionstatechange = null;
+      pcRef.current.onconnectionstatechange = null;
+      pcRef.current.close();
+      pcRef.current = null;
+    }
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null;
     if (remoteAudioRef.current) {
+      remoteAudioRef.current.pause();
       remoteAudioRef.current.srcObject = null;
+      remoteAudioRef.current = null;
     }
     pendingIceRef.current = [];
     remoteDescSetRef.current = false;
@@ -35,23 +43,51 @@ export function useDmCallAudio() {
     const pc = new RTCPeerConnection({ iceServers });
     pcRef.current = pc;
 
+    // Pre-create the audio element so it's tied to this user gesture stack
+    // (avoids autoplay policy blocks when ontrack fires asynchronously)
+    if (!remoteAudioRef.current) {
+      const audio = new Audio();
+      audio.autoplay = true;
+      remoteAudioRef.current = audio;
+    }
+
     // Get local audio
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       localStreamRef.current = stream;
       stream.getAudioTracks().forEach(t => pc.addTrack(t, stream));
-    } catch {
+    } catch (err) {
+      console.error('[DM call] Microphone error:', err);
       toast({ title: 'Microphone unavailable', description: 'Could not access your microphone.', variant: 'destructive' });
     }
 
-    // Play remote audio through an <audio> element (auto-routed to speaker/earpiece)
+    // Play remote audio
     pc.ontrack = (e) => {
-      if (!remoteAudioRef.current) {
-        remoteAudioRef.current = new Audio();
-        remoteAudioRef.current.autoplay = true;
+      const audio = remoteAudioRef.current!;
+      const incomingStream = e.streams[0];
+      if (incomingStream) {
+        audio.srcObject = incomingStream;
+      } else {
+        // Fallback: wrap the single track in a MediaStream
+        const ms = new MediaStream([e.track]);
+        audio.srcObject = ms;
       }
-      remoteAudioRef.current.srcObject = e.streams[0] ?? null;
-      remoteAudioRef.current.play().catch(() => {});
+      audio.play().catch((err) => {
+        console.warn('[DM call] Remote audio play() blocked:', err);
+        // Retry once after a short delay — handles autoplay policy
+        setTimeout(() => audio.play().catch(console.warn), 500);
+      });
+    };
+
+    // Log ICE/connection state transitions for debugging
+    pc.oniceconnectionstatechange = () => {
+      console.log('[DM call] ICE state:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed') {
+        toast({ title: 'Connection issue', description: 'Could not establish audio link. Check your network.', variant: 'destructive' });
+      }
+    };
+    pc.onconnectionstatechange = () => {
+      console.log('[DM call] Connection state:', pc.connectionState);
     };
 
     // ICE candidate exchange
