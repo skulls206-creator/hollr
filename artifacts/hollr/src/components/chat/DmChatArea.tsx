@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
-  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video,
+  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video, User,
 } from 'lucide-react';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { initiateVideoCall } from '@/hooks/use-video-call';
@@ -56,7 +56,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
-  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState, videoCall } = useAppStore();
+  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState, videoCall, openProfileCard } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -200,6 +200,79 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
           danger: true,
           disabled: !isOwner,
           dividerBefore: true,
+        },
+      ],
+    });
+  };
+
+  const handleAuthorContextMenu = (e: React.MouseEvent, msg: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const isSelf = user?.id === msg.authorId;
+    const authorName = msg.author.displayName || msg.author.username;
+    const cx = e.clientX;
+    const cy = e.clientY;
+
+    showMenu({
+      x: cx,
+      y: cy,
+      actions: [
+        ...(!isSelf ? [
+          {
+            id: 'voice-call',
+            label: 'Voice Call',
+            icon: <Phone size={14} />,
+            onClick: () => {
+              setDmCallState({
+                state: 'outgoing_ringing',
+                targetUserId: msg.authorId,
+                targetDisplayName: authorName,
+                targetAvatarUrl: msg.author.avatarUrl ?? null,
+                dmThreadId: threadId,
+                minimized: false,
+                startedAt: null,
+              });
+              sendDmCallSignal({
+                type: 'call_ring',
+                targetId: msg.authorId,
+                callerId: user?.id,
+                callerName: (user as any)?.displayName || (user as any)?.username || 'Someone',
+                callerAvatar: (user as any)?.avatarUrl ?? null,
+                dmThreadId: threadId,
+              });
+            },
+          },
+          {
+            id: 'video-call',
+            label: 'Video Call',
+            icon: <Video size={14} />,
+            onClick: () => {
+              initiateVideoCall(
+                msg.authorId,
+                authorName,
+                msg.author.avatarUrl ?? null,
+                threadId,
+                {
+                  id: user?.id ?? '',
+                  displayName: (user as any)?.displayName || (user as any)?.username || 'Someone',
+                  avatarUrl: (user as any)?.avatarUrl ?? null,
+                },
+              );
+            },
+          },
+        ] : []),
+        {
+          id: 'view-profile',
+          label: 'View Profile',
+          icon: <User size={14} />,
+          onClick: () => openProfileCard({ userId: msg.authorId, position: { x: cx, y: cy } }),
+          dividerBefore: !isSelf,
+        },
+        {
+          id: 'copy-username',
+          label: 'Copy Username',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(msg.author.username || authorName),
         },
       ],
     });
@@ -424,7 +497,10 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
               onContextMenu={e => handleMessageContextMenu(e, msg)}
             >
               {showHeader ? (
-                <Avatar className="h-10 w-10 mr-4 shrink-0">
+                <Avatar
+                  className="h-10 w-10 mr-4 shrink-0 cursor-pointer"
+                  onContextMenu={e => handleAuthorContextMenu(e, msg)}
+                >
                   <AvatarImage src={msg.author.avatarUrl || undefined} />
                   <AvatarFallback className="bg-primary text-white">
                     {getInitials(msg.author.displayName || msg.author.username)}
@@ -439,7 +515,10 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
               <div className="flex flex-col min-w-0 flex-1 py-0.5">
                 {showHeader && (
                   <div className="flex items-baseline gap-2 mb-0.5">
-                    <span className="font-medium text-base text-indigo-400">
+                    <span
+                      className="font-medium text-base text-indigo-400 cursor-pointer hover:underline"
+                      onContextMenu={e => handleAuthorContextMenu(e, msg)}
+                    >
                       {msg.author.displayName || msg.author.username}
                     </span>
                     <span className="text-xs text-muted-foreground">

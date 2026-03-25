@@ -3,8 +3,10 @@ import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
-  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera, RefreshCw, Menu, Search,
+  Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera, RefreshCw, Menu, Search, Video,
 } from 'lucide-react';
+import { sendDmCallSignal } from '@/hooks/use-realtime';
+import { initiateVideoCall } from '@/hooks/use-video-call';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
 } from '@/components/ui/context-menu';
@@ -241,9 +243,11 @@ export function ChannelSidebar() {
 
   const handleDmContextMenu = (e: React.MouseEvent, thread: any, other: any) => {
     e.preventDefault();
+    const cx = e.clientX;
+    const cy = e.clientY;
     showMenu({
-      x: e.clientX,
-      y: e.clientY,
+      x: cx,
+      y: cy,
       actions: [
         {
           id: 'open',
@@ -252,17 +256,64 @@ export function ChannelSidebar() {
           onClick: () => { setActiveDmThread(thread.id); clearDmUnreadCount(thread.id); },
         },
         {
+          id: 'voice-call',
+          label: 'Voice Call',
+          icon: <PhoneCall size={14} />,
+          onClick: () => {
+            const { setDmCallState, setActiveDmThread: setThread } = useAppStore.getState();
+            const authUser = user;
+            setThread(thread.id);
+            setDmCallState({
+              state: 'outgoing_ringing',
+              targetUserId: other.id,
+              targetDisplayName: other.displayName || other.username,
+              targetAvatarUrl: other.avatarUrl ?? null,
+              dmThreadId: thread.id,
+              minimized: false,
+              startedAt: null,
+            });
+            sendDmCallSignal({
+              type: 'call_ring',
+              targetId: other.id,
+              callerId: authUser?.id,
+              callerName: (authUser as any)?.displayName || (authUser as any)?.username || 'Someone',
+              callerAvatar: (authUser as any)?.avatarUrl ?? null,
+              dmThreadId: thread.id,
+            });
+          },
+        },
+        {
+          id: 'video-call',
+          label: 'Video Call',
+          icon: <Video size={14} />,
+          onClick: () => {
+            const authUser = user;
+            useAppStore.getState().setActiveDmThread(thread.id);
+            initiateVideoCall(
+              other.id,
+              other.displayName || other.username,
+              other.avatarUrl ?? null,
+              thread.id,
+              {
+                id: authUser?.id ?? '',
+                displayName: (authUser as any)?.displayName || (authUser as any)?.username || 'Someone',
+                avatarUrl: (authUser as any)?.avatarUrl ?? null,
+              },
+            );
+          },
+        },
+        {
           id: 'view-profile',
           label: 'View Profile',
           icon: <User size={14} />,
-          onClick: () => openProfileCard({ userId: other.id, position: { x: e.clientX, y: e.clientY } }),
+          onClick: () => openProfileCard({ userId: other.id, position: { x: cx, y: cy } }),
+          dividerBefore: true,
         },
         {
           id: 'mark-read',
           label: 'Mark as Read',
           icon: <Check size={14} />,
           onClick: () => clearDmUnreadCount(thread.id),
-          dividerBefore: true,
         },
         {
           id: 'copy-username',
