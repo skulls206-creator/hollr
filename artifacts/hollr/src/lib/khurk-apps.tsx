@@ -70,7 +70,7 @@ export const KHURK_APPS: KhurkApp[] = [
   },
   {
     id: 'foldr',
-    name: 'foldr.storage',
+    name: 'Foldr Storage',
     tagline: 'Encrypted IPFS Storage',
     description: 'Encrypted IPFS storage solution for your sensitive data.',
     url: 'https://foldr.khurk.services',
@@ -90,7 +90,7 @@ export const KHURK_APPS: KhurkApp[] = [
   },
   {
     id: 'gasless',
-    name: 'Gasless',
+    name: 'Gasless Wallet',
     tagline: 'USDT Web Wallet',
     description: 'USDT Web Wallet with zero network fee transactions.',
     url: 'https://gasless.khurk.services',
@@ -100,7 +100,7 @@ export const KHURK_APPS: KhurkApp[] = [
   },
   {
     id: 'ballpoint',
-    name: 'Ballpoint',
+    name: 'Ballpoint Notes',
     tagline: 'Private Notes',
     description: 'Private, end-to-end encrypted notes and journaling.',
     url: 'https://ballpoint.khurk.services',
