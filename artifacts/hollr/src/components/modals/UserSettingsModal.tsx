@@ -8,7 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail, KeyRound, Eye, EyeOff, LayoutGrid, Palette, Settings2, ShieldCheck, Phone, PhoneOff, Users } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail, KeyRound, Eye, EyeOff, LayoutGrid, Palette, Settings2, ShieldCheck, Phone, PhoneOff, Users, Play } from 'lucide-react';
+import { RINGTONES, previewRingtone } from '@/lib/notification-sound';
+import type { RingtoneId } from '@/lib/notification-sound';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
@@ -158,6 +160,7 @@ export function UserSettingsModal() {
     khurkDashboardOpen, setKhurkDashboardOpen,
     chatFontSize, setChatFontSize,
     allowCallsFrom, setAllowCallsFrom,
+    ringtoneId, setRingtoneId,
   } = useAppStore();
   const { user, logout } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
@@ -170,6 +173,7 @@ export function UserSettingsModal() {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<UserStatus>('online');
   const [statusSaving, setStatusSaving] = useState(false);
+  const [previewingRingtone, setPreviewingRingtone] = useState<RingtoneId | null>(null);
 
   const [emailInput, setEmailInput] = useState('');
   const [emailSaving, setEmailSaving] = useState(false);
@@ -704,6 +708,62 @@ export function UserSettingsModal() {
                         No devices found. Grant microphone permission to see your audio devices.
                       </p>
                     )}
+
+                    {/* ── Ringtone picker ── */}
+                    <div className="h-px bg-border/20 my-1" />
+                    <div className="flex flex-col gap-2">
+                      <p className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest flex items-center gap-1.5">
+                        <Phone size={9} /> Ringtone
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-relaxed -mt-1">
+                        Plays when someone calls you.
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
+                        {RINGTONES.map((rt) => {
+                          const isSelected = ringtoneId === rt.id;
+                          const isPreviewing = previewingRingtone === rt.id;
+                          return (
+                            <button
+                              key={rt.id}
+                              onClick={() => setRingtoneId(rt.id)}
+                              className={cn(
+                                'relative flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl border text-left transition-all',
+                                isSelected
+                                  ? 'border-primary/60 bg-primary/8'
+                                  : 'border-border/30 bg-surface-0 hover:border-border/60 hover:bg-surface-1',
+                              )}
+                            >
+                              {isSelected && (
+                                <span className="absolute top-2 right-2">
+                                  <Check size={11} className="text-primary" />
+                                </span>
+                              )}
+                              <span className={cn('text-xs font-semibold', isSelected ? 'text-primary' : 'text-foreground')}>
+                                {rt.label}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground leading-tight pr-4">{rt.description}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreviewingRingtone(rt.id);
+                                  previewRingtone(rt.id);
+                                  setTimeout(() => setPreviewingRingtone(null), 1800);
+                                }}
+                                className={cn(
+                                  'mt-1 flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors',
+                                  isPreviewing
+                                    ? 'bg-primary/20 text-primary'
+                                    : 'bg-border/20 text-muted-foreground hover:bg-border/40 hover:text-foreground',
+                                )}
+                              >
+                                <Play size={9} className={isPreviewing ? 'animate-pulse' : ''} />
+                                {isPreviewing ? 'Playing…' : 'Preview'}
+                              </button>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </>
                 )}
               </div>

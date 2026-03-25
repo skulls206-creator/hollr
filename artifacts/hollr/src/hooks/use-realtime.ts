@@ -366,7 +366,7 @@ export function useRealtime(userId?: string) {
                   targetAvatarUrl: callerAvatar ?? null,
                   dmThreadId: dmThreadId ?? null,
                 });
-                startCallRinging();
+                startCallRinging(useAppStore.getState().ringtoneId);
                 showBrowserNotification(
                   `📹 Incoming video call from ${callerName ?? 'Someone'}`,
                   'Tap to answer',
@@ -405,7 +405,7 @@ export function useRealtime(userId?: string) {
                   dmThreadId: dmThreadId ?? null,
                   minimized: false,
                 });
-                startCallRinging();
+                startCallRinging(useAppStore.getState().ringtoneId);
                 showBrowserNotification(
                   `📞 Incoming call from ${callerName ?? 'Someone'}`,
                   callState === 'incoming_request' ? 'Tap to review the call request' : 'Tap to answer',

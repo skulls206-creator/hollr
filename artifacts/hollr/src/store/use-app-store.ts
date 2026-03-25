@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { RingtoneId } from '@/lib/notification-sound';
 
 export interface PipWindowEntry {
   id: string;
@@ -82,6 +83,10 @@ interface AppState {
   audioOutputDeviceId: string | null;
   setAudioInputDeviceId: (id: string | null) => void;
   setAudioOutputDeviceId: (id: string | null) => void;
+
+  // Ringtone preference (persisted)
+  ringtoneId: RingtoneId;
+  setRingtoneId: (id: RingtoneId) => void;
 
   // Modals (additional)
   userSettingsModalOpen: boolean;
@@ -302,6 +307,8 @@ export const useAppStore = create<AppState>()(
   audioOutputDeviceId: null,
   setAudioInputDeviceId: (id) => set({ audioInputDeviceId: id }),
   setAudioOutputDeviceId: (id) => set({ audioOutputDeviceId: id }),
+  ringtoneId: 'classic',
+  setRingtoneId: (id) => set({ ringtoneId: id }),
   userSettingsModalOpen: false,
 
   // KHURK OS app shell state
@@ -605,6 +612,7 @@ export const useAppStore = create<AppState>()(
         allowCallsFrom: state.allowCallsFrom,
         approvedCallers: state.approvedCallers,
         privateServerIds: state.privateServerIds,
+        ringtoneId: state.ringtoneId,
       }),
     }
   )
