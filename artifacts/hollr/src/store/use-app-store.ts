@@ -527,7 +527,7 @@ export const useAppStore = create<AppState>()(
     },
   }),
 
-  allowCallsFrom: 'approved_only',
+  allowCallsFrom: 'everyone',
   setAllowCallsFrom: (v) => set({ allowCallsFrom: v }),
 
   approvedCallers: [],

@@ -5,8 +5,12 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/store/use-app-store';
+import { useAuth } from '@workspace/replit-auth-web';
 import { getInitials, cn } from '@/lib/utils';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
+import { stopCallRinging } from '@/lib/notification-sound';
+
+const CALL_TIMEOUT_MS = 30_000;
 
 export function DmCallOverlay() {
   const {
@@ -17,13 +21,14 @@ export function DmCallOverlay() {
     revokeCallsFrom,
   } = useAppStore();
 
-  const user = useAppStore((s) => (s as any).user ?? null);
+  const { user } = useAuth();
   const micMuted = useAppStore((s) => s.micMuted);
   const toggleMicMuted = useAppStore((s) => s.toggleMicMuted);
 
   const [speakerOn, setSpeakerOn] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Start/stop call timer
   useEffect(() => {
@@ -38,6 +43,26 @@ export function DmCallOverlay() {
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [dmCall.state, dmCall.startedAt]);
+
+  // Auto-cancel outgoing call after 30 seconds (no answer)
+  useEffect(() => {
+    if (dmCall.state === 'outgoing_ringing') {
+      timeoutRef.current = setTimeout(() => {
+        sendDmCallSignal({ type: 'call_end', targetId: dmCall.targetUserId, callerId: user?.id });
+        endDmCall();
+      }, CALL_TIMEOUT_MS);
+    } else {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    }
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [dmCall.state]);
+
+  // Stop ringing when call leaves incoming states
+  useEffect(() => {
+    if (dmCall.state !== 'incoming_ringing' && dmCall.state !== 'incoming_request') {
+      stopCallRinging();
+    }
+  }, [dmCall.state]);
 
   if (dmCall.state === 'idle') return null;
 

@@ -1,4 +1,5 @@
 let ctx: AudioContext | null = null;
+let _ringInterval: ReturnType<typeof setInterval> | null = null;
 
 function getCtx(): AudioContext {
   if (!ctx) ctx = new AudioContext();
@@ -91,5 +92,37 @@ export function playNotificationSound(volume = 0.18) {
     osc2.stop(now + 0.25);
   } catch {
     // Silently fail — some browsers block AudioContext before a user gesture
+  }
+}
+
+/**
+ * Plays one burst of a classic phone ring (two short bursts of 800 Hz + harmonics).
+ */
+function playRingBurst(volume = 0.28) {
+  try {
+    const ac = getCtx();
+    if (ac.state === 'suspended') ac.resume();
+    const now = ac.currentTime;
+    for (const offset of [0, 0.22]) {
+      playTone(ac, 800, now + offset,        0.18, volume);
+      playTone(ac, 1000, now + offset,       0.18, volume * 0.4);
+    }
+  } catch { /* ignore */ }
+}
+
+/**
+ * Start repeating phone ring for incoming calls.
+ * Call stopCallRinging() when the call is answered or dismissed.
+ */
+export function startCallRinging() {
+  stopCallRinging();
+  playRingBurst();
+  _ringInterval = setInterval(playRingBurst, 2000);
+}
+
+export function stopCallRinging() {
+  if (_ringInterval !== null) {
+    clearInterval(_ringInterval);
+    _ringInterval = null;
   }
 }

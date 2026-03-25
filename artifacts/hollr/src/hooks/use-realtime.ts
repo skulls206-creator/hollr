@@ -4,7 +4,7 @@ import { getListMessagesQueryKey, getListDmMessagesQueryKey, getListDmThreadsQue
 import type { Message } from '@workspace/api-client-react';
 import type { MusicState } from '@workspace/api-zod';
 import { useAppStore } from '@/store/use-app-store';
-import { playNotificationSound, playVoiceJoinSound, playVoiceLeaveSound } from '@/lib/notification-sound';
+import { playNotificationSound, playVoiceJoinSound, playVoiceLeaveSound, startCallRinging, stopCallRinging } from '@/lib/notification-sound';
 
 // Module-level singleton so any module can send signals without creating a second WS connection
 let _sendSignal: ((payload: any) => void) | null = null;
@@ -327,31 +327,42 @@ export function useRealtime(userId?: string) {
               _onDmCallSignal(data.payload);
               break;
             }
-            // Handle incoming signals when no explicit listener is set
+            // Read latest store state to avoid stale closure
+            const storeSnap = useAppStore.getState();
             const { type: ctype, callerId, callerName, callerAvatar, dmThreadId } = data.payload ?? {};
             if (ctype === 'call_ring') {
-              // Someone is calling — decide: approved full ring, or request flow
-              const approved = allowCallsFrom === 'nobody'
+              // Ignore call from ourselves (same-account test)
+              if (callerId === userId) break;
+              const liveAllowCalls = storeSnap.allowCallsFrom;
+              const liveIsApproved = storeSnap.isCallerApproved(callerId);
+              const callState = liveAllowCalls === 'nobody'
                 ? null
-                : isCallerApproved(callerId)
+                : liveIsApproved || liveAllowCalls === 'everyone'
                   ? 'incoming_ringing'
-                  : allowCallsFrom === 'everyone'
-                    ? 'incoming_ringing'
-                    : 'incoming_request';
-              if (approved) {
-                setDmCallState({
-                  state: approved,
+                  : 'incoming_request';
+              if (callState) {
+                storeSnap.setDmCallState({
+                  state: callState,
                   targetUserId: callerId,
                   targetDisplayName: callerName,
                   targetAvatarUrl: callerAvatar ?? null,
                   dmThreadId: dmThreadId ?? null,
                   minimized: false,
                 });
+                // Ring sound + browser notification for incoming calls
+                startCallRinging();
+                showBrowserNotification(
+                  `📞 Incoming call from ${callerName ?? 'Someone'}`,
+                  callState === 'incoming_request' ? 'Tap to review the call request' : 'Tap to answer',
+                  callerAvatar,
+                );
               }
             } else if (ctype === 'call_accept') {
-              setDmCallState({ state: 'connected', startedAt: Date.now() });
+              stopCallRinging();
+              storeSnap.setDmCallState({ state: 'connected', startedAt: Date.now() });
             } else if (ctype === 'call_decline' || ctype === 'call_end') {
-              endDmCall();
+              stopCallRinging();
+              storeSnap.endDmCall();
             }
             break;
           }
