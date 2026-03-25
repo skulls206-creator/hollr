@@ -613,6 +613,7 @@ export const useAppStore = create<AppState>()(
         approvedCallers: state.approvedCallers,
         privateServerIds: state.privateServerIds,
         ringtoneId: state.ringtoneId,
+        dmUnreadCounts: state.dmUnreadCounts,
       }),
     }
   )
