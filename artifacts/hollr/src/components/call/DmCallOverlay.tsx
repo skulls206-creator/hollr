@@ -125,10 +125,9 @@ export function DmCallOverlay() {
           <Phone size={14} />
         </button>
         <button
-          onClick={() => { if (!micMuted) toggleMicMuted(); else toggleMicMuted(); toggleMicMuted(); }}
+          onClick={toggleMicMuted}
           className={cn('p-1.5 rounded-lg transition-colors shrink-0', micMuted ? 'text-red-300 bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10')}
           title={micMuted ? 'Unmute' : 'Mute'}
-          onClickCapture={(e) => { e.stopPropagation(); toggleMicMuted(); }}
         >
           {micMuted ? <MicOff size={14} /> : <Mic size={14} />}
         </button>

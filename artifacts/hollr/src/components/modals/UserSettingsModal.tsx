@@ -8,13 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail, KeyRound, Eye, EyeOff, LayoutGrid, Palette, Settings2 } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail, KeyRound, Eye, EyeOff, LayoutGrid, Palette, Settings2, ShieldCheck, Phone, PhoneOff, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
 import { usePushNotifications, PushDevice } from '@/hooks/use-push-notifications';
 
-type Tab = 'profile' | 'account' | 'appearance' | 'audio' | 'notifications';
+type Tab = 'profile' | 'account' | 'appearance' | 'audio' | 'notifications' | 'privacy';
 type UserStatus = 'online' | 'idle' | 'dnd' | 'invisible';
 
 interface AudioDevice {
@@ -157,6 +157,7 @@ export function UserSettingsModal() {
     theme, setTheme,
     khurkDashboardOpen, setKhurkDashboardOpen,
     chatFontSize, setChatFontSize,
+    allowCallsFrom, setAllowCallsFrom,
   } = useAppStore();
   const { user, logout } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
@@ -330,6 +331,7 @@ export function UserSettingsModal() {
     { id: 'appearance',    icon: <Palette size={15} />,      label: 'Appearance',    group: 'USER' },
     { id: 'audio',         icon: <Headphones size={15} />,   label: 'Audio',         group: 'APP' },
     { id: 'notifications', icon: <Bell size={15} />,         label: 'Notifications', group: 'APP' },
+    { id: 'privacy',       icon: <ShieldCheck size={15} />,  label: 'Privacy',       group: 'APP' },
   ];
 
   const groups = [...new Set(NAV.map(n => n.group))];
@@ -769,6 +771,61 @@ export function UserSettingsModal() {
                     )}
                   </>
                 )}
+              </div>
+            )}
+
+            {/* ── PRIVACY ── */}
+            {tab === 'privacy' && (
+              <div className="flex flex-col gap-4">
+                <p className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest">Voice & Video Calls</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Control who can start a voice call with you in Direct Messages.
+                </p>
+
+                {[
+                  {
+                    value: 'everyone' as const,
+                    icon: <Users size={14} />,
+                    label: 'Everyone',
+                    desc: 'Anyone you have a DM with can ring you directly.',
+                  },
+                  {
+                    value: 'approved_only' as const,
+                    icon: <Phone size={14} />,
+                    label: 'Approved only',
+                    desc: 'Unknown callers must request permission first. You approve or deny per-call.',
+                  },
+                  {
+                    value: 'nobody' as const,
+                    icon: <PhoneOff size={14} />,
+                    label: 'Nobody',
+                    desc: 'All incoming DM calls are silently declined.',
+                  },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setAllowCallsFrom(opt.value)}
+                    className={cn(
+                      'flex items-start gap-3 px-4 py-3 rounded-lg border text-left transition-all',
+                      allowCallsFrom === opt.value
+                        ? 'border-primary/50 bg-primary/10'
+                        : 'border-border/30 bg-surface-0 hover:bg-surface-0/80'
+                    )}
+                  >
+                    <span className={cn('mt-0.5 shrink-0', allowCallsFrom === opt.value ? 'text-primary' : 'text-muted-foreground')}>
+                      {opt.icon}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{opt.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+                    </div>
+                    {allowCallsFrom === opt.value && <Check size={13} className="text-primary shrink-0 mt-0.5" />}
+                  </button>
+                ))}
+
+                <p className="text-xs text-muted-foreground bg-surface-0 rounded-lg px-3 py-2.5 leading-relaxed">
+                  This setting only applies to DM calls. Voice channels in servers are always open to members.
+                </p>
               </div>
             )}
 

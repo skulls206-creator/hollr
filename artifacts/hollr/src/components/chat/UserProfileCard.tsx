@@ -2,11 +2,13 @@ import { useRef, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
-import { MessageSquare, AtSign, X, Loader2 } from 'lucide-react';
+import { MessageSquare, AtSign, X, Loader2, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/use-app-store';
 import { getListDmThreadsQueryKey } from '@workspace/api-client-react';
+import { useAuth } from '@workspace/replit-auth-web';
+import { sendDmCallSignal } from '@/hooks/use-realtime';
 
 function statusColor(status: string) {
   switch (status) {
@@ -46,7 +48,8 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
   const [dmLoading, setDmLoading] = useState(false);
   const qc = useQueryClient();
 
-  const { activeChannelId, setActiveDmThread, triggerMention, closeProfileCard } = useAppStore();
+  const { activeChannelId, setActiveDmThread, triggerMention, closeProfileCard, dmCall, setDmCallState } = useAppStore();
+  const { user } = useAuth();
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['user-profile', userId],
@@ -90,6 +93,49 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
       closeProfileCard();
     } catch (err) {
       console.error('[ProfileCard] DM open failed:', err);
+    } finally {
+      setDmLoading(false);
+    }
+  };
+
+  const handleCall = async () => {
+    if (!profile || dmLoading) return;
+    setDmLoading(true);
+    try {
+      const base = import.meta.env.BASE_URL;
+      const res = await fetch(`${base}api/dms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error('Failed to open DM');
+      const thread = await res.json();
+      qc.setQueryData(getListDmThreadsQueryKey(), (old: any[]) => {
+        const existing = (old || []).filter((t: any) => t.id !== thread.id);
+        return [...existing, thread];
+      });
+      setActiveDmThread(thread.id);
+      setDmCallState({
+        state: 'outgoing_ringing',
+        targetUserId: userId,
+        targetDisplayName: profile.displayName || profile.username,
+        targetAvatarUrl: profile.avatarUrl ?? null,
+        dmThreadId: thread.id,
+        minimized: false,
+        startedAt: null,
+      });
+      sendDmCallSignal({
+        type: 'call_ring',
+        targetId: userId,
+        callerId: user?.id,
+        callerName: (user as any)?.displayName || (user as any)?.username || 'Someone',
+        callerAvatar: (user as any)?.avatarUrl ?? null,
+        dmThreadId: thread.id,
+      });
+      closeProfileCard();
+    } catch (err) {
+      console.error('[ProfileCard] Call failed:', err);
     } finally {
       setDmLoading(false);
     }
@@ -185,6 +231,15 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
                 >
                   {dmLoading ? <Loader2 size={13} className="animate-spin" /> : <MessageSquare size={13} />}
                   Message
+                </button>
+                <button
+                  onClick={handleCall}
+                  disabled={dmLoading || dmCall.state !== 'idle'}
+                  title={dmCall.state !== 'idle' ? 'Already in a call' : `Call ${profile?.displayName || profile?.username}`}
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-emerald-500/20 hover:text-emerald-400 rounded-lg text-xs font-medium text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Phone size={13} />
+                  Call
                 </button>
                 <button
                   onClick={handleMention}

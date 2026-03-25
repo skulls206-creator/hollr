@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { cn, getInitials } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MessageSquarePlus, MessageCircle, Menu } from 'lucide-react';
+import { MessageSquarePlus, MessageCircle, Menu, Search, X } from 'lucide-react';
 
 /**
  * MobileDmList — full-screen DM list shown on mobile when no DM thread is open.
@@ -21,36 +22,80 @@ export function MobileDmList() {
     query: { queryKey: getListDmThreadsQueryKey() },
   });
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const filtered = searchQuery.trim()
+    ? dmThreads.filter((thread: any) => {
+        const other = thread.participants?.find((p: any) => p.id !== user?.id) ?? thread.participants?.[0];
+        const name = (other?.displayName || other?.username || '').toLowerCase();
+        return name.includes(searchQuery.toLowerCase());
+      })
+    : dmThreads;
+
+  const handleCloseSearch = () => { setSearchQuery(''); setSearchOpen(false); };
+
   return (
     <div className="flex flex-col h-full w-full bg-surface-1">
       {/* Header */}
       <div className="h-12 border-b border-border/10 flex items-center px-3 shrink-0 shadow-sm bg-surface-1 z-10 gap-2">
-        <button
-          onClick={layoutMode === 'classic' ? () => setClassicChannelOpen(true) : toggleMobileSidebar}
-          className="p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors rounded-md shrink-0"
-          title="Open sidebar"
-        >
-          <Menu size={22} />
-        </button>
-        <MessageCircle size={18} className="text-muted-foreground shrink-0" />
-        <h2 className="font-bold text-foreground text-[15px]">Direct Messages</h2>
+        {searchOpen ? (
+          <>
+            <Search size={15} className="text-muted-foreground shrink-0" />
+            <input
+              autoFocus
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Escape' && handleCloseSearch()}
+              placeholder="Search conversations…"
+              className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+            />
+            <button onClick={handleCloseSearch} className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0">
+              <X size={16} />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={layoutMode === 'classic' ? () => setClassicChannelOpen(true) : toggleMobileSidebar}
+              className="p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors rounded-md shrink-0"
+              title="Open sidebar"
+            >
+              <Menu size={22} />
+            </button>
+            <MessageCircle size={18} className="text-muted-foreground shrink-0" />
+            <h2 className="font-bold text-foreground text-[15px] flex-1 min-w-0">Direct Messages</h2>
+            <button onClick={() => setSearchOpen(true)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0" title="Search conversations">
+              <Search size={16} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* DM thread list */}
       <div className="flex-1 overflow-y-auto p-3 no-scrollbar flex flex-col gap-1">
-        {dmThreads.length === 0 && (
+        {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground py-16 gap-3">
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
               <MessageSquarePlus size={28} className="opacity-50" />
             </div>
-            <p className="text-sm font-medium">No direct messages yet</p>
-            <p className="text-xs text-center max-w-[220px] opacity-70">
-              Start a conversation by clicking someone's name in a server.
-            </p>
+            {searchQuery.trim() ? (
+              <>
+                <p className="text-sm font-medium">No results for "{searchQuery}"</p>
+                <button onClick={handleCloseSearch} className="text-xs text-primary hover:underline">Clear search</button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium">No direct messages yet</p>
+                <p className="text-xs text-center max-w-[220px] opacity-70">
+                  Start a conversation by clicking someone's name in a server.
+                </p>
+              </>
+            )}
           </div>
         )}
 
-        {dmThreads.map(thread => {
+        {filtered.map((thread: any) => {
           const other = thread.participants?.find((p: any) => p.id !== user?.id) ?? thread.participants?.[0];
           const dmUnread = dmUnreadCounts[thread.id] ?? 0;
 
