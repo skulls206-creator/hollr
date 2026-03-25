@@ -1,0 +1,154 @@
+import { useRef, useCallback, useEffect } from 'react';
+import { useAppStore } from '@/store/use-app-store';
+import { setDmCallRtcSignalListener, sendDmCallSignal } from './use-realtime';
+import { fetchIceServers } from '@/lib/ice-servers';
+import { toast } from '@/hooks/use-toast';
+
+export function useDmCallAudio() {
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
+  const remoteDescSetRef = useRef(false);
+  const peerIdRef = useRef<string | null>(null);
+
+  const cleanupAudio = useCallback(() => {
+    pcRef.current?.close();
+    pcRef.current = null;
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    localStreamRef.current = null;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+    pendingIceRef.current = [];
+    remoteDescSetRef.current = false;
+    peerIdRef.current = null;
+  }, []);
+
+  const createPeer = useCallback(async (peerId: string) => {
+    peerIdRef.current = peerId;
+    pcRef.current?.close();
+    remoteDescSetRef.current = false;
+    pendingIceRef.current = [];
+
+    const iceServers = await fetchIceServers();
+    const pc = new RTCPeerConnection({ iceServers });
+    pcRef.current = pc;
+
+    // Get local audio
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      localStreamRef.current = stream;
+      stream.getAudioTracks().forEach(t => pc.addTrack(t, stream));
+    } catch {
+      toast({ title: 'Microphone unavailable', description: 'Could not access your microphone.', variant: 'destructive' });
+    }
+
+    // Play remote audio through an <audio> element (auto-routed to speaker/earpiece)
+    pc.ontrack = (e) => {
+      if (!remoteAudioRef.current) {
+        remoteAudioRef.current = new Audio();
+        remoteAudioRef.current.autoplay = true;
+      }
+      remoteAudioRef.current.srcObject = e.streams[0] ?? null;
+      remoteAudioRef.current.play().catch(() => {});
+    };
+
+    // ICE candidate exchange
+    pc.onicecandidate = (e) => {
+      if (e.candidate && peerIdRef.current) {
+        sendDmCallSignal({ type: 'call_ice', targetId: peerIdRef.current, candidate: e.candidate });
+      }
+    };
+
+    return pc;
+  }, []);
+
+  // ── Flush pending ICE candidates once remote description is set ───────────
+  const flushIce = useCallback(async (pc: RTCPeerConnection) => {
+    for (const c of pendingIceRef.current) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch {}
+    }
+    pendingIceRef.current = [];
+  }, []);
+
+  // ── Called by DmCallOverlay when caller receives call_accept ─────────────
+  const startCallerAudio = useCallback(async (peerId: string) => {
+    const pc = await createPeer(peerId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendDmCallSignal({ type: 'call_offer', targetId: peerId, sdp: offer });
+  }, [createPeer]);
+
+  // ── Called by DmCallOverlay when callee accepts ──────────────────────────
+  // Just store peerId; actual peer is created when offer arrives from caller
+  const startCalleeAudio = useCallback((peerId: string) => {
+    peerIdRef.current = peerId;
+  }, []);
+
+  // ── Register WebRTC signal listener ──────────────────────────────────────
+  useEffect(() => {
+    setDmCallRtcSignalListener(async (signal) => {
+      const { type: ctype, sdp, candidate } = signal ?? {};
+
+      if (ctype === 'call_offer') {
+        if (!peerIdRef.current) return;
+        const pc = await createPeer(peerIdRef.current);
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        remoteDescSetRef.current = true;
+        await flushIce(pc);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        sendDmCallSignal({ type: 'call_answer', targetId: peerIdRef.current, sdp: answer });
+      }
+
+      if (ctype === 'call_answer') {
+        const pc = pcRef.current;
+        if (!pc) return;
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        remoteDescSetRef.current = true;
+        await flushIce(pc);
+      }
+
+      if (ctype === 'call_ice') {
+        const pc = pcRef.current;
+        if (!candidate) return;
+        if (pc && remoteDescSetRef.current) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
+        } else {
+          pendingIceRef.current.push(candidate);
+        }
+      }
+
+      if (ctype === 'call_decline' || ctype === 'call_end') {
+        cleanupAudio();
+      }
+    });
+
+    return () => {
+      setDmCallRtcSignalListener(null);
+    };
+  }, [createPeer, flushIce, cleanupAudio]);
+
+  // ── Mic toggle (actually enables/disables the audio track) ───────────────
+  const toggleMic = useCallback(() => {
+    const store = useAppStore.getState();
+    const nextMuted = !store.micMuted;
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !nextMuted; });
+    }
+    store.toggleMicMuted();
+  }, []);
+
+  // ── Speaker mode toggle (mobile only — tries setSinkId) ──────────────────
+  const toggleSpeaker = useCallback((speakerOn: boolean) => {
+    const audio = remoteAudioRef.current;
+    if (!audio) return;
+    const newSink = speakerOn ? 'default' : 'communications';
+    if (typeof (audio as any).setSinkId === 'function') {
+      (audio as any).setSinkId(newSink).catch(() => {});
+    }
+  }, []);
+
+  return { startCallerAudio, startCalleeAudio, toggleMic, toggleSpeaker, cleanupAudio };
+}

@@ -19,11 +19,11 @@ let _onNewPeer: ((userId: string) => void) | null = null;
 // Music state listener — called whenever a MUSIC_STATE_UPDATE arrives
 let _onMusicStateUpdate: ((payload: MusicState) => void) | null = null;
 
-// DM call signal handler (set by DmCallOverlay)
-let _onDmCallSignal: ((payload: any) => void) | null = null;
+// DM call WebRTC signals (offer/answer/ice) — separate from state management
+let _onDmCallRtcSignal: ((payload: any) => void) | null = null;
 
-export function setDmCallSignalListener(listener: ((payload: any) => void) | null) {
-  _onDmCallSignal = listener;
+export function setDmCallRtcSignalListener(listener: ((payload: any) => void) | null) {
+  _onDmCallRtcSignal = listener;
 }
 
 export function sendDmCallSignal(payload: any) {
@@ -118,6 +118,11 @@ type WsEvent =
 export function useRealtime(userId?: string) {
   const queryClient = useQueryClient();
   const ws = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectDelay = useRef(1000);
+  const isDestroyed = useRef(false);
+  // Messages queued while the socket is connecting (before onopen fires)
+  const sendQueue = useRef<object[]>([]);
 
   const {
     setVoiceRoomState,
@@ -140,32 +145,40 @@ export function useRealtime(userId?: string) {
 
   useEffect(() => {
     if (!userId) return;
+    isDestroyed.current = false;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/ws`;
 
-    ws.current = new WebSocket(wsUrl);
+    function connect() {
+      if (isDestroyed.current) return;
 
-    const sendSignal = (payload: any) => {
-      if (ws.current?.readyState === WebSocket.OPEN) {
-        ws.current.send(JSON.stringify({ type: 'VOICE_SIGNAL', payload }));
-      }
-    };
-    const sendRaw = (msg: object) => {
-      if (ws.current?.readyState === WebSocket.OPEN) {
-        ws.current.send(JSON.stringify(msg));
-      }
-    };
-    _sendSignal = sendSignal;
-    _sendRaw = sendRaw;
+      const newWs = new WebSocket(wsUrl);
+      ws.current = newWs;
 
-    ws.current.onopen = () => {
-      // Only identify — the server reads our saved status from DB and broadcasts it.
-      // No hardcoded "online" here, so the user's chosen status (idle/dnd/invisible) is preserved.
-      ws.current?.send(JSON.stringify({ type: 'IDENTIFY', payload: { userId } }));
-    };
+      // Keep module-level senders pointed at the live socket.
+      // When the socket is connecting (not yet OPEN), queue messages and flush on open.
+      _sendSignal = (payload: any) => {
+        const msg = JSON.stringify({ type: 'VOICE_SIGNAL', payload });
+        if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(msg);
+        else sendQueue.current.push({ type: 'VOICE_SIGNAL', payload });
+      };
+      _sendRaw = (msg: object) => {
+        if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(msg));
+        else sendQueue.current.push(msg);
+      };
 
-    ws.current.onmessage = (event) => {
+      newWs.onopen = () => {
+        reconnectDelay.current = 1000; // reset backoff on successful connect
+        // Only identify — the server reads our saved status from DB and broadcasts it.
+        // No hardcoded "online" here, so the user's chosen status (idle/dnd/invisible) is preserved.
+        newWs.send(JSON.stringify({ type: 'IDENTIFY', payload: { userId } }));
+        // Flush any messages queued while we were reconnecting
+        const queued = sendQueue.current.splice(0);
+        for (const m of queued) newWs.send(JSON.stringify(m));
+      };
+
+      newWs.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as WsEvent;
 
@@ -217,7 +230,7 @@ export function useRealtime(userId?: string) {
                   const rawMentions = (msg as any).mentions;
                   mentionsList = rawMentions ? JSON.parse(rawMentions as string) : [];
                 } catch {}
-                const isMentioned = mentionsList.includes(userId);
+                const isMentioned = mentionsList.includes(userId as string);
 
                 // Browser notification: always show if tab is hidden (for DMs and mentions)
                 const isDm = !!msg.dmThreadId;
@@ -368,16 +381,14 @@ export function useRealtime(userId?: string) {
           }
 
           case 'DM_CALL_SIGNAL': {
-            if (_onDmCallSignal) {
-              _onDmCallSignal(data.payload);
-              break;
-            }
             // Read latest store state to avoid stale closure
             const storeSnap = useAppStore.getState();
             const { type: ctype, callerId, callerName, callerAvatar, dmThreadId } = data.payload ?? {};
+
+            // ── State machine (always runs) ────────────────────────────────
             if (ctype === 'call_ring') {
               // Ignore call from ourselves (same-account test)
-              if (callerId === userId) break;
+              if (callerId === (userId as string)) break;
               const liveAllowCalls = storeSnap.allowCallsFrom;
               const liveIsApproved = storeSnap.isCallerApproved(callerId);
               const callState = liveAllowCalls === 'nobody'
@@ -394,7 +405,6 @@ export function useRealtime(userId?: string) {
                   dmThreadId: dmThreadId ?? null,
                   minimized: false,
                 });
-                // Ring sound + browser notification for incoming calls
                 startCallRinging();
                 showBrowserNotification(
                   `📞 Incoming call from ${callerName ?? 'Someone'}`,
@@ -405,9 +415,17 @@ export function useRealtime(userId?: string) {
             } else if (ctype === 'call_accept') {
               stopCallRinging();
               storeSnap.setDmCallState({ state: 'connected', startedAt: Date.now() });
-            } else if (ctype === 'call_decline' || ctype === 'call_end') {
+            } else if (ctype === 'call_decline' || ctype === 'call_end' || ctype === 'call_unavailable') {
               stopCallRinging();
               storeSnap.endDmCall();
+            }
+
+            // ── WebRTC signals forwarded to audio hook ─────────────────────
+            if (_onDmCallRtcSignal && (
+              ctype === 'call_offer' || ctype === 'call_answer' || ctype === 'call_ice' ||
+              ctype === 'call_decline' || ctype === 'call_end'
+            )) {
+              _onDmCallRtcSignal(data.payload);
             }
             break;
           }
@@ -417,7 +435,25 @@ export function useRealtime(userId?: string) {
       }
     };
 
+      newWs.onclose = () => {
+        if (isDestroyed.current) return;
+        // Exponential backoff: 1s → 2s → 4s → … → 30s
+        reconnectTimer.current = setTimeout(() => {
+          reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30_000);
+          connect();
+        }, reconnectDelay.current);
+      };
+
+      newWs.onerror = () => {
+        newWs.close(); // triggers onclose which schedules reconnect
+      };
+    } // end connect()
+
+    connect();
+
     return () => {
+      isDestroyed.current = true;
+      if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
       _sendSignal = null;
       _sendRaw = null;
       if (ws.current?.readyState === WebSocket.OPEN) {

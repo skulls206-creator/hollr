@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Phone, PhoneOff, PhoneMissed, Mic, MicOff, Volume2, VolumeX,
-  Minimize2, Check, X, ShieldAlert,
+  Minimize2, Check, ShieldAlert,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/store/use-app-store';
@@ -9,95 +9,95 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { getInitials, cn } from '@/lib/utils';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { stopCallRinging } from '@/lib/notification-sound';
+import { useDmCallAudio } from '@/hooks/use-dm-audio';
 
 const CALL_TIMEOUT_MS = 30_000;
 
+function CallTimer({ startedAt }: { startedAt: number | null }) {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    if (!startedAt) return;
+    const id = setInterval(() => setSecs(Math.floor((Date.now() - startedAt) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  const m = String(Math.floor(secs / 60)).padStart(2, '0');
+  const s = String(secs % 60).padStart(2, '0');
+  return <span className="text-emerald-400 text-sm font-semibold tabular-nums">{m}:{s}</span>;
+}
+
 export function DmCallOverlay() {
   const {
-    dmCall,
-    setDmCallState,
-    endDmCall,
-    approveCallsFrom,
-    revokeCallsFrom,
+    dmCall, setDmCallState, endDmCall,
+    approveCallsFrom, revokeCallsFrom,
   } = useAppStore();
 
   const { user } = useAuth();
   const micMuted = useAppStore((s) => s.micMuted);
-  const toggleMicMuted = useAppStore((s) => s.toggleMicMuted);
 
   const [speakerOn, setSpeakerOn] = useState(true);
-  const [elapsed, setElapsed] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Start/stop call timer
-  useEffect(() => {
-    if (dmCall.state === 'connected' && dmCall.startedAt) {
-      setElapsed(Math.floor((Date.now() - dmCall.startedAt) / 1000));
-      timerRef.current = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - dmCall.startedAt!) / 1000));
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setElapsed(0);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [dmCall.state, dmCall.startedAt]);
+  const { startCallerAudio, startCalleeAudio, toggleMic, toggleSpeaker, cleanupAudio } = useDmCallAudio();
 
-  // Auto-cancel outgoing call after 30 seconds (no answer)
+  const { state, targetUserId, targetDisplayName, targetAvatarUrl, dmThreadId, minimized, startedAt } = dmCall;
+
+  // Auto-cancel outgoing call after 30 s
   useEffect(() => {
-    if (dmCall.state === 'outgoing_ringing') {
+    if (state === 'outgoing_ringing') {
       timeoutRef.current = setTimeout(() => {
-        sendDmCallSignal({ type: 'call_end', targetId: dmCall.targetUserId, callerId: user?.id });
+        sendDmCallSignal({ type: 'call_end', targetId: targetUserId, callerId: user?.id });
         endDmCall();
       }, CALL_TIMEOUT_MS);
     } else {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     }
     return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
-  }, [dmCall.state]);
+  }, [state]);
 
   // Stop ringing when call leaves incoming states
   useEffect(() => {
-    if (dmCall.state !== 'incoming_ringing' && dmCall.state !== 'incoming_request') {
+    if (state !== 'incoming_ringing' && state !== 'incoming_request') {
       stopCallRinging();
     }
-  }, [dmCall.state]);
+  }, [state]);
 
-  if (dmCall.state === 'idle') return null;
+  // When CALLER receives call_accept → start caller audio
+  const prevState = useRef(state);
+  useEffect(() => {
+    if (prevState.current !== 'connected' && state === 'connected' && targetUserId) {
+      // Determine role by checking who was outgoing vs incoming
+      const wasOutgoing = prevState.current === 'outgoing_ringing';
+      if (wasOutgoing) {
+        startCallerAudio(targetUserId);
+      }
+    }
+    prevState.current = state;
+  }, [state, targetUserId, startCallerAudio]);
 
-  const { state, targetUserId, targetDisplayName, targetAvatarUrl, dmThreadId, minimized } = dmCall;
+  // Cleanup audio when call ends
+  useEffect(() => {
+    if (state === 'idle') cleanupAudio();
+  }, [state, cleanupAudio]);
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
-  };
+  if (state === 'idle') return null;
+
+  const displayName = targetDisplayName ?? 'Unknown';
 
   const handleEnd = () => {
-    sendDmCallSignal({
-      type: 'call_end',
-      targetId: targetUserId,
-      callerId: user?.id,
-    });
+    sendDmCallSignal({ type: 'call_end', targetId: targetUserId, callerId: user?.id });
+    cleanupAudio();
     endDmCall();
   };
 
   const handleAccept = () => {
-    sendDmCallSignal({
-      type: 'call_accept',
-      targetId: targetUserId,
-      callerId: user?.id,
-    });
+    sendDmCallSignal({ type: 'call_accept', targetId: targetUserId, callerId: user?.id });
     setDmCallState({ state: 'connected', startedAt: Date.now() });
+    if (targetUserId) startCalleeAudio(targetUserId);
   };
 
   const handleDecline = () => {
-    sendDmCallSignal({
-      type: 'call_decline',
-      targetId: targetUserId,
-      callerId: user?.id,
-    });
+    sendDmCallSignal({ type: 'call_decline', targetId: targetUserId, callerId: user?.id });
+    cleanupAudio();
     endDmCall();
   };
 
@@ -106,60 +106,51 @@ export function DmCallOverlay() {
     handleAccept();
   };
 
-  const handleDenyRequest = () => {
-    sendDmCallSignal({
-      type: 'call_decline',
-      targetId: targetUserId,
-      callerId: user?.id,
-    });
-    endDmCall();
-  };
-
   const handleBlockRequest = () => {
     if (targetUserId) revokeCallsFrom(targetUserId);
-    sendDmCallSignal({
-      type: 'call_decline',
-      targetId: targetUserId,
-      callerId: user?.id,
-    });
+    sendDmCallSignal({ type: 'call_decline', targetId: targetUserId, callerId: user?.id });
+    cleanupAudio();
     endDmCall();
   };
 
-  // ── Minimized: compact call bar (rendered in DmChatArea header area) ──
+  const handleSpeakerToggle = () => {
+    const next = !speakerOn;
+    setSpeakerOn(next);
+    toggleSpeaker(next);
+  };
+
+  // ── Minimized call bar ──────────────────────────────────────────────────
   if (minimized && state === 'connected') {
     return (
       <div className="fixed top-0 left-0 right-0 z-[9000] flex items-center gap-3 px-4 py-2 bg-emerald-600/95 backdrop-blur-md shadow-lg">
         <div className="relative shrink-0">
           <Avatar className="h-7 w-7">
             <AvatarImage src={targetAvatarUrl || undefined} />
-            <AvatarFallback className="bg-primary text-white text-xs">
-              {getInitials(targetDisplayName ?? '')}
+            <AvatarFallback className="bg-emerald-800 text-white text-xs">
+              {getInitials(displayName)}
             </AvatarFallback>
           </Avatar>
           <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-300 border-2 border-emerald-600 animate-pulse" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-white text-xs font-semibold truncate">{targetDisplayName}</p>
-          <p className="text-emerald-200 text-[10px] font-mono">{formatTime(elapsed)}</p>
+          <p className="text-white text-xs font-semibold truncate">{displayName}</p>
+          <CallTimer startedAt={startedAt} />
         </div>
         <button
           onClick={() => setDmCallState({ minimized: false })}
           className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-          title="Expand call"
         >
           <Phone size={14} />
         </button>
         <button
-          onClick={toggleMicMuted}
+          onClick={toggleMic}
           className={cn('p-1.5 rounded-lg transition-colors shrink-0', micMuted ? 'text-red-300 bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10')}
-          title={micMuted ? 'Unmute' : 'Mute'}
         >
           {micMuted ? <MicOff size={14} /> : <Mic size={14} />}
         </button>
         <button
           onClick={handleEnd}
           className="p-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors shrink-0"
-          title="End call"
         >
           <PhoneOff size={14} />
         </button>
@@ -167,74 +158,88 @@ export function DmCallOverlay() {
     );
   }
 
-  // ── Full-screen overlay ──
+  // ── Full-screen overlay ─────────────────────────────────────────────────
   return (
     <div
-      className={cn(
-        'fixed inset-0 z-[9000] flex flex-col items-center justify-between',
-        'bg-gradient-to-b from-surface-0 via-surface-0/95 to-black/80',
-        'pb-safe'
-      )}
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
+      className="fixed inset-0 z-[9000] flex flex-col overflow-hidden"
+      style={{ background: 'linear-gradient(160deg, #0d1b2a 0%, #1a1a2e 40%, #16213e 100%)' }}
     >
-      {/* Top bar */}
-      <div className="w-full flex items-center justify-between px-6 pt-14 shrink-0">
-        <div className="text-center w-full">
-          {state === 'outgoing_ringing' && (
-            <p className="text-muted-foreground text-sm font-medium animate-pulse">Calling…</p>
-          )}
-          {state === 'incoming_ringing' && (
-            <p className="text-emerald-400 text-sm font-semibold tracking-wide uppercase">Incoming Call</p>
-          )}
-          {state === 'incoming_request' && (
-            <p className="text-yellow-400 text-sm font-semibold tracking-wide uppercase flex items-center justify-center gap-1.5">
-              <ShieldAlert size={14} /> Call Request
-            </p>
-          )}
-          {state === 'connected' && (
-            <p className="text-emerald-400 text-sm font-semibold tracking-wide">
-              {formatTime(elapsed)}
-            </p>
-          )}
-        </div>
+      {/* Blurred avatar backdrop */}
+      {targetAvatarUrl && (
+        <img
+          src={targetAvatarUrl}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover opacity-[0.07] blur-3xl scale-110 pointer-events-none select-none"
+        />
+      )}
 
-        {/* Minimize (only in connected state) */}
+      {/* Top status pill */}
+      <div className="relative z-10 flex justify-center pt-14 pb-2">
+        {state === 'outgoing_ringing' && (
+          <span className="px-4 py-1 rounded-full bg-white/10 text-white/70 text-sm font-medium animate-pulse">
+            Calling…
+          </span>
+        )}
+        {state === 'incoming_ringing' && (
+          <span className="px-4 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-sm font-semibold tracking-wide uppercase">
+            Incoming Call
+          </span>
+        )}
+        {state === 'incoming_request' && (
+          <span className="px-4 py-1 rounded-full bg-yellow-500/20 text-yellow-300 text-sm font-semibold flex items-center gap-1.5">
+            <ShieldAlert size={13} /> Call Request
+          </span>
+        )}
+        {state === 'connected' && (
+          <span className="flex items-center gap-2 px-4 py-1 rounded-full bg-emerald-500/15 text-emerald-400">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <CallTimer startedAt={startedAt} />
+          </span>
+        )}
+
+        {/* Minimize button */}
         {state === 'connected' && (
           <button
             onClick={() => setDmCallState({ minimized: true })}
-            className="absolute top-14 right-6 p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
-            title="Minimize"
+            className="absolute right-5 top-0 p-2 rounded-full text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
           >
             <Minimize2 size={18} />
           </button>
         )}
       </div>
 
-      {/* Center: avatar + name */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6">
-        {/* Animated ring for ringing states */}
+      {/* Center avatar */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center gap-5">
         <div className="relative flex items-center justify-center">
           {(state === 'outgoing_ringing' || state === 'incoming_ringing') && (
             <>
-              <span className="absolute h-44 w-44 rounded-full bg-primary/10 animate-[ping_1.5s_ease-in-out_infinite]" />
-              <span className="absolute h-36 w-36 rounded-full bg-primary/15 animate-[ping_1.5s_ease-in-out_0.3s_infinite]" />
+              <span className="absolute h-52 w-52 rounded-full border border-white/10 animate-[ping_2s_ease-in-out_infinite]" />
+              <span className="absolute h-40 w-40 rounded-full border border-white/15 animate-[ping_2s_ease-in-out_0.4s_infinite]" />
+              <span className="absolute h-52 w-52 rounded-full bg-white/[0.03]" />
+              <span className="absolute h-40 w-40 rounded-full bg-white/[0.05]" />
             </>
           )}
-          <Avatar className="h-28 w-28 ring-4 ring-surface-1 shadow-2xl">
+          {state === 'connected' && (
+            <span className="absolute h-44 w-44 rounded-full bg-emerald-500/10 animate-pulse" />
+          )}
+          <Avatar className="h-32 w-32 ring-4 ring-white/10 shadow-2xl">
             <AvatarImage src={targetAvatarUrl || undefined} />
-            <AvatarFallback className="bg-primary text-white text-3xl font-bold">
-              {getInitials(targetDisplayName ?? '')}
+            <AvatarFallback
+              className="text-white text-4xl font-bold"
+              style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}
+            >
+              {getInitials(displayName)}
             </AvatarFallback>
           </Avatar>
           {state === 'connected' && (
-            <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 border-2 border-surface-0 shadow-md" />
+            <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-400 border-2 border-[#1a1a2e] shadow" />
           )}
         </div>
 
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-foreground tracking-tight">{targetDisplayName}</h2>
+          <h2 className="text-2xl font-bold text-white tracking-tight">{displayName}</h2>
           {state === 'incoming_request' && (
-            <p className="mt-2 text-sm text-muted-foreground max-w-xs">
+            <p className="mt-2 text-sm text-white/50 max-w-[240px]">
               This person wants to call you. Allow them?
             </p>
           )}
@@ -242,109 +247,103 @@ export function DmCallOverlay() {
       </div>
 
       {/* Bottom controls */}
-      <div className="w-full px-8 shrink-0">
+      <div className="relative z-10 w-full px-8 pb-safe" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 40px)' }}>
 
         {/* ── Outgoing ringing ── */}
         {state === 'outgoing_ringing' && (
-          <div className="flex justify-center pb-8">
-            <button
-              onClick={handleEnd}
-              className="flex flex-col items-center gap-2"
-            >
-              <span className="h-18 w-18 flex items-center justify-center rounded-full bg-destructive shadow-lg active:scale-95 transition-transform" style={{ width: 72, height: 72 }}>
-                <PhoneOff size={28} className="text-white" />
-              </span>
-              <span className="text-xs text-muted-foreground font-medium">Cancel</span>
-            </button>
+          <div className="flex justify-center pb-4">
+            <CallBtn icon={<PhoneOff size={26} />} label="Cancel" color="red" onClick={handleEnd} />
           </div>
         )}
 
         {/* ── Incoming ringing ── */}
         {state === 'incoming_ringing' && (
-          <div className="flex justify-center gap-20 pb-8">
-            <button onClick={handleDecline} className="flex flex-col items-center gap-2">
-              <span className="flex items-center justify-center rounded-full bg-destructive shadow-lg active:scale-95 transition-transform" style={{ width: 72, height: 72 }}>
-                <PhoneOff size={28} className="text-white" />
-              </span>
-              <span className="text-xs text-muted-foreground font-medium">Decline</span>
-            </button>
-            <button onClick={handleAccept} className="flex flex-col items-center gap-2">
-              <span className="flex items-center justify-center rounded-full bg-emerald-500 shadow-lg active:scale-95 transition-transform" style={{ width: 72, height: 72 }}>
-                <Phone size={28} className="text-white" />
-              </span>
-              <span className="text-xs text-muted-foreground font-medium">Accept</span>
-            </button>
+          <div className="flex justify-center gap-24 pb-4">
+            <CallBtn icon={<PhoneOff size={26} />} label="Decline" color="red" onClick={handleDecline} />
+            <CallBtn icon={<Phone size={26} />} label="Accept" color="green" onClick={handleAccept} />
           </div>
         )}
 
-        {/* ── Incoming call request (Signal-style) ── */}
+        {/* ── Incoming request ── */}
         {state === 'incoming_request' && (
-          <div className="flex flex-col gap-3 pb-8">
+          <div className="flex flex-col gap-3 pb-4">
             <button
               onClick={handleAllowAndAccept}
-              className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base transition-colors active:scale-[0.98]"
+              className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-base transition-colors active:scale-[0.98]"
             >
               <Check size={20} /> Allow & Answer
             </button>
             <button
-              onClick={handleDenyRequest}
-              className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-surface-1 hover:bg-accent text-foreground font-semibold text-base transition-colors active:scale-[0.98]"
+              onClick={handleDecline}
+              className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold text-base transition-colors active:scale-[0.98]"
             >
               <PhoneMissed size={20} /> Decline
             </button>
             <button
               onClick={handleBlockRequest}
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-destructive/70 hover:text-destructive hover:bg-destructive/10 font-medium text-sm transition-colors"
+              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-2xl text-red-400/70 hover:text-red-400 hover:bg-red-500/10 font-medium text-sm transition-colors"
             >
-              <ShieldAlert size={16} /> Block future calls
+              <ShieldAlert size={15} /> Block future calls
             </button>
           </div>
         )}
 
-        {/* ── Connected: call controls grid ── */}
+        {/* ── Connected ── */}
         {state === 'connected' && (
-          <div className="flex flex-col gap-8 pb-8">
-            {/* Row 1: Mute + Speaker */}
-            <div className="flex justify-center gap-12">
-              <button
-                onClick={toggleMicMuted}
-                className="flex flex-col items-center gap-2"
-              >
-                <span className={cn(
-                  'flex items-center justify-center rounded-full transition-all active:scale-95',
-                  micMuted ? 'bg-white text-surface-0' : 'bg-white/15 text-white'
-                )} style={{ width: 60, height: 60 }}>
-                  {micMuted ? <MicOff size={24} /> : <Mic size={24} />}
-                </span>
-                <span className="text-xs text-muted-foreground font-medium">{micMuted ? 'Unmute' : 'Mute'}</span>
-              </button>
-
-              <button
-                onClick={() => setSpeakerOn(!speakerOn)}
-                className="flex flex-col items-center gap-2"
-              >
-                <span className={cn(
-                  'flex items-center justify-center rounded-full transition-all active:scale-95',
-                  speakerOn ? 'bg-white text-surface-0' : 'bg-white/15 text-white'
-                )} style={{ width: 60, height: 60 }}>
-                  {speakerOn ? <Volume2 size={24} /> : <VolumeX size={24} />}
-                </span>
-                <span className="text-xs text-muted-foreground font-medium">Speaker</span>
-              </button>
+          <div className="flex flex-col gap-6 pb-4">
+            <div className="flex justify-center gap-10">
+              <CallBtn
+                icon={micMuted ? <MicOff size={22} /> : <Mic size={22} />}
+                label={micMuted ? 'Unmute' : 'Mute'}
+                color={micMuted ? 'active' : 'ghost'}
+                onClick={toggleMic}
+                size="md"
+              />
+              <CallBtn
+                icon={speakerOn ? <Volume2 size={22} /> : <VolumeX size={22} />}
+                label="Speaker"
+                color={speakerOn ? 'active' : 'ghost'}
+                onClick={handleSpeakerToggle}
+                size="md"
+              />
             </div>
-
-            {/* Row 2: End call (red, big center) */}
             <div className="flex justify-center">
-              <button onClick={handleEnd} className="flex flex-col items-center gap-2">
-                <span className="flex items-center justify-center rounded-full bg-destructive shadow-xl active:scale-95 transition-transform" style={{ width: 72, height: 72 }}>
-                  <PhoneOff size={28} className="text-white" />
-                </span>
-                <span className="text-xs text-muted-foreground font-medium">End</span>
-              </button>
+              <CallBtn icon={<PhoneOff size={26} />} label="End" color="red" onClick={handleEnd} />
             </div>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+// ── Reusable call button ──────────────────────────────────────────────────────
+type CallBtnColor = 'red' | 'green' | 'ghost' | 'active';
+function CallBtn({
+  icon, label, color, onClick, size = 'lg',
+}: {
+  icon: React.ReactNode;
+  label: string;
+  color: CallBtnColor;
+  onClick: () => void;
+  size?: 'md' | 'lg';
+}) {
+  const dim = size === 'lg' ? 72 : 60;
+  const bg: Record<CallBtnColor, string> = {
+    red: 'bg-red-500 hover:bg-red-400 text-white shadow-lg shadow-red-900/40',
+    green: 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-900/40',
+    ghost: 'bg-white/10 hover:bg-white/20 text-white/80',
+    active: 'bg-white text-gray-900',
+  };
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-2">
+      <span
+        className={cn('flex items-center justify-center rounded-full transition-all active:scale-95', bg[color])}
+        style={{ width: dim, height: dim }}
+      >
+        {icon}
+      </span>
+      <span className="text-xs text-white/50 font-medium">{label}</span>
+    </button>
   );
 }

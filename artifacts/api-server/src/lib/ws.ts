@@ -247,17 +247,31 @@ export function initWebSocket(server: Server) {
           }
 
           case "DM_CALL_SIGNAL": {
-            const { targetId } = msg.payload ?? {};
+            const { targetId, type: signalType } = msg.payload ?? {};
             if (targetId) {
-              sendToUser(targetId, { type: "DM_CALL_SIGNAL", payload: msg.payload });
+              const delivered = sendToUser(targetId, { type: "DM_CALL_SIGNAL", payload: msg.payload });
+              // If ring can't be delivered, tell the caller immediately
+              if (!delivered && signalType === "call_ring" && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: "DM_CALL_SIGNAL",
+                  payload: { type: "call_unavailable", targetId },
+                }));
+              }
             }
             break;
           }
 
           case "VIDEO_CALL_SIGNAL": {
-            const { targetId } = msg.payload ?? {};
+            const { targetId, type: signalType } = msg.payload ?? {};
             if (targetId) {
-              sendToUser(targetId, { type: "VIDEO_CALL_SIGNAL", payload: msg.payload });
+              const delivered = sendToUser(targetId, { type: "VIDEO_CALL_SIGNAL", payload: msg.payload });
+              // If ring can't be delivered, tell the caller immediately
+              if (!delivered && signalType === "video_ring" && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: "VIDEO_CALL_SIGNAL",
+                  payload: { type: "video_unavailable", targetId },
+                }));
+              }
             }
             break;
           }

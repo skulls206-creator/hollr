@@ -4,6 +4,7 @@ import { useAppStore } from '@/store/use-app-store';
 import { sendVideoCallSignal, setVideoCallSignalListener } from './use-realtime';
 import { startCallRinging, stopCallRinging } from '@/lib/notification-sound';
 import { fetchIceServers } from '@/lib/ice-servers';
+import { toast } from '@/hooks/use-toast';
 
 // ─── Module-level singleton ───────────────────────────────────────────────────
 // Lets DmChatArea trigger video calls without mounting the hook itself.
@@ -176,7 +177,13 @@ export function useVideoCall() {
     callerInfo: { id: string; displayName: string; avatarUrl: string | null },
   ) => {
     peerIdRef.current = targetUserId;
-    await getLocalStream('user');
+    try {
+      await getLocalStream('user');
+    } catch (err) {
+      console.warn('[VideoCall] Failed to get local stream:', err);
+      toast({ title: 'Camera/mic unavailable', description: 'Could not access your camera or microphone.', variant: 'destructive' });
+      return;
+    }
 
     setVideoCallState({
       state: 'outgoing_ringing',
@@ -208,7 +215,17 @@ export function useVideoCall() {
   const acceptCall = useCallback(async (callerId: string) => {
     stopTimeout();
     stopCallRinging();
-    await getLocalStream('user');
+    try {
+      await getLocalStream('user');
+    } catch (err) {
+      console.warn('[VideoCall] Failed to get local stream on accept:', err);
+      // Decline so the caller knows we couldn't connect
+      sendVideoCallSignal({ type: 'video_decline', targetId: callerId });
+      cleanup();
+      useAppStore.getState().endVideoCall();
+      toast({ title: 'Camera/mic unavailable', description: 'Could not access your camera or microphone.', variant: 'destructive' });
+      return;
+    }
     await createPeer(callerId);
     // Send accept; include our own userId so initiator knows who accepted
     sendVideoCallSignal({
@@ -216,7 +233,7 @@ export function useVideoCall() {
       targetId: callerId,           // routes to caller (initiator)
       acceptorId: userIdRef.current, // tells initiator WHO accepted
     });
-  }, [stopTimeout, getLocalStream, createPeer]);
+  }, [stopTimeout, getLocalStream, createPeer, cleanup]);
 
   const declineCall = useCallback((callerId: string) => {
     stopTimeout();
@@ -352,6 +369,16 @@ export function useVideoCall() {
         stopCallRinging();
         cleanup();
         useAppStore.getState().endVideoCall();
+        return;
+      }
+
+      // ── Target was offline when ring was sent ──────────────────────────────
+      if (type === 'video_unavailable') {
+        stopTimeout();
+        stopCallRinging();
+        cleanup();
+        useAppStore.getState().endVideoCall();
+        toast({ title: 'User unavailable', description: 'They are currently offline or unreachable.', variant: 'destructive' });
         return;
       }
     });
