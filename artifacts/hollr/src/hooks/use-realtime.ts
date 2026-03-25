@@ -387,7 +387,15 @@ export function useRealtime(userId?: string) {
           case 'VOICE_USER_JOINED': {
             const { channelId, user } = data.payload;
             addVoiceChannelUser(channelId, user);
-            if (user.userId !== userId) playVoiceJoinSound();
+            if (user.userId !== userId) {
+              playVoiceJoinSound();
+              // Existing participants must also create a fresh peer for the joiner.
+              // This is critical when the local user has an active screen-share: createPeer
+              // adds the video track, triggering onnegotiationneeded → the joiner receives
+              // an offer that already includes the video stream without needing a separate
+              // renegotiation round-trip.
+              if (_onNewPeer) _onNewPeer(user.userId);
+            }
             break;
           }
 
