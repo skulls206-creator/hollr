@@ -93,6 +93,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hasInitiallyScrolled = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
@@ -104,6 +105,16 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   };
 
   useEffect(() => {
+    hasInitiallyScrolled.current = false;
+  }, [threadId]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (!hasInitiallyScrolled.current) {
+      hasInitiallyScrolled.current = true;
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' });
+      return;
+    }
     const container = scrollContainerRef.current;
     if (!container) return;
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;

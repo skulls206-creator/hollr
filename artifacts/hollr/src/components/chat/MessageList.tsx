@@ -83,6 +83,7 @@ export function MessageList({
   const { show: showMenu } = useContextMenu();
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hasInitiallyScrolled = useRef(false);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [emojiHoverMsg, setEmojiHoverMsg] = useState<string | null>(null);
 
@@ -91,6 +92,16 @@ export function MessageList({
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    hasInitiallyScrolled.current = false;
+  }, [channelId]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (!hasInitiallyScrolled.current) {
+      hasInitiallyScrolled.current = true;
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' });
+      return;
+    }
     const container = scrollContainerRef.current;
     if (!container) return;
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
