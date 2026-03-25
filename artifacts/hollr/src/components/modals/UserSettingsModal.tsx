@@ -336,10 +336,50 @@ export function UserSettingsModal() {
 
   return (
     <Dialog open={userSettingsModalOpen} onOpenChange={setUserSettingsModalOpen}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl bg-surface-1 border-border/50 overflow-hidden max-h-[88dvh] flex flex-row p-0 gap-0 [&>button:last-child]:hidden">
+      <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-2xl bg-surface-1 border-border/50 overflow-hidden max-h-[92dvh] flex flex-col sm:flex-row p-0 gap-0 [&>button:last-child]:hidden">
 
-        {/* ── Left nav sidebar ── */}
-        <div className="w-44 shrink-0 bg-surface-0 border-r border-border/30 flex flex-col py-3 overflow-hidden">
+        {/* ── Mobile header (hidden on desktop) ── */}
+        <div className="sm:hidden flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+          <p className="text-xs font-black tracking-widest text-muted-foreground/50 uppercase">Settings</p>
+          <button
+            onClick={() => setUserSettingsModalOpen(false)}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* ── Mobile tab bar (hidden on desktop) ── */}
+        <div className="sm:hidden flex gap-1 px-3 pb-2 overflow-x-auto no-scrollbar shrink-0 border-b border-border/20">
+          {NAV.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setTab(item.id)}
+              className={cn(
+                'flex flex-col items-center gap-1 px-3 py-2 rounded-xl shrink-0 transition-all',
+                tab === item.id
+                  ? 'bg-primary/15 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
+              )}
+            >
+              {item.icon}
+              <span className="text-[10px] font-semibold whitespace-nowrap">{item.label}</span>
+            </button>
+          ))}
+          <div className="shrink-0 ml-auto pl-1">
+            <button
+              onClick={logout}
+              className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-all"
+            >
+              <LogOut size={15} />
+              <span className="text-[10px] font-semibold whitespace-nowrap">Sign Out</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ── Desktop left nav sidebar (hidden on mobile) ── */}
+        <div className="hidden sm:flex w-44 shrink-0 bg-surface-0 border-r border-border/30 flex-col py-3 overflow-hidden">
           <p className="px-4 pt-1 pb-3 text-[11px] font-black tracking-widest text-muted-foreground/50 uppercase select-none">
             Settings
           </p>
@@ -381,8 +421,8 @@ export function UserSettingsModal() {
 
         {/* ── Right content panel ── */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Top bar: section title + close */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border/20 shrink-0">
+          {/* Desktop top bar: section title + close (hidden on mobile — mobile has its own header) */}
+          <div className="hidden sm:flex items-center justify-between px-5 py-3 border-b border-border/20 shrink-0">
             <p className="text-sm font-bold text-foreground">
               {NAV.find(n => n.id === tab)?.label ?? 'Settings'}
             </p>
@@ -395,8 +435,15 @@ export function UserSettingsModal() {
             </button>
           </div>
 
+          {/* Mobile: current section label */}
+          <div className="sm:hidden px-4 pt-3 pb-1 shrink-0">
+            <p className="text-base font-bold text-foreground">
+              {NAV.find(n => n.id === tab)?.label ?? 'Settings'}
+            </p>
+          </div>
+
           {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto no-scrollbar px-5 py-4">
+          <div className="flex-1 overflow-y-auto no-scrollbar px-4 sm:px-5 py-4">
 
             {/* ── PROFILE ── */}
             {tab === 'profile' && (
