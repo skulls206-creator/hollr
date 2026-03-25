@@ -339,7 +339,7 @@ export function UserSettingsModal() {
       <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl bg-surface-1 border-border/50 overflow-hidden max-h-[88dvh] flex flex-row p-0 gap-0 [&>button:last-child]:hidden">
 
         {/* ── Left nav sidebar ── */}
-        <div className="w-44 shrink-0 bg-surface-0 border-r border-border/30 flex flex-col py-3 overflow-y-auto no-scrollbar">
+        <div className="w-44 shrink-0 bg-surface-0 border-r border-border/30 flex flex-col py-3 overflow-hidden">
           <p className="px-4 pt-1 pb-3 text-[11px] font-black tracking-widest text-muted-foreground/50 uppercase select-none">
             Settings
           </p>
