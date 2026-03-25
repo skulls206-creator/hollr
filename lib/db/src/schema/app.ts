@@ -191,3 +191,21 @@ export const khurkAppDismissalsTable = pgTable("khurk_app_dismissals", {
 }, (t) => [primaryKey({ columns: [t.userId, t.appId] })]);
 
 export type KhurkAppDismissal = typeof khurkAppDismissalsTable.$inferSelect;
+
+// Stores DM call signals in the DB so they survive across server instances.
+// WS delivers signals instantly; REST polling delivers them cross-instance.
+export const dmCallSignalsTable = pgTable("dm_call_signals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromUserId: varchar("from_user_id").notNull(),
+  toUserId: varchar("to_user_id").notNull(),
+  threadId: varchar("thread_id"),
+  signalType: varchar("signal_type", { length: 32 }).notNull(),
+  payload: text("payload"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+}, (t) => [
+  index("dm_call_signals_to_user_idx").on(t.toUserId),
+  index("dm_call_signals_created_at_idx").on(t.createdAt),
+]);
+
+export type DmCallSignal = typeof dmCallSignalsTable.$inferSelect;

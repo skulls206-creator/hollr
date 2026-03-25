@@ -10,6 +10,9 @@ import { playNotificationSound, playVoiceJoinSound, playVoiceLeaveSound, startCa
 let _sendSignal: ((payload: any) => void) | null = null;
 let _sendRaw: ((msg: object) => void) | null = null;
 
+// Deduplicate signals that arrive via BOTH WS and REST (same signal, two paths)
+const _processedSignalIds = new Set<string>();
+
 // Called by use-webrtc.ts to receive incoming WebRTC signaling messages
 let _onVoiceSignal: ((payload: any) => void) | null = null;
 
@@ -27,10 +30,20 @@ export function setDmCallRtcSignalListener(listener: ((payload: any) => void) | 
 }
 
 export function sendDmCallSignal(payload: any) {
+  // 1. WebSocket — instant delivery when on the same server instance
   if (_sendRaw) {
     _sendRaw({ type: 'DM_CALL_SIGNAL', payload });
-  } else {
-    console.warn('[WS] sendDmCallSignal called before WebSocket connected');
+  }
+  // 2. REST API — guaranteed delivery even across different server instances
+  //    (preview vs production, different deploy instances, etc.)
+  const { targetId, type: signalType, callerId: _ignore, ...rest } = payload;
+  if (targetId && signalType) {
+    fetch(`${import.meta.env.BASE_URL}api/dm/call-signal`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toUserId: targetId, threadId: payload.dmThreadId ?? payload.threadId ?? null, signalType, payload: rest }),
+    }).catch(() => {});
   }
 }
 
@@ -493,6 +506,11 @@ export function useRealtime(userId?: string) {
           }
 
           case 'DM_CALL_SIGNAL': {
+            // Deduplicate: if this signal came via REST too, skip the WS copy
+            if (data.payload?._signalId) {
+              if (_processedSignalIds.has(data.payload._signalId)) break;
+              _processedSignalIds.add(data.payload._signalId);
+            }
             // Read latest store state to avoid stale closure
             const storeSnap = useAppStore.getState();
             const { type: ctype, callerId, callerName, callerAvatar, dmThreadId } = data.payload ?? {};
@@ -594,6 +612,63 @@ export function useRealtime(userId?: string) {
       ws.current?.close();
     };
   }, [userId, queryClient]);
+
+  // REST polling for call signals — catches cross-server signals that WS can't deliver
+  useEffect(() => {
+    if (!userId) return;
+
+    const poll = async () => {
+      try {
+        const r = await fetch(`${import.meta.env.BASE_URL}api/dm/call-signal/pending`, { credentials: 'include' });
+        if (!r.ok) return;
+        const signals: Array<{ id: string; fromUserId: string; toUserId: string; threadId: string | null; signalType: string; payload: any }> = await r.json();
+        for (const sig of signals) {
+          if (_processedSignalIds.has(sig.id)) continue;
+          _processedSignalIds.add(sig.id);
+
+          const storeSnap = useAppStore.getState();
+          const ctype = sig.signalType;
+          const callerId = sig.fromUserId;
+          const callerName = sig.payload?.callerName;
+          const callerAvatar = sig.payload?.callerAvatar ?? null;
+          const dmThreadId = sig.threadId;
+
+          if (ctype === 'call_ring') {
+            if (callerId === userId) continue;
+            const alreadyRinging =
+              (storeSnap.dmCall.state === 'incoming_ringing' || storeSnap.dmCall.state === 'incoming_request') &&
+              storeSnap.dmCall.targetUserId === callerId;
+            if (alreadyRinging) continue;
+            const liveAllowCalls = storeSnap.allowCallsFrom;
+            const liveIsApproved = storeSnap.isCallerApproved(callerId);
+            const callState = liveAllowCalls === 'nobody'
+              ? null
+              : liveIsApproved || liveAllowCalls === 'everyone'
+                ? 'incoming_ringing'
+                : 'incoming_request';
+            if (callState) {
+              storeSnap.setDmCallState({ state: callState, targetUserId: callerId, targetDisplayName: callerName, targetAvatarUrl: callerAvatar, dmThreadId: dmThreadId ?? null, minimized: false });
+              startCallRinging(storeSnap.ringtoneId);
+            }
+          } else if (ctype === 'call_accept') {
+            stopCallRinging();
+            storeSnap.setDmCallState({ state: 'connected', startedAt: Date.now() });
+          } else if (ctype === 'call_decline' || ctype === 'call_end' || ctype === 'call_unavailable') {
+            stopCallRinging();
+            storeSnap.endDmCall();
+          }
+
+          if (_onDmCallRtcSignal && (ctype === 'call_offer' || ctype === 'call_answer' || ctype === 'call_ice' || ctype === 'call_decline' || ctype === 'call_end')) {
+            _onDmCallRtcSignal({ type: ctype, callerId, callerName, callerAvatar, dmThreadId, ...sig.payload });
+          }
+        }
+      } catch {}
+    };
+
+    const interval = setInterval(poll, 2000);
+    poll(); // immediate first poll
+    return () => clearInterval(interval);
+  }, [userId]);
 
   const sendSignal = (payload: any) => {
     if (ws.current?.readyState === WebSocket.OPEN) {

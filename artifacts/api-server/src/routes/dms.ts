@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, messageReactionsTable } from "@workspace/db/schema";
-import { eq, and, lt, inArray, sql as drizzleSql, ilike } from "drizzle-orm";
+import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, messageReactionsTable, dmCallSignalsTable } from "@workspace/db/schema";
+import { eq, and, lt, inArray, sql as drizzleSql, ilike, isNull, desc } from "drizzle-orm";
 import { OpenDmThreadBody, SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast } from "../lib/ws";
 import { sendPushToUser, getNotifPrefs } from "../lib/push";
@@ -385,6 +385,74 @@ router.put("/dms/:threadId/messages/:messageId/reactions/:emojiId", async (req, 
   const formatted = await formatMessage(msg, req.user.id);
   broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
   res.json(formatted);
+});
+
+// POST /call-signal — store a call signal in the DB and broadcast via WS.
+// This ensures signals cross server boundaries (preview vs production).
+router.post("/call-signal", async (req, res) => {
+  if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { toUserId, threadId, signalType, payload } = req.body;
+  if (!toUserId || !signalType) { res.status(400).json({ error: "Missing toUserId or signalType" }); return; }
+
+  const [row] = await db.insert(dmCallSignalsTable).values({
+    fromUserId: req.user.id,
+    toUserId,
+    threadId: threadId ?? null,
+    signalType,
+    payload: payload ? JSON.stringify(payload) : null,
+  }).returning();
+
+  // Also broadcast via WS for instant delivery on the same server instance
+  broadcast({
+    type: "DM_CALL_SIGNAL",
+    payload: {
+      ...payload,
+      type: signalType,
+      targetId: toUserId,
+      callerId: req.user.id,
+      threadId,
+      _signalId: row.id,
+    },
+  });
+
+  res.json({ ok: true, id: row.id });
+});
+
+// GET /call-signal/pending — return unconsumed signals for the current user, mark consumed.
+router.get("/call-signal/pending", async (req, res) => {
+  if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const signals = await db
+    .select()
+    .from(dmCallSignalsTable)
+    .where(and(
+      eq(dmCallSignalsTable.toUserId, req.user.id),
+      isNull(dmCallSignalsTable.consumedAt),
+    ))
+    .orderBy(desc(dmCallSignalsTable.createdAt))
+    .limit(20);
+
+  if (signals.length > 0) {
+    await db
+      .update(dmCallSignalsTable)
+      .set({ consumedAt: new Date() })
+      .where(eq(dmCallSignalsTable.toUserId, req.user.id));
+  }
+
+  // Clean up signals older than 5 minutes to keep the table small
+  await db
+    .delete(dmCallSignalsTable)
+    .where(lt(dmCallSignalsTable.createdAt, new Date(Date.now() - 5 * 60 * 1000)));
+
+  res.json(signals.map(s => ({
+    id: s.id,
+    fromUserId: s.fromUserId,
+    toUserId: s.toUserId,
+    threadId: s.threadId,
+    signalType: s.signalType,
+    payload: s.payload ? JSON.parse(s.payload) : null,
+    createdAt: s.createdAt,
+  })));
 });
 
 export default router;
