@@ -9,9 +9,10 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
-  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone,
+  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video,
 } from 'lucide-react';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
+import { initiateVideoCall } from '@/hooks/use-video-call';
 import { useAppStore } from '@/store/use-app-store';
 import { DmReactionPills } from './DmReactionPills';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
@@ -55,7 +56,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   const { data: messages = [], isLoading } = useListDmMessages(threadId);
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
-  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState } = useAppStore();
+  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState, videoCall } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -311,8 +312,9 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
         </Avatar>
         <h2 className="font-bold text-foreground text-[15px]">{recipientName}</h2>
 
-        {/* Phone call button — right side */}
+        {/* Call buttons — right side */}
         <div className="ml-auto flex items-center gap-1 shrink-0">
+          {/* Active voice call chip */}
           {dmCall.state === 'connected' && dmCall.targetUserId === recipientId && (
             <button
               onClick={() => setDmCallState({ minimized: false })}
@@ -323,6 +325,37 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
               <span className="hidden sm:inline">In Call</span>
             </button>
           )}
+
+          {/* Active video call chip */}
+          {videoCall.state === 'connected' && videoCall.targetUserId === recipientId && (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-600/20 text-blue-400 text-xs font-semibold">
+              <Video size={13} />
+              <span className="hidden sm:inline">Video</span>
+            </span>
+          )}
+
+          {/* Video call button */}
+          {videoCall.state === 'idle' && recipientId && (
+            <button
+              onClick={() => {
+                const callerDisplayName = (user as any)?.displayName || (user as any)?.username || 'Someone';
+                const callerAvatar = (user as any)?.avatarUrl ?? null;
+                initiateVideoCall(
+                  recipientId,
+                  recipientName,
+                  recipientAvatar ?? null,
+                  threadId,
+                  { id: user?.id ?? '', displayName: callerDisplayName, avatarUrl: callerAvatar },
+                );
+              }}
+              className="p-2 rounded-full text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10 transition-all active:scale-95"
+              title={`Video call ${recipientName}`}
+            >
+              <Video size={18} />
+            </button>
+          )}
+
+          {/* Voice call button */}
           {(dmCall.state === 'idle' || dmCall.targetUserId !== recipientId) && recipientId && (
             <button
               onClick={() => {

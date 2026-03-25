@@ -1,0 +1,145 @@
+Here’s a prompt you can paste straight into Replit’s AI while your hollr.chat project is open. It’s written so the agent inspects your current stack and then adds a beautiful mobile‑first video call button that opens the front camera and starts a WebRTC call.
+
+You are working inside my existing “Holler Chat” Discord‑style web app. This is a mobile‑friendly chat UI with DMs and voice. I now want you to add a FaceTime‑style video call feature to 1:1 DMs, implemented using WebRTC and designed to look beautiful on an iPhone in the browser.
+
+Goals (read all of this before making changes):
+
+General approach
+
+Detect the existing frontend stack (React / routing / CSS framework) and stay within it. Do not rewrite the app or change the global architecture.
+
+Reuse my existing auth/user objects and DM structure so the video call is tied to the same users and DM threads we already have.
+
+The implementation should use browser WebRTC (navigator.mediaDevices.getUserMedia, RTCPeerConnection, etc.) with a simple signaling layer based on what we already use (e.g., Socket.IO or existing WS events).
+
+Video call entry point (UI)
+
+In the DM conversation header for a 1:1 chat (where the user’s name and avatar show), add a dedicated “video call” icon/button on the right side.
+
+On mobile, this button should be thumb‑reachable and visually balanced with any existing phone/voice icon. Use an icon that clearly looks like a video camera.
+
+When the user taps this button, it should:
+
+Immediately open a full‑screen “calling / in‑call” view on mobile.
+
+Request camera + mic permissions and start with the front‑facing (“user”) camera by default using getUserMedia with the proper facingMode constraint.
+
+Show a short, friendly loading/connecting state while the WebRTC connection is being established.
+
+Camera and WebRTC specifics
+
+Use navigator.mediaDevices.getUserMedia with constraints that prefer the front camera, something like:
+
+video: { facingMode: { ideal: "user" }, width/height tuned for mobile }
+
+audio: true
+
+Make sure this call is triggered from a direct user gesture (the video button tap) so it works on iOS Safari.
+
+Create a simple WebRTC connection flow (offer/answer + ICE candidates) using whatever signaling mechanism already exists for my voice features (or add a small, focused one if needed).
+
+Structure the code so it can be extended later to group calls, but for now implement ONLY 1:1 calls in DMs.
+
+In‑call screen design (make it look beautiful)
+Design a premium, FaceTime‑style in‑call layout optimized for mobile:
+
+Remote video:
+
+Fills most of the screen, with rounded corners and subtle drop shadow on a dark, blurred background.
+
+Should auto‑rotate and scale nicely in portrait/landscape; prioritize a clean look over perfect aspect ratio.
+
+Local (self) video:
+
+Appears as a small floating thumbnail “picture‑in‑picture” in the top‑right or top‑left corner with rounded corners.
+
+Tappable to swap positions with the remote video (optional if simple to implement).
+
+Top bar:
+
+Shows the DM partner’s name, avatar, and a subtle “Video call” / “Live” label.
+
+Includes a back/close icon that returns the user to the DM chat while ending the call cleanly (stopping media tracks and closing the peer connection).
+
+Bottom control bar:
+
+Large, thumb‑friendly buttons: mute/unmute mic, toggle camera on/off, switch camera (front/back), and an obvious red “End call” button.
+
+Use my app’s existing color system; make the active states clearly visible (e.g., highlighted icon, different background).
+
+Background:
+
+When there is no remote video yet (connecting or ringing), show a blurred version of the user’s avatar or a soft gradient that matches my brand colors, plus a “Connecting…” or “Ringing…” label.
+
+States and behavior
+Implement clear UI states and transitions:
+
+Idle: no call in progress; video button visible in the DM header.
+
+Outgoing call:
+
+After tapping the video button, show a “Calling…” state with self‑preview and ring animation while waiting for the remote user to accept.
+
+Incoming call:
+
+When another user starts a video call to you, show a full‑screen incoming‑call UI on mobile that looks like a phone:
+
+Large avatar, name, “Incoming video call”, and two big buttons: accept (green) and decline (red).
+
+If I’m already in the DM, overlay this on top of the chat; otherwise, still show it prominently in the app.
+
+In call:
+
+Both audio and video connected, with the layout described above, and controls fully working.
+
+Call ended:
+
+When either user hangs up, gracefully stop tracks, close the peer connection, and return to the DM screen.
+
+Optionally, insert a “Missed video call” / “Call ended” system message into the DM thread with timestamp.
+
+Engineering details
+
+Implement the video call logic in well‑named components/hooks (for example: useVideoCall or VideoCallManager) instead of dumping everything in one file.
+
+Keep signaling events clearly named (e.g., "video-offer", "video-answer", "video-ice-candidate", "video-call-start", "video-call-end") so I can reason about them later.
+
+Make sure to clean up on unmount and on navigation away: stop all MediaStream tracks and close RTCPeerConnection instances to avoid camera/mic staying active.
+
+Respect current routing/navigation: if my app uses a modal or a dedicated route for the call UI, follow that pattern instead of inventing a new one.
+
+Do not break existing voice‑only channels; this should be additive.
+
+Styling and polish
+
+Use the existing design tokens / Tailwind / CSS system already in the project so the new UI feels like a natural part of Holler Chat.
+
+Make buttons and typography feel “iPhone‑grade”: generous spacing, rounded corners, soft shadows, and smooth hover/tap states.
+
+Ensure the layout is responsive:
+
+Looks great on narrow mobile screens first.
+
+Still behaves reasonably on desktop (centered call UI, sensible max width, etc.).
+
+Deliverables:
+
+All new/updated React (or current framework) components, hooks, styles, and server/signaling changes needed to:
+
+Show the video call button in 1:1 DMs.
+
+Start a front‑camera video call on tap.
+
+Handle incoming/outgoing/in‑call/ended states.
+
+Render a polished, FaceTime‑style in‑call UI.
+
+Brief inline comments or a short summary explaining:
+
+Where the main video call state lives.
+
+Which components render the call UI.
+
+Which events are used for signaling and how to extend this later to group video.
+
+Do not remove or significantly refactor existing unrelated features; keep changes tightly focused on adding this video calling experience.

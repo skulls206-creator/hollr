@@ -228,6 +228,18 @@ interface AppState {
   setDmCallState: (patch: Partial<AppState['dmCall']>) => void;
   endDmCall: () => void;
 
+  // DM video call state
+  videoCall: {
+    state: 'idle' | 'outgoing_ringing' | 'incoming_ringing' | 'connected';
+    targetUserId: string | null;
+    targetDisplayName: string | null;
+    targetAvatarUrl: string | null;
+    dmThreadId: string | null;
+    startedAt: number | null;
+  };
+  setVideoCallState: (patch: Partial<AppState['videoCall']>) => void;
+  endVideoCall: () => void;
+
   // Call privacy settings
   allowCallsFrom: 'everyone' | 'approved_only' | 'nobody';
   setAllowCallsFrom: (v: 'everyone' | 'approved_only' | 'nobody') => void;
@@ -524,6 +536,26 @@ export const useAppStore = create<AppState>()(
       dmThreadId: null,
       startedAt: null,
       minimized: false,
+    },
+  }),
+
+  videoCall: {
+    state: 'idle',
+    targetUserId: null,
+    targetDisplayName: null,
+    targetAvatarUrl: null,
+    dmThreadId: null,
+    startedAt: null,
+  },
+  setVideoCallState: (patch) => set((state) => ({ videoCall: { ...state.videoCall, ...patch } })),
+  endVideoCall: () => set({
+    videoCall: {
+      state: 'idle',
+      targetUserId: null,
+      targetDisplayName: null,
+      targetAvatarUrl: null,
+      dmThreadId: null,
+      startedAt: null,
     },
   }),
 

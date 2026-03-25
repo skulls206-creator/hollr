@@ -17,6 +17,7 @@ import { ThreadSidebar } from '@/components/chat/ThreadSidebar';
 import { UserProfileCard } from '@/components/chat/UserProfileCard';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
 import { DmCallOverlay } from '@/components/call/DmCallOverlay';
+import { VideoCallOverlay } from '@/components/call/VideoCallOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { MobileDmList } from '@/components/layout/MobileDmList';
 import { DockBar } from '@/components/layout/DockBar';
@@ -395,6 +396,7 @@ export function Layout() {
       )}
 
       <DmCallOverlay />
+      <VideoCallOverlay />
     </div>
   );
 }

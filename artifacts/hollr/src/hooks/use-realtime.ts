@@ -34,6 +34,21 @@ export function sendDmCallSignal(payload: any) {
   }
 }
 
+// Video call signal handler (set by useVideoCall hook)
+let _onVideoCallSignal: ((payload: any) => void) | null = null;
+
+export function setVideoCallSignalListener(listener: ((payload: any) => void) | null) {
+  _onVideoCallSignal = listener;
+}
+
+export function sendVideoCallSignal(payload: any) {
+  if (_sendRaw) {
+    _sendRaw({ type: 'VIDEO_CALL_SIGNAL', payload });
+  } else {
+    console.warn('[WS] sendVideoCallSignal called before WebSocket connected');
+  }
+}
+
 export function setMusicStateListener(listener: ((payload: MusicState) => void) | null) {
   _onMusicStateUpdate = listener;
 }
@@ -97,6 +112,7 @@ type WsEvent =
   | { type: 'PRESENCE_UPDATE'; payload: { userId: string; status: string } }
   | { type: 'MUSIC_STATE_UPDATE'; payload: MusicState }
   | { type: 'DM_CALL_SIGNAL'; payload: any }
+  | { type: 'VIDEO_CALL_SIGNAL'; payload: any }
   | { type: 'CONNECTED' };
 
 export function useRealtime(userId?: string) {
@@ -319,6 +335,35 @@ export function useRealtime(userId?: string) {
 
           case 'MUSIC_STATE_UPDATE': {
             if (_onMusicStateUpdate) _onMusicStateUpdate(data.payload);
+            break;
+          }
+
+          case 'VIDEO_CALL_SIGNAL': {
+            if (_onVideoCallSignal) {
+              _onVideoCallSignal(data.payload);
+            } else {
+              // Fallback: incoming ring when hook not yet mounted
+              const snap = useAppStore.getState();
+              const { type: vtype, callerId, callerName, callerAvatar, dmThreadId } = data.payload ?? {};
+              if (vtype === 'video_ring' && callerId !== userId) {
+                snap.setVideoCallState({
+                  state: 'incoming_ringing',
+                  targetUserId: callerId,
+                  targetDisplayName: callerName ?? null,
+                  targetAvatarUrl: callerAvatar ?? null,
+                  dmThreadId: dmThreadId ?? null,
+                });
+                startCallRinging();
+                showBrowserNotification(
+                  `📹 Incoming video call from ${callerName ?? 'Someone'}`,
+                  'Tap to answer',
+                  callerAvatar,
+                );
+              } else if (vtype === 'video_decline' || vtype === 'video_end') {
+                stopCallRinging();
+                snap.endVideoCall();
+              }
+            }
             break;
           }
 
