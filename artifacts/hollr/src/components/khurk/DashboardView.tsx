@@ -54,11 +54,19 @@ function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) 
     });
   }, [app, isTab, showMenu, handleLaunch, onDismiss]);
 
+  const handleExternalOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.open(app.url, '_blank', 'noopener');
+  };
+
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={handleLaunch}
       onContextMenu={handleContextMenu}
-      className="group flex flex-col rounded-2xl overflow-hidden text-left transition-all duration-200 hover:-translate-y-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-card"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleLaunch(); }}
+      className="group flex flex-col rounded-2xl overflow-hidden text-left transition-all duration-200 hover:-translate-y-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-card cursor-pointer"
       style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }}
     >
       {/* ── Cinematic banner ── */}
@@ -124,18 +132,24 @@ function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) 
 
       {/* ── Info body ── */}
       <div className="px-4 pt-3 pb-2 flex flex-col gap-1 flex-1">
-        <p className="text-[13px] font-bold text-foreground leading-tight">{app.name}</p>
+        <p className="text-[13px] font-bold text-foreground leading-tight text-center">{app.name}</p>
         <p className="text-[11px] leading-snug text-muted-foreground">{app.description}</p>
       </div>
 
-      {/* ── Launch button ── */}
-      <div className="px-4 pb-4 pt-1">
-        <div className="w-full h-9 flex items-center justify-center gap-1.5 rounded-xl text-xs font-semibold bg-secondary text-secondary-foreground border border-border/50 transition-all duration-150">
+      {/* ── Launch bar with external open button ── */}
+      <div className="px-4 pb-4 pt-1 flex items-center gap-2">
+        <div className="flex-1 h-9 flex items-center justify-center gap-1.5 rounded-xl text-xs font-semibold bg-secondary text-secondary-foreground border border-border/50 transition-all duration-150">
           {isTab ? 'Open' : 'Launch'}
-          <ExternalLink size={11} className="opacity-40" />
         </div>
+        <button
+          onClick={handleExternalOpen}
+          title="Open in new tab to install as app"
+          className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl bg-secondary border border-border/50 text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-150"
+        >
+          <ExternalLink size={13} />
+        </button>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -165,11 +179,19 @@ function AppListRow({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void 
     });
   }, [app, isTab, showMenu, handleLaunch, onDismiss]);
 
+  const handleExternalOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.open(app.url, '_blank', 'noopener');
+  };
+
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={handleLaunch}
       onContextMenu={handleContextMenu}
-      className="group w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-150 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-left"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleLaunch(); }}
+      className="group w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-150 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-left cursor-pointer"
     >
       {/* Icon */}
       <div
@@ -189,11 +211,20 @@ function AppListRow({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void 
         <span className="text-xs text-muted-foreground leading-snug truncate">{app.description}</span>
       </div>
 
-      {/* Launch */}
-      <div className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-secondary text-secondary-foreground border border-border/50 opacity-0 group-hover:opacity-100 transition-opacity">
-        {isTab ? 'Open' : 'Launch'}
+      {/* Launch + external open */}
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-secondary text-secondary-foreground border border-border/50 opacity-0 group-hover:opacity-100 transition-opacity">
+          {isTab ? 'Open' : 'Launch'}
+        </div>
+        <button
+          onClick={handleExternalOpen}
+          title="Open in new tab to install as app"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-150"
+        >
+          <ExternalLink size={13} />
+        </button>
       </div>
-    </button>
+    </div>
   );
 }
 
