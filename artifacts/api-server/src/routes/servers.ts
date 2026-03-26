@@ -484,6 +484,7 @@ router.get("/servers/:serverId/members", async (req, res) => {
       status: profile.status,
       customStatus: profile.customStatus,
       createdAt: profile.createdAt.toISOString(),
+      isSupporter: profile.isSupporter,
     } : {
       id: member.userId,
       username: `user_${member.userId.slice(0, 8)}`,
@@ -492,6 +493,7 @@ router.get("/servers/:serverId/members", async (req, res) => {
       status: "offline",
       customStatus: null,
       createdAt: member.joinedAt.toISOString(),
+      isSupporter: false,
     },
   })));
 });
