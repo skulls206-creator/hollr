@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { cn, getInitials } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MessageSquarePlus, MessageCircle, Menu, Search, X } from 'lucide-react';
+import {
+  MessageSquarePlus, MessageCircle, Menu, Search, X,
+  MessageSquare, PhoneCall, Video, User, Check, Copy,
+} from 'lucide-react';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { sendDmCallSignal } from '@/hooks/use-realtime';
+import { initiateVideoCall } from '@/hooks/use-video-call';
 
 /**
  * MobileDmList — full-screen DM list shown on mobile when no DM thread is open.
@@ -16,7 +22,10 @@ export function MobileDmList() {
     activeDmThreadId, setActiveDmThread,
     dmUnreadCounts, clearDmUnreadCount,
     toggleMobileSidebar, layoutMode, setClassicChannelOpen,
+    openProfileCard, setDmCallState,
   } = useAppStore();
+
+  const { show: showMenu } = useContextMenu();
 
   const { data: dmThreads = [] } = useListDmThreads({
     query: { queryKey: getListDmThreadsQueryKey(), refetchInterval: 5000, refetchIntervalInBackground: false },
@@ -24,6 +33,9 @@ export function MobileDmList() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
 
   const filtered = searchQuery.trim()
     ? dmThreads.filter((thread: any) => {
@@ -34,6 +46,110 @@ export function MobileDmList() {
     : dmThreads;
 
   const handleCloseSearch = () => { setSearchQuery(''); setSearchOpen(false); };
+
+  const openDmContextMenu = (
+    x: number, y: number,
+    thread: any, other: any,
+  ) => {
+    showMenu({
+      x,
+      y,
+      title: other?.displayName || other?.username || 'Unknown',
+      subtitle: other?.username ? `@${other.username}` : undefined,
+      titleIcon: other?.avatarUrl || undefined,
+      actions: [
+        {
+          id: 'open',
+          label: 'Open DM',
+          icon: <MessageSquare size={14} />,
+          onClick: () => { setActiveDmThread(thread.id); clearDmUnreadCount(thread.id); },
+        },
+        {
+          id: 'voice-call',
+          label: 'Voice Call',
+          icon: <PhoneCall size={14} />,
+          onClick: () => {
+            const authUser = user;
+            setActiveDmThread(thread.id);
+            setDmCallState({
+              state: 'outgoing_ringing',
+              targetUserId: other.id,
+              targetDisplayName: other.displayName || other.username,
+              targetAvatarUrl: other.avatarUrl ?? null,
+              dmThreadId: thread.id,
+              minimized: false,
+              startedAt: null,
+            });
+            sendDmCallSignal({
+              type: 'call_ring',
+              targetId: other.id,
+              callerId: authUser?.id,
+              callerName: (authUser as any)?.displayName || (authUser as any)?.username || 'Someone',
+              callerAvatar: (authUser as any)?.avatarUrl ?? null,
+              dmThreadId: thread.id,
+            });
+          },
+        },
+        {
+          id: 'video-call',
+          label: 'Video Call',
+          icon: <Video size={14} />,
+          onClick: () => {
+            const authUser = user;
+            setActiveDmThread(thread.id);
+            initiateVideoCall(
+              other.id,
+              other.displayName || other.username,
+              other.avatarUrl ?? null,
+              thread.id,
+              {
+                id: authUser?.id ?? '',
+                displayName: (authUser as any)?.displayName || (authUser as any)?.username || 'Someone',
+                avatarUrl: (authUser as any)?.avatarUrl ?? null,
+              },
+            );
+          },
+        },
+        {
+          id: 'view-profile',
+          label: 'View Profile',
+          icon: <User size={14} />,
+          onClick: () => openProfileCard({ userId: other.id, position: { x, y } }),
+          dividerBefore: true,
+        },
+        {
+          id: 'mark-read',
+          label: 'Mark as Read',
+          icon: <Check size={14} />,
+          onClick: () => clearDmUnreadCount(thread.id),
+        },
+        {
+          id: 'copy-username',
+          label: 'Copy Username',
+          icon: <Copy size={14} />,
+          onClick: () => navigator.clipboard.writeText(other.username || other.displayName || ''),
+        },
+      ],
+    });
+  };
+
+  const handleTouchStart = (thread: any, other: any, e: React.TouchEvent) => {
+    longPressTriggered.current = false;
+    const touch = e.touches[0];
+    const x = touch.clientX;
+    const y = touch.clientY;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      openDmContextMenu(x, y, thread, other);
+    }, 600);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   return (
     <div className="flex flex-col h-full w-full bg-surface-1">
@@ -102,7 +218,15 @@ export function MobileDmList() {
           return (
             <button
               key={thread.id}
-              onClick={() => { setActiveDmThread(thread.id); clearDmUnreadCount(thread.id); }}
+              onClick={() => {
+                if (longPressTriggered.current) { longPressTriggered.current = false; return; }
+                setActiveDmThread(thread.id);
+                clearDmUnreadCount(thread.id);
+              }}
+              onContextMenu={e => { e.preventDefault(); openDmContextMenu(e.clientX, e.clientY, thread, other); }}
+              onTouchStart={e => handleTouchStart(thread, other, e)}
+              onTouchEnd={handleTouchEnd}
+              onTouchMove={handleTouchEnd}
               className={cn(
                 'w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors',
                 activeDmThreadId === thread.id
