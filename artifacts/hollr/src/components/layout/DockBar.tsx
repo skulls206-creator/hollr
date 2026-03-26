@@ -735,7 +735,9 @@ export function DockBar() {
           </div>
 
           {/* Supporter diamond button — uses DockItem for native magnification */}
-          <SupporterDockItem mouseX={mouseX} />
+          <div className="shrink-0 ml-2">
+            <SupporterDockItem mouseX={mouseX} />
+          </div>
 
           {/* Divider */}
           <div className="w-px self-stretch mx-3 bg-border/40 rounded-full shrink-0" />
