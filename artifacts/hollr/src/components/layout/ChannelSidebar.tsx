@@ -127,7 +127,7 @@ export function ChannelSidebar() {
     query: { queryKey: getListChannelsQueryKey(activeServerId || ''), enabled: !!activeServerId },
   });
   const { data: dmThreads = [] } = useListDmThreads({
-    query: { queryKey: getListDmThreadsQueryKey() },
+    query: { queryKey: getListDmThreadsQueryKey(), refetchInterval: 5000, refetchIntervalInBackground: false },
   });
 
   const { mutate: deleteChannel } = useDeleteChannel();

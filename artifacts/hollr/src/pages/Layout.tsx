@@ -72,7 +72,7 @@ export function Layout() {
   useRealtime(user?.id);
 
   const { data: dmThreads = [] } = useListDmThreads({
-    query: { queryKey: getListDmThreadsQueryKey() },
+    query: { queryKey: getListDmThreadsQueryKey(), refetchInterval: 5000, refetchIntervalInBackground: false },
   });
 
   if (isLoading) {

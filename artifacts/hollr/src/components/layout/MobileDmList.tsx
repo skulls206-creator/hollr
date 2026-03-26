@@ -19,7 +19,7 @@ export function MobileDmList() {
   } = useAppStore();
 
   const { data: dmThreads = [] } = useListDmThreads({
-    query: { queryKey: getListDmThreadsQueryKey() },
+    query: { queryKey: getListDmThreadsQueryKey(), refetchInterval: 5000, refetchIntervalInBackground: false },
   });
 
   const [searchQuery, setSearchQuery] = useState('');

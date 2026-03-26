@@ -83,6 +83,17 @@ export function usePushNotifications(): UsePushNotifications {
     });
   }, []);
 
+  // Re-check Notification.permission whenever tab becomes visible (user may have granted it elsewhere)
+  useEffect(() => {
+    if (typeof Notification === "undefined") return;
+    const onVisible = () => {
+      const current = Notification.permission;
+      setPermission((prev) => (prev !== current ? current : prev));
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   const refreshDevices = useCallback(async () => {
     if (!user) return;
     try {
@@ -100,6 +111,33 @@ export function usePushNotifications(): UsePushNotifications {
       .catch(() => {});
     refreshDevices();
   }, [user, refreshDevices]);
+
+  // Auto-subscribe: if user already granted permission but has no push subscription registered, silently register them
+  const [autoSubAttempted, setAutoSubAttempted] = useState(false);
+  useEffect(() => {
+    if (autoSubAttempted) return;
+    if (!vapidKey || !user || permission !== "granted" || subscription !== null || isLoading) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    setAutoSubAttempted(true);
+    (async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        });
+        setSubscription(sub);
+        const json = sub.toJSON();
+        await fetch(`${BASE}api/push/subscribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, label: guessDeviceLabel() }),
+        });
+        await refreshDevices();
+      } catch {}
+    })();
+  }, [vapidKey, user, permission, subscription, isLoading, autoSubAttempted, refreshDevices]);
 
   const subscribe = useCallback(async () => {
     if (!vapidKey || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
