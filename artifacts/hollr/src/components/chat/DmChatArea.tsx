@@ -19,6 +19,7 @@ import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { hideMessage, unhideMessage } from '@/lib/hidden-messages';
+import { markDmThreadRead } from '@/lib/dm-seen-tracker';
 
 async function editDmMessage(threadId: string, messageId: string, content: string) {
   const res = await fetch(`/api/dms/${threadId}/messages/${messageId}`, {
@@ -120,10 +121,16 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
     el.style.height = `${el.scrollHeight}px`;
   };
 
-  // Clear unread badge when thread is opened
+  // Clear unread badge and persist read position when thread is opened
   useEffect(() => {
     clearDmUnreadCount(threadId);
   }, [threadId, clearDmUnreadCount]);
+
+  // Whenever visible messages change, mark the latest as seen
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.id) markDmThreadRead(threadId, lastMsg.id);
+  }, [messages, threadId]);
 
   useEffect(() => {
     hasInitiallyScrolled.current = false;
@@ -461,10 +468,10 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
         >
           <Menu size={22} />
         </button>
-        {/* Sidebar lock / pin toggle */}
+        {/* Sidebar lock / pin toggle — desktop only */}
         <button
           onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next && layoutMode === 'classic') setClassicChannelOpen(true); }}
-          className={cn('mr-2 p-1 rounded transition-colors shrink-0', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
+          className={cn('hidden sm:inline-flex mr-2 p-1 rounded transition-colors shrink-0', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
           title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
         >
           {sidebarLocked ? <Pin size={14} /> : <PinOff size={14} />}

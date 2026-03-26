@@ -30,7 +30,7 @@ import { Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { pendingNav, applyNav } from '@/lib/notification-nav';
-import { dmLastSeenMsgId } from '@/lib/dm-seen-tracker';
+import { dmLastSeenMsgId, markDmThreadRead } from '@/lib/dm-seen-tracker';
 
 export function Layout() {
   const { user, isLoading } = useAuth();
@@ -88,10 +88,21 @@ export function Layout() {
     if (!user || dmThreads.length === 0) return;
 
     if (!pollInitialized.current) {
-      // First load: seed the shared tracker without incrementing (these are already-seen messages)
+      // First load: dmLastSeenMsgId is pre-populated from localStorage.
+      // For threads already tracked: if lastMessage changed & not from self → show badge.
+      // For threads never tracked: seed without incrementing (treat as already-read).
+      const currentActiveDmThreadId = useAppStore.getState().activeDmThreadId;
       dmThreads.forEach((t: any) => {
-        if (t?.lastMessage?.id && !dmLastSeenMsgId.has(t.id)) {
-          dmLastSeenMsgId.set(t.id, t.lastMessage.id);
+        if (!t?.lastMessage?.id) return;
+        const stored = dmLastSeenMsgId.get(t.id);
+        if (stored !== undefined) {
+          // We've seen this thread before — check for unread messages since last visit
+          if (stored !== t.lastMessage.id && t.lastMessage.authorId !== user.id && t.id !== currentActiveDmThreadId) {
+            incrementDmUnreadCount(t.id);
+          }
+        } else {
+          // Never seen this thread: seed without counting as unread
+          markDmThreadRead(t.id, t.lastMessage.id);
         }
       });
       pollInitialized.current = true;
@@ -105,7 +116,7 @@ export function Layout() {
       const prev = dmLastSeenMsgId.get(t.id);
       const curr = t.lastMessage.id;
       if (curr !== prev) {
-        dmLastSeenMsgId.set(t.id, curr);
+        markDmThreadRead(t.id, curr);
         // Only increment if: not the active thread, not sent by the current user
         if (t.id !== currentActiveDmThreadId && t.lastMessage.authorId !== user.id) {
           incrementDmUnreadCount(t.id);
@@ -114,12 +125,12 @@ export function Layout() {
     });
   }, [dmThreads, user, incrementDmUnreadCount]);
 
-  // When user opens a DM thread, mark its latest message as seen and clear the badge
+  // When user opens a DM thread, persist the latest message as seen and clear the badge
   useEffect(() => {
     if (!activeDmThreadId) return;
     const thread = dmThreads.find((t: any) => t.id === activeDmThreadId);
     if (thread?.lastMessage?.id) {
-      dmLastSeenMsgId.set(activeDmThreadId, thread.lastMessage.id);
+      markDmThreadRead(activeDmThreadId, thread.lastMessage.id);
     }
     clearDmUnreadCount(activeDmThreadId);
   }, [activeDmThreadId]); // eslint-disable-line react-hooks/exhaustive-deps

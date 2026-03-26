@@ -224,7 +224,7 @@ export function ChatArea() {
             </button>
             <button
               onClick={() => { const next = !sidebarLocked; setSidebarLocked(next); if (next && layoutMode === 'classic') setClassicChannelOpen(true); }}
-              className={cn('mr-3 p-1 rounded transition-colors shrink-0', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
+              className={cn('hidden sm:inline-flex mr-3 p-1 rounded transition-colors shrink-0', sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground')}
               title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
             >
               {sidebarLocked ? <Pin size={14} /> : <PinOff size={14} />}
