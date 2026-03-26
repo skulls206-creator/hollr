@@ -5,6 +5,7 @@ import { db } from "@workspace/db";
 import { sessionsTable, usersTable } from "@workspace/db/schema";
 import { and, inArray, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { runMigrations } from "stripe-replit-sync";
 
 const rawPort = process.env["PORT"];
 
@@ -22,6 +23,38 @@ if (Number.isNaN(port) || port <= 0) {
 
 const server = createServer(app);
 initWebSocket(server);
+
+// Initialize Stripe if configured — guarded so the server starts fine without it
+if (process.env.STRIPE_SECRET_KEY) {
+  (async () => {
+    try {
+      const databaseUrl = process.env.DATABASE_URL;
+      if (!databaseUrl) throw new Error('DATABASE_URL is required');
+
+      await runMigrations({ databaseUrl });
+      console.log('[stripe] Stripe schema ready');
+
+      const { getStripeSync } = await import('./stripeClient.js');
+      const stripeSync = await getStripeSync();
+
+      const webhookBaseUrl = `https://${(process.env.REPLIT_DOMAINS ?? '').split(',')[0]}`;
+      if (webhookBaseUrl !== 'https://') {
+        try {
+          await stripeSync.findOrCreateManagedWebhook(`${webhookBaseUrl}/api/stripe/webhook`);
+          console.log('[stripe] Managed webhook configured');
+        } catch (whErr) {
+          console.warn('[stripe] findOrCreateManagedWebhook failed (non-fatal):', whErr);
+        }
+      }
+
+      stripeSync.syncBackfill()
+        .then(() => console.log('[stripe] Backfill complete'))
+        .catch(err => console.error('[stripe] Backfill error:', err));
+    } catch (err) {
+      console.error('[stripe] Init failed (non-fatal):', err);
+    }
+  })();
+}
 
 // One-time migration: set password for legacy OIDC accounts that have no password yet
 const LEGACY_EMAILS = [

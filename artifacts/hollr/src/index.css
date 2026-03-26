@@ -570,3 +570,13 @@
     inset: -1px;
   }
 }
+
+@keyframes supporter-pulse {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 3px #22d3ee); }
+  50% { opacity: 0.8; filter: drop-shadow(0 0 6px #0ea5e9); }
+}
+
+.supporter-badge {
+  animation: supporter-pulse 2s ease-in-out infinite;
+  vertical-align: middle;
+}

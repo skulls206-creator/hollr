@@ -41,6 +41,7 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserI
     avatarUrl: author.avatarUrl,
     status: author.status,
     customStatus: author.customStatus,
+    isSupporter: author.isSupporter,
     createdAt: author.createdAt.toISOString(),
   } : {
     id: msg.authorId,

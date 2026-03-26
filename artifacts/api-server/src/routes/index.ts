@@ -13,6 +13,7 @@ import khurkAppsRouter from "./khurk-apps";
 import turnRouter from "./turn";
 import notificationsRouter from "./notifications";
 import activityRouter from "./activity";
+import supporterRouter from "./supporter";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(khurkAppsRouter);
 router.use(turnRouter);
 router.use(notificationsRouter);
 router.use(activityRouter);
+router.use(supporterRouter);
 
 export default router;

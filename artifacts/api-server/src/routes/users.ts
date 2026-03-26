@@ -40,6 +40,7 @@ router.get("/users/me", async (req, res) => {
     avatarUrl: profile.avatarUrl,
     status: profile.status,
     customStatus: profile.customStatus,
+    isSupporter: profile.isSupporter,
     createdAt: profile.createdAt.toISOString(),
   });
 });
@@ -81,6 +82,7 @@ router.patch("/users/me", async (req, res) => {
     avatarUrl: profile.avatarUrl,
     status: profile.status,
     customStatus: profile.customStatus,
+    isSupporter: profile.isSupporter,
     createdAt: profile.createdAt.toISOString(),
   });
 });
@@ -150,6 +152,7 @@ router.get("/users/:userId", async (req, res) => {
     avatarUrl: profile.avatarUrl,
     status: profile.status,
     customStatus: profile.customStatus,
+    isSupporter: profile.isSupporter,
     createdAt: profile.createdAt.toISOString(),
   });
 });

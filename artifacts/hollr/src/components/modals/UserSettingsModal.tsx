@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getInitials } from '@/lib/utils';
-import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail, KeyRound, Eye, EyeOff, LayoutGrid, Palette, Settings2, ShieldCheck, Phone, PhoneOff, Users, Play } from 'lucide-react';
+import { Loader2, LogOut, Mic, Volume2, User, Headphones, Bell, BellOff, BellRing, MessageSquare, Check, Monitor, Smartphone, Trash2, Volume, VolumeX, Pencil, X, Layers, LayoutPanelTop, Mail, KeyRound, Eye, EyeOff, LayoutGrid, Palette, Settings2, ShieldCheck, Phone, PhoneOff, Users, Play, Gem, ExternalLink } from 'lucide-react';
+import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { RINGTONES, previewRingtone } from '@/lib/notification-sound';
 import type { RingtoneId } from '@/lib/notification-sound';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
 import { usePushNotifications, PushDevice } from '@/hooks/use-push-notifications';
 
-type Tab = 'profile' | 'account' | 'appearance' | 'audio' | 'notifications' | 'privacy';
+type Tab = 'profile' | 'account' | 'appearance' | 'audio' | 'notifications' | 'privacy' | 'supporter';
 type UserStatus = 'online' | 'idle' | 'dnd' | 'invisible';
 
 interface AudioDevice {
@@ -193,6 +194,10 @@ export function UserSettingsModal() {
 
   const push = usePushNotifications();
 
+  const [supporterLoading, setSupporterLoading] = useState(false);
+  const [supporterStatus, setSupporterStatus] = useState<{ isSupporter: boolean; hasCustomerId: boolean } | null>(null);
+  const [supporterPrices, setSupporterPrices] = useState<Array<{ price_id: string; unit_amount: number; currency: string; recurring: any }>>([]);
+
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.displayName ?? '');
@@ -225,6 +230,57 @@ export function UserSettingsModal() {
       .catch(() => {})
       .finally(() => setDevicesLoading(false));
   }, [userSettingsModalOpen, tab]);
+
+  const BASE = import.meta.env.BASE_URL;
+
+  useEffect(() => {
+    if (!userSettingsModalOpen || tab !== 'supporter') return;
+    const controller = new AbortController();
+    Promise.all([
+      fetch(`${BASE}api/supporter/status`, { credentials: 'include', signal: controller.signal }).then(r => r.json()),
+      fetch(`${BASE}api/supporter/prices`, { credentials: 'include', signal: controller.signal }).then(r => r.json()),
+    ]).then(([statusData, pricesData]) => {
+      setSupporterStatus(statusData);
+      setSupporterPrices(pricesData.prices ?? []);
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [userSettingsModalOpen, tab]);
+
+  const handleSupporterCheckout = async (priceId: string) => {
+    if (supporterLoading) return;
+    setSupporterLoading(true);
+    try {
+      const res = await fetch(`${BASE}api/supporter/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ priceId }),
+      });
+      const data = await res.json();
+      if (data.url) window.open(data.url, '_blank');
+    } catch {
+      // ignore
+    } finally {
+      setSupporterLoading(false);
+    }
+  };
+
+  const handleSupporterPortal = async () => {
+    if (supporterLoading) return;
+    setSupporterLoading(true);
+    try {
+      const res = await fetch(`${BASE}api/supporter/portal`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.url) window.open(data.url, '_blank');
+    } catch {
+      // ignore
+    } finally {
+      setSupporterLoading(false);
+    }
+  };
 
   const handleStatusChange = async (newStatus: UserStatus) => {
     if (!user?.id || statusSaving) return;
@@ -336,6 +392,7 @@ export function UserSettingsModal() {
     { id: 'audio',         icon: <Headphones size={15} />,   label: 'Audio',         group: 'APP' },
     { id: 'notifications', icon: <Bell size={15} />,         label: 'Notifications', group: 'APP' },
     { id: 'privacy',       icon: <ShieldCheck size={15} />,  label: 'Privacy',       group: 'APP' },
+    { id: 'supporter',     icon: <Gem size={15} />,          label: 'Supporter',     group: 'APP' },
   ];
 
   const groups = [...new Set(NAV.map(n => n.group))];
@@ -886,6 +943,125 @@ export function UserSettingsModal() {
                 <p className="text-xs text-muted-foreground bg-surface-0 rounded-lg px-3 py-2.5 leading-relaxed">
                   This setting only applies to DM calls. Voice channels in servers are always open to members.
                 </p>
+              </div>
+            )}
+
+            {/* ── SUPPORTER ── */}
+            {tab === 'supporter' && (
+              <div className="flex flex-col gap-5">
+                {/* Hero */}
+                <div className="flex items-center gap-3 px-4 py-4 bg-gradient-to-br from-cyan-500/10 via-sky-500/10 to-indigo-500/10 border border-cyan-500/20 rounded-xl">
+                  <KhurkDiamondBadge size="lg" className="shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-foreground">hollr Supporter</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Show your support and get a glowing diamond badge next to your name everywhere in hollr.
+                    </p>
+                  </div>
+                </div>
+
+                {supporterStatus?.isSupporter ? (
+                  /* ── Active supporter ── */
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                      <Check size={14} className="text-emerald-400 shrink-0" />
+                      <p className="text-sm font-semibold text-emerald-400">Active supporter — badge is live!</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Your diamond badge is showing next to your name in chat messages, the member list, and profile cards.
+                      To update your payment method or cancel, open the billing portal below.
+                    </p>
+                    <Button
+                      onClick={handleSupporterPortal}
+                      disabled={supporterLoading}
+                      variant="outline"
+                      className="w-full flex items-center gap-2"
+                    >
+                      {supporterLoading
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : <ExternalLink size={14} />}
+                      Manage Billing
+                    </Button>
+                  </div>
+                ) : (
+                  /* ── Not a supporter yet ── */
+                  <div className="flex flex-col gap-4">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Choose a plan to become a hollr Supporter. Your badge activates instantly after payment.
+                    </p>
+
+                    {supporterPrices.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {supporterPrices.map(p => {
+                          const dollars = ((p.unit_amount ?? 0) / 100).toFixed(2);
+                          const interval = p.recurring?.interval ?? 'month';
+                          const isYearly = interval === 'year';
+                          return (
+                            <button
+                              key={p.price_id}
+                              onClick={() => handleSupporterCheckout(p.price_id)}
+                              disabled={supporterLoading}
+                              className="flex flex-col items-start gap-1 px-4 py-3 bg-surface-0 border border-border/40 hover:border-cyan-500/50 hover:bg-cyan-500/5 rounded-xl transition-all text-left disabled:opacity-60"
+                            >
+                              <div className="flex items-center gap-2">
+                                <KhurkDiamondBadge size="sm" />
+                                <span className="text-base font-bold text-foreground">
+                                  ${dollars}
+                                  <span className="text-xs font-normal text-muted-foreground">/{interval}</span>
+                                </span>
+                                {isYearly && (
+                                  <span className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-full">
+                                    Save ~17%
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {isYearly ? 'Yearly · billed once a year' : 'Monthly · cancel anytime'}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            disabled
+                            className="flex flex-col items-start gap-1 px-4 py-3 bg-surface-0 border border-border/40 rounded-xl text-left opacity-60"
+                          >
+                            <div className="flex items-center gap-2">
+                              <KhurkDiamondBadge size="sm" />
+                              <span className="text-base font-bold text-foreground">
+                                $1.00<span className="text-xs font-normal text-muted-foreground">/month</span>
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">Monthly · cancel anytime</p>
+                          </button>
+                          <button
+                            disabled
+                            className="flex flex-col items-start gap-1 px-4 py-3 bg-surface-0 border border-border/40 rounded-xl text-left opacity-60"
+                          >
+                            <div className="flex items-center gap-2">
+                              <KhurkDiamondBadge size="sm" />
+                              <span className="text-base font-bold text-foreground">
+                                $10.00<span className="text-xs font-normal text-muted-foreground">/year</span>
+                              </span>
+                              <span className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-full">Save ~17%</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">Yearly · billed once a year</p>
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground/60 text-center">
+                          Stripe payments coming soon — check back shortly.
+                        </p>
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-muted-foreground/50 leading-relaxed text-center">
+                      Secure checkout via Stripe. Cancel anytime from the billing portal.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

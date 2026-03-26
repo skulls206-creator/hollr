@@ -14,6 +14,8 @@ export const userProfilesTable = pgTable("user_profiles", {
   avatarUrl: text("avatar_url"),
   status: userStatusEnum("status").notNull().default("offline"),
   customStatus: varchar("custom_status", { length: 128 }),
+  isSupporter: boolean("is_supporter").notNull().default(false),
+  stripeCustomerId: text("stripe_customer_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

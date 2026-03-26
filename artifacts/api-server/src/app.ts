@@ -4,8 +4,40 @@ import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import router from "./routes";
+import { WebhookHandlers } from "./webhookHandlers";
 
 const app: Express = express();
+
+// ── Stripe webhook MUST be registered before express.json() ─────────────────
+// Stripe needs the raw Buffer body to verify the webhook signature.
+app.post(
+  '/api/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  async (req: Request, res: Response) => {
+    const signature = req.headers['stripe-signature'];
+
+    if (!signature) {
+      res.status(400).json({ error: 'Missing stripe-signature header' });
+      return;
+    }
+
+    try {
+      const sig = Array.isArray(signature) ? signature[0] : signature;
+
+      if (!Buffer.isBuffer(req.body)) {
+        console.error('[stripe/webhook] req.body is not a Buffer — express.json() may have run first');
+        res.status(500).json({ error: 'Webhook processing error' });
+        return;
+      }
+
+      await WebhookHandlers.processWebhook(req.body as Buffer, sig);
+      res.status(200).json({ received: true });
+    } catch (err: any) {
+      console.error('[stripe/webhook] error:', err.message);
+      res.status(400).json({ error: 'Webhook processing error' });
+    }
+  }
+);
 
 // Replit runs behind a proxy — trust the first forwarded IP so rate limiting
 // keys by the real client IP rather than the proxy's address

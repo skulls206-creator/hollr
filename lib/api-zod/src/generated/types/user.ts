@@ -16,5 +16,6 @@ export interface User {
   status?: UserStatus;
   /** @nullable */
   customStatus?: string | null;
+  isSupporter?: boolean;
   createdAt: Date;
 }

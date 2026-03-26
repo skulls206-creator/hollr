@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { MessageSquare, AtSign, X, Loader2, Phone } from 'lucide-react';
+import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/use-app-store';
@@ -196,7 +197,10 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
           ) : profile ? (
             <div className="space-y-3">
               <div>
-                <h3 className="font-bold text-foreground text-base leading-tight">{profile.displayName}</h3>
+                <h3 className="font-bold text-foreground text-base leading-tight flex items-center gap-1.5">
+                  {profile.displayName}
+                  {profile.isSupporter && <KhurkDiamondBadge size="lg" />}
+                </h3>
                 <p className="text-sm text-muted-foreground">@{profile.username}</p>
               </div>
 

@@ -20,6 +20,7 @@ async function formatUser(userId: string) {
       avatarUrl: profile.avatarUrl,
       status: profile.status,
       customStatus: profile.customStatus,
+      isSupporter: profile.isSupporter,
       createdAt: profile.createdAt.toISOString(),
     };
   }
@@ -30,6 +31,7 @@ async function formatUser(userId: string) {
     avatarUrl: null,
     status: "offline" as const,
     customStatus: null,
+    isSupporter: false,
     createdAt: new Date().toISOString(),
   };
 }

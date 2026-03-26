@@ -11,6 +11,7 @@ import { useAppStore } from '@/store/use-app-store';
 import { cn } from '@/lib/utils';
 import { ReactionPills } from './ReactionPills';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 
 async function pinMessage(channelId: string, messageId: string) {
   const res = await fetch(`/api/channels/${channelId}/messages/${messageId}/pin`, { method: 'PUT' });
@@ -333,12 +334,13 @@ export function MessageList({
 
             <div className="flex flex-col min-w-0 flex-1 py-0.5">
               {showHeader && (
-                <div className="flex items-baseline gap-2 mb-0.5">
+                <div className="flex items-center gap-2 mb-0.5">
                   <button
                     onClick={e => openProfileCard({ userId: msg.authorId, position: { x: e.clientX, y: e.clientY } })}
-                    className="font-medium text-base text-indigo-400 hover:underline"
+                    className="font-medium text-base text-indigo-400 hover:underline flex items-center gap-1"
                   >
                     {msg.author.displayName || msg.author.username}
+                    {(msg.author as any).isSupporter && <KhurkDiamondBadge size="sm" />}
                   </button>
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(msg.createdAt), 'h:mm a')}
