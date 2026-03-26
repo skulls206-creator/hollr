@@ -21,6 +21,7 @@ import {
   getListServerMembersQueryKey, useListServerMembers,
   useDeleteChannel, useUpdateChannel,
   useGetMyProfile, useUpdateMyProfile,
+  type Member,
 } from '@workspace/api-client-react';
 import type { VoiceChannelUser } from '@/store/use-app-store';
 import { cn, getInitials } from '@/lib/utils';
@@ -165,7 +166,7 @@ export function ChannelSidebar() {
   const { data: serverMembers = [] } = useListServerMembers(activeServerId || '', {
     query: { queryKey: getListServerMembersQueryKey(activeServerId || ''), enabled: !!activeServerId },
   });
-  const myMemberRole = serverMembers.find((m: any) => m.userId === user?.id)?.role ?? null;
+  const myMemberRole = serverMembers.find((m: Member) => m.userId === user?.id)?.role ?? null;
   const isOwnerOrAdmin = server?.ownerId === user?.id || myMemberRole === 'admin';
 
   const startEditChannel = (channel: Channel, e: React.MouseEvent) => {
@@ -828,8 +829,8 @@ export function ChannelSidebar() {
         </div>
       </div>
 
-      {/* ── Server Settings shortcut — always visible for owners/admins ── */}
-      {isOwnerOrAdmin && (
+      {/* ── Server Settings shortcut — only in server view, for owners/admins ── */}
+      {!!activeServerId && isOwnerOrAdmin && (
         <div className="mx-2 mb-1">
           <button
             onClick={() => setServerSettingsModalOpen(true)}
