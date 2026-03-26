@@ -616,8 +616,8 @@ function GridItem({ entry, isSelected, isRenaming, renameVal, onRenameChange, on
   const Icon = isDir ? Folder : fileIconFor(entry.name);
   return (
     <div
+      onClick={onSelect}
       onDoubleClick={isDir ? onNavigate : undefined}
-      onClick={isDir ? undefined : onSelect}
       className={cn('flex flex-col items-center gap-1.5 p-2 rounded-xl cursor-pointer transition-colors select-none group relative',
         isSelected ? 'bg-blue-600/20 ring-1 ring-blue-500/30' : 'hover:bg-white/[0.04]')}>
       <Icon size={26} className={isDir ? 'text-blue-400' : 'text-white/40'} strokeWidth={1.5} />
@@ -651,8 +651,8 @@ function ListItem({ entry, isSelected, isRenaming, renameVal, onRenameChange, on
   const Icon = isDir ? Folder : fileIconFor(entry.name);
   return (
     <div
+      onClick={onSelect}
       onDoubleClick={isDir ? onNavigate : undefined}
-      onClick={isDir ? undefined : onSelect}
       className={cn('flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors select-none group',
         isSelected ? 'bg-blue-600/20 ring-1 ring-blue-500/30' : 'hover:bg-white/[0.04]')}>
       <Icon size={14} className={isDir ? 'text-blue-400 shrink-0' : 'text-white/35 shrink-0'} strokeWidth={1.5} />
