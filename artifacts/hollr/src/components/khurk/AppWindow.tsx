@@ -6,6 +6,46 @@ import { useToast } from '@/hooks/use-toast';
 import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, PanelLeft, PanelLeftClose, MessageSquare, FolderOpen, FolderCheck, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// ── IndexedDB helpers for persisting FileSystemDirectoryHandle across sessions ─
+// The File System Access API allows structured-cloning handles into IndexedDB,
+// enabling true reconnect without re-prompting the picker every time.
+
+const IDB_NAME = 'khurk-fs-handles';
+const IDB_STORE = 'handles';
+
+function openHandleDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveHandleToIdb(appId: string, handle: FileSystemDirectoryHandle): Promise<void> {
+  try {
+    const db = await openHandleDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(handle, appId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('[khurk] Could not persist handle to IDB:', e); }
+}
+
+async function loadHandleFromIdb(appId: string): Promise<FileSystemDirectoryHandle | null> {
+  try {
+    const db = await openHandleDb();
+    return await new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(appId);
+      req.onsuccess = () => resolve((req.result as FileSystemDirectoryHandle) ?? null);
+      req.onerror = () => resolve(null);
+    });
+  } catch { return null; }
+}
+
 // ── Recursive directory reader ──────────────────────────────────────────────
 // Used only for iframe-based apps (vault protocol). Native panels read directly.
 async function readDirRecursive(
@@ -13,7 +53,7 @@ async function readDirRecursive(
   prefix = '',
   out: { name: string; content: string; lastModified: number }[] = [],
 ): Promise<{ name: string; content: string; lastModified: number }[]> {
-  for await (const entry of (handle as any).values()) {
+  for await (const entry of handle.values()) {
     if (entry.name.startsWith('.')) continue;
     if (entry.kind === 'file') {
       if (/\.(md|txt|json)$/i.test(entry.name)) {
@@ -57,6 +97,30 @@ export function AppWindow() {
 
   const app = KHURK_APPS.find((a) => a.id === activeKhurkAppId);
   const isNative = !!app?.nativePanel;
+
+  // ── Handle persistence: save to IndexedDB whenever a native handle is connected ─
+  useEffect(() => {
+    if (!app || !isNative || !nativeDirHandle) return;
+    saveHandleToIdb(app.id, nativeDirHandle);
+  }, [app, isNative, nativeDirHandle]);
+
+  // ── Auto-reconnect: restore handle from IndexedDB on native app open ─────────
+  useEffect(() => {
+    if (!app?.id || !isNative) return;
+    let cancelled = false;
+    loadHandleFromIdb(app.id).then(async (stored) => {
+      if (cancelled || !stored) return;
+      try {
+        const perm = await stored.requestPermission({ mode: 'readwrite' });
+        if (!cancelled && perm === 'granted') {
+          setNativeDirHandle(stored);
+          setConnectedFolderName(stored.name);
+        }
+      } catch { /* permission denied or unsupported — user can pick manually */ }
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app?.id, isNative]);
 
   // Posts the current pending vault payload to the iframe (iframe apps only).
   const sendVault = useCallback((delayMs = 0) => {
@@ -161,10 +225,11 @@ export function AppWindow() {
 
     let dir: FileSystemDirectoryHandle;
     try {
-      dir = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return;
-      toast({ title: 'Could not open folder', description: String(err?.message ?? err), variant: 'destructive' });
+      dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({ title: 'Could not open folder', description: msg, variant: 'destructive' });
       return;
     }
 
@@ -222,15 +287,15 @@ export function AppWindow() {
           const fh = await handle.getFileHandle(d.name, { create: true });
           const w = await fh.createWritable(); await w.write(''); await w.close();
         } else if (d.type === 'ballpoint:delete-file') {
-          await (handle as any).removeEntry(d.name);
+          await handle.removeEntry(d.name);
         } else if (d.type === 'ballpoint:rename-file') {
           const oldFh = await handle.getFileHandle(d.oldName);
           const content = d.content ?? await (await oldFh.getFile()).text();
           const newFh = await handle.getFileHandle(d.newName, { create: true });
           const w = await newFh.createWritable(); await w.write(content); await w.close();
-          await (handle as any).removeEntry(d.oldName);
+          await handle.removeEntry(d.oldName);
         }
-      } catch (err: any) { console.warn('[vault-proxy] write failed:', err); }
+      } catch (err: unknown) { console.warn('[vault-proxy] write failed:', err); }
     };
 
     pendingProtocolRef.current = 'vault';

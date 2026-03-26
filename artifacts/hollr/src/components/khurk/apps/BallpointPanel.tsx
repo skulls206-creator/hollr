@@ -99,7 +99,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     setLoading(true);
     try {
       const entries: NoteEntry[] = [];
-      for await (const entry of (handle as any).values()) {
+      for await (const entry of handle.values()) {
         if (entry.kind !== 'file' || !/\.(md|txt)$/i.test(entry.name) || entry.name.startsWith('.')) continue;
         const file = await entry.getFile();
         entries.push({ name: entry.name, content: await file.text(), lastModified: file.lastModified });
@@ -216,7 +216,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
       const text = await (await oldFh.getFile()).text();
       const newFh = await dirHandle.getFileHandle(newName, { create: true });
       const w = await newFh.createWritable(); await w.write(text); await w.close();
-      await (dirHandle as any).removeEntry(renaming);
+      await dirHandle.removeEntry(renaming);
       const migrate = (s: Set<string>, key: string): Set<string> => {
         if (!s.has(renaming)) return s;
         const n = new Set(s); n.delete(renaming); n.add(newName);
@@ -282,7 +282,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   const deleteForever = useCallback(async (name: string) => {
     if (!dirHandle) return;
     try {
-      await (dirHandle as any).removeEntry(name);
+      await dirHandle.removeEntry(name);
       setNotes(prev => prev.filter(n => n.name !== name));
       setTrash(prev => {
         const n = new Set(prev); n.delete(name);

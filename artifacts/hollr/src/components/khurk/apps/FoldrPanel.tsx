@@ -31,6 +31,7 @@ function fileIconFor(name: string) {
   if (/^(mp3|flac|ogg|wav|m4a|aac)$/.test(ext)) return Music;
   if (/^(ts|tsx|js|jsx|py|rs|go|java|c|cpp|css|html|json|yaml|toml|sh|env|xml|php|rb|swift|kt)$/.test(ext)) return FileCode;
   if (/^(md|txt|rtf|csv)$/.test(ext)) return FileText;
+  if (ext === 'pdf') return FileText;
   return File;
 }
 
@@ -48,7 +49,7 @@ async function copyDirRecursive(
   src: FileSystemDirectoryHandle,
   dst: FileSystemDirectoryHandle,
 ) {
-  for await (const entry of (src as any).values()) {
+  for await (const entry of src.values()) {
     if (entry.kind === 'file') {
       const file = await entry.getFile();
       const buf = await file.arrayBuffer();
@@ -57,7 +58,7 @@ async function copyDirRecursive(
       await w.write(buf);
       await w.close();
     } else {
-      const subDst = await (dst as any).getDirectoryHandle(entry.name, { create: true });
+      const subDst = await dst.getDirectoryHandle(entry.name, { create: true });
       await copyDirRecursive(entry, subDst);
     }
   }
@@ -89,7 +90,7 @@ function FolderTree({
     if (!handle) return;
     const children: DirChild[] = [];
     try {
-      for await (const entry of (handle as any).values()) {
+      for await (const entry of handle.values()) {
         if (entry.kind === 'directory' && !entry.name.startsWith('.')) {
           const childKey = `${pathKey}/${entry.name}`;
           handlesMap.current.set(childKey, entry);
@@ -233,7 +234,7 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     setLoading(true);
     try {
       const list: FsEntry[] = [];
-      for await (const entry of (dir as any).values()) {
+      for await (const entry of dir.values()) {
         if (entry.name.startsWith('.')) continue;
         if (entry.kind === 'file') {
           const file = await entry.getFile();
@@ -334,7 +335,7 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     let name = `New Folder ${i}`;
     while (existing.has(name)) name = `New Folder ${++i}`;
     try {
-      await (currentDir as any).getDirectoryHandle(name, { create: true });
+      await currentDir.getDirectoryHandle(name, { create: true });
       await loadEntries(currentDir);
       setRefreshTick(t => t + 1);
       setRenaming(name);
@@ -377,13 +378,13 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
         const buf = await (await fh.getFile()).arrayBuffer();
         const newFh = await currentDir.getFileHandle(newName, { create: true });
         const w = await newFh.createWritable(); await w.write(buf); await w.close();
-        await (currentDir as any).removeEntry(renaming);
+        await currentDir.removeEntry(renaming);
       } else {
         // Directory rename: create new dir, recursively copy, remove old
         const srcDh = entry.handle as FileSystemDirectoryHandle;
-        const dstDh = await (currentDir as any).getDirectoryHandle(newName, { create: true });
+        const dstDh = await currentDir.getDirectoryHandle(newName, { create: true });
         await copyDirRecursive(srcDh, dstDh);
-        await (currentDir as any).removeEntry(renaming, { recursive: true });
+        await currentDir.removeEntry(renaming, { recursive: true });
         setRefreshTick(t => t + 1);
       }
       await loadEntries(currentDir);
@@ -394,7 +395,7 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   const deleteEntry = useCallback(async (name: string) => {
     if (!currentDir) return;
     try {
-      await (currentDir as any).removeEntry(name, { recursive: true });
+      await currentDir.removeEntry(name, { recursive: true });
       await loadEntries(currentDir);
       setRefreshTick(t => t + 1);
       if (selected === name) { setSelected(null); clearPreview(); }
