@@ -14,6 +14,7 @@ const SIZES = {
 
 export function KhurkDiamondBadge({ size = 'sm', className, title = 'hollr Supporter' }: Props) {
   const px = SIZES[size];
+  const uid = `kdb-${size}`;
 
   return (
     <svg
@@ -27,20 +28,15 @@ export function KhurkDiamondBadge({ size = 'sm', className, title = 'hollr Suppo
       role="img"
     >
       <defs>
-        <radialGradient id="kdb-fill" cx="50%" cy="25%" r="75%" fx="50%" fy="10%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-          <stop offset="35%" stopColor="#7dd3fc" stopOpacity="1" />
-          <stop offset="70%" stopColor="#22d3ee" stopOpacity="1" />
-          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="1" />
-        </radialGradient>
+        <linearGradient id={`${uid}-grad`} x1="10%" y1="0%" x2="90%" y2="100%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="30%" stopColor="#bae6fd" />
+          <stop offset="65%" stopColor="#22d3ee" />
+          <stop offset="100%" stopColor="#0284c7" />
+        </linearGradient>
 
-        <filter id="kdb-glow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="1.5" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
-
-        <filter id="kdb-outer-glow" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+        <filter id={`${uid}-glow`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="1.8" result="coloredBlur" />
           <feMerge>
             <feMergeNode in="coloredBlur" />
             <feMergeNode in="SourceGraphic" />
@@ -48,26 +44,39 @@ export function KhurkDiamondBadge({ size = 'sm', className, title = 'hollr Suppo
         </filter>
       </defs>
 
-      {/* Outer glow halo (cyan) */}
+      {/* Outer glow halo */}
       <polygon
-        points="10,1 19,18 1,18"
+        points="10,1 19,10 10,19 1,10"
         fill="#22d3ee"
-        opacity="0.25"
-        filter="url(#kdb-outer-glow)"
+        opacity="0.3"
+        filter={`url(#${uid}-glow)`}
       />
 
-      {/* Main triangle with radial gradient */}
+      {/* Main diamond body */}
       <polygon
-        points="10,2 18.5,17.5 1.5,17.5"
-        fill="url(#kdb-fill)"
-        filter="url(#kdb-glow)"
+        points="10,2 18,10 10,18 2,10"
+        fill={`url(#${uid}-grad)`}
       />
 
-      {/* Inner bright highlight at the tip */}
+      {/* Upper-left facet — brighter */}
       <polygon
-        points="10,3 12.5,7.5 7.5,7.5"
+        points="10,2 2,10 8,10 10,4.5"
         fill="white"
-        opacity="0.6"
+        opacity="0.45"
+      />
+
+      {/* Upper-right facet — medium */}
+      <polygon
+        points="10,2 18,10 12,10 10,4.5"
+        fill="white"
+        opacity="0.12"
+      />
+
+      {/* Crown table highlight */}
+      <polygon
+        points="10,3.5 13,7.5 10,9 7,7.5"
+        fill="white"
+        opacity="0.55"
       />
     </svg>
   );
