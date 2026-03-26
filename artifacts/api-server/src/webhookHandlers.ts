@@ -3,29 +3,29 @@ import { db } from '@workspace/db';
 import { userProfilesTable } from '@workspace/db/schema';
 import { eq, sql as drizzleSql } from 'drizzle-orm';
 
-const ACTIVE_STATUSES = new Set(['active', 'trialing']);
 const SUPPORTER_PRODUCT_NAME = 'hollr Supporter';
 
 async function syncSupporterStatusForCustomer(stripeCustomerId: string) {
   try {
-    // Only count active subscriptions for the 'hollr Supporter' product,
-    // not any other product the customer may have.
+    // Check if ANY active/trialing subscription for the 'hollr Supporter' product exists.
+    // Using EXISTS so a customer with multiple subscriptions is handled correctly.
     const result = await db.execute(
       drizzleSql`
-        SELECT s.status
-        FROM stripe.subscriptions s
-        JOIN stripe.subscription_items si ON si.subscription = s.id
-        JOIN stripe.prices pr ON pr.id = si.price
-        JOIN stripe.products p ON p.id = pr.product
-        WHERE s.customer = ${stripeCustomerId}
-          AND p.name = ${SUPPORTER_PRODUCT_NAME}
-          AND p.active = true
-        ORDER BY s.created DESC
-        LIMIT 1
+        SELECT EXISTS (
+          SELECT 1
+          FROM stripe.subscriptions s
+          JOIN stripe.subscription_items si ON si.subscription = s.id
+          JOIN stripe.prices pr ON pr.id = si.price
+          JOIN stripe.products p ON p.id = pr.product
+          WHERE s.customer = ${stripeCustomerId}
+            AND p.name = ${SUPPORTER_PRODUCT_NAME}
+            AND p.active = true
+            AND s.status IN ('active', 'trialing')
+        ) AS is_active
       `
     );
-    const row = result.rows[0] as { status?: string } | undefined;
-    const isActive = !!row && ACTIVE_STATUSES.has(row.status ?? '');
+    const row = result.rows[0] as { is_active?: boolean } | undefined;
+    const isActive = row?.is_active === true;
 
     await db
       .update(userProfilesTable)
@@ -53,8 +53,11 @@ export class WebhookHandlers {
 
     // After sync, parse the event to update our own user_profiles.is_supporter
     try {
-      const rawEvent = JSON.parse(payload.toString('utf8'));
-      const eventType: string = rawEvent?.type ?? '';
+      const rawEvent = JSON.parse(payload.toString('utf8')) as {
+        type?: string;
+        data?: { object?: { customer?: string | { id?: string } } };
+      };
+      const eventType = rawEvent?.type ?? '';
       const obj = rawEvent?.data?.object ?? {};
 
       const SUBSCRIPTION_EVENTS = new Set([
@@ -68,7 +71,8 @@ export class WebhookHandlers {
       ]);
 
       if (SUBSCRIPTION_EVENTS.has(eventType)) {
-        const customerId: string = typeof obj.customer === 'string' ? obj.customer : (obj.customer?.id ?? '');
+        const customer = obj.customer;
+        const customerId: string = typeof customer === 'string' ? customer : (customer?.id ?? '');
         if (customerId) {
           await syncSupporterStatusForCustomer(customerId);
         }

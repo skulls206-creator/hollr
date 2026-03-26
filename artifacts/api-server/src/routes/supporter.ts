@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { userProfilesTable } from "@workspace/db/schema";
 import { eq, sql as drizzleSql } from "drizzle-orm";
@@ -29,7 +29,7 @@ async function getSupporterPriceIds(): Promise<Set<string>> {
 }
 
 // GET /api/supporter/status — returns supporter status for the current user
-router.get('/supporter/status', async (req: any, res) => {
+router.get('/supporter/status', async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
@@ -46,7 +46,7 @@ router.get('/supporter/status', async (req: any, res) => {
 });
 
 // GET /api/supporter/prices — return monthly + yearly price IDs from Stripe
-router.get('/supporter/prices', async (req: any, res) => {
+router.get('/supporter/prices', async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
@@ -69,13 +69,13 @@ router.get('/supporter/prices', async (req: any, res) => {
 });
 
 // POST /api/supporter/checkout — create a Stripe Checkout Session
-router.post('/supporter/checkout', async (req: any, res) => {
+router.post('/supporter/checkout', async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
 
-  const { priceId } = req.body;
+  const { priceId } = req.body as { priceId?: string };
   if (!priceId || typeof priceId !== 'string') {
     res.status(400).json({ error: 'priceId is required' });
     return;
@@ -120,7 +120,7 @@ router.post('/supporter/checkout', async (req: any, res) => {
 });
 
 // POST /api/supporter/portal — create a Stripe billing portal session
-router.post('/supporter/portal', async (req: any, res) => {
+router.post('/supporter/portal', async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: 'Unauthorized' });
     return;

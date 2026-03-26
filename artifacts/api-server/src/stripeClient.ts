@@ -1,8 +1,11 @@
 import Stripe from 'stripe';
+import { StripeSync } from 'stripe-replit-sync';
 
-let connectionSettings: any;
+type ConnectionSettings = { settings: { publishable: string; secret: string } };
 
-async function getCredentials() {
+let connectionSettings: ConnectionSettings | undefined;
+
+async function getCredentials(): Promise<{ publishableKey: string; secretKey: string }> {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
@@ -30,10 +33,10 @@ async function getCredentials() {
     },
   });
 
-  const data = await response.json() as { items?: Array<{ settings: { publishable: string; secret: string } }> };
+  const data = await response.json() as { items?: ConnectionSettings[] };
   connectionSettings = data.items?.[0];
 
-  if (!connectionSettings || (!connectionSettings.settings.publishable || !connectionSettings.settings.secret)) {
+  if (!connectionSettings?.settings.publishable || !connectionSettings?.settings.secret) {
     throw new Error(`Stripe ${targetEnvironment} connection not found`);
   }
 
@@ -62,11 +65,10 @@ export async function getStripeSecretKey(): Promise<string> {
 }
 
 // StripeSync singleton — reset if key changes
-let stripeSync: any = null;
+let stripeSync: StripeSync | null = null;
 
-export async function getStripeSync() {
+export async function getStripeSync(): Promise<StripeSync> {
   if (!stripeSync) {
-    const { StripeSync } = await import('stripe-replit-sync');
     const secretKey = await getStripeSecretKey();
     stripeSync = new StripeSync({
       poolConfig: {

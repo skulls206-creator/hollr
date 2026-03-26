@@ -88,7 +88,7 @@ export interface User {
   status?: UserStatus;
   /** @nullable */
   customStatus?: string | null;
-  isSupporter?: boolean;
+  isSupporter: boolean;
   createdAt: string;
 }
 
