@@ -5,6 +5,7 @@ import type { Message } from '@workspace/api-client-react';
 import type { MusicState } from '@workspace/api-zod';
 import { useAppStore } from '@/store/use-app-store';
 import { playNotificationSound, playVoiceJoinSound, playVoiceLeaveSound, startCallRinging, stopCallRinging } from '@/lib/notification-sound';
+import { dmLastSeenMsgId } from '@/lib/dm-seen-tracker';
 
 // Module-level singleton so any module can send signals without creating a second WS connection
 let _sendSignal: ((payload: any) => void) | null = null;
@@ -321,6 +322,8 @@ export function useRealtime(userId?: string) {
                 // DM unread badge: increment if not the active DM thread
                 if (msg.dmThreadId && msg.dmThreadId !== activeDmThreadId) {
                   incrementDmUnreadCount(msg.dmThreadId);
+                  // Mark as seen so the poll-based detection doesn't double-count
+                  dmLastSeenMsgId.set(msg.dmThreadId, msg.id);
                 }
 
                 // Check for @mention of current user
