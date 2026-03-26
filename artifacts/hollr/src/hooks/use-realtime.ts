@@ -26,6 +26,13 @@ let _onMusicStateUpdate: ((payload: MusicState) => void) | null = null;
 // DM call WebRTC signals (offer/answer/ice) — separate from state management
 let _onDmCallRtcSignal: ((payload: any) => void) | null = null;
 
+// Triggered whenever PRESENCE_UPDATE arrives so useDockPresence can refetch immediately
+let _presenceRefetchTrigger: (() => void) | null = null;
+
+export function setPresenceRefetchTrigger(fn: (() => void) | null) {
+  _presenceRefetchTrigger = fn;
+}
+
 export function setDmCallRtcSignalListener(listener: ((payload: any) => void) | null) {
   _onDmCallRtcSignal = listener;
 }
@@ -454,6 +461,8 @@ export function useRealtime(userId?: string) {
 
           case 'PRESENCE_UPDATE': {
             queryClient.invalidateQueries({ queryKey: ['server-members'] });
+            // Trigger immediate presence count refetch in DockBar
+            if (_presenceRefetchTrigger) _presenceRefetchTrigger();
             break;
           }
 

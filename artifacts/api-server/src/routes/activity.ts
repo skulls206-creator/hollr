@@ -142,7 +142,7 @@ router.get("/activity", async (req, res) => {
         events.push({
           type: 'dm',
           title: `${m.displayName || m.username}`,
-          subtitle: m.content.length > 80 ? m.content.slice(0, 80) + '…' : m.content,
+          subtitle: 'Sent you a message', // mask DM content for privacy
           avatarUrl: m.avatarUrl,
           timestamp: m.createdAt.toISOString(),
           link: null,
@@ -201,22 +201,35 @@ router.get("/activity", async (req, res) => {
 });
 
 // GET /api/presence/summary?serverIds=a,b,c
-// Returns { [serverId]: count } — count of online users in each server
+// Returns { [serverId]: count } — count of online users in each server.
+// Only servers the requester is actually a member of are counted (no IDOR).
 router.get("/presence/summary", async (req, res) => {
   if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const userId = req.user.id;
 
   const raw = req.query.serverIds as string | undefined;
   if (!raw) { res.json({}); return; }
-  const serverIds = raw.split(',').filter(Boolean).slice(0, 50); // max 50
-  if (serverIds.length === 0) { res.json({}); return; }
+  const requestedIds = raw.split(',').filter(Boolean).slice(0, 50); // max 50
+  if (requestedIds.length === 0) { res.json({}); return; }
 
   try {
+    // Verify requester membership — only allow servers they belong to
+    const memberships = await db
+      .select({ serverId: serverMembersTable.serverId })
+      .from(serverMembersTable)
+      .where(and(
+        eq(serverMembersTable.userId, userId),
+        inArray(serverMembersTable.serverId, requestedIds),
+      ));
+    const allowedIds = memberships.map(m => m.serverId);
+    if (allowedIds.length === 0) { res.json({}); return; }
+
     const { getOnlineUserIds } = await import('../lib/ws.js');
     const onlineIds = getOnlineUserIds();
 
-    // For each server, count members that are online
+    // For each allowed server, count members that are online
     const result: Record<string, number> = {};
-    for (const sid of serverIds) {
+    for (const sid of allowedIds) {
       const members = await db
         .select({ userId: serverMembersTable.userId })
         .from(serverMembersTable)

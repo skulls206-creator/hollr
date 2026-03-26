@@ -22,7 +22,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useAppStore } from '@/store/use-app-store';
-import { useListMyServers, useGetMyProfile, useUpdateMyProfile } from '@workspace/api-client-react';
+import { useListMyServers, useGetMyProfile, useUpdateMyProfile, UpdateUserRequestStatus } from '@workspace/api-client-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn, getInitials } from '@/lib/utils';
@@ -239,18 +239,18 @@ export function DockBar() {
   const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
   const currentStatus = myProfile?.status ?? 'online';
 
-  const STATUS_OPTIONS = [
-    { value: 'online',  label: 'Online',          color: 'bg-emerald-500' },
-    { value: 'idle',    label: 'Away',             color: 'bg-yellow-400' },
-    { value: 'dnd',     label: 'Do Not Disturb',   color: 'bg-red-500' },
-    { value: 'offline', label: 'Invisible',        color: 'bg-zinc-500' },
-  ] as const;
+  const STATUS_OPTIONS: { value: UpdateUserRequestStatus; label: string; color: string }[] = [
+    { value: UpdateUserRequestStatus.online,  label: 'Online',          color: 'bg-emerald-500' },
+    { value: UpdateUserRequestStatus.idle,    label: 'Away',            color: 'bg-yellow-400' },
+    { value: UpdateUserRequestStatus.dnd,     label: 'Do Not Disturb',  color: 'bg-red-500' },
+    { value: UpdateUserRequestStatus.offline, label: 'Invisible',       color: 'bg-zinc-500' },
+  ];
 
   const statusDotClass = STATUS_OPTIONS.find(o => o.value === currentStatus)?.color ?? 'bg-emerald-500';
 
-  const handleStatusChange = (status: string) => {
+  const handleStatusChange = (status: UpdateUserRequestStatus) => {
     updateProfile.mutate(
-      { data: { status: status as any } },
+      { data: { status } },
       { onSuccess: () => qc.invalidateQueries({ queryKey: ['/api/users/me'] }) },
     );
     setStatusPopoverOpen(false);
@@ -603,7 +603,7 @@ export function DockBar() {
                       {STATUS_OPTIONS.map(opt => (
                         <button
                           key={opt.value}
-                          onClick={() => handleStatusChange(opt.value)}
+                          onClick={() => handleStatusChange(opt.value as UpdateUserRequestStatus)}
                           className={cn(
                             'w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent',
                             currentStatus === opt.value && 'bg-accent/50 font-semibold'
