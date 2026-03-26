@@ -24,8 +24,8 @@ if (Number.isNaN(port) || port <= 0) {
 const server = createServer(app);
 initWebSocket(server);
 
-// Initialize Stripe if configured — guarded so the server starts fine without it
-if (process.env.STRIPE_SECRET_KEY) {
+// Initialize Stripe via Replit integration (non-fatal if not connected)
+if (process.env.REPLIT_CONNECTORS_HOSTNAME) {
   (async () => {
     try {
       const databaseUrl = process.env.DATABASE_URL;

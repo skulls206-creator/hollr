@@ -83,6 +83,8 @@ Tables: `user_profiles`, `servers`, `server_members`, `channels`, `dm_threads`, 
 
 New columns on `messages`: `parentMessageId`, `replyCount`, `mentions` (text array)
 
+New columns on `user_profiles`: `isSupporter` (boolean, default false), `stripeCustomerId` (text nullable)
+
 ## Development
 
 ```bash
@@ -128,6 +130,7 @@ pnpm --filter @workspace/db push
 - **Music Bot**: Type `/play <youtube-url>` in any channel while in a voice channel; real-time `MusicControlBar` shows current track, progress, queue; `/pause`, `/resume`, `/skip`, `/stop` commands; bot avatar appears in voice sidebar; volume 0–200% via Web Audio gain node
 - **File Upload**: Direct-to-R2 presigned URL flow, 100MB limit, progress bar
 - **Push Notifications**: Web Push (VAPID); per-device subscription; mute DMs globally; mute individual channels via right-click context menu; Notifications tab in User Settings
+- **Supporter Badge**: Stripe-backed $1/month or $10/year subscription; `isSupporter` flag synced via webhooks; animated cyan diamond badge (KhurkDiamondBadge SVG) shown next to name in MessageList, MemberList, UserProfileCard; Supporter tab in User Settings for manage/cancel via Stripe portal
 - **Mobile**: Responsive layout with slide-in sidebar
 - **Presence**: Online/idle/dnd/offline status indicators
 - **Dock Mode**: Toggleable layout in User Settings (Profile tab → Layout Style); macOS Dock-style server switcher at the bottom with framer-motion mouse-proximity magnification; DM FAB pinned bottom-left; `layoutMode` persisted to localStorage via Zustand
