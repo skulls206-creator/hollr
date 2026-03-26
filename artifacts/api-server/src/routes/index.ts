@@ -11,6 +11,7 @@ import musicRouter from "./music";
 import pushRouter from "./push";
 import khurkAppsRouter from "./khurk-apps";
 import turnRouter from "./turn";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(musicRouter);
 router.use(pushRouter);
 router.use(khurkAppsRouter);
 router.use(turnRouter);
+router.use(notificationsRouter);
 
 export default router;

@@ -209,3 +209,20 @@ export const dmCallSignalsTable = pgTable("dm_call_signals", {
 ]);
 
 export type DmCallSignal = typeof dmCallSignalsTable.$inferSelect;
+
+// In-app notification history (bell inbox)
+export const notificationsTable = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  type: varchar("type", { length: 32 }).notNull(), // 'dm_message' | 'mention' | 'missed_call' | 'system'
+  title: varchar("title", { length: 200 }).notNull(),
+  body: varchar("body", { length: 500 }).notNull(),
+  link: varchar("link", { length: 500 }),
+  read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("notifications_user_id_idx").on(t.userId),
+  index("notifications_created_at_idx").on(t.createdAt),
+]);
+
+export type DbNotification = typeof notificationsTable.$inferSelect;

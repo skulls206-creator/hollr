@@ -456,6 +456,12 @@ export function useRealtime(userId?: string) {
             break;
           }
 
+          case 'NOTIFICATION': {
+            const store = useAppStore.getState();
+            store.prependNotification(data.payload);
+            break;
+          }
+
           case 'MUSIC_STATE_UPDATE': {
             if (_onMusicStateUpdate) _onMusicStateUpdate(data.payload);
             break;

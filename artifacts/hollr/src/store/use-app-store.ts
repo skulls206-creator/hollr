@@ -259,6 +259,24 @@ interface AppState {
   privateServerIds: string[];
   toggleServerPrivacy: (serverId: string) => void;
   isServerPrivate: (serverId: string) => boolean;
+
+  // In-app notification center
+  notifications: AppNotification[];
+  notificationUnread: number;
+  prependNotification: (n: AppNotification) => void;
+  setNotifications: (ns: AppNotification[]) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+}
+
+export interface AppNotification {
+  id: string;
+  type: 'dm_message' | 'mention' | 'missed_call' | 'system';
+  title: string;
+  body: string;
+  link: string | null;
+  read: boolean;
+  createdAt: string;
 }
 
 export const useAppStore = create<AppState>()(
@@ -590,6 +608,25 @@ export const useAppStore = create<AppState>()(
       : [...state.privateServerIds, serverId],
   })),
   isServerPrivate: (serverId) => get().privateServerIds.includes(serverId),
+
+  notifications: [],
+  notificationUnread: 0,
+  prependNotification: (n) => set((state) => ({
+    notifications: [n, ...state.notifications].slice(0, 50),
+    notificationUnread: state.notificationUnread + (n.read ? 0 : 1),
+  })),
+  setNotifications: (ns) => set({
+    notifications: ns,
+    notificationUnread: ns.filter(n => !n.read).length,
+  }),
+  markNotificationRead: (id) => set((state) => ({
+    notifications: state.notifications.map(n => n.id === id ? { ...n, read: true } : n),
+    notificationUnread: Math.max(0, state.notificationUnread - (state.notifications.find(n => n.id === id && !n.read) ? 1 : 0)),
+  })),
+  markAllNotificationsRead: () => set((state) => ({
+    notifications: state.notifications.map(n => ({ ...n, read: true })),
+    notificationUnread: 0,
+  })),
     }),
     {
       name: 'hollr-nav',

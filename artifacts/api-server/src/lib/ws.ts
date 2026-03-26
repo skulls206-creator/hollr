@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { IncomingMessage } from "http";
 import { Server } from "http";
 import { db } from "@workspace/db";
-import { userProfilesTable } from "@workspace/db/schema";
+import { userProfilesTable, notificationsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { sendPushToUser } from "./push";
 
@@ -425,4 +425,29 @@ export function sendToUser(userId: string, message: object) {
     return true;
   }
   return false;
+}
+
+export async function sendNotification(userId: string, payload: {
+  type: 'dm_message' | 'mention' | 'missed_call' | 'system';
+  title: string;
+  body: string;
+  link?: string;
+}) {
+  try {
+    const [notif] = await db.insert(notificationsTable).values({
+      userId,
+      type: payload.type,
+      title: payload.title,
+      body: payload.body,
+      link: payload.link ?? null,
+    }).returning();
+    sendToUser(userId, {
+      type: 'NOTIFICATION',
+      payload: { ...notif, createdAt: notif.createdAt.toISOString() },
+    });
+    return notif;
+  } catch (e) {
+    console.error('[sendNotification] error:', e);
+    return null;
+  }
 }

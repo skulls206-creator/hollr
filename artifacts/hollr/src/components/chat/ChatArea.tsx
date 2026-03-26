@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Hash, Users, Bell, BellOff, Pin, Search, HelpCircle, Menu, X, Copy, ChevronsDown, ScrollText, Music, PinOff } from 'lucide-react';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useAppStore } from '@/store/use-app-store';
 import { useListChannels, getListChannelsQueryKey } from '@workspace/api-client-react';
 import { MessageList } from './MessageList';
@@ -351,6 +352,9 @@ export function ChatArea() {
             >
               <HelpCircle size={20} />
             </button>
+
+            {/* Global notification bell */}
+            <NotificationBell />
           </div>
         </div>
 

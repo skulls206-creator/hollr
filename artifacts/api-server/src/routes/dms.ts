@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, messageReactionsTable, dmCallSignalsTable } from "@workspace/db/schema";
 import { eq, and, lt, inArray, sql as drizzleSql, ilike, isNull, desc } from "drizzle-orm";
 import { OpenDmThreadBody, SendMessageBody, EditMessageBody } from "@workspace/api-zod";
-import { broadcast, sendToUser } from "../lib/ws";
+import { broadcast, sendToUser, sendNotification } from "../lib/ws";
 import { sendPushToUser, getNotifPrefs } from "../lib/push";
 
 const router: IRouter = Router();
@@ -284,14 +284,22 @@ router.post("/dms/:threadId/messages", async (req, res) => {
               navType: "dm",
               threadId: req.params.threadId,
             });
-            await sendPushToUser(p.userId, {
-              title: `${senderName} (DM)`,
-              body,
-              icon: senderProfile?.avatarUrl || "/images/icon-192.png",
-              url: `/app?${navParams.toString()}`,
-              tag: `dm-${req.params.threadId}`,
-              nav: { type: "dm", threadId: req.params.threadId },
-            });
+            await Promise.allSettled([
+              sendPushToUser(p.userId, {
+                title: `${senderName} (DM)`,
+                body,
+                icon: senderProfile?.avatarUrl || "/images/icon-192.png",
+                url: `/app?${navParams.toString()}`,
+                tag: `dm-${req.params.threadId}`,
+                nav: { type: "dm", threadId: req.params.threadId },
+              }),
+              sendNotification(p.userId, {
+                type: 'dm_message',
+                title: `${senderName} (DM)`,
+                body,
+                link: `/app?${navParams.toString()}`,
+              }),
+            ]);
           })
       );
     } catch {}

@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, userProfilesTable, messageReactionsTable } from "@workspace/db/schema";
 import { eq, and, lt, desc, sql as drizzleSql } from "drizzle-orm";
 import { SendMessageBody, EditMessageBody } from "@workspace/api-zod";
-import { broadcast } from "../lib/ws";
+import { broadcast, sendNotification } from "../lib/ws";
 import { sendPushToUser, getNotifPrefs } from "../lib/push";
 
 const router: IRouter = Router();
@@ -179,6 +179,8 @@ router.post("/channels/:channelId/messages", async (req, res) => {
         ? parsed.data.content.slice(0, 100)
         : "Sent an attachment";
 
+      const mentionedUserIds: string[] = Array.isArray(parsed.data.mentions) ? parsed.data.mentions as string[] : [];
+
       await Promise.allSettled(
         members
           .filter((m) => m.userId !== req.user.id)
@@ -190,14 +192,25 @@ router.post("/channels/:channelId/messages", async (req, res) => {
               serverId: channel.serverId,
               channelId: req.params.channelId,
             });
-            await sendPushToUser(m.userId, {
-              title: `${senderName} in #${channel.name}`,
-              body,
-              icon: senderProfile?.avatarUrl || "/images/icon-192.png",
-              url: `/app?${navParams.toString()}`,
-              tag: `channel-${req.params.channelId}`,
-              nav: { type: "channel", serverId: channel.serverId, channelId: req.params.channelId },
-            });
+            const isMentioned = Array.isArray(mentionedUserIds) && mentionedUserIds.includes(m.userId);
+            await Promise.allSettled([
+              sendPushToUser(m.userId, {
+                title: `${senderName} in #${channel.name}`,
+                body,
+                icon: senderProfile?.avatarUrl || "/images/icon-192.png",
+                url: `/app?${navParams.toString()}`,
+                tag: `channel-${req.params.channelId}`,
+                nav: { type: "channel", serverId: channel.serverId, channelId: req.params.channelId },
+              }),
+              isMentioned
+                ? sendNotification(m.userId, {
+                    type: 'mention',
+                    title: `${senderName} mentioned you in #${channel.name}`,
+                    body,
+                    link: `/app?${navParams.toString()}`,
+                  })
+                : Promise.resolve(),
+            ]);
           })
       );
     } catch {}
