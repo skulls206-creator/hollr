@@ -439,7 +439,7 @@ export function DockBar() {
       })),
       { id: 'settings', label: 'Settings', icon: <Settings size={14} />, onClick: () => useAppStore.getState().setUserSettingsModalOpen(true), dividerBefore: true },
     ];
-    showMenu({ x: e.clientX, y: e.clientY, actions, title: 'hollr.chat', subtitle: 'Real-time messaging & voice' });
+    showMenu({ x: e.clientX, y: e.clientY, actions, title: 'HOLLR CHAT', subtitle: 'Real-time messaging & voice' });
   };
 
   const leaveServer = async (serverId: string, serverName: string) => {
