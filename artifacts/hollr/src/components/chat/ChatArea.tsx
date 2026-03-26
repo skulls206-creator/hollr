@@ -241,32 +241,33 @@ export function ChatArea() {
           </div>
 
           <div className="flex items-center gap-1 text-muted-foreground shrink-0 ml-2">
-            {/* Bell — mute/unmute toggle (shows on/off pill so it's distinct from the panel bell) */}
+            {/* Bell — mute/unmute: single wide pill combining toggle + bell icon */}
             <button
               onClick={() => activeChannelId && toggleMuteChannel(activeChannelId)}
               title={isMuted ? 'Unmute notifications' : 'Mute notifications'}
               className={cn(
-                'flex flex-col items-center gap-[3px] px-1.5 py-1 rounded-md transition-colors',
+                'flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-full border transition-all duration-200',
                 isMuted
-                  ? 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  ? 'text-rose-400 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20'
+                  : 'text-muted-foreground border-border bg-secondary/60 hover:bg-secondary hover:text-foreground'
               )}
             >
-              {isMuted ? <BellOff size={16} /> : <Bell size={16} />}
-              {/* Toggle-switch pill — visually signals this is an on/off control */}
+              {/* Toggle track */}
               <span
                 className={cn(
-                  'relative flex w-7 h-[12px] rounded-full transition-colors duration-200 shrink-0',
-                  isMuted ? 'bg-rose-500/25' : 'bg-primary/25'
+                  'relative flex shrink-0 w-7 h-[14px] rounded-full transition-colors duration-200',
+                  isMuted ? 'bg-rose-500/30' : 'bg-primary/30'
                 )}
               >
                 <span
                   className={cn(
-                    'absolute top-[2px] w-[8px] h-[8px] rounded-full shadow-sm transition-all duration-200',
+                    'absolute top-[3px] w-[8px] h-[8px] rounded-full transition-all duration-200',
                     isMuted ? 'left-[3px] bg-rose-400' : 'left-[calc(100%-11px)] bg-primary'
                   )}
                 />
               </span>
+              {/* Bell icon */}
+              {isMuted ? <BellOff size={15} /> : <Bell size={15} />}
             </button>
 
             {/* Pin — toggle pinned messages panel */}
