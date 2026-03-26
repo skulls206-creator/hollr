@@ -437,28 +437,32 @@ export function DockBar() {
       const server = servers.find(s => s.id === entry.id);
       if (!server) return null;
       const onlineCount = presenceCounts[server.id] ?? 0;
+      const hasPresenceData = server.id in presenceCounts;
       return (
         <SortableDockItem
           key={server.id}
           id={server.id}
           mouseX={mouseX}
           label={server.name}
-          sublabel={onlineCount > 0 ? `${onlineCount} online` : undefined}
+          sublabel={onlineCount > 0 ? `${onlineCount} online` : hasPresenceData ? 'No one online' : undefined}
           isActive={activeServerId === server.id}
           onClick={() => setActiveServer(server.id)}
           onContextMenu={(e) => handleServerContextMenu(e, server)}
         >
-          {server.iconUrl ? (
-            <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover rounded-xl" />
-          ) : (
-            <div
-              className="w-full h-full flex items-center justify-center text-sm font-bold rounded-xl text-white"
-              style={{ background: `linear-gradient(135deg, ${serverGradient(server.name)[0]} 0%, ${serverGradient(server.name)[1]} 100%)` }}
-            >
-              {getInitials(server.name)}
-            </div>
-          )}
-          {/* Presence ring dot — shown when there are online members */}
+          {/* Dim the icon when we know nobody is online (idle state) */}
+          <div className={cn('w-full h-full transition-opacity duration-300', hasPresenceData && onlineCount === 0 && activeServerId !== server.id ? 'opacity-50' : 'opacity-100')}>
+            {server.iconUrl ? (
+              <img src={server.iconUrl} alt={server.name} className="w-full h-full object-cover rounded-xl" />
+            ) : (
+              <div
+                className="w-full h-full flex items-center justify-center text-sm font-bold rounded-xl text-white"
+                style={{ background: `linear-gradient(135deg, ${serverGradient(server.name)[0]} 0%, ${serverGradient(server.name)[1]} 100%)` }}
+              >
+                {getInitials(server.name)}
+              </div>
+            )}
+          </div>
+          {/* Online count badge — green when members are online */}
           {onlineCount > 0 && (
             <span
               className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-1 bg-emerald-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none z-10 ring-1 ring-background"

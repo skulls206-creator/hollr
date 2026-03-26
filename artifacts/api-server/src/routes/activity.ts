@@ -227,15 +227,16 @@ router.get("/presence/summary", async (req, res) => {
     const { getOnlineUserIds } = await import('../lib/ws.js');
     const onlineIds = getOnlineUserIds();
 
-    // For each allowed server, count members that are online
-    const result: Record<string, number> = {};
-    for (const sid of allowedIds) {
-      const members = await db
-        .select({ userId: serverMembersTable.userId })
-        .from(serverMembersTable)
-        .where(eq(serverMembersTable.serverId, sid));
-      const count = members.filter(m => onlineIds.has(m.userId)).length;
-      result[sid] = count;
+    // Single bulk query: all members across all allowed servers
+    const allMembers = await db
+      .select({ serverId: serverMembersTable.serverId, userId: serverMembersTable.userId })
+      .from(serverMembersTable)
+      .where(inArray(serverMembersTable.serverId, allowedIds));
+
+    // Group and count online members per server
+    const result: Record<string, number> = Object.fromEntries(allowedIds.map(id => [id, 0]));
+    for (const m of allMembers) {
+      if (onlineIds.has(m.userId)) result[m.serverId] = (result[m.serverId] ?? 0) + 1;
     }
     res.json(result);
   } catch (err: any) {
