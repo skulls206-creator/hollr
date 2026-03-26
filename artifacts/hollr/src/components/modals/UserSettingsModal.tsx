@@ -1045,7 +1045,7 @@ export function UserSettingsModal() {
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <button
                             disabled
                             className="flex flex-col items-start gap-1 px-4 py-3 bg-surface-0 border border-border/40 rounded-xl text-left opacity-60"
@@ -1065,6 +1065,19 @@ export function UserSettingsModal() {
                             <div className="flex items-center gap-2">
                               <KhurkDiamondBadge size="sm" />
                               <span className="text-base font-bold text-foreground">
+                                $5.00<span className="text-xs font-normal text-muted-foreground">/6 mo</span>
+                              </span>
+                              <span className="text-[10px] font-semibold bg-cyan-500/15 text-cyan-400 px-1.5 py-0.5 rounded-full">Save ~17%</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">Every 6 months · billed twice a year</p>
+                          </button>
+                          <button
+                            disabled
+                            className="flex flex-col items-start gap-1 px-4 py-3 bg-surface-0 border border-border/40 rounded-xl text-left opacity-60"
+                          >
+                            <div className="flex items-center gap-2">
+                              <KhurkDiamondBadge size="sm" />
+                              <span className="text-base font-bold text-foreground">
                                 $10.00<span className="text-xs font-normal text-muted-foreground">/year</span>
                               </span>
                               <span className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-full">Save ~17%</span>
@@ -1073,7 +1086,7 @@ export function UserSettingsModal() {
                           </button>
                         </div>
                         <p className="text-[11px] text-muted-foreground/60 text-center">
-                          Stripe payments coming soon — check back shortly.
+                          Loading plans…
                         </p>
                       </div>
                     )}
