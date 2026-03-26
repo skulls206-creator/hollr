@@ -18,6 +18,7 @@ import { useAppStore } from '@/store/use-app-store';
 import {
   useGetServer, useListChannels, useListDmThreads,
   getGetServerQueryKey, getListChannelsQueryKey, getListDmThreadsQueryKey,
+  getListServerMembersQueryKey, useListServerMembers,
   useDeleteChannel, useUpdateChannel,
   useGetMyProfile, useUpdateMyProfile,
 } from '@workspace/api-client-react';
@@ -161,7 +162,11 @@ export function ChannelSidebar() {
   const { show: showMenu } = useContextMenu();
   const { openProfileCard } = useAppStore();
 
-  const isOwnerOrAdmin = server?.ownerId === user?.id || false;
+  const { data: serverMembers = [] } = useListServerMembers(activeServerId || '', {
+    query: { queryKey: getListServerMembersQueryKey(activeServerId || ''), enabled: !!activeServerId },
+  });
+  const myMemberRole = serverMembers.find((m: any) => m.userId === user?.id)?.role ?? null;
+  const isOwnerOrAdmin = server?.ownerId === user?.id || myMemberRole === 'admin';
 
   const startEditChannel = (channel: Channel, e: React.MouseEvent) => {
     e.stopPropagation();
