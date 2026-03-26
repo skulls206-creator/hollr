@@ -55,6 +55,9 @@ export function AppWindow() {
     files: { name: string; content: string; lastModified: number }[];
     handle?: FileSystemDirectoryHandle;
   } | null>(null);
+  // Tracks which protocol was used when the folder was last connected,
+  // so sendVault() can replay the correct message type.
+  const pendingProtocolRef = useRef<'vault' | 'fs-directory'>('vault');
 
   const app = KHURK_APPS.find((a) => a.id === activeKhurkAppId);
 
@@ -71,6 +74,14 @@ export function AppWindow() {
       const payload = pendingVaultRef.current;
       const win = iframeRef.current?.contentWindow;
       if (!payload || !win) return;
+
+      if (pendingProtocolRef.current === 'fs-directory') {
+        // Foldr-style: send the raw handle directly; the app handles permission prompts.
+        win.postMessage({ type: 'khurk:fs-directory', handle: payload.handle }, '*');
+        return;
+      }
+
+      // Ballpoint-style: send file text copies; include handle only for same-origin iframes.
       let isSameOrigin = false;
       try {
         const appOrigin = new URL(iframeRef.current!.src).origin;
@@ -97,6 +108,7 @@ export function AppWindow() {
     }
     dirHandleRef.current = null;
     pendingVaultRef.current = null;
+    pendingProtocolRef.current = 'vault';
   }, [activeKhurkAppId]);
 
   // Listen for ballpoint:ready — sent by Ballpoint when its message listener is active.
@@ -171,7 +183,32 @@ export function AppWindow() {
       return;
     }
 
-    // Read all .md / .txt / .json files recursively (Hollr has permission, iframe doesn't)
+    const protocol = app?.folderProtocol ?? 'vault';
+
+    if (protocol === 'fs-directory') {
+      // ── Foldr / fs-directory protocol ────────────────────────────────────────
+      // Skip reading files — the app manages its own cloud storage.
+      // Send the raw handle so the app can call requestPermission() itself and
+      // connect directly (Chrome will show a one-time cross-origin permission dialog).
+      pendingProtocolRef.current = 'fs-directory';
+      dirHandleRef.current = dir;
+      pendingVaultRef.current = { name: dir.name, files: [], handle: dir };
+
+      iframe.contentWindow.postMessage(
+        { type: 'khurk:fs-directory', handle: dir },
+        '*',
+      );
+
+      setConnectedFolderName(dir.name);
+      toast({
+        title: `Folder connected: ${dir.name}`,
+        description: 'Foldr will ask for permission to access it — click Allow in the browser dialog.',
+      });
+      return;
+    }
+
+    // ── Ballpoint / vault protocol ────────────────────────────────────────────
+    // Read all .md / .txt / .json files recursively (Hollr has permission, iframe doesn't).
     let files: { name: string; content: string; lastModified: number }[] = [];
     try {
       files = await readDirRecursive(dir);
@@ -225,19 +262,14 @@ export function AppWindow() {
       }
     };
 
+    pendingProtocolRef.current = 'vault';
     vaultListenerRef.current = listener;
     window.addEventListener('message', listener);
 
     // Cache the payload — the ballpoint:ready listener will replay it if needed.
-    // The FileSystemDirectoryHandle is structured-cloneable, so the iframe receives a
-    // live reference it can use directly for unrestricted read/write access.
     pendingVaultRef.current = { name: dir.name, files, handle: dir };
 
-    // Send both the text copies AND the raw handle to the iframe.
-    // Apps that use the handle (foldr, etc.) get full native file system access;
-    // apps that only need text copies (Ballpoint) continue working as before.
-    // Cross-origin guard: omit the handle for cross-origin iframes — browsers
-    // show a permission prompt for handle transfer that then fails cross-origin.
+    // Send file text copies; include raw handle only for same-origin iframes.
     let isSameOrigin = false;
     try {
       isSameOrigin = new URL(iframe.src).origin === window.location.origin;
@@ -252,7 +284,7 @@ export function AppWindow() {
       title: `Vault opened: ${dir.name}`,
       description: `${files.length} note${files.length !== 1 ? 's' : ''} loaded.`,
     });
-  }, [toast]);
+  }, [app, toast]);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {

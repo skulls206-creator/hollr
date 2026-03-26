@@ -27,6 +27,13 @@ export interface KhurkApp {
   iconFit?: 'cover' | 'contain';
   gradient: [string, string];
   openMode?: 'iframe' | 'tab';
+  /**
+   * Controls which postMessage protocol is used when the user connects a folder.
+   * - 'vault'        (default) — reads all .md/.txt/.json files and posts khurk:vault-open
+   * - 'fs-directory' — skips file reading, posts khurk:fs-directory with the raw handle;
+   *                    the app manages its own file access and permission prompts.
+   */
+  folderProtocol?: 'vault' | 'fs-directory';
 }
 
 export function HollrIcon({ size = 26 }: { size?: number }) {
@@ -77,6 +84,7 @@ export const KHURK_APPS: KhurkApp[] = [
     imageSrc: foldrImg,
     bannerSrc: foldrBanner,
     gradient: ['#0a5a9c', '#2ea8e0'],
+    folderProtocol: 'fs-directory',
   },
   {
     id: 'instaghost',
