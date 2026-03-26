@@ -1060,6 +1060,21 @@ export function UserSettingsModal() {
                     <p className="text-[11px] text-muted-foreground/50 leading-relaxed text-center">
                       Secure checkout via Stripe. Cancel anytime from the billing portal.
                     </p>
+
+                    {supporterStatus?.hasCustomerId && (
+                      <Button
+                        onClick={handleSupporterPortal}
+                        disabled={supporterLoading}
+                        variant="ghost"
+                        size="sm"
+                        className="w-full flex items-center gap-2 text-muted-foreground hover:text-foreground"
+                      >
+                        {supporterLoading
+                          ? <Loader2 size={12} className="animate-spin" />
+                          : <ExternalLink size={12} />}
+                        Manage Billing
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

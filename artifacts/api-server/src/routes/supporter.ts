@@ -92,9 +92,16 @@ router.post('/supporter/checkout', async (req: Request, res: Response) => {
     where: eq(userProfilesTable.userId, req.user.id),
   });
 
+  // Profile must exist — it is created at signup and required for Stripe linkage.
+  // If somehow missing, fail fast rather than silently losing the customer ID.
+  if (!profile) {
+    res.status(400).json({ error: 'User profile not found — please contact support' });
+    return;
+  }
+
   const stripe = await getUncachableStripeClient();
 
-  let customerId = profile?.stripeCustomerId ?? null;
+  let customerId = profile.stripeCustomerId ?? null;
   if (!customerId) {
     const customer = await stripe.customers.create({
       metadata: { userId: req.user.id },
