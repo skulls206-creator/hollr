@@ -422,6 +422,15 @@ export function removeBotFromVoiceRoom(channelId: string, userId: string) {
   if (room.size === 0) voiceRooms.delete(channelId);
 }
 
+/** Returns the set of user IDs with an active WebSocket connection. */
+export function getOnlineUserIds(): Set<string> {
+  const ids = new Set<string>();
+  for (const [userId, ws] of userSockets) {
+    if (ws.readyState === WebSocket.OPEN) ids.add(userId);
+  }
+  return ids;
+}
+
 export function sendToUser(userId: string, message: object) {
   const ws = userSockets.get(userId);
   if (ws && ws.readyState === WebSocket.OPEN) {

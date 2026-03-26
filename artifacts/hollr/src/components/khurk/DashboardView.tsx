@@ -6,6 +6,7 @@ import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { useDockOrder } from '@/hooks/use-dock-order';
 import { cn } from '@/lib/utils';
+import { ActivityFeed } from './ActivityFeed';
 
 function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) {
   const { setActiveKhurkAppId } = useAppStore();
@@ -395,6 +396,9 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
             </h1>
             <p className="text-sm text-muted-foreground">Your apps, all in one place</p>
           </div>
+
+          {/* ── Activity Feed ── */}
+          <ActivityFeed />
 
           {/* ── Apps grid ── */}
           <div className="w-full max-w-5xl px-6 md:px-10 pb-12">

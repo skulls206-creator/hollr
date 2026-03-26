@@ -267,6 +267,12 @@ interface AppState {
   setNotifications: (ns: AppNotification[]) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
+
+  // Dock presence: online member counts per server
+  presenceCounts: Record<string, number>;
+  setPresenceCounts: (counts: Record<string, number>) => void;
+  incrementPresenceCount: (serverId: string) => void;
+  decrementPresenceCount: (serverId: string) => void;
 }
 
 export interface AppNotification {
@@ -626,6 +632,21 @@ export const useAppStore = create<AppState>()(
   markAllNotificationsRead: () => set((state) => ({
     notifications: state.notifications.map(n => ({ ...n, read: true })),
     notificationUnread: 0,
+  })),
+
+  presenceCounts: {},
+  setPresenceCounts: (counts) => set({ presenceCounts: counts }),
+  incrementPresenceCount: (serverId) => set((state) => ({
+    presenceCounts: {
+      ...state.presenceCounts,
+      [serverId]: (state.presenceCounts[serverId] ?? 0) + 1,
+    },
+  })),
+  decrementPresenceCount: (serverId) => set((state) => ({
+    presenceCounts: {
+      ...state.presenceCounts,
+      [serverId]: Math.max(0, (state.presenceCounts[serverId] ?? 0) - 1),
+    },
   })),
     }),
     {

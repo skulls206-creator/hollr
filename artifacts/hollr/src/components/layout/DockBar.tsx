@@ -22,12 +22,15 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useAppStore } from '@/store/use-app-store';
-import { useListMyServers } from '@workspace/api-client-react';
+import { useListMyServers, useGetMyProfile, useUpdateMyProfile } from '@workspace/api-client-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn, getInitials } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
+import { useDockPresence } from '@/hooks/use-dock-presence';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -230,11 +233,36 @@ export function DockBar() {
   } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: myProfile } = useGetMyProfile();
+  const updateProfile = useUpdateMyProfile();
+  const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
+  const currentStatus = myProfile?.status ?? 'online';
+
+  const STATUS_OPTIONS = [
+    { value: 'online',  label: 'Online',          color: 'bg-emerald-500' },
+    { value: 'idle',    label: 'Away',             color: 'bg-yellow-400' },
+    { value: 'dnd',     label: 'Do Not Disturb',   color: 'bg-red-500' },
+    { value: 'offline', label: 'Invisible',        color: 'bg-zinc-500' },
+  ] as const;
+
+  const statusDotClass = STATUS_OPTIONS.find(o => o.value === currentStatus)?.color ?? 'bg-emerald-500';
+
+  const handleStatusChange = (status: string) => {
+    updateProfile.mutate(
+      { data: { status: status as any } },
+      { onSuccess: () => qc.invalidateQueries({ queryKey: ['/api/users/me'] }) },
+    );
+    setStatusPopoverOpen(false);
+  };
+
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { data: servers = [] } = useListMyServers();
   const mouseX = useMotionValue(Infinity);
   const { show: showMenu } = useContextMenu();
   const { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll } = useKhurkDismissals();
+  const presenceCounts = useAppStore(s => s.presenceCounts);
+  useDockPresence(servers.map(s => s.id));
 
   // Build the canonical ordered list: servers first, then KHURK apps
   const buildDefaultEntries = useCallback((): DockEntry[] => {
@@ -408,12 +436,14 @@ export function DockBar() {
     if (entry.kind === 'server') {
       const server = servers.find(s => s.id === entry.id);
       if (!server) return null;
+      const onlineCount = presenceCounts[server.id] ?? 0;
       return (
         <SortableDockItem
           key={server.id}
           id={server.id}
           mouseX={mouseX}
           label={server.name}
+          sublabel={onlineCount > 0 ? `${onlineCount} online` : undefined}
           isActive={activeServerId === server.id}
           onClick={() => setActiveServer(server.id)}
           onContextMenu={(e) => handleServerContextMenu(e, server)}
@@ -427,6 +457,15 @@ export function DockBar() {
             >
               {getInitials(server.name)}
             </div>
+          )}
+          {/* Presence ring dot — shown when there are online members */}
+          {onlineCount > 0 && (
+            <span
+              className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-1 bg-emerald-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none z-10 ring-1 ring-background"
+              title={`${onlineCount} online`}
+            >
+              {onlineCount > 99 ? '99+' : onlineCount}
+            </span>
           )}
         </SortableDockItem>
       );
@@ -544,6 +583,38 @@ export function DockBar() {
                   {khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeKhurkAppId && (
                     <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-foreground" />
                   )}
+                  {/* User status dot — bottom-left corner, click to change status */}
+                  <Popover open={statusPopoverOpen} onOpenChange={setStatusPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); setStatusPopoverOpen(p => !p); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setStatusPopoverOpen(p => !p); } }}
+                        className={cn(
+                          'absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full ring-[1.5px] ring-background z-20 cursor-pointer transition-transform hover:scale-125',
+                          statusDotClass
+                        )}
+                        title={`Status: ${currentStatus}`}
+                      />
+                    </PopoverTrigger>
+                    <PopoverContent side="top" align="start" className="w-44 p-1.5" onClick={(e) => e.stopPropagation()}>
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1" style={{ letterSpacing: '0.1em' }}>Set Status</p>
+                      {STATUS_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleStatusChange(opt.value)}
+                          className={cn(
+                            'w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent',
+                            currentStatus === opt.value && 'bg-accent/50 font-semibold'
+                          )}
+                        >
+                          <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', opt.color)} />
+                          {opt.label}
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
                 </motion.button>
               </TooltipTrigger>
               <TooltipContent side="top" className="mb-1">
