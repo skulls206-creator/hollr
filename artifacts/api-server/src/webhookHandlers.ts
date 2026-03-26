@@ -1,17 +1,26 @@
-import { getStripeSync, getUncachableStripeClient } from './stripeClient';
+import { getStripeSync } from './stripeClient';
 import { db } from '@workspace/db';
 import { userProfilesTable } from '@workspace/db/schema';
 import { eq, sql as drizzleSql } from 'drizzle-orm';
 
 const ACTIVE_STATUSES = new Set(['active', 'trialing']);
+const SUPPORTER_PRODUCT_NAME = 'hollr Supporter';
 
 async function syncSupporterStatusForCustomer(stripeCustomerId: string) {
   try {
+    // Only count active subscriptions for the 'hollr Supporter' product,
+    // not any other product the customer may have.
     const result = await db.execute(
       drizzleSql`
-        SELECT status FROM stripe.subscriptions
-        WHERE customer = ${stripeCustomerId}
-        ORDER BY created DESC
+        SELECT s.status
+        FROM stripe.subscriptions s
+        JOIN stripe.subscription_items si ON si.subscription = s.id
+        JOIN stripe.prices pr ON pr.id = si.price
+        JOIN stripe.products p ON p.id = pr.product
+        WHERE s.customer = ${stripeCustomerId}
+          AND p.name = ${SUPPORTER_PRODUCT_NAME}
+          AND p.active = true
+        ORDER BY s.created DESC
         LIMIT 1
       `
     );

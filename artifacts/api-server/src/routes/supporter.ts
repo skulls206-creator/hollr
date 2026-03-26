@@ -6,10 +6,26 @@ import { getUncachableStripeClient } from "../stripeClient";
 
 const router: IRouter = Router();
 
-function getAppBaseUrl(req: any): string {
-  const proto = req.headers['x-forwarded-proto'] ?? req.protocol ?? 'https';
-  const host = req.headers['x-forwarded-host'] ?? req.get('host') ?? '';
-  return `${proto}://${host}`;
+function getAppBaseUrl(): string {
+  const domain = (process.env.REPLIT_DOMAINS ?? '').split(',')[0].trim();
+  if (domain) return `https://${domain}`;
+  return 'http://localhost:3000';
+}
+
+async function getSupporterPriceIds(): Promise<Set<string>> {
+  try {
+    const result = await db.execute(
+      drizzleSql`
+        SELECT pr.id as price_id
+        FROM stripe.products p
+        JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
+        WHERE p.name = 'hollr Supporter' AND p.active = true
+      `
+    );
+    return new Set((result.rows as Array<{ price_id: string }>).map(r => r.price_id));
+  } catch {
+    return new Set();
+  }
 }
 
 // GET /api/supporter/status — returns supporter status for the current user
@@ -59,9 +75,16 @@ router.post('/supporter/checkout', async (req: any, res) => {
     return;
   }
 
-  const { priceId, interval } = req.body;
-  if (!priceId) {
+  const { priceId } = req.body;
+  if (!priceId || typeof priceId !== 'string') {
     res.status(400).json({ error: 'priceId is required' });
+    return;
+  }
+
+  // Server-side validate: priceId must be one of the known hollr Supporter prices
+  const allowedPriceIds = await getSupporterPriceIds();
+  if (!allowedPriceIds.has(priceId)) {
+    res.status(400).json({ error: 'Invalid priceId — not a supporter price' });
     return;
   }
 
@@ -83,7 +106,7 @@ router.post('/supporter/checkout', async (req: any, res) => {
       .where(eq(userProfilesTable.userId, req.user.id));
   }
 
-  const appUrl = getAppBaseUrl(req);
+  const appUrl = getAppBaseUrl();
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     payment_method_types: ['card'],
@@ -113,7 +136,7 @@ router.post('/supporter/portal', async (req: any, res) => {
   }
 
   const stripe = await getUncachableStripeClient();
-  const appUrl = getAppBaseUrl(req);
+  const appUrl = getAppBaseUrl();
   const portalSession = await stripe.billingPortal.sessions.create({
     customer: profile.stripeCustomerId,
     return_url: `${appUrl}/`,
