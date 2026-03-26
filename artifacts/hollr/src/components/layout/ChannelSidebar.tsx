@@ -823,6 +823,20 @@ export function ChannelSidebar() {
         </div>
       </div>
 
+      {/* ── Server Settings shortcut — always visible for owners/admins ── */}
+      {isOwnerOrAdmin && (
+        <div className="mx-2 mb-1">
+          <button
+            onClick={() => setServerSettingsModalOpen(true)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 text-primary transition-all duration-150"
+          >
+            <Settings size={15} className="shrink-0" />
+            <span className="flex-1 text-left text-xs font-semibold">Server Settings</span>
+            <ChevronDown size={12} className="shrink-0 opacity-60 -rotate-90" />
+          </button>
+        </div>
+      )}
+
       <UserProfilePanel user={user} voiceConnection={voiceConnection} onLeaveVoice={leaveVoice} />
     </div>
   );
