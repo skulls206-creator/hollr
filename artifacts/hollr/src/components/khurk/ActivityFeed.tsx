@@ -1,12 +1,19 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MessageSquare, UserPlus, MessageCircle, ChevronDown, ChevronUp, Activity } from 'lucide-react';
+import {
+  MessageSquare, UserPlus, MessageCircle,
+  ChevronDown, ChevronUp, Activity,
+  EyeOff, Eye, UserX, ExternalLink,
+} from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { cn } from '@/lib/utils';
 import { applyNav } from '@/lib/notification-nav';
 
 const BASE = import.meta.env.BASE_URL;
-const LS_KEY = 'hollr:activity-feed:collapsed';
+const LS_COLLAPSED   = 'hollr:activity-feed:collapsed';
+const LS_HIDDEN_IDS  = 'hollr:activity-feed:hidden-ids';
+const LS_HIDDEN_SNDR = 'hollr:activity-feed:hidden-senders';
 
 type ActivityEvent = {
   type: 'message' | 'dm' | 'join';
@@ -19,6 +26,19 @@ type ActivityEvent = {
   channelId: string | null;
   threadId: string | null;
 };
+
+function eventKey(e: ActivityEvent) {
+  return `${e.type}|${e.timestamp}|${e.title}`;
+}
+
+function loadSet(key: string): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(key) ?? '[]') as string[]); }
+  catch { return new Set(); }
+}
+
+function saveSet(key: string, s: Set<string>) {
+  try { localStorage.setItem(key, JSON.stringify([...s])); } catch {}
+}
 
 function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -54,18 +74,105 @@ function typeLabel(type: ActivityEvent['type']) {
   }
 }
 
-function ActivityRow({ event }: { event: ActivityEvent }) {
-  const { setActiveServer, setActiveDmThread } = useAppStore();
+function ActivityRow({
+  event,
+  isHidden,
+  onHide,
+  onUnhide,
+  onHideSender,
+  onUnhideSender,
+}: {
+  event: ActivityEvent;
+  isHidden: boolean;
+  onHide: () => void;
+  onUnhide: () => void;
+  onHideSender: () => void;
+  onUnhideSender: () => void;
+}) {
+  const { show: showMenu } = useContextMenu();
 
-  const handleClick = () => {
+  const navigate = useCallback(() => {
     if (event.threadId) {
       applyNav({ type: 'dm', threadId: event.threadId });
     } else if (event.serverId && event.channelId) {
       applyNav({ type: 'channel', serverId: event.serverId, channelId: event.channelId });
     } else if (event.serverId) {
-      setActiveServer(event.serverId);
+      useAppStore.getState().setActiveServer(event.serverId);
     }
-  };
+  }, [event]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const actions = isHidden
+      ? [
+          {
+            id: 'unhide-this',
+            label: 'Show this notification',
+            icon: <Eye size={14} />,
+            onClick: onUnhide,
+          },
+          {
+            id: 'unhide-sender',
+            label: `Show all from ${event.title}`,
+            icon: <Eye size={14} />,
+            onClick: onUnhideSender,
+          },
+          {
+            id: 'open',
+            label: 'Open',
+            icon: <ExternalLink size={14} />,
+            onClick: navigate,
+            dividerBefore: true,
+          },
+        ]
+      : [
+          {
+            id: 'hide-this',
+            label: 'Hide this notification',
+            icon: <EyeOff size={14} />,
+            onClick: onHide,
+          },
+          {
+            id: 'hide-sender',
+            label: `Hide all from ${event.title}`,
+            icon: <UserX size={14} />,
+            onClick: onHideSender,
+          },
+          {
+            id: 'open',
+            label: 'Open',
+            icon: <ExternalLink size={14} />,
+            onClick: navigate,
+            dividerBefore: true,
+          },
+        ];
+
+    showMenu({
+      x: e.clientX,
+      y: e.clientY,
+      title: event.title,
+      subtitle: event.subtitle,
+      titleIcon: event.avatarUrl ?? undefined,
+      actions,
+    });
+  }, [isHidden, event, navigate, onHide, onUnhide, onHideSender, onUnhideSender, showMenu]);
+
+  const handleLongPress = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    const timer = setTimeout(() => {
+      handleContextMenu({
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+      } as unknown as React.MouseEvent);
+    }, 500);
+    const cancel = () => clearTimeout(timer);
+    e.currentTarget.addEventListener('touchend', cancel, { once: true });
+    e.currentTarget.addEventListener('touchmove', cancel, { once: true });
+  }, [handleContextMenu]);
 
   const initials = event.title
     .split(' ')
@@ -76,20 +183,28 @@ function ActivityRow({ event }: { event: ActivityEvent }) {
 
   return (
     <button
-      onClick={handleClick}
-      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-accent/50 transition-colors text-left group"
+      onClick={isHidden ? undefined : navigate}
+      onContextMenu={handleContextMenu}
+      onTouchStart={handleLongPress}
+      className={cn(
+        'w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors text-left group',
+        isHidden
+          ? 'opacity-35 cursor-default'
+          : 'hover:bg-accent/50 cursor-pointer',
+      )}
     >
       {/* Avatar */}
       <div className="relative shrink-0">
         {event.avatarUrl ? (
-          <img
-            src={event.avatarUrl}
-            alt=""
-            className="w-7 h-7 rounded-full object-cover"
-          />
+          <img src={event.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
         ) : (
           <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
             {initials.slice(0, 2)}
+          </div>
+        )}
+        {isHidden && (
+          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-surface-3 flex items-center justify-center">
+            <EyeOff size={7} className="text-muted-foreground/60" />
           </div>
         )}
       </div>
@@ -126,16 +241,44 @@ function SkeletonRow() {
 
 export function ActivityFeed() {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem(LS_KEY) === 'true'; } catch { return false; }
+    try { return localStorage.getItem(LS_COLLAPSED) === 'true'; } catch { return false; }
   });
+
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => loadSet(LS_HIDDEN_IDS));
+  const [hiddenSenders, setHiddenSenders] = useState<Set<string>>(() => loadSet(LS_HIDDEN_SNDR));
+  const [showHidden, setShowHidden] = useState(false);
 
   const toggleCollapsed = () => {
     setCollapsed(c => {
       const next = !c;
-      try { localStorage.setItem(LS_KEY, String(next)); } catch {}
+      try { localStorage.setItem(LS_COLLAPSED, String(next)); } catch {}
       return next;
     });
   };
+
+  const hideId = useCallback((key: string) => {
+    setHiddenIds(prev => {
+      const next = new Set(prev); next.add(key); saveSet(LS_HIDDEN_IDS, next); return next;
+    });
+  }, []);
+
+  const unhideId = useCallback((key: string) => {
+    setHiddenIds(prev => {
+      const next = new Set(prev); next.delete(key); saveSet(LS_HIDDEN_IDS, next); return next;
+    });
+  }, []);
+
+  const hideSender = useCallback((sender: string) => {
+    setHiddenSenders(prev => {
+      const next = new Set(prev); next.add(sender); saveSet(LS_HIDDEN_SNDR, next); return next;
+    });
+  }, []);
+
+  const unhideSender = useCallback((sender: string) => {
+    setHiddenSenders(prev => {
+      const next = new Set(prev); next.delete(sender); saveSet(LS_HIDDEN_SNDR, next); return next;
+    });
+  }, []);
 
   const { data, isLoading } = useQuery<ActivityEvent[]>({
     queryKey: ['activity-feed'],
@@ -149,29 +292,54 @@ export function ActivityFeed() {
   });
 
   const events = data ?? [];
+  const hiddenCount = events.filter(e => hiddenIds.has(eventKey(e)) || hiddenSenders.has(e.title)).length;
+  const visibleCount = events.length - hiddenCount;
 
   return (
     <div className="w-full max-w-5xl px-6 md:px-10 mb-6">
       {/* Section header */}
-      <button
-        onClick={toggleCollapsed}
-        className="w-full flex items-center justify-between mb-3 group"
-      >
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between mb-3">
+        <button
+          onClick={toggleCollapsed}
+          className="flex items-center gap-2 group flex-1 min-w-0"
+        >
           <Activity size={13} className="text-muted-foreground/70" />
           <span className="text-[10px] font-bold uppercase text-muted-foreground/60" style={{ letterSpacing: '0.2em' }}>
             Recent Activity
           </span>
-          {!isLoading && events.length > 0 && (
+          {!isLoading && visibleCount > 0 && (
             <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[9px] font-bold leading-none">
-              {events.length}
+              {visibleCount}
             </span>
           )}
+        </button>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Show/hide hidden toggle — only visible when there are hidden items */}
+          {hiddenCount > 0 && !collapsed && (
+            <button
+              onClick={() => setShowHidden(s => !s)}
+              className={cn(
+                'flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold transition-colors',
+                showHidden
+                  ? 'bg-primary/15 text-primary'
+                  : 'bg-accent/50 text-muted-foreground hover:text-foreground',
+              )}
+              title={showHidden ? 'Hide hidden items' : `Show ${hiddenCount} hidden item${hiddenCount !== 1 ? 's' : ''}`}
+            >
+              {showHidden ? <EyeOff size={9} /> : <Eye size={9} />}
+              {hiddenCount}
+            </button>
+          )}
+
+          <button
+            onClick={toggleCollapsed}
+            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+          >
+            {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+          </button>
         </div>
-        <span className="text-muted-foreground/40 group-hover:text-muted-foreground transition-colors">
-          {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
-        </span>
-      </button>
+      </div>
 
       {!collapsed && (
         <div className="rounded-xl border border-border/30 bg-card/50 overflow-hidden divide-y divide-border/20">
@@ -188,9 +356,37 @@ export function ActivityFeed() {
             </div>
           ) : (
             <div className="py-1">
-              {events.map((event, i) => (
-                <ActivityRow key={`${event.type}-${event.timestamp}-${i}`} event={event} />
-              ))}
+              {events.map((event, i) => {
+                const key = eventKey(event);
+                const isHiddenItem = hiddenIds.has(key) || hiddenSenders.has(event.title);
+                if (isHiddenItem && !showHidden) return null;
+                return (
+                  <ActivityRow
+                    key={`${key}-${i}`}
+                    event={event}
+                    isHidden={isHiddenItem}
+                    onHide={() => hideId(key)}
+                    onUnhide={() => unhideId(key)}
+                    onHideSender={() => hideSender(event.title)}
+                    onUnhideSender={() => unhideSender(event.title)}
+                  />
+                );
+              })}
+              {/* Empty state when everything is hidden */}
+              {visibleCount === 0 && !showHidden && (
+                <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
+                  <EyeOff size={18} className="text-muted-foreground/30" />
+                  <p className="text-xs text-muted-foreground/50">
+                    {hiddenCount} notification{hiddenCount !== 1 ? 's' : ''} hidden
+                  </p>
+                  <button
+                    onClick={() => setShowHidden(true)}
+                    className="text-[11px] text-primary/70 hover:text-primary transition-colors"
+                  >
+                    Show hidden
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
