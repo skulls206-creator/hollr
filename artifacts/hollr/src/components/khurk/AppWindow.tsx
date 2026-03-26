@@ -3,7 +3,7 @@ import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon } from '@/lib/khurk-apps';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
-import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, Menu, FolderOpen, FolderCheck, RotateCcw } from 'lucide-react';
+import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, PanelLeft, PanelLeftClose, MessageSquare, FolderOpen, FolderCheck, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ── Recursive directory reader ──────────────────────────────────────────────
@@ -36,6 +36,7 @@ export function AppWindow() {
     activeKhurkAppId, setActiveKhurkAppId, setKhurkPipMode,
     pipWindows, addPipWindow,
     layoutMode, toggleMobileSidebar, toggleClassicChannel,
+    appWindowSidebarHidden, toggleAppWindowSidebar,
   } = useAppStore();
   const { toast } = useToast();
   const { show: showMenu } = useContextMenu();
@@ -300,13 +301,22 @@ export function AppWindow() {
         className="flex items-center gap-2 px-3 py-2 bg-surface-1 border-b border-border/30 shrink-0 select-none cursor-default"
         onContextMenu={handleContextMenu}
       >
-        {/* Hamburger */}
+        {/* Toggle icon rail */}
+        <button
+          title={appWindowSidebarHidden ? 'Show side icons' : 'Hide side icons'}
+          onClick={toggleAppWindowSidebar}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors shrink-0"
+        >
+          {appWindowSidebarHidden ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
+        </button>
+
+        {/* Toggle DM / channel panel */}
         <button
           title="Toggle messages panel"
           onClick={() => layoutMode === 'classic' ? toggleClassicChannel() : toggleMobileSidebar()}
           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors shrink-0 mr-0.5"
         >
-          <Menu size={16} />
+          <MessageSquare size={16} />
         </button>
 
         {/* App icon */}

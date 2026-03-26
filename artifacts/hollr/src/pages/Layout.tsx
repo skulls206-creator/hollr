@@ -44,6 +44,7 @@ export function Layout() {
     classicChannelOpen, toggleClassicChannel, setClassicChannelOpen,
     sidebarLocked, setSidebarLocked, toggleMobileSidebar,
     incrementDmUnreadCount, clearDmUnreadCount,
+    appWindowSidebarHidden,
   } = useAppStore();
 
   useInitNotifications();
@@ -216,9 +217,11 @@ export function Layout() {
           ── Classic layout: permanent server icon rail ──
           Rendered as an always-in-flow sibling — NEVER toggled or hidden,
           not even on mobile (it's only 72px wide so it fits on any screen).
+          Exception: hidden when a KHURK app is open AND the user has toggled
+          the icon rail off via the AppWindow header button.
           The channel sidebar below slides independently beside it.
         */}
-        {layoutMode === 'classic' && (
+        {layoutMode === 'classic' && !(showAppWindow && appWindowSidebarHidden) && (
           <div className="relative h-full shrink-0 z-40">
             <ServerSidebar />
           </div>
@@ -254,13 +257,16 @@ export function Layout() {
                 // always moves the sidebar to x = 0-260 = -260 (fully off screen).
                 ? [
                     'top-0 bottom-[78px] md:bottom-0 md:h-full',
-                    sidebarLocked
-                      ? (showDashboard || showAppWindow)
-                        ? 'fixed left-0 translate-x-0'
-                        : 'fixed left-0 translate-x-0 md:relative md:left-auto md:h-full'
-                      : (showDashboard || showAppWindow)
-                        ? `fixed left-0 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
-                        : `fixed left-0 md:relative md:left-auto md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
+                    // If a KHURK app is open and user hid the icon rail, force off-screen.
+                    (showAppWindow && appWindowSidebarHidden)
+                      ? 'fixed left-0 -translate-x-full'
+                      : sidebarLocked
+                        ? (showDashboard || showAppWindow)
+                          ? 'fixed left-0 translate-x-0'
+                          : 'fixed left-0 translate-x-0 md:relative md:left-auto md:h-full'
+                        : (showDashboard || showAppWindow)
+                          ? `fixed left-0 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+                          : `fixed left-0 md:relative md:left-auto md:h-full ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
                   ].join(' ')
                 : `fixed top-0 left-0 h-full md:relative md:h-full md:left-auto ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`,
           ].join(' ')}

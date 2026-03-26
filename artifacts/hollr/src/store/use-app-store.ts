@@ -110,6 +110,11 @@ interface AppState {
   sidebarLocked: boolean;
   setSidebarLocked: (v: boolean) => void;
 
+  // AppWindow icon-rail toggle (resets when app closes)
+  appWindowSidebarHidden: boolean;
+  toggleAppWindowSidebar: () => void;
+  setAppWindowSidebarHidden: (v: boolean) => void;
+
   // Actions
   setActiveServer: (id: string | null) => void;
   setActiveChannel: (id: string | null) => void;
@@ -342,7 +347,7 @@ export const useAppStore = create<AppState>()(
 
   // KHURK OS app shell state
   activeKhurkAppId: null,
-  setActiveKhurkAppId: (id) => set({ activeKhurkAppId: id, khurkPipMode: false }),
+  setActiveKhurkAppId: (id) => set({ activeKhurkAppId: id, khurkPipMode: false, appWindowSidebarHidden: false }),
   khurkPipMode: false,
   setKhurkPipMode: (v) => set({ khurkPipMode: v }),
   khurkDashboardOpen: true,
@@ -357,6 +362,7 @@ export const useAppStore = create<AppState>()(
     pinnedPanelOpen: false,
     threadMessageId: null,
     threadChannelId: null,
+    appWindowSidebarHidden: false,
   }),
 
   // Multi-PiP windows
@@ -391,6 +397,7 @@ export const useAppStore = create<AppState>()(
     threadChannelId: null,
     khurkDashboardOpen: false,
     activeKhurkAppId: null,
+    appWindowSidebarHidden: false,
   }),
   setActiveChannel: (id) => set({
     activeChannelId: id,
@@ -413,6 +420,7 @@ export const useAppStore = create<AppState>()(
     threadChannelId: null,
     khurkDashboardOpen: false,
     activeKhurkAppId: null,
+    appWindowSidebarHidden: false,
   }),
 
   setCreateServerModalOpen: (open) => set({ createServerModalOpen: open }),
@@ -540,6 +548,10 @@ export const useAppStore = create<AppState>()(
 
   sidebarLocked: false,
   setSidebarLocked: (v) => set({ sidebarLocked: v }),
+
+  appWindowSidebarHidden: false,
+  toggleAppWindowSidebar: () => set((state) => ({ appWindowSidebarHidden: !state.appWindowSidebarHidden })),
+  setAppWindowSidebarHidden: (v) => set({ appWindowSidebarHidden: v }),
 
   khurkOsEnabled: true,
   toggleKhurkOs: () => set((state) => ({ khurkOsEnabled: !state.khurkOsEnabled })),
