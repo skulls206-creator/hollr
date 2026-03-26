@@ -7,6 +7,7 @@ import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { useDockOrder } from '@/hooks/use-dock-order';
 import { cn } from '@/lib/utils';
 import { ActivityFeed } from './ActivityFeed';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) {
   const { setActiveKhurkAppId } = useAppStore();
@@ -311,6 +312,8 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
           <span className="text-sm font-bold tracking-tight text-foreground">KHURK OS</span>
         </div>
         <div className="flex items-center gap-1 ml-auto">
+          <NotificationBell />
+          <div className="w-px h-4 bg-border/30 mx-0.5 shrink-0" />
           <button
             onClick={() => setViewMode('grid')}
             className={cn(
