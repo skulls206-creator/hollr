@@ -497,6 +497,21 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
             <button onClick={createFile} title="New File" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><Plus size={11} /></button>
             <button onClick={createFolder} title="New Folder" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><FolderPlus size={11} /></button>
             <button onClick={() => fileInputRef.current?.click()} title="Upload Files" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><Upload size={11} /></button>
+            {selected && (
+              <>
+                <div className="w-px h-4 bg-white/[0.06] mx-0.5" />
+                <button
+                  onClick={() => { const e = entries.find(en => en.name === selected); if (e) startRename(e); }}
+                  title={`Rename "${selected}"`}
+                  className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"
+                ><Edit2 size={11} /></button>
+                <button
+                  onClick={() => setConfirmDelete(selected)}
+                  title={`Delete "${selected}"`}
+                  className="p-1.5 rounded-md text-white/25 hover:text-red-400/80 hover:bg-red-500/10 transition-colors"
+                ><Trash2 size={11} /></button>
+              </>
+            )}
             <div className="w-px h-4 bg-white/[0.06] mx-0.5" />
             <button onClick={() => setViewMode(v => v === 'grid' ? 'list' : 'grid')} title="Toggle view"
               className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors">

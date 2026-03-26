@@ -326,12 +326,16 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   }, [dirHandle, notes]);
 
   const filteredNotes = notes.filter(n => {
-    if (section === 'trash') return trash.has(n.name);
-    if (trash.has(n.name)) return false;
-    if (section === 'favorites') return favorites.has(n.name);
-    if (section === 'archive') return archive.has(n.name);
-    if (archive.has(n.name)) return false;
-    if (search && !n.name.toLowerCase().includes(search.toLowerCase()) && !n.content.toLowerCase().includes(search.toLowerCase())) return false;
+    // Section filter
+    if (section === 'trash') { if (!trash.has(n.name)) return false; }
+    else if (section === 'favorites') { if (trash.has(n.name) || !favorites.has(n.name)) return false; }
+    else if (section === 'archive') { if (trash.has(n.name) || !archive.has(n.name)) return false; }
+    else { if (trash.has(n.name) || archive.has(n.name)) return false; }
+    // Search filter applied consistently in every section
+    if (search) {
+      const q = search.toLowerCase();
+      return n.name.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+    }
     return true;
   });
 
