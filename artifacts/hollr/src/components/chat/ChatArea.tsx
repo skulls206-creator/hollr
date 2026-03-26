@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -276,6 +277,9 @@ export function ChatArea() {
             >
               <Users size={20} />
             </button>
+
+            {/* Global notification bell */}
+            <NotificationBell />
 
             {/* Search — hidden on mobile, visible on md+ */}
             <div className="relative hidden md:block" ref={searchRef}>

@@ -20,6 +20,7 @@ import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { hideMessage, unhideMessage } from '@/lib/hidden-messages';
 import { markDmThreadRead } from '@/lib/dm-seen-tracker';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 async function editDmMessage(threadId: string, messageId: string, content: string) {
   const res = await fetch(`/api/dms/${threadId}/messages/${messageId}`, {
@@ -562,6 +563,8 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
             </button>
           )}
 
+          {/* Notification bell */}
+          <NotificationBell />
         </div>
       </div>
 
