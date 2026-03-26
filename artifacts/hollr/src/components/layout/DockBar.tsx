@@ -31,6 +31,8 @@ import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
 import { useDockPresence } from '@/hooks/use-dock-presence';
+import { useSupporterButtonState, useSupporterContextMenu, SupporterContextMenuPopup } from '@/components/ui/SupporterDiamondButton';
+import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -177,6 +179,52 @@ function OverlayIcon({ children }: { children: React.ReactNode }) {
         {children}
       </motion.div>
     </div>
+  );
+}
+
+// ─── SupporterDockItem — magnification-aware dock button for Supporter promo ─
+
+function SupporterDockItem({ mouseX }: { mouseX: ReturnType<typeof useMotionValue<number>> }) {
+  const { visible, handleClick, handleHide } = useSupporterButtonState();
+  const {
+    contextMenu, menuRef, handleContextMenu, handleTouchStart, handleTouchEnd,
+    handleClickGuard, onMenuHide,
+  } = useSupporterContextMenu(handleHide);
+
+  if (!visible) return null;
+
+  return (
+    <>
+      <DockItem
+        mouseX={mouseX}
+        label="Become a Supporter"
+        onClick={() => handleClickGuard(handleClick)}
+        onContextMenu={handleContextMenu}
+      >
+        <div
+          className="w-full h-full flex items-center justify-center rounded-xl"
+          style={{
+            background: 'radial-gradient(ellipse at 30% 30%, #0f2533 0%, #061018 100%)',
+            boxShadow: '0 0 10px rgba(34,211,238,0.25)',
+            border: '1px solid rgba(34,211,238,0.25)',
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchMove={handleTouchEnd}
+        >
+          <KhurkDiamondBadge size="lg" title="Become a Supporter" />
+        </div>
+      </DockItem>
+
+      {contextMenu && (
+        <SupporterContextMenuPopup
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onHide={onMenuHide}
+          menuRef={menuRef}
+        />
+      )}
+    </>
   );
 }
 
@@ -685,6 +733,9 @@ export function DockBar() {
               </div>
             </DockItem>
           </div>
+
+          {/* Supporter diamond button — uses DockItem for native magnification */}
+          <SupporterDockItem mouseX={mouseX} />
 
           {/* Divider */}
           <div className="w-px self-stretch mx-3 bg-border/40 rounded-full shrink-0" />

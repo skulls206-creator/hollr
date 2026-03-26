@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/use-app-store';
+import type { UserSettingsTab } from '@/types/settings';
 import { useGetMyProfile, useUpdateMyProfile } from '@workspace/api-client-react';
 import { sendVoiceSignal, sendPresenceUpdate } from '@/hooks/use-realtime';
 import { useAuth } from '@workspace/replit-auth-web';
@@ -17,7 +18,7 @@ import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 import { cn } from '@/lib/utils';
 import { usePushNotifications, PushDevice } from '@/hooks/use-push-notifications';
 
-type Tab = 'profile' | 'account' | 'appearance' | 'audio' | 'notifications' | 'privacy' | 'supporter';
+type Tab = UserSettingsTab;
 type UserStatus = 'online' | 'idle' | 'dnd' | 'invisible';
 
 interface AudioDevice {
@@ -162,6 +163,7 @@ export function UserSettingsModal() {
     chatFontSize, setChatFontSize,
     allowCallsFrom, setAllowCallsFrom,
     ringtoneId, setRingtoneId,
+    userSettingsInitialTab,
   } = useAppStore();
   const { user, logout } = useAuth();
   const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
@@ -169,6 +171,14 @@ export function UserSettingsModal() {
   const qc = useQueryClient();
 
   const [tab, setTab] = useState<Tab>('profile');
+
+  useEffect(() => {
+    if (userSettingsModalOpen && userSettingsInitialTab) {
+      setTab(userSettingsInitialTab);
+    } else if (!userSettingsModalOpen) {
+      setTab('profile');
+    }
+  }, [userSettingsModalOpen, userSettingsInitialTab]);
   const [displayName, setDisplayName] = useState('');
   const [customStatus, setCustomStatus] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');

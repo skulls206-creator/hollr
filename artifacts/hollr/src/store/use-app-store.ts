@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { RingtoneId } from '@/lib/notification-sound';
+import type { UserSettingsTab } from '@/types/settings';
 
 export interface PipWindowEntry {
   id: string;
@@ -153,6 +154,8 @@ interface AppState {
 
   // User settings modal
   setUserSettingsModalOpen: (open: boolean) => void;
+  userSettingsInitialTab: UserSettingsTab | null;
+  openUserSettingsToTab: (tab: UserSettingsTab) => void;
 
   // Unread message counts per channel
   unreadCounts: Record<string, number>;
@@ -334,6 +337,8 @@ export const useAppStore = create<AppState>()(
   ringtoneId: 'classic',
   setRingtoneId: (id) => set({ ringtoneId: id }),
   userSettingsModalOpen: false,
+  userSettingsInitialTab: null,
+  openUserSettingsToTab: (tab) => set({ userSettingsModalOpen: true, userSettingsInitialTab: tab }),
 
   // KHURK OS app shell state
   activeKhurkAppId: null,
@@ -490,7 +495,7 @@ export const useAppStore = create<AppState>()(
 
   toggleMicMuted: () => set((state) => ({ micMuted: !state.micMuted })),
   toggleDeafened: () => set((state) => ({ deafened: !state.deafened })),
-  setUserSettingsModalOpen: (open) => set({ userSettingsModalOpen: open }),
+  setUserSettingsModalOpen: (open) => set({ userSettingsModalOpen: open, userSettingsInitialTab: null }),
 
   unreadCounts: {},
   setUnreadCount: (channelId, count) => set((state) => ({ unreadCounts: { ...state.unreadCounts, [channelId]: count } })),

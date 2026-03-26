@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
+import { SupporterDiamondButton } from '@/components/ui/SupporterDiamondButton';
 import {
   DndContext, DragOverlay, PointerSensor,
   useSensor, useSensors, closestCenter,
@@ -413,6 +414,9 @@ export function ServerSidebar() {
         </Tooltip>
 
         <div className="w-8 h-[2px] bg-border/40 rounded-full my-1" />
+
+        {/* ── Supporter diamond ── */}
+        <SupporterDiamondButton variant="sidebar" />
 
         {/* ── Server list — drag-to-reorder ── */}
         <SortableContext items={serverOrder} strategy={verticalListSortingStrategy}>
