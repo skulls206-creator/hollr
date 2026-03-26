@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 export interface NativePanelProps {
   dirHandle: FileSystemDirectoryHandle | null;
   onPickFolder: () => void;
+  storagePrefix: string;
 }
 
 type NoteSection = 'all' | 'favorites' | 'archive' | 'trash';
@@ -34,10 +35,14 @@ function titleFromName(name: string): string {
   return name.replace(/\.(md|txt)$/i, '').replace(/[-_]/g, ' ');
 }
 
-const LAST_FOLDER_KEY = 'ballpoint:lastFolderName';
+function storageKey(prefix: string, handle: FileSystemDirectoryHandle, suffix: string): string {
+  // Combine the app's stable ID prefix with the folder name to prevent collisions
+  // between different apps or different folders that share the same display name.
+  return `${prefix}:${handle.name}:${suffix}`;
+}
 
-function storageKey(handle: FileSystemDirectoryHandle, suffix: string): string {
-  return `bp:${handle.name}:${suffix}`;
+function lastFolderKey(prefix: string): string {
+  return `${prefix}:lastFolderName`;
 }
 
 function loadSet(key: string): Set<string> {
@@ -71,7 +76,7 @@ function simpleMarkdown(text: string): string {
   return `<p style="margin:6px 0">${h}</p>`;
 }
 
-export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
+export function BallpointPanel({ dirHandle, onPickFolder, storagePrefix }: NativePanelProps) {
   const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const [content, setContent] = useState('');
@@ -123,12 +128,28 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   useEffect(() => {
     if (!dirHandle) { setNotes([]); setActiveNote(null); setContent(''); return; }
     // Persist folder name so we can show a reconnect prompt next time
-    localStorage.setItem(LAST_FOLDER_KEY, dirHandle.name);
-    setFavorites(loadSet(storageKey(dirHandle, 'fav')));
-    setArchive(loadSet(storageKey(dirHandle, 'arc')));
-    setTrash(loadSet(storageKey(dirHandle, 'trash')));
+    localStorage.setItem(lastFolderKey(storagePrefix), dirHandle.name);
+    setFavorites(loadSet(storageKey(storagePrefix, dirHandle, 'fav')));
+    setArchive(loadSet(storageKey(storagePrefix, dirHandle, 'arc')));
+    setTrash(loadSet(storageKey(storagePrefix, dirHandle, 'trash')));
     loadNotes(dirHandle);
   }, [dirHandle, loadNotes]);
+
+  // Flush any pending autosave to disk when the panel is unmounted or the app
+  // is closed, so keystrokes within the 800ms debounce window are not lost.
+  useEffect(() => () => {
+    if (!saveTimerRef.current) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+    const handle = dirRef.current;
+    const name = activeNoteRef.current;
+    const text = contentRef.current;
+    if (!handle || !name) return;
+    handle.getFileHandle(name, { create: true })
+      .then(fh => fh.createWritable())
+      .then(w => w.write(text).then(() => w.close()))
+      .catch(() => { /* best-effort */ });
+  }, []);
 
   const scheduleAutoSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -233,7 +254,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
       const migrate = (s: Set<string>, key: string): Set<string> => {
         if (!s.has(renaming)) return s;
         const n = new Set(s); n.delete(renaming); n.add(newName);
-        saveSet(storageKey(dirHandle, key), n);
+        saveSet(storageKey(storagePrefix, dirHandle, key), n);
         return n;
       };
       setFavorites(p => migrate(p, 'fav'));
@@ -250,7 +271,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     setFavorites(prev => {
       const n = new Set(prev);
       if (n.has(name)) n.delete(name); else n.add(name);
-      saveSet(storageKey(dirHandle, 'fav'), n);
+      saveSet(storageKey(storagePrefix, dirHandle, 'fav'), n);
       return n;
     });
     setCtxMenu(null);
@@ -261,7 +282,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     setArchive(prev => {
       const n = new Set(prev);
       if (n.has(name)) n.delete(name); else n.add(name);
-      saveSet(storageKey(dirHandle, 'arc'), n);
+      saveSet(storageKey(storagePrefix, dirHandle, 'arc'), n);
       return n;
     });
     setCtxMenu(null);
@@ -271,7 +292,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     if (!dirHandle) return;
     setTrash(prev => {
       const n = new Set(prev); n.add(name);
-      saveSet(storageKey(dirHandle, 'trash'), n);
+      saveSet(storageKey(storagePrefix, dirHandle, 'trash'), n);
       return n;
     });
     if (activeNote === name) {
@@ -286,7 +307,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     if (!dirHandle) return;
     setTrash(prev => {
       const n = new Set(prev); n.delete(name);
-      saveSet(storageKey(dirHandle, 'trash'), n);
+      saveSet(storageKey(storagePrefix, dirHandle, 'trash'), n);
       return n;
     });
     setCtxMenu(null);
@@ -299,7 +320,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
       setNotes(prev => prev.filter(n => n.name !== name));
       setTrash(prev => {
         const n = new Set(prev); n.delete(name);
-        saveSet(storageKey(dirHandle, 'trash'), n);
+        saveSet(storageKey(storagePrefix, dirHandle, 'trash'), n);
         return n;
       });
       if (activeNote === name) { setActiveNote(null); setContent(''); }
@@ -343,7 +364,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
 
   if (!dirHandle) {
-    const lastFolder = localStorage.getItem(LAST_FOLDER_KEY);
+    const lastFolder = localStorage.getItem(lastFolderKey(storagePrefix));
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-[#0f0a1e] gap-5 px-6 text-white">
         <div className="w-14 h-14 rounded-2xl bg-purple-600/20 flex items-center justify-center">

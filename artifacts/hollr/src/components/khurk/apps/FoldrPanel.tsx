@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 export interface NativePanelProps {
   dirHandle: FileSystemDirectoryHandle | null;
   onPickFolder: () => void;
+  storagePrefix: string;
 }
 
 interface FsEntry {
