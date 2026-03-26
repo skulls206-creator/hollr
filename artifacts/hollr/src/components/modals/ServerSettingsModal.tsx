@@ -57,15 +57,20 @@ export function ServerSettingsModal() {
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
       onClick={() => setServerSettingsModalOpen(false)}
     >
       <div
-        className="bg-surface-3 rounded-xl shadow-2xl w-full max-w-md"
+        className="bg-surface-3 rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-md flex flex-col max-h-[92dvh] sm:max-h-[85dvh]"
         onClick={e => e.stopPropagation()}
       >
+        {/* Drag handle — mobile only */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-10 h-1 rounded-full bg-border/40" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/10">
+        <div className="flex items-center justify-between px-5 py-3.5 sm:px-6 sm:py-4 border-b border-border/10 shrink-0">
           <div className="flex items-center gap-2.5">
             <Server size={20} className="text-primary" />
             <h2 className="text-lg font-bold text-foreground">Server Settings</h2>
@@ -78,8 +83,8 @@ export function ServerSettingsModal() {
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 space-y-5">
+        {/* Body — scrollable */}
+        <div className="px-5 py-5 sm:px-6 space-y-5 overflow-y-auto flex-1 min-h-0">
           {/* Server Icon */}
           <div>
             <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">
@@ -126,8 +131,8 @@ export function ServerSettingsModal() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-border/10">
+        {/* Footer — sticky at bottom */}
+        <div className="flex justify-end gap-3 px-5 py-4 sm:px-6 border-t border-border/10 shrink-0">
           <button
             onClick={() => setServerSettingsModalOpen(false)}
             className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
