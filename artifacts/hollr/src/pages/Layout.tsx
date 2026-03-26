@@ -242,14 +242,15 @@ export function Layout() {
             layoutMode === 'classic'
               // Classic: icon rail (ServerSidebar, 72px) is always in-flow.
               // Channel sidebar slides independently beside it.
-              // Mobile open:   left-[72px] translate-x-0    → right of icon rail ✓
+              // Mobile open (rail visible):  left-[72px] translate-x-0  → right of icon rail ✓
+              // Mobile open (rail hidden):   left-0 translate-x-0       → flush left edge ✓
               // Mobile closed: left-0 -translate-x-full     → x = 0-260 = -260 → fully off screen ✓
               //   (using left-[72px] when closed gave x = 72-260 = -188, leaving 72px visible)
               // Desktop: in-flow, collapses to w-0 when closed.
               ? [
                   'top-0 h-full fixed md:left-auto md:relative md:h-full',
                   classicChannelOpen
-                    ? 'left-[72px] translate-x-0'
+                    ? `${showAppWindow && appWindowSidebarHidden ? 'left-0' : 'left-[72px]'} translate-x-0`
                     : 'left-0 -translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:min-w-0',
                 ].join(' ')
               : layoutMode === 'dock'
