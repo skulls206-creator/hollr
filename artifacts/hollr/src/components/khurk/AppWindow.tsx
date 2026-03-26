@@ -62,13 +62,25 @@ export function AppWindow() {
   // Declared first — useEffects below depend on it; declaring after them causes a
   // temporal dead zone error in production builds (minified variable used before init).
   // Safe to call any time — no-ops if there's no payload or iframe isn't ready.
+  //
+  // Cross-origin guard: FileSystemDirectoryHandle transfer triggers a browser
+  // permission prompt for cross-origin iframes and then fails. When the app is
+  // not same-origin, we send only the text file copies — the handle is omitted.
   const sendVault = useCallback((delayMs = 0) => {
     const go = () => {
       const payload = pendingVaultRef.current;
       const win = iframeRef.current?.contentWindow;
-      if (payload && win) {
-        win.postMessage({ type: 'khurk:vault-open', ...payload }, '*');
-      }
+      if (!payload || !win) return;
+      let isSameOrigin = false;
+      try {
+        const appOrigin = new URL(iframeRef.current!.src).origin;
+        isSameOrigin = appOrigin === window.location.origin;
+      } catch { /* invalid URL — treat as cross-origin */ }
+      const { handle: _handle, ...safePayload } = payload;
+      win.postMessage(
+        { type: 'khurk:vault-open', ...(isSameOrigin ? payload : safePayload) },
+        '*',
+      );
     };
     if (delayMs > 0) setTimeout(go, delayMs); else go();
   }, []);
@@ -224,8 +236,14 @@ export function AppWindow() {
     // Send both the text copies AND the raw handle to the iframe.
     // Apps that use the handle (foldr, etc.) get full native file system access;
     // apps that only need text copies (Ballpoint) continue working as before.
+    // Cross-origin guard: omit the handle for cross-origin iframes — browsers
+    // show a permission prompt for handle transfer that then fails cross-origin.
+    let isSameOrigin = false;
+    try {
+      isSameOrigin = new URL(iframe.src).origin === window.location.origin;
+    } catch { /* treat as cross-origin */ }
     iframe.contentWindow.postMessage(
-      { type: 'khurk:vault-open', name: dir.name, files, handle: dir },
+      { type: 'khurk:vault-open', name: dir.name, files, ...(isSameOrigin ? { handle: dir } : {}) },
       '*',
     );
 
