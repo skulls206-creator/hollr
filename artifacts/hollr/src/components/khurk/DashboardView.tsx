@@ -65,7 +65,11 @@ function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) 
       tabIndex={0}
       onClick={handleLaunch}
       onContextMenu={handleContextMenu}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleLaunch(); }}
+      onKeyDown={(e) => {
+        if (e.currentTarget !== e.target) return;
+        if (e.key === 'Enter') { handleLaunch(); }
+        if (e.key === ' ') { e.preventDefault(); handleLaunch(); }
+      }}
       className="group flex flex-col rounded-2xl overflow-hidden text-left transition-all duration-200 hover:-translate-y-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-card cursor-pointer"
       style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }}
     >
@@ -144,6 +148,7 @@ function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) 
         <button
           onClick={handleExternalOpen}
           title="Open in new tab to install as app"
+          aria-label="Open in new tab to install as app"
           className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl bg-secondary border border-border/50 text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-150"
         >
           <ExternalLink size={13} />
@@ -190,7 +195,11 @@ function AppListRow({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void 
       tabIndex={0}
       onClick={handleLaunch}
       onContextMenu={handleContextMenu}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleLaunch(); }}
+      onKeyDown={(e) => {
+        if (e.currentTarget !== e.target) return;
+        if (e.key === 'Enter') { handleLaunch(); }
+        if (e.key === ' ') { e.preventDefault(); handleLaunch(); }
+      }}
       className="group w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-150 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-left cursor-pointer"
     >
       {/* Icon */}
@@ -219,6 +228,7 @@ function AppListRow({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void 
         <button
           onClick={handleExternalOpen}
           title="Open in new tab to install as app"
+          aria-label="Open in new tab to install as app"
           className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-150"
         >
           <ExternalLink size={13} />
