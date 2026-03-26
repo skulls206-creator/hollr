@@ -371,8 +371,20 @@ export function ChatArea() {
         )}
       </div>
 
-      {/* Pinned Messages Panel */}
-      {pinnedPanelOpen && <PinnedMessagesPanel channelId={channel.id} />}
+      {/* Pinned Messages Panel — overlay on mobile, inline column on desktop */}
+      {pinnedPanelOpen && (
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 z-40 md:hidden"
+            onClick={togglePinnedPanel}
+          />
+          {/* Panel: fixed overlay on mobile, flex sibling on desktop */}
+          <div className="fixed right-0 top-0 h-full z-50 md:relative md:right-auto md:top-auto md:z-auto md:h-full">
+            <PinnedMessagesPanel channelId={channel.id} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

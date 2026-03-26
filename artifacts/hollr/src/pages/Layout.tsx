@@ -188,14 +188,14 @@ export function Layout() {
         />
       )}
 
-      {/* Mobile member list — slide-in from right */}
+      {/* Mobile member list — slide-in from right, z-50 so it beats the z-40 sidebar */}
       {memberListOpen && activeServerId && (
         <>
           <div
-            className="fixed inset-0 bg-black/60 z-30 lg:hidden"
+            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
             onClick={toggleMemberList}
           />
-          <div className="fixed right-0 top-0 h-full z-40 lg:hidden">
+          <div className="fixed right-0 top-0 h-full z-50 lg:hidden">
             <MemberList serverId={activeServerId} />
           </div>
         </>
