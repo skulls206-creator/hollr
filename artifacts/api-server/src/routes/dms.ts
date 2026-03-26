@@ -445,6 +445,28 @@ router.post("/call-signal", async (req, res) => {
     }).catch(() => {});
   }
 
+  // When the callee declines (via REST), notify the caller of a missed call.
+  // req.user is the callee; toUserId is the original caller.
+  if (signalType === "call_decline") {
+    (async () => {
+      try {
+        const [callee] = await db
+          .select({ displayName: userProfilesTable.displayName, username: userProfilesTable.username })
+          .from(userProfilesTable)
+          .where(eq(userProfilesTable.userId, req.user!.id))
+          .limit(1);
+        const calleeName = callee?.displayName || callee?.username || "Someone";
+        const navParams = new URLSearchParams({ navType: "dm", threadId: threadId ?? "" });
+        await sendNotification(toUserId, {
+          type: "missed_call",
+          title: "Missed call",
+          body: `${calleeName} declined your call`,
+          link: threadId ? `/app?${navParams.toString()}` : undefined,
+        });
+      } catch { /* non-fatal */ }
+    })();
+  }
+
   res.json({ ok: true, id: row.id });
 });
 

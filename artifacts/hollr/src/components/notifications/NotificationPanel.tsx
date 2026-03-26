@@ -46,10 +46,15 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
 
   useEffect(() => {
     if (!open) return;
-    fetch(`${BASE}api/notifications`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setNotifications(data))
-      .catch(() => {});
+    const doFetch = () => {
+      fetch(`${BASE}api/notifications`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setNotifications(data))
+        .catch(() => {});
+    };
+    doFetch();
+    const interval = setInterval(doFetch, 30_000);
+    return () => clearInterval(interval);
   }, [open, setNotifications]);
 
   useEffect(() => {

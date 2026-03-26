@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, integer, pgTable, text, timestamp, varchar, pgEnum, primaryKey, index } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp, varchar, pgEnum, primaryKey, index, foreignKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -213,7 +213,7 @@ export type DmCallSignal = typeof dmCallSignalsTable.$inferSelect;
 // In-app notification history (bell inbox)
 export const notificationsTable = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
+  userId: varchar("user_id").notNull().references(() => userProfilesTable.userId, { onDelete: "cascade" }),
   type: varchar("type", { length: 32 }).notNull(), // 'dm_message' | 'mention' | 'missed_call' | 'system'
   title: varchar("title", { length: 200 }).notNull(),
   body: varchar("body", { length: 500 }).notNull(),
