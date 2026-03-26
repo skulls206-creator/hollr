@@ -68,11 +68,13 @@ export function initWebSocket(server: Server) {
   server.on("upgrade", (req, socket, head) => {
     const url = req.url ?? "";
     const pathname = url.split("?")[0];
+    console.log(`[WS] upgrade request pathname=${pathname}`);
     if (pathname === "/api/ws" || pathname === "/ws") {
       wss!.handleUpgrade(req, socket as any, head, (ws) => {
         wss!.emit("connection", ws, req);
       });
     } else {
+      console.log(`[WS] rejecting upgrade for unknown path: ${pathname}`);
       socket.destroy();
     }
   });

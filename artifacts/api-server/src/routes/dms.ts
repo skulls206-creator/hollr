@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, messageReactionsTable, dmCallSignalsTable } from "@workspace/db/schema";
 import { eq, and, lt, inArray, sql as drizzleSql, ilike, isNull, desc } from "drizzle-orm";
 import { OpenDmThreadBody, SendMessageBody, EditMessageBody } from "@workspace/api-zod";
-import { broadcast } from "../lib/ws";
+import { broadcast, sendToUser } from "../lib/ws";
 import { sendPushToUser, getNotifPrefs } from "../lib/push";
 
 const router: IRouter = Router();
@@ -387,8 +387,8 @@ router.put("/dms/:threadId/messages/:messageId/reactions/:emojiId", async (req, 
   res.json(formatted);
 });
 
-// POST /call-signal — store a call signal in the DB and broadcast via WS.
-// This ensures signals cross server boundaries (preview vs production).
+// POST /call-signal — store a call signal in the DB and deliver via WS + push.
+// This ensures signals reach the callee even when they're offline or WS isn't connected.
 router.post("/call-signal", async (req, res) => {
   if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const { toUserId, threadId, signalType, payload } = req.body;
@@ -402,18 +402,40 @@ router.post("/call-signal", async (req, res) => {
     payload: payload ? JSON.stringify(payload) : null,
   }).returning();
 
-  // Also broadcast via WS for instant delivery on the same server instance
-  broadcast({
-    type: "DM_CALL_SIGNAL",
-    payload: {
-      ...payload,
-      type: signalType,
-      targetId: toUserId,
+  const wsPayload = {
+    ...payload,
+    type: signalType,
+    targetId: toUserId,
+    callerId: req.user.id,
+    threadId,
+    _signalId: row.id,
+  };
+
+  // Try direct WS delivery to the target user
+  const delivered = sendToUser(toUserId, { type: "DM_CALL_SIGNAL", payload: wsPayload });
+  console.log(`[call-signal] signalType=${signalType} toUserId=${toUserId} wsDelivered=${delivered}`);
+
+  // Broadcast to all connected sockets (covers race conditions with multiple tabs)
+  broadcast({ type: "DM_CALL_SIGNAL", payload: wsPayload });
+
+  // If target user has no active WS socket, send a push notification to wake them up
+  if (signalType === "call_ring" && !delivered) {
+    const callerName = payload?.callerName ?? "Someone";
+    const callerAvatar = payload?.callerAvatar ?? null;
+    const navParams = new URLSearchParams({ navType: "dm", threadId: threadId ?? "" });
+    sendPushToUser(toUserId, {
+      title: `📞 Incoming call`,
+      body: `${callerName} is calling you`,
+      icon: callerAvatar || "/images/icon-192.png",
+      tag: "incoming-call",
+      url: `/app?${navParams.toString()}`,
+      nav: threadId ? { type: "dm", threadId } : undefined,
+      notifType: "call",
       callerId: req.user.id,
-      threadId,
-      _signalId: row.id,
-    },
-  });
+      callerName,
+      dmThreadId: threadId,
+    }).catch(() => {});
+  }
 
   res.json({ ok: true, id: row.id });
 });
@@ -436,7 +458,7 @@ router.get("/call-signal/pending", async (req, res) => {
     await db
       .update(dmCallSignalsTable)
       .set({ consumedAt: new Date() })
-      .where(eq(dmCallSignalsTable.toUserId, req.user.id));
+      .where(inArray(dmCallSignalsTable.id, signals.map(s => s.id)));
   }
 
   // Clean up signals older than 5 minutes to keep the table small
