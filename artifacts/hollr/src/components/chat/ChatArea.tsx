@@ -241,18 +241,32 @@ export function ChatArea() {
           </div>
 
           <div className="flex items-center gap-1 text-muted-foreground shrink-0 ml-2">
-            {/* Bell — mute/unmute notifications */}
+            {/* Bell — mute/unmute toggle (shows on/off pill so it's distinct from the panel bell) */}
             <button
               onClick={() => activeChannelId && toggleMuteChannel(activeChannelId)}
               title={isMuted ? 'Unmute notifications' : 'Mute notifications'}
               className={cn(
-                'p-2 rounded-md transition-colors',
+                'flex flex-col items-center gap-[3px] px-1.5 py-1 rounded-md transition-colors',
                 isMuted
-                  ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
-                  : 'hover:text-foreground hover:bg-secondary'
+                  ? 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
               )}
             >
-              {isMuted ? <BellOff size={20} /> : <Bell size={20} />}
+              {isMuted ? <BellOff size={16} /> : <Bell size={16} />}
+              {/* Toggle-switch pill — visually signals this is an on/off control */}
+              <span
+                className={cn(
+                  'relative flex w-7 h-[12px] rounded-full transition-colors duration-200 shrink-0',
+                  isMuted ? 'bg-rose-500/25' : 'bg-primary/25'
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute top-[2px] w-[8px] h-[8px] rounded-full shadow-sm transition-all duration-200',
+                    isMuted ? 'left-[3px] bg-rose-400' : 'left-[calc(100%-11px)] bg-primary'
+                  )}
+                />
+              </span>
             </button>
 
             {/* Pin — toggle pinned messages panel */}
