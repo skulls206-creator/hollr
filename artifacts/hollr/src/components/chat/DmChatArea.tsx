@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useListDmMessages, useSendDmMessage, useRequestUploadUrl, getListDmMessagesQueryKey } from '@workspace/api-client-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
-  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video, User,
+  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video, User, EyeOff, Eye,
 } from 'lucide-react';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { initiateVideoCall } from '@/hooks/use-video-call';
@@ -18,6 +18,7 @@ import { DmReactionPills } from './DmReactionPills';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
+import { hideMessage, unhideMessage } from '@/lib/hidden-messages';
 
 async function editDmMessage(threadId: string, messageId: string, content: string) {
   const res = await fetch(`/api/dms/${threadId}/messages/${messageId}`, {
@@ -78,7 +79,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   });
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
-  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState, videoCall, openProfileCard } = useAppStore();
+  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState, videoCall, openProfileCard, clearDmUnreadCount } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -91,6 +92,20 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   const [editDraft, setEditDraft] = useState('');
   const [emojiHoverMsg, setEmojiHoverMsg] = useState<string | null>(null);
   const [composerEmojiOpen, setComposerEmojiOpen] = useState(false);
+  const [hiddenMsgIds, setHiddenMsgIds] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('hollr:hidden-messages') ?? '[]') as string[]); }
+    catch { return new Set(); }
+  });
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const toggleHide = useCallback((msgId: string) => {
+    setHiddenMsgIds(prev => {
+      const next = new Set(prev);
+      if (next.has(msgId)) { next.delete(msgId); unhideMessage(msgId); }
+      else { next.add(msgId); hideMessage(msgId); }
+      return next;
+    });
+  }, []);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -104,6 +119,11 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
   };
+
+  // Clear unread badge when thread is opened
+  useEffect(() => {
+    clearDmUnreadCount(threadId);
+  }, [threadId, clearDmUnreadCount]);
 
   useEffect(() => {
     hasInitiallyScrolled.current = false;
@@ -191,15 +211,17 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
     });
   };
 
-  const handleMessageContextMenu = (e: React.MouseEvent, msg: any) => {
-    e.preventDefault();
+  const openContextMenu = useCallback((x: number, y: number, msg: any) => {
     const isOwner = user?.id === msg.authorId;
     const isDeleted = !!(msg as any).deleted;
     if (isDeleted) return;
+    const isHidden = hiddenMsgIds.has(msg.id);
 
     showMenu({
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
+      title: msg.author?.displayName || msg.author?.username,
+      subtitle: recipientName ? `DM with ${recipientName}` : undefined,
       quickReactions: (emoji) => {
         fetch(`/api/dms/${threadId}/messages/${msg.id}/reactions/${encodeURIComponent(emoji)}`, { method: 'PUT' })
           .then(r => r.json())
@@ -232,6 +254,13 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
           shortcut: 'Ctrl+C',
         },
         {
+          id: 'hide',
+          label: isHidden ? 'Show Message' : 'Hide for Me',
+          icon: isHidden ? <Eye size={14} /> : <EyeOff size={14} />,
+          onClick: () => toggleHide(msg.id),
+          dividerBefore: true,
+        },
+        {
           id: 'delete',
           label: 'Delete Message',
           icon: <Trash2 size={14} />,
@@ -242,7 +271,29 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
         },
       ],
     });
-  };
+  }, [user, hiddenMsgIds, showMenu, threadId, recipientName, qc, setEmojiHoverMsg, startEdit, toggleHide, doDelete]);
+
+  const handleMessageContextMenu = useCallback((e: React.MouseEvent, msg: any) => {
+    e.preventDefault();
+    openContextMenu(e.clientX, e.clientY, msg);
+  }, [openContextMenu]);
+
+  const handleLongPress = useCallback((msg: any) => {
+    return {
+      onTouchStart: (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        longPressTimer.current = setTimeout(() => {
+          openContextMenu(touch.clientX, touch.clientY, msg);
+        }, 500);
+      },
+      onTouchEnd: () => {
+        if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      },
+      onTouchMove: () => {
+        if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      },
+    };
+  }, [openContextMenu]);
 
   const handleAuthorContextMenu = (e: React.MouseEvent, msg: any) => {
     e.preventDefault();
@@ -536,7 +587,9 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
           const isOwner = user?.id === msg.authorId;
           const isEditing = editingId === msg.id;
           const isDeleted = !!(msg as any).deleted;
+          const isHidden = hiddenMsgIds.has(msg.id);
           const reactions = (msg as any).reactions || [];
+          const lp = handleLongPress(msg);
 
           return (
             <Fragment key={msg.id}>
@@ -549,6 +602,9 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
               )}
               onMouseLeave={() => setEmojiHoverMsg(null)}
               onContextMenu={e => handleMessageContextMenu(e, msg)}
+              onTouchStart={lp.onTouchStart}
+              onTouchEnd={lp.onTouchEnd}
+              onTouchMove={lp.onTouchMove}
             >
               {showHeader ? (
                 <Avatar
@@ -586,6 +642,14 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                   <div className="text-[14px] italic text-red-400/80 select-none">
                     Message deleted
                   </div>
+                ) : isHidden ? (
+                  <button
+                    onClick={() => toggleHide(msg.id)}
+                    className="flex items-center gap-1.5 text-[13px] italic text-muted-foreground/50 hover:text-muted-foreground transition-colors select-none"
+                  >
+                    <EyeOff size={12} />
+                    Message hidden — tap to show
+                  </button>
                 ) : isEditing ? (
                   <div className="flex flex-col gap-1">
                     <textarea
@@ -619,7 +683,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                 )}
 
                 {/* Attachments */}
-                {!isEditing && !isDeleted && msg.attachments && msg.attachments.length > 0 && (
+                {!isEditing && !isDeleted && !isHidden && msg.attachments && msg.attachments.length > 0 && (
                   <div className="flex flex-col gap-2 mt-2">
                     {msg.attachments.map((att: any) => {
                       const isImage = att.contentType.startsWith('image/');
@@ -649,7 +713,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                 )}
 
                 {/* Reactions */}
-                {!isEditing && !isDeleted && (
+                {!isEditing && !isDeleted && !isHidden && (
                   <DmReactionPills
                     reactions={reactions}
                     threadId={threadId}
@@ -660,7 +724,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
               </div>
 
               {/* Hover action bar */}
-              {!isEditing && !isDeleted && (
+              {!isEditing && !isDeleted && !isHidden && (
                 <div className="absolute right-4 top-0 -translate-y-1/2 bg-surface-1 border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                   <button
                     onClick={() => setEmojiHoverMsg(v => v === msg.id ? null : msg.id)}

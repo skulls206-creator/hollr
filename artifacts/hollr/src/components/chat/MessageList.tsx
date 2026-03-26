@@ -1,17 +1,18 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useListMessages, useEditMessage, useDeleteMessage, getListMessagesQueryKey } from '@workspace/api-client-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
-import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare, Copy, ExternalLink } from 'lucide-react';
+import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare, Copy, ExternalLink, EyeOff, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppStore } from '@/store/use-app-store';
 import { cn } from '@/lib/utils';
 import { ReactionPills } from './ReactionPills';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
+import { hideMessage, unhideMessage } from '@/lib/hidden-messages';
 
 async function pinMessage(channelId: string, messageId: string) {
   const res = await fetch(`/api/channels/${channelId}/messages/${messageId}/pin`, { method: 'PUT' });
@@ -91,6 +92,20 @@ export function MessageList({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const editRef = useRef<HTMLTextAreaElement>(null);
+  const [hiddenMsgIds, setHiddenMsgIds] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('hollr:hidden-messages') ?? '[]') as string[]); }
+    catch { return new Set(); }
+  });
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const toggleHide = useCallback((msgId: string) => {
+    setHiddenMsgIds(prev => {
+      const next = new Set(prev);
+      if (next.has(msgId)) { next.delete(msgId); unhideMessage(msgId); }
+      else { next.add(msgId); hideMessage(msgId); }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     hasInitiallyScrolled.current = false;
@@ -205,16 +220,18 @@ export function MessageList({
     });
   };
 
-  const handleMessageContextMenu = (e: React.MouseEvent, msg: any) => {
-    e.preventDefault();
+  const openContextMenu = useCallback((x: number, y: number, msg: any) => {
     const isOwner = user?.id === msg.authorId;
     const isDeleted = !!(msg as any).deleted;
     if (isDeleted) return;
+    const isHidden = hiddenMsgIds.has(msg.id);
 
     showMenu({
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
       quickReactions: (emoji) => doReact({ msgId: msg.id, emojiId: emoji }),
+      title: msg.author?.displayName || msg.author?.username,
+      subtitle: `#${channelId.slice(0, 6)}`,
       actions: [
         {
           id: 'add-reaction',
@@ -250,6 +267,13 @@ export function MessageList({
           onClick: () => doPin({ msgId: msg.id, pinned: !!msg.pinned }),
         },
         {
+          id: 'hide',
+          label: isHidden ? 'Show Message' : 'Hide for Me',
+          icon: isHidden ? <Eye size={14} /> : <EyeOff size={14} />,
+          onClick: () => toggleHide(msg.id),
+          dividerBefore: true,
+        },
+        {
           id: 'delete',
           label: 'Delete Message',
           icon: <Trash2 size={14} />,
@@ -260,7 +284,29 @@ export function MessageList({
         },
       ],
     });
-  };
+  }, [user, hiddenMsgIds, showMenu, doReact, channelId, openThread, startEdit, doPin, toggleHide, handleDelete]);
+
+  const handleMessageContextMenu = useCallback((e: React.MouseEvent, msg: any) => {
+    e.preventDefault();
+    openContextMenu(e.clientX, e.clientY, msg);
+  }, [openContextMenu]);
+
+  const handleLongPress = useCallback((msg: any) => {
+    return {
+      onTouchStart: (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        longPressTimer.current = setTimeout(() => {
+          openContextMenu(touch.clientX, touch.clientY, msg);
+        }, 500);
+      },
+      onTouchEnd: () => {
+        if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      },
+      onTouchMove: () => {
+        if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      },
+    };
+  }, [openContextMenu]);
 
   if (isLoading) {
     return <div className="flex-1 flex items-center justify-center text-muted-foreground">Loading messages…</div>;
@@ -292,8 +338,10 @@ export function MessageList({
         const isEditing = editingId === msg.id;
         const isHighlighted = highlightedMessageId === msg.id;
         const isDeleted = !!(msg as any).deleted;
+        const isHidden = hiddenMsgIds.has(msg.id);
         const reactions = (msg as any).reactions || [];
         const replyCount = (msg as any).replyCount || 0;
+        const lp = handleLongPress(msg);
 
         return (
           <Fragment key={msg.id}>
@@ -309,6 +357,9 @@ export function MessageList({
             )}
             onMouseLeave={() => setEmojiHoverMsg(null)}
             onContextMenu={e => handleMessageContextMenu(e, msg)}
+            onTouchStart={lp.onTouchStart}
+            onTouchEnd={lp.onTouchEnd}
+            onTouchMove={lp.onTouchMove}
           >
             {/* Avatar or timestamp stub */}
             {showHeader ? (
@@ -357,6 +408,14 @@ export function MessageList({
                 <div className="text-[14px] italic text-red-400/80 select-none">
                   Message deleted
                 </div>
+              ) : isHidden ? (
+                <button
+                  onClick={() => toggleHide(msg.id)}
+                  className="flex items-center gap-1.5 text-[13px] italic text-muted-foreground/50 hover:text-muted-foreground transition-colors select-none"
+                >
+                  <EyeOff size={12} />
+                  Message hidden — tap to show
+                </button>
               ) : isEditing ? (
                 <div className="flex flex-col gap-1">
                   <textarea
@@ -393,7 +452,7 @@ export function MessageList({
               )}
 
               {/* Attachments */}
-              {!isEditing && !isDeleted && msg.attachments && msg.attachments.length > 0 && (
+              {!isEditing && !isDeleted && !isHidden && msg.attachments && msg.attachments.length > 0 && (
                 <div className="flex flex-col gap-2 mt-2">
                   {msg.attachments.map(att => {
                     const isImage = att.contentType.startsWith('image/');
@@ -428,7 +487,7 @@ export function MessageList({
               )}
 
               {/* Reactions */}
-              {!isEditing && !isDeleted && (
+              {!isEditing && !isDeleted && !isHidden && (
                 <ReactionPills
                   reactions={reactions}
                   channelId={channelId}
@@ -438,7 +497,7 @@ export function MessageList({
               )}
 
               {/* Thread reply count */}
-              {!isEditing && !isDeleted && replyCount > 0 && (
+              {!isEditing && !isDeleted && !isHidden && replyCount > 0 && (
                 <button
                   onClick={() => openThread(channelId, msg.id)}
                   className="mt-1 flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 hover:underline w-fit"
@@ -449,8 +508,8 @@ export function MessageList({
               )}
             </div>
 
-            {/* Hover action buttons — hidden entirely for deleted messages */}
-            {!isEditing && !isDeleted && (
+            {/* Hover action buttons — hidden for deleted/hidden messages */}
+            {!isEditing && !isDeleted && !isHidden && (
               <div className="absolute right-4 top-0 -translate-y-1/2 bg-surface-1 border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 {/* Add reaction */}
                 <button
