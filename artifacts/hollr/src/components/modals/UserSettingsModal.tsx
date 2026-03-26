@@ -387,12 +387,12 @@ export function UserSettingsModal() {
 
   const NAV: { id: Tab; icon: React.ReactNode; label: string; group: string }[] = [
     { id: 'profile',       icon: <User size={15} />,         label: 'Profile',       group: 'USER' },
+    { id: 'supporter',     icon: <Gem size={15} />,          label: 'Supporter',     group: 'USER' },
     { id: 'account',       icon: <KeyRound size={15} />,     label: 'Account',       group: 'USER' },
     { id: 'appearance',    icon: <Palette size={15} />,      label: 'Appearance',    group: 'USER' },
     { id: 'audio',         icon: <Headphones size={15} />,   label: 'Audio',         group: 'APP' },
     { id: 'notifications', icon: <Bell size={15} />,         label: 'Notifications', group: 'APP' },
     { id: 'privacy',       icon: <ShieldCheck size={15} />,  label: 'Privacy',       group: 'APP' },
-    { id: 'supporter',     icon: <Gem size={15} />,          label: 'Supporter',     group: 'APP' },
   ];
 
   const groups = [...new Set(NAV.map(n => n.group))];
@@ -995,7 +995,15 @@ export function UserSettingsModal() {
                         {supporterPrices.map(p => {
                           const dollars = ((p.unit_amount ?? 0) / 100).toFixed(2);
                           const interval = p.recurring?.interval ?? 'month';
+                          const intervalCount: number = p.recurring?.interval_count ?? 1;
+                          const isSixMonth = interval === 'month' && intervalCount === 6;
                           const isYearly = interval === 'year';
+                          const priceLabel = isSixMonth ? '/6 mo' : isYearly ? '/year' : '/month';
+                          const descLabel = isSixMonth
+                            ? 'Every 6 months · billed twice a year'
+                            : isYearly
+                            ? 'Yearly · billed once a year'
+                            : 'Monthly · cancel anytime';
                           return (
                             <button
                               key={p.price_id}
@@ -1007,17 +1015,20 @@ export function UserSettingsModal() {
                                 <KhurkDiamondBadge size="sm" />
                                 <span className="text-base font-bold text-foreground">
                                   ${dollars}
-                                  <span className="text-xs font-normal text-muted-foreground">/{interval}</span>
+                                  <span className="text-xs font-normal text-muted-foreground">{priceLabel}</span>
                                 </span>
+                                {isSixMonth && (
+                                  <span className="text-[10px] font-semibold bg-cyan-500/15 text-cyan-400 px-1.5 py-0.5 rounded-full">
+                                    Save ~17%
+                                  </span>
+                                )}
                                 {isYearly && (
                                   <span className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-full">
                                     Save ~17%
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground">
-                                {isYearly ? 'Yearly · billed once a year' : 'Monthly · cancel anytime'}
-                              </p>
+                              <p className="text-xs text-muted-foreground">{descLabel}</p>
                             </button>
                           );
                         })}
