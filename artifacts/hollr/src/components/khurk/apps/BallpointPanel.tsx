@@ -34,6 +34,8 @@ function titleFromName(name: string): string {
   return name.replace(/\.(md|txt)$/i, '').replace(/[-_]/g, ' ');
 }
 
+const LAST_FOLDER_KEY = 'ballpoint:lastFolderName';
+
 function storageKey(handle: FileSystemDirectoryHandle, suffix: string): string {
   return `bp:${handle.name}:${suffix}`;
 }
@@ -118,6 +120,8 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
 
   useEffect(() => {
     if (!dirHandle) { setNotes([]); setActiveNote(null); setContent(''); return; }
+    // Persist folder name so we can show a reconnect prompt next time
+    localStorage.setItem(LAST_FOLDER_KEY, dirHandle.name);
     setFavorites(loadSet(storageKey(dirHandle, 'fav')));
     setArchive(loadSet(storageKey(dirHandle, 'arc')));
     setTrash(loadSet(storageKey(dirHandle, 'trash')));
@@ -166,10 +170,10 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
 
   const createNote = useCallback(async () => {
     if (!dirHandle) return;
-    let name = 'untitled.md';
     const existing = new Set(notes.map(n => n.name));
     let i = 1;
-    while (existing.has(name)) name = `untitled-${i++}.md`;
+    let name = `untitled-${i}.md`;
+    while (existing.has(name)) name = `untitled-${++i}.md`;
     try {
       const fh = await dirHandle.getFileHandle(name, { create: true });
       const w = await fh.createWritable(); await w.write(''); await w.close();
@@ -317,6 +321,7 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
 
   if (!dirHandle) {
+    const lastFolder = localStorage.getItem(LAST_FOLDER_KEY);
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-[#0f0a1e] gap-5 px-6 text-white">
         <div className="w-14 h-14 rounded-2xl bg-purple-600/20 flex items-center justify-center">
@@ -324,10 +329,23 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
         </div>
         <div className="text-center space-y-1.5">
           <h2 className="text-base font-semibold">Ballpoint Notes</h2>
-          <p className="text-sm text-white/50 leading-relaxed max-w-xs">Connect a local folder to store your notes as plain Markdown files.</p>
+          <p className="text-sm text-white/50 leading-relaxed max-w-xs">
+            Connect a local folder to store your notes as plain Markdown files on your device.
+          </p>
         </div>
-        <button onClick={onPickFolder} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors">
-          <FolderOpen size={16} />Connect Folder
+        {lastFolder && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.05] border border-white/[0.06] text-[12px]">
+            <FolderOpen size={12} className="text-purple-400 shrink-0" />
+            <span className="text-white/40">Last used:</span>
+            <span className="text-white/70 font-medium">{lastFolder}</span>
+          </div>
+        )}
+        <button
+          onClick={onPickFolder}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
+        >
+          <FolderOpen size={16} />
+          {lastFolder ? `Reconnect "${lastFolder}"` : 'Connect Folder'}
         </button>
       </div>
     );

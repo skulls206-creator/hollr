@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Folder, FolderOpen, File, FileText, FileCode, Film, Music,
   Image, X, Plus, Upload, Edit2, Trash2, Check,
-  LayoutGrid, List, ChevronRight, Home, FolderPlus, RefreshCw,
+  LayoutGrid, List, ChevronRight, FolderPlus, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -19,13 +19,18 @@ interface FsEntry {
   lastModified?: number;
 }
 
+interface DirChild {
+  name: string;
+  handle: FileSystemDirectoryHandle;
+}
+
 function fileIconFor(name: string) {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if (/^(png|jpe?g|gif|webp|svg|ico|bmp)$/.test(ext)) return Image;
   if (/^(mp4|webm|mov|avi|mkv|m4v)$/.test(ext)) return Film;
   if (/^(mp3|flac|ogg|wav|m4a|aac)$/.test(ext)) return Music;
   if (/^(ts|tsx|js|jsx|py|rs|go|java|c|cpp|css|html|json|yaml|toml|sh|env|xml|php|rb|swift|kt)$/.test(ext)) return FileCode;
-  if (/^(md|txt|rtf)$/.test(ext)) return FileText;
+  if (/^(md|txt|rtf|csv)$/.test(ext)) return FileText;
   return File;
 }
 
@@ -38,6 +43,161 @@ function formatBytes(b: number): string {
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|ico|bmp)$/i;
 const TEXT_EXT = /\.(md|txt|json|ts|tsx|js|jsx|html|css|yaml|toml|rs|py|go|java|c|cpp|sh|env|xml|rb|swift|kt|php|csv)$/i;
 
+// ── Recursive directory copier (used for dir rename) ───────────────────────
+async function copyDirRecursive(
+  src: FileSystemDirectoryHandle,
+  dst: FileSystemDirectoryHandle,
+) {
+  for await (const entry of (src as any).values()) {
+    if (entry.kind === 'file') {
+      const file = await entry.getFile();
+      const buf = await file.arrayBuffer();
+      const fh = await dst.getFileHandle(entry.name, { create: true });
+      const w = await fh.createWritable();
+      await w.write(buf);
+      await w.close();
+    } else {
+      const subDst = await (dst as any).getDirectoryHandle(entry.name, { create: true });
+      await copyDirRecursive(entry, subDst);
+    }
+  }
+}
+
+// ── Folder tree sidebar ────────────────────────────────────────────────────
+function FolderTree({
+  rootHandle,
+  selectedPath,
+  onNavigate,
+  refreshTick,
+}: {
+  rootHandle: FileSystemDirectoryHandle;
+  selectedPath: string;
+  onNavigate: (pathKey: string, stack: FileSystemDirectoryHandle[]) => void;
+  refreshTick: number;
+}) {
+  const rootKey = rootHandle.name;
+  // path → sorted dir children (undefined = not yet loaded)
+  const [childrenMap, setChildrenMap] = useState<Map<string, DirChild[]>>(new Map());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set([rootKey]));
+  // path → handle lookup (populated as we expand nodes)
+  const handlesMap = useRef<Map<string, FileSystemDirectoryHandle>>(
+    new Map([[rootKey, rootHandle]])
+  );
+
+  const loadChildren = useCallback(async (pathKey: string) => {
+    const handle = handlesMap.current.get(pathKey);
+    if (!handle) return;
+    const children: DirChild[] = [];
+    try {
+      for await (const entry of (handle as any).values()) {
+        if (entry.kind === 'directory' && !entry.name.startsWith('.')) {
+          const childKey = `${pathKey}/${entry.name}`;
+          handlesMap.current.set(childKey, entry);
+          children.push({ name: entry.name, handle: entry });
+        }
+      }
+    } catch { /* permission may be denied */ }
+    children.sort((a, b) => a.name.localeCompare(b.name));
+    setChildrenMap(prev => new Map(prev).set(pathKey, children));
+  }, []);
+
+  // Load root on mount and when refreshTick changes
+  useEffect(() => {
+    setChildrenMap(new Map());
+    handlesMap.current = new Map([[rootKey, rootHandle]]);
+    loadChildren(rootKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rootHandle, refreshTick]);
+
+  const toggle = useCallback(async (e: React.MouseEvent, pathKey: string) => {
+    e.stopPropagation();
+    if (expanded.has(pathKey)) {
+      setExpanded(prev => { const n = new Set(prev); n.delete(pathKey); return n; });
+    } else {
+      if (!childrenMap.has(pathKey)) await loadChildren(pathKey);
+      setExpanded(prev => new Set([...prev, pathKey]));
+    }
+  }, [expanded, childrenMap, loadChildren]);
+
+  const navigate = useCallback((pathKey: string) => {
+    const segments = pathKey.split('/').slice(1); // skip root name
+    const stack: FileSystemDirectoryHandle[] = [];
+    let cur = rootKey;
+    for (const seg of segments) {
+      cur = `${cur}/${seg}`;
+      const h = handlesMap.current.get(cur);
+      if (h) stack.push(h);
+    }
+    onNavigate(pathKey, stack);
+  }, [rootKey, onNavigate]);
+
+  // Auto-expand the selected path in the tree
+  useEffect(() => {
+    if (!selectedPath) return;
+    const parts = selectedPath.split('/');
+    const toExpand: string[] = [];
+    for (let i = 1; i <= parts.length; i++) {
+      toExpand.push(parts.slice(0, i).join('/'));
+    }
+    setExpanded(prev => {
+      const n = new Set(prev);
+      toExpand.forEach(p => n.add(p));
+      return n;
+    });
+    // Load children for all ancestors that aren't loaded yet
+    toExpand.forEach(p => { if (!childrenMap.has(p)) loadChildren(p); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPath]);
+
+  function renderNode(pathKey: string, depth: number): React.ReactNode {
+    const children = childrenMap.get(pathKey);
+    const isExp = expanded.has(pathKey);
+    const isSel = pathKey === selectedPath;
+    const name = depth === 0 ? rootHandle.name : pathKey.split('/').pop()!;
+    const hasKids = children === undefined || children.length > 0;
+
+    return (
+      <div key={pathKey}>
+        <div
+          onClick={() => navigate(pathKey)}
+          className={cn(
+            'flex items-center gap-1 py-1 rounded-md cursor-pointer select-none transition-colors text-[11px]',
+            isSel ? 'bg-blue-600/25 text-blue-300' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]',
+          )}
+          style={{ paddingLeft: `${6 + depth * 14}px`, paddingRight: '6px' }}
+        >
+          <button
+            onClick={e => toggle(e, pathKey)}
+            className={cn('shrink-0 transition-colors', hasKids ? 'text-white/25 hover:text-white/60' : 'opacity-0 pointer-events-none')}
+          >
+            <ChevronRight
+              size={10}
+              className={cn('transition-transform duration-150', isExp && 'rotate-90')}
+            />
+          </button>
+          {isExp
+            ? <FolderOpen size={11} className="shrink-0 text-blue-400/80" strokeWidth={1.5} />
+            : <Folder size={11} className="shrink-0 text-blue-400/60" strokeWidth={1.5} />}
+          <span className="truncate">{name}</span>
+        </div>
+        {isExp && children && children.map(child =>
+          renderNode(`${pathKey}/${child.name}`, depth + 1)
+        )}
+        {isExp && children && children.length === 0 && (
+          <p className="text-[10px] text-white/20 italic" style={{ paddingLeft: `${6 + (depth + 1) * 14 + 12}px` }}>Empty</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto py-1 px-1">
+      {renderNode(rootKey, 0)}
+    </div>
+  );
+}
+
+// ── Main panel ─────────────────────────────────────────────────────────────
 export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   const [pathStack, setPathStack] = useState<FileSystemDirectoryHandle[]>([]);
   const [entries, setEntries] = useState<FsEntry[]>([]);
@@ -50,11 +210,24 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   const [renameVal, setRenameVal] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef<string | null>(null);
 
   const currentDir: FileSystemDirectoryHandle | null =
     pathStack.length > 0 ? pathStack[pathStack.length - 1] : dirHandle;
+
+  // Compute path key for the tree (used to highlight selected tree node)
+  const selectedTreePath = dirHandle
+    ? [dirHandle.name, ...pathStack.map(h => h.name)].join('/')
+    : '';
+
+  function clearPreview() {
+    if (previewUrlRef.current) { URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = null; }
+    setPreviewContent(null);
+    setPreviewUrl(null);
+    setPreviewMeta(null);
+  }
 
   const loadEntries = useCallback(async (dir: FileSystemDirectoryHandle) => {
     setLoading(true);
@@ -81,21 +254,23 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     }
   }, []);
 
-  function clearPreview() {
-    if (previewUrlRef.current) { URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = null; }
-    setPreviewContent(null);
-    setPreviewUrl(null);
-    setPreviewMeta(null);
-  }
-
   useEffect(() => {
     if (!dirHandle) { setPathStack([]); setEntries([]); setSelected(null); clearPreview(); return; }
     setPathStack([]);
     loadEntries(dirHandle);
-  }, [dirHandle, loadEntries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirHandle]);
 
   useEffect(() => () => { if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current); }, []);
 
+  // Navigate via tree click
+  const handleTreeNavigate = useCallback(async (pathKey: string, stack: FileSystemDirectoryHandle[]) => {
+    setPathStack(stack);
+    const target = stack.length > 0 ? stack[stack.length - 1] : dirHandle;
+    if (target) await loadEntries(target);
+  }, [dirHandle, loadEntries]);
+
+  // Navigate into a directory from the file list (double-click)
   const navigateInto = useCallback(async (entry: FsEntry) => {
     if (entry.kind !== 'directory') return;
     const dh = entry.handle as FileSystemDirectoryHandle;
@@ -103,6 +278,7 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     await loadEntries(dh);
   }, [loadEntries]);
 
+  // Navigate via breadcrumb click
   const navigateTo = useCallback(async (idx: number) => {
     if (!dirHandle) return;
     if (idx < 0) {
@@ -127,22 +303,21 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
         previewUrlRef.current = url;
         setPreviewUrl(url);
       } else if (TEXT_EXT.test(entry.name)) {
-        const text = await file.text();
-        setPreviewContent(text);
+        setPreviewContent(await file.text());
       }
     } catch (e) { console.warn('[Foldr] preview:', e); }
   }, []);
 
   const refresh = useCallback(() => {
-    if (currentDir) loadEntries(currentDir);
+    if (currentDir) { loadEntries(currentDir); setRefreshTick(t => t + 1); }
   }, [currentDir, loadEntries]);
 
   const createFile = useCallback(async () => {
     if (!currentDir) return;
-    let name = 'untitled.txt';
     const existing = new Set(entries.map(e => e.name));
     let i = 1;
-    while (existing.has(name)) name = `untitled-${i++}.txt`;
+    let name = `untitled-${i}.txt`;
+    while (existing.has(name)) name = `untitled-${++i}.txt`;
     try {
       const fh = await currentDir.getFileHandle(name, { create: true });
       const w = await fh.createWritable(); await w.write(''); await w.close();
@@ -154,13 +329,14 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
 
   const createFolder = useCallback(async () => {
     if (!currentDir) return;
-    let name = 'New Folder';
     const existing = new Set(entries.map(e => e.name));
     let i = 1;
-    while (existing.has(name)) name = `New Folder ${i++}`;
+    let name = `New Folder ${i}`;
+    while (existing.has(name)) name = `New Folder ${++i}`;
     try {
       await (currentDir as any).getDirectoryHandle(name, { create: true });
       await loadEntries(currentDir);
+      setRefreshTick(t => t + 1);
       setRenaming(name);
       setRenameVal(name);
     } catch (e) { console.warn('[Foldr] createFolder:', e); }
@@ -168,24 +344,37 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
 
   const startRename = (entry: FsEntry) => {
     setRenaming(entry.name);
-    setRenameVal(entry.kind === 'file' && entry.name.includes('.') ? entry.name.replace(/\.[^.]+$/, '') : entry.name);
+    setRenameVal(
+      entry.kind === 'file' && entry.name.includes('.')
+        ? entry.name.replace(/\.[^.]+$/, '')
+        : entry.name
+    );
   };
 
   const commitRename = useCallback(async () => {
     if (!currentDir || !renaming || !renameVal.trim()) { setRenaming(null); return; }
     const entry = entries.find(e => e.name === renaming);
     if (!entry) { setRenaming(null); return; }
+
     const ext = entry.kind === 'file' && renaming.includes('.') ? '.' + renaming.split('.').pop() : '';
     const newName = renameVal.trim() + ext;
     if (newName === renaming) { setRenaming(null); return; }
+
     try {
       if (entry.kind === 'file') {
+        // File rename: copy bytes then remove original
         const fh = entry.handle as FileSystemFileHandle;
-        const file = await fh.getFile();
-        const buf = await file.arrayBuffer();
+        const buf = await (await fh.getFile()).arrayBuffer();
         const newFh = await currentDir.getFileHandle(newName, { create: true });
         const w = await newFh.createWritable(); await w.write(buf); await w.close();
         await (currentDir as any).removeEntry(renaming);
+      } else {
+        // Directory rename: create new dir, recursively copy, remove old
+        const srcDh = entry.handle as FileSystemDirectoryHandle;
+        const dstDh = await (currentDir as any).getDirectoryHandle(newName, { create: true });
+        await copyDirRecursive(srcDh, dstDh);
+        await (currentDir as any).removeEntry(renaming, { recursive: true });
+        setRefreshTick(t => t + 1);
       }
       await loadEntries(currentDir);
     } catch (e) { console.warn('[Foldr] rename:', e); }
@@ -197,6 +386,7 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     try {
       await (currentDir as any).removeEntry(name, { recursive: true });
       await loadEntries(currentDir);
+      setRefreshTick(t => t + 1);
       if (selected === name) { setSelected(null); clearPreview(); }
     } catch (e) { console.warn('[Foldr] delete:', e); }
     setConfirmDelete(null);
@@ -234,6 +424,7 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
 
   return (
     <div className="flex flex-1 min-h-0 h-full overflow-hidden bg-[#080e18] text-white relative">
+      {/* Delete confirmation dialog */}
       {confirmDelete && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-50">
           <div className="bg-[#0f1625] border border-white/10 rounded-2xl p-6 w-72 space-y-4 shadow-2xl">
@@ -250,21 +441,39 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
       <input ref={fileInputRef} type="file" multiple className="hidden"
         onChange={e => e.target.files && uploadFiles(e.target.files)} />
 
+      {/* ── Folder tree sidebar ── */}
+      <div className="w-[180px] shrink-0 flex flex-col border-r border-white/[0.06] bg-[#0a1120]">
+        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0">
+          <FolderOpen size={12} className="text-blue-400 shrink-0" strokeWidth={1.5} />
+          <span className="text-[11px] font-semibold text-white/60 truncate flex-1">{dirHandle.name}</span>
+          <button onClick={refresh} title="Refresh tree" className="p-0.5 text-white/20 hover:text-white/60 transition-colors shrink-0">
+            <RefreshCw size={10} />
+          </button>
+        </div>
+        <FolderTree
+          rootHandle={dirHandle}
+          selectedPath={selectedTreePath}
+          onNavigate={handleTreeNavigate}
+          refreshTick={refreshTick}
+        />
+      </div>
+
+      {/* ── Main file list ── */}
       <div className={cn('flex flex-col flex-1 min-w-0 min-h-0', hasPreview && 'border-r border-white/[0.06]')}>
         {/* Toolbar */}
         <div className="flex items-center gap-1 px-3 py-2 bg-[#0a1120] border-b border-white/[0.06] shrink-0">
+          {/* Breadcrumb */}
           <div className="flex items-center gap-0.5 flex-1 min-w-0 text-[11px] overflow-hidden">
             <button onClick={() => navigateTo(-1)}
-              className={cn('flex items-center gap-1 px-1.5 py-1 rounded-md transition-colors shrink-0',
+              className={cn('flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-colors shrink-0',
                 pathStack.length === 0 ? 'text-blue-300' : 'text-white/35 hover:text-white/65 hover:bg-white/[0.05]')}>
-              <Home size={11} />
-              <span className="max-w-[80px] truncate">{dirHandle.name}</span>
+              <span className="max-w-[70px] truncate">{dirHandle.name}</span>
             </button>
             {pathStack.map((seg, i) => (
               <span key={i} className="flex items-center gap-0.5 shrink-0">
-                <ChevronRight size={10} className="text-white/15" />
+                <ChevronRight size={9} className="text-white/15" />
                 <button onClick={() => navigateTo(i)}
-                  className={cn('px-1.5 py-1 rounded-md transition-colors max-w-[80px] truncate',
+                  className={cn('px-1.5 py-0.5 rounded-md transition-colors max-w-[70px] truncate',
                     i === pathStack.length - 1 ? 'text-blue-300' : 'text-white/35 hover:text-white/65 hover:bg-white/[0.05]')}>
                   {seg.name}
                 </button>
@@ -273,14 +482,14 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
           </div>
 
           <div className="flex items-center gap-0.5 shrink-0">
-            <button onClick={refresh} title="Refresh" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><RefreshCw size={12} /></button>
-            <button onClick={createFile} title="New File" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><Plus size={12} /></button>
-            <button onClick={createFolder} title="New Folder" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><FolderPlus size={12} /></button>
-            <button onClick={() => fileInputRef.current?.click()} title="Upload Files" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><Upload size={12} /></button>
+            <button onClick={refresh} title="Refresh" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><RefreshCw size={11} /></button>
+            <button onClick={createFile} title="New File" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><Plus size={11} /></button>
+            <button onClick={createFolder} title="New Folder" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><FolderPlus size={11} /></button>
+            <button onClick={() => fileInputRef.current?.click()} title="Upload Files" className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors"><Upload size={11} /></button>
             <div className="w-px h-4 bg-white/[0.06] mx-0.5" />
             <button onClick={() => setViewMode(v => v === 'grid' ? 'list' : 'grid')} title="Toggle view"
               className="p-1.5 rounded-md text-white/25 hover:text-white/65 hover:bg-white/[0.05] transition-colors">
-              {viewMode === 'grid' ? <List size={12} /> : <LayoutGrid size={12} />}
+              {viewMode === 'grid' ? <List size={11} /> : <LayoutGrid size={11} />}
             </button>
           </div>
         </div>
@@ -339,11 +548,11 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
         </div>
       </div>
 
-      {/* Preview panel */}
+      {/* ── Preview panel ── */}
       {hasPreview && (
-        <div className="w-60 shrink-0 flex flex-col bg-[#0a1120]">
+        <div className="w-56 shrink-0 flex flex-col bg-[#0a1120]">
           <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06] shrink-0">
-            <span className="text-[11px] font-medium text-white/50 truncate">{selected}</span>
+            <span className="text-[11px] font-medium text-white/45 truncate">{selected}</span>
             <button onClick={() => { setSelected(null); clearPreview(); }} className="text-white/20 hover:text-white/50 transition-colors ml-2 shrink-0">
               <X size={11} />
             </button>
@@ -353,7 +562,7 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
               <img src={previewUrl} alt={selected!} className="w-full rounded-lg object-contain max-h-40" />
             )}
             {previewContent !== null && (
-              <pre className="text-[11px] text-white/60 font-mono whitespace-pre-wrap break-words leading-relaxed">
+              <pre className="text-[11px] text-white/55 font-mono whitespace-pre-wrap break-words leading-relaxed">
                 {previewContent.length > 4000 ? previewContent.slice(0, 4000) + '\n…' : previewContent}
               </pre>
             )}
@@ -370,6 +579,7 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   );
 }
 
+// ── Grid item ──────────────────────────────────────────────────────────────
 function GridItem({ entry, isSelected, isRenaming, renameVal, onRenameChange, onRenameCommit, onRenameCancel, onNavigate, onSelect, onRename, onDelete }: {
   entry: FsEntry; isSelected: boolean; isRenaming: boolean;
   renameVal: string; onRenameChange: (v: string) => void; onRenameCommit: () => void; onRenameCancel: () => void;
@@ -382,8 +592,7 @@ function GridItem({ entry, isSelected, isRenaming, renameVal, onRenameChange, on
       onDoubleClick={isDir ? onNavigate : undefined}
       onClick={isDir ? undefined : onSelect}
       className={cn('flex flex-col items-center gap-1.5 p-2 rounded-xl cursor-pointer transition-colors select-none group relative',
-        isSelected ? 'bg-blue-600/20 ring-1 ring-blue-500/30' : 'hover:bg-white/[0.04]'
-      )}>
+        isSelected ? 'bg-blue-600/20 ring-1 ring-blue-500/30' : 'hover:bg-white/[0.04]')}>
       <Icon size={26} className={isDir ? 'text-blue-400' : 'text-white/40'} strokeWidth={1.5} />
       {isRenaming ? (
         <input autoFocus value={renameVal} onChange={e => onRenameChange(e.target.value)}
@@ -405,6 +614,7 @@ function GridItem({ entry, isSelected, isRenaming, renameVal, onRenameChange, on
   );
 }
 
+// ── List item ──────────────────────────────────────────────────────────────
 function ListItem({ entry, isSelected, isRenaming, renameVal, onRenameChange, onRenameCommit, onRenameCancel, onNavigate, onSelect, onRename, onDelete }: {
   entry: FsEntry; isSelected: boolean; isRenaming: boolean;
   renameVal: string; onRenameChange: (v: string) => void; onRenameCommit: () => void; onRenameCancel: () => void;
@@ -417,8 +627,7 @@ function ListItem({ entry, isSelected, isRenaming, renameVal, onRenameChange, on
       onDoubleClick={isDir ? onNavigate : undefined}
       onClick={isDir ? undefined : onSelect}
       className={cn('flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors select-none group',
-        isSelected ? 'bg-blue-600/20 ring-1 ring-blue-500/30' : 'hover:bg-white/[0.04]'
-      )}>
+        isSelected ? 'bg-blue-600/20 ring-1 ring-blue-500/30' : 'hover:bg-white/[0.04]')}>
       <Icon size={14} className={isDir ? 'text-blue-400 shrink-0' : 'text-white/35 shrink-0'} strokeWidth={1.5} />
       {isRenaming ? (
         <input autoFocus value={renameVal} onChange={e => onRenameChange(e.target.value)}
