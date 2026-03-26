@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Slider } from '@/components/ui/slider';
 import { cn, getInitials } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGetMyProfile } from '@workspace/api-client-react';
+import { useGetMyProfile, getGetMyProfileQueryKey } from '@workspace/api-client-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getListDmThreadsQueryKey } from '@workspace/api-client-react';
@@ -28,7 +28,7 @@ export function VoiceOverlay() {
     audioOutputDeviceId,
     voiceVolumes, setVoiceVolume,
   } = useAppStore();
-  const { data: profile } = useGetMyProfile({ query: { enabled: !!user } });
+  const { data: profile } = useGetMyProfile({ query: { queryKey: getGetMyProfileQueryKey(), enabled: !!user } });
   const {
     localStream, remoteStreams, remoteVideoStreams, cameraStream, connectionTypes,
     startScreenShare, stopScreenShare, screenStream, startCamera, stopCamera,

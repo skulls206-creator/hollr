@@ -141,11 +141,11 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
       res.end();
     }
   } catch (error) {
-    console.error("Error serving object:", error);
     if (error instanceof ObjectNotFoundError) {
       res.status(404).json({ error: "Object not found" });
       return;
     }
+    console.error("Error serving object:", error);
     res.status(500).json({ error: "Failed to serve object" });
   }
 });

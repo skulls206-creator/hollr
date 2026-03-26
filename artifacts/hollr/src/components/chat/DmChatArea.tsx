@@ -77,7 +77,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   recipientAvatar?: string | null;
 }) {
   const { data: messages = [], isLoading } = useListDmMessages(threadId, undefined, {
-    query: { refetchInterval: 2000, refetchIntervalInBackground: false },
+    query: { queryKey: getListDmMessagesQueryKey(threadId), refetchInterval: 2000, refetchIntervalInBackground: false },
   });
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();

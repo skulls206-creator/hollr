@@ -257,6 +257,8 @@ export interface Message {
   /** @nullable */
   dmThreadId?: string | null;
   edited?: boolean;
+  /** @nullable */
+  pinned?: boolean | null;
   attachments?: Attachment[];
   author: User;
   createdAt: string;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import type { UserSettingsTab } from '@/types/settings';
-import { useGetMyProfile, useUpdateMyProfile } from '@workspace/api-client-react';
+import { useGetMyProfile, useUpdateMyProfile, getGetMyProfileQueryKey, UpdateUserRequestStatus } from '@workspace/api-client-react';
 import { sendVoiceSignal, sendPresenceUpdate } from '@/hooks/use-realtime';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -166,7 +166,7 @@ export function UserSettingsModal() {
     userSettingsInitialTab,
   } = useAppStore();
   const { user, logout } = useAuth();
-  const { data: profile, isLoading } = useGetMyProfile({ query: { enabled: userSettingsModalOpen } });
+  const { data: profile, isLoading } = useGetMyProfile({ query: { queryKey: getGetMyProfileQueryKey(), enabled: userSettingsModalOpen } });
   const updateProfile = useUpdateMyProfile();
   const qc = useQueryClient();
 
@@ -297,7 +297,7 @@ export function UserSettingsModal() {
     setSelectedStatus(newStatus);
     setStatusSaving(true);
     try {
-      await updateProfile.mutateAsync({ data: { status: newStatus } });
+      await updateProfile.mutateAsync({ data: { status: newStatus as UpdateUserRequestStatus } });
       qc.invalidateQueries({ queryKey: ['/api/users/me'] });
       // Broadcast status change in real-time — server will persist it and relay to all clients
       sendPresenceUpdate(user.id, newStatus);
@@ -392,7 +392,7 @@ export function UserSettingsModal() {
   };
 
   const displayNameFallback = user
-    ? getInitials(user.username || '?')
+    ? getInitials(user.firstName || user.email || '?')
     : '?';
 
   const NAV: { id: Tab; icon: React.ReactNode; label: string; group: string }[] = [

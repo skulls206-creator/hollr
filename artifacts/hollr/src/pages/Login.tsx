@@ -52,7 +52,7 @@ export function Login() {
 
       // Set auth state immediately so the app can render without waiting for
       // a cookie round-trip, then navigate to /app so RequireAuth mounts fresh.
-      setAuthUser({ id: data.id, username: data.username, email: data.email ?? null });
+      setAuthUser({ id: data.id, email: data.email ?? null, firstName: null, lastName: null, profileImageUrl: null });
       navigate('/app');
     } catch {
       setError('Network error — please try again');

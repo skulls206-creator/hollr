@@ -74,7 +74,7 @@ export function MessageList({
   highlightedMessageId?: string | null;
 }) {
   const { data: messages = [], isLoading } = useListMessages(channelId, undefined, {
-    query: { refetchInterval: 2000, refetchIntervalInBackground: false },
+    query: { queryKey: getListMessagesQueryKey(channelId), refetchInterval: 2000, refetchIntervalInBackground: false },
   });
   const { mutate: editMessage } = useEditMessage();
   const { mutate: deleteMessage } = useDeleteMessage();
