@@ -322,28 +322,9 @@ export function initWebSocket(server: Server) {
                 }).catch(() => {});
               }
 
-              // When the callee declines, notify the original caller (targetId) of a missed call.
-              // The WS sender is the callee; targetId is the caller who placed the ring.
-              if (signalType === "call_decline" && callerId) {
-                // Resolve callee display name from DB for a better notification body.
-                (async () => {
-                  try {
-                    const [callee] = await db
-                      .select({ displayName: userProfilesTable.displayName, username: userProfilesTable.username })
-                      .from(userProfilesTable)
-                      .where(eq(userProfilesTable.userId, callerId))
-                      .limit(1);
-                    const calleeName = callee?.displayName || callee?.username || "Someone";
-                    const navParams = new URLSearchParams({ navType: "dm", threadId: dmThreadId ?? "" });
-                    await sendNotification(targetId, {
-                      type: "missed_call",
-                      title: "Missed call",
-                      body: `${calleeName} declined your call`,
-                      link: dmThreadId ? `/app?${navParams.toString()}` : undefined,
-                    });
-                  } catch { /* non-fatal */ }
-                })();
-              }
+              // NOTE: missed-call notifications for call_decline are handled exclusively
+              // in the authenticated REST /api/dm/call-signal route to avoid trust issues
+              // and duplication (the client sends both WS + REST for every signal).
             }
             break;
           }

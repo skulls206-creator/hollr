@@ -162,6 +162,7 @@ type WsEvent =
   | { type: 'MUSIC_STATE_UPDATE'; payload: MusicState }
   | { type: 'DM_CALL_SIGNAL'; payload: any }
   | { type: 'VIDEO_CALL_SIGNAL'; payload: any }
+  | { type: 'NOTIFICATION'; payload: { id: string; userId: string; type: string; title: string; body: string; link: string | null; read: boolean; createdAt: string } }
   | { type: 'CONNECTED' }
   | { type: 'PONG' };
 
@@ -458,7 +459,7 @@ export function useRealtime(userId?: string) {
 
           case 'NOTIFICATION': {
             const store = useAppStore.getState();
-            store.prependNotification(data.payload);
+            store.prependNotification(data.payload as import('@/store/use-app-store').AppNotification);
             break;
           }
 
