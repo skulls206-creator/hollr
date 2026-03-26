@@ -91,9 +91,11 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
   const activeNoteRef = useRef<string | null>(null);
   const dirRef = useRef<FileSystemDirectoryHandle | null>(null);
   const contentRef = useRef('');
+  const notesRef = useRef<NoteEntry[]>([]);
   activeNoteRef.current = activeNote;
   dirRef.current = dirHandle;
   contentRef.current = content;
+  notesRef.current = notes;
 
   const loadNotes = useCallback(async (handle: FileSystemDirectoryHandle) => {
     setLoading(true);
@@ -164,12 +166,21 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     saveTimerRef.current = null;
     const handle = dirRef.current;
     const name = activeNoteRef.current;
+    const text = contentRef.current;
     if (!handle || !name) return;
     try {
       const fh = await handle.getFileHandle(name, { create: true });
       const w = await fh.createWritable();
-      await w.write(contentRef.current);
+      await w.write(text);
       await w.close();
+      // Keep notes state in sync so that switching back to this note loads
+      // the correct (just-saved) content rather than the pre-edit snapshot.
+      const now = Date.now();
+      setNotes(prev =>
+        prev
+          .map(n => n.name === name ? { ...n, content: text, lastModified: now } : n)
+          .sort((a, b) => b.lastModified - a.lastModified),
+      );
     } catch {}
   }, []);
 
@@ -192,9 +203,11 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
 
   const selectNote = useCallback(async (name: string) => {
     await flushSave();
-    const note = notes.find(n => n.name === name);
+    // Read from ref so we always get the freshest in-memory content,
+    // even if React hasn't yet re-rendered after the flushSave state update.
+    const note = notesRef.current.find(n => n.name === name);
     if (note) { setActiveNote(name); setContent(note.content); }
-  }, [notes, flushSave]);
+  }, [flushSave]);
 
   const startRename = (name: string) => {
     setRenaming(name);
