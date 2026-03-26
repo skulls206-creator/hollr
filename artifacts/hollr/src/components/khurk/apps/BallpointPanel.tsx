@@ -142,7 +142,12 @@ export function BallpointPanel({ dirHandle, onPickFolder }: NativePanelProps) {
         await w.write(text);
         await w.close();
         const now = Date.now();
-        setNotes(prev => prev.map(n => n.name === name ? { ...n, content: text, lastModified: now } : n));
+        // Re-sort by lastModified desc so the edited note rises to top
+        setNotes(prev =>
+          prev
+            .map(n => n.name === name ? { ...n, content: text, lastModified: now } : n)
+            .sort((a, b) => b.lastModified - a.lastModified)
+        );
       } catch (e) { console.warn('[Ballpoint] save:', e); }
       setSaving(false);
     }, 800);

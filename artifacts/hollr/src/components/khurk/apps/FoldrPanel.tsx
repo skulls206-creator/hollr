@@ -357,8 +357,18 @@ export function FoldrPanel({ dirHandle, onPickFolder }: NativePanelProps) {
     if (!entry) { setRenaming(null); return; }
 
     const ext = entry.kind === 'file' && renaming.includes('.') ? '.' + renaming.split('.').pop() : '';
-    const newName = renameVal.trim() + ext;
+    const base = renameVal.trim();
+    let newName = base + ext;
     if (newName === renaming) { setRenaming(null); return; }
+
+    // Collision guard: auto-suffix if the target name already exists
+    const existingNames = new Set(entries.map(e => e.name).filter(n => n !== renaming));
+    if (existingNames.has(newName)) {
+      let i = 2;
+      while (existingNames.has(newName)) {
+        newName = ext ? `${base} (${i++})${ext}` : `${base} (${i++})`;
+      }
+    }
 
     try {
       if (entry.kind === 'file') {
