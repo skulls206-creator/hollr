@@ -103,7 +103,7 @@ export const KHURK_APPS: KhurkApp[] = [
     name: 'Ballpoint Notes',
     tagline: 'Private Notes',
     description: 'Private, end-to-end encrypted notes and journaling.',
-    url: 'https://ballpoint.replit.app',
+    url: 'https://ballpointone.replit.app',
     imageSrc: gaslessImg,
     bannerSrc: ballpointBanner,
     gradient: ['#5a10c0', '#a040f0'],
