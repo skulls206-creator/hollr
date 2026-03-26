@@ -12,7 +12,7 @@ const SIZES = {
   lg: 20,
 };
 
-export function KhurkDiamondBadge({ size = 'sm', className, title = 'hollr Supporter' }: Props) {
+export function KhurkDiamondBadge({ size = 'sm', className, title = 'HOLLR Supporter' }: Props) {
   const px = SIZES[size];
   const uid = `kdb-${size}`;
 

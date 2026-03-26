@@ -953,7 +953,7 @@ export function UserSettingsModal() {
                 <div className="flex items-center gap-3 px-4 py-4 bg-gradient-to-br from-cyan-500/10 via-sky-500/10 to-indigo-500/10 border border-cyan-500/20 rounded-xl">
                   <KhurkDiamondBadge size="lg" className="shrink-0" />
                   <div>
-                    <p className="text-sm font-bold text-foreground">hollr Supporter</p>
+                    <p className="text-sm font-bold text-foreground">HOLLR Supporter</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Show your support and get a glowing diamond badge next to your name everywhere in hollr.
                     </p>
@@ -987,7 +987,7 @@ export function UserSettingsModal() {
                   /* ── Not a supporter yet ── */
                   <div className="flex flex-col gap-4">
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Choose a plan to become a hollr Supporter. Your badge activates instantly after payment.
+                      Choose a plan to become a HOLLR Supporter. Your badge activates instantly after payment.
                     </p>
 
                     {supporterPrices.length > 0 ? (
