@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, MessageSquare, AtSign, PhoneMissed, Info, CheckCheck, X } from 'lucide-react';
 import { useAppStore, type AppNotification } from '@/store/use-app-store';
@@ -10,6 +10,7 @@ const BASE = import.meta.env.BASE_URL;
 interface NotificationPanelProps {
   open: boolean;
   onClose: () => void;
+  containerRef?: RefObject<HTMLDivElement | null>;
 }
 
 function typeIcon(type: AppNotification['type']) {
@@ -40,7 +41,7 @@ function relativeTime(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
+export function NotificationPanel({ open, onClose, containerRef }: NotificationPanelProps) {
   const { notifications, notificationUnread, setNotifications, markNotificationRead, markAllNotificationsRead } = useAppStore();
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -60,13 +61,16 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
   useEffect(() => {
     if (!open) return;
     const onOutside = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insidePanel = panelRef.current?.contains(target);
+      const insideContainer = containerRef?.current?.contains(target);
+      if (!insidePanel && !insideContainer) {
         onClose();
       }
     };
     document.addEventListener('mousedown', onOutside);
     return () => document.removeEventListener('mousedown', onOutside);
-  }, [open, onClose]);
+  }, [open, onClose, containerRef]);
 
   const handleClickNotification = (n: AppNotification) => {
     if (!n.read) {

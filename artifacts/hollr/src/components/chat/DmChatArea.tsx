@@ -11,7 +11,6 @@ import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
   SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video, User,
 } from 'lucide-react';
-import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { initiateVideoCall } from '@/hooks/use-video-call';
 import { useAppStore } from '@/store/use-app-store';
@@ -504,8 +503,6 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
             </button>
           )}
 
-          {/* Notification bell */}
-          <NotificationBell />
         </div>
       </div>
 

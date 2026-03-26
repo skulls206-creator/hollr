@@ -25,6 +25,7 @@ import { NewDmModal } from '@/components/modals/NewDmModal';
 import { AppWindow } from '@/components/khurk/AppWindow';
 import { PiPWindow } from '@/components/khurk/PiPWindow';
 import { DashboardView } from '@/components/khurk/DashboardView';
+import { NotificationBell, useInitNotifications } from '@/components/notifications/NotificationBell';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,8 @@ export function Layout() {
     sidebarLocked, setSidebarLocked, toggleMobileSidebar,
     incrementDmUnreadCount, clearDmUnreadCount,
   } = useAppStore();
+
+  useInitNotifications();
 
   const navApplied = useRef(false);
   useEffect(() => {
@@ -443,6 +446,11 @@ export function Layout() {
 
       <DmCallOverlay />
       <VideoCallOverlay />
+
+      {/* ── Global notification bell — fixed top-right, always visible ── */}
+      <div className="fixed top-2 right-3 z-[100]">
+        <NotificationBell />
+      </div>
     </div>
   );
 }
