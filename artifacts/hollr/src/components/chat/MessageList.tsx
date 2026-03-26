@@ -340,7 +340,7 @@ export function MessageList({
                     className="font-medium text-base text-indigo-400 hover:underline flex items-center gap-1"
                   >
                     {msg.author.displayName || msg.author.username}
-                    {(msg.author as any).isSupporter && <KhurkDiamondBadge size="sm" />}
+                    {msg.author.isSupporter && <KhurkDiamondBadge size="sm" />}
                   </button>
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(msg.createdAt), 'h:mm a')}

@@ -49,7 +49,7 @@ if (process.env.REPLIT_CONNECTORS_HOSTNAME) {
 
       stripeSync.syncBackfill()
         .then(() => console.log('[stripe] Backfill complete'))
-        .catch(err => console.error('[stripe] Backfill error:', err));
+        .catch((err: unknown) => console.error('[stripe] Backfill error:', err));
     } catch (err) {
       console.error('[stripe] Init failed (non-fatal):', err);
     }

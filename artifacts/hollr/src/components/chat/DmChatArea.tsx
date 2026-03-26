@@ -17,6 +17,7 @@ import { useAppStore } from '@/store/use-app-store';
 import { DmReactionPills } from './DmReactionPills';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 
 async function editDmMessage(threadId: string, messageId: string, content: string) {
   const res = await fetch(`/api/dms/${threadId}/messages/${messageId}`, {
@@ -569,10 +570,11 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                 {showHeader && (
                   <div className="flex items-baseline gap-2 mb-0.5">
                     <span
-                      className="font-medium text-base text-indigo-400 cursor-pointer hover:underline"
+                      className="font-medium text-base text-indigo-400 cursor-pointer hover:underline inline-flex items-center gap-1"
                       onContextMenu={e => handleAuthorContextMenu(e, msg)}
                     >
                       {msg.author.displayName || msg.author.username}
+                      {msg.author.isSupporter && <KhurkDiamondBadge size="sm" />}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(msg.createdAt), 'h:mm a')}
