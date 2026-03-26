@@ -1,3 +1,6 @@
+import { lazy } from 'react';
+import type { ComponentType } from 'react';
+
 import uStreamImg from '@assets/download_(1)_1774290216897.png';
 import playdImg from '@assets/5957_1774286181393.png';
 import foldrImg from '@assets/5996_1774290216887.png';
@@ -16,6 +19,11 @@ import ballpointBanner from '@assets/generated_images/banner_ballpoint.png';
 import onlyGamesBanner from '@assets/generated_images/banner_onlygames.png';
 import onlyXmrBanner from '@assets/generated_images/banner_onlyxmr.png';
 
+export interface NativePanelProps {
+  dirHandle: FileSystemDirectoryHandle | null;
+  onPickFolder: () => void;
+}
+
 export interface KhurkApp {
   id: string;
   name: string;
@@ -28,13 +36,27 @@ export interface KhurkApp {
   gradient: [string, string];
   openMode?: 'iframe' | 'tab';
   /**
-   * Controls which postMessage protocol is used when the user connects a folder.
+   * When set, the AppWindow renders this React component instead of an iframe.
+   * The component receives the connected FileSystemDirectoryHandle and an
+   * onPickFolder callback so it can prompt the user to connect a folder.
+   * "Open in new tab" still navigates to `url`.
+   */
+  nativePanel?: ReturnType<typeof lazy<ComponentType<NativePanelProps>>>;
+  /**
+   * Controls which postMessage protocol is used when the user connects a folder
+   * for iframe-based apps (not used when nativePanel is set).
    * - 'vault'        (default) — reads all .md/.txt/.json files and posts khurk:vault-open
-   * - 'fs-directory' — skips file reading, posts khurk:fs-directory with the raw handle;
-   *                    the app manages its own file access and permission prompts.
+   * - 'fs-directory' — skips file reading, posts khurk:fs-directory with the raw handle
    */
   folderProtocol?: 'vault' | 'fs-directory';
 }
+
+const BallpointPanel = lazy(() =>
+  import('@/components/khurk/apps/BallpointPanel').then(m => ({ default: m.BallpointPanel }))
+);
+const FoldrPanel = lazy(() =>
+  import('@/components/khurk/apps/FoldrPanel').then(m => ({ default: m.FoldrPanel }))
+);
 
 export function HollrIcon({ size = 26 }: { size?: number }) {
   return (
@@ -78,13 +100,13 @@ export const KHURK_APPS: KhurkApp[] = [
   {
     id: 'foldr',
     name: 'Foldr Storage',
-    tagline: 'Encrypted IPFS Storage',
-    description: 'Encrypted IPFS storage solution for your sensitive data.',
+    tagline: 'File Browser',
+    description: 'Browse, manage, and preview your local files directly in-app.',
     url: 'https://foldr.khurk.services',
     imageSrc: foldrImg,
     bannerSrc: foldrBanner,
     gradient: ['#0a5a9c', '#2ea8e0'],
-    folderProtocol: 'fs-directory',
+    nativePanel: FoldrPanel,
   },
   {
     id: 'instaghost',
@@ -110,11 +132,12 @@ export const KHURK_APPS: KhurkApp[] = [
     id: 'ballpoint',
     name: 'Ballpoint Notes',
     tagline: 'Private Notes',
-    description: 'Private, end-to-end encrypted notes and journaling.',
+    description: 'Private, local Markdown notes stored as plain files on your device.',
     url: 'https://ballpoint.khurk.services',
     imageSrc: gaslessImg,
     bannerSrc: ballpointBanner,
     gradient: ['#5a10c0', '#a040f0'],
+    nativePanel: BallpointPanel,
   },
   {
     id: 'onlygames',
