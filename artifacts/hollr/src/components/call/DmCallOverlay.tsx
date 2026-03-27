@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Phone, PhoneOff, PhoneMissed, Mic, MicOff, Volume2, VolumeX,
-  Minimize2, Check, ShieldAlert,
+  Minimize2, Check, ShieldAlert, Headphones, HeadphoneOff,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/store/use-app-store';
@@ -34,10 +34,11 @@ export function DmCallOverlay() {
   const { user } = useAuth();
   const micMuted = useAppStore((s) => s.micMuted);
 
-  const [speakerOn, setSpeakerOn] = useState(true);
+  const [deafened, setDeafenedState] = useState(false);
+  const [earpieceOn, setEarpieceState] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { startCallerAudio, startCalleeAudio, toggleMic, toggleSpeaker, cleanupAudio } = useDmCallAudio();
+  const { startCallerAudio, startCalleeAudio, toggleMic, setDeafened, setEarpiece, cleanupAudio } = useDmCallAudio();
 
   const { state, targetUserId, targetDisplayName, targetAvatarUrl, dmThreadId, minimized, startedAt } = dmCall;
 
@@ -130,10 +131,16 @@ export function DmCallOverlay() {
     endDmCall();
   };
 
-  const handleSpeakerToggle = () => {
-    const next = !speakerOn;
-    setSpeakerOn(next);
-    toggleSpeaker(next);
+  const handleDeafenToggle = () => {
+    const next = !deafened;
+    setDeafenedState(next);
+    setDeafened(next);
+  };
+
+  const handleEarpieceToggle = () => {
+    const next = !earpieceOn;
+    setEarpieceState(next);
+    setEarpiece(next);
   };
 
   // ── Minimized call bar ──────────────────────────────────────────────────
@@ -308,7 +315,7 @@ export function DmCallOverlay() {
         {/* ── Connected ── */}
         {state === 'connected' && (
           <div className="flex flex-col gap-6 pb-4">
-            <div className="flex justify-center gap-10">
+            <div className="flex justify-center gap-8">
               <CallBtn
                 icon={micMuted ? <MicOff size={22} /> : <Mic size={22} />}
                 label={micMuted ? 'Unmute' : 'Mute'}
@@ -317,10 +324,17 @@ export function DmCallOverlay() {
                 size="md"
               />
               <CallBtn
-                icon={speakerOn ? <Volume2 size={22} /> : <VolumeX size={22} />}
-                label="Speaker"
-                color={speakerOn ? 'active' : 'ghost'}
-                onClick={handleSpeakerToggle}
+                icon={deafened ? <VolumeX size={22} /> : <Volume2 size={22} />}
+                label={deafened ? 'Undeafen' : 'Deafen'}
+                color={deafened ? 'active' : 'ghost'}
+                onClick={handleDeafenToggle}
+                size="md"
+              />
+              <CallBtn
+                icon={earpieceOn ? <Headphones size={22} /> : <HeadphoneOff size={22} />}
+                label={earpieceOn ? 'Earpiece' : 'Speaker'}
+                color={earpieceOn ? 'active' : 'ghost'}
+                onClick={handleEarpieceToggle}
                 size="md"
               />
             </div>

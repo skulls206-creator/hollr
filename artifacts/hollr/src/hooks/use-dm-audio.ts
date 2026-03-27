@@ -176,15 +176,37 @@ export function useDmCallAudio() {
     store.toggleMicMuted();
   }, []);
 
-  // ── Speaker mode toggle (mobile only — tries setSinkId) ──────────────────
-  const toggleSpeaker = useCallback((speakerOn: boolean) => {
+  // ── Deafen: mute/unmute incoming audio (works on all browsers/platforms) ──
+  const setDeafened = useCallback((deafened: boolean) => {
+    const audio = remoteAudioRef.current;
+    if (audio) audio.muted = deafened;
+  }, []);
+
+  // ── Earpiece: route audio to earpiece vs speakerphone ────────────────────
+  // setSinkId works on Chrome/Edge; for iOS Safari we flip playsInline and
+  // re-attach the srcObject to force the audio session to re-route.
+  const setEarpiece = useCallback(async (useEarpiece: boolean) => {
     const audio = remoteAudioRef.current;
     if (!audio) return;
-    const newSink = speakerOn ? 'default' : 'communications';
+
+    // Chrome / Edge path
     if (typeof (audio as any).setSinkId === 'function') {
-      (audio as any).setSinkId(newSink).catch(() => {});
+      try {
+        // 'communications' = headset/earpiece; '' = system default (speaker)
+        await (audio as any).setSinkId(useEarpiece ? 'communications' : '');
+        return;
+      } catch {}
+    }
+
+    // iOS Safari fallback: playsInline=true → earpiece, false → loudspeaker
+    (audio as any).playsInline = useEarpiece;
+    if (audio.srcObject) {
+      const src = audio.srcObject;
+      audio.srcObject = null;
+      audio.srcObject = src;
+      audio.play().catch(() => {});
     }
   }, []);
 
-  return { startCallerAudio, startCalleeAudio, toggleMic, toggleSpeaker, cleanupAudio };
+  return { startCallerAudio, startCalleeAudio, toggleMic, setDeafened, setEarpiece, cleanupAudio };
 }
