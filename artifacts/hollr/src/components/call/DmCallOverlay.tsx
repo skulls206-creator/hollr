@@ -13,6 +13,12 @@ import { useDmCallAudio } from '@/hooks/use-dm-audio';
 
 const CALL_TIMEOUT_MS = 30_000;
 
+// ── Module-level bridge so MinimizedDmCallBar can reach the active hook ───
+const _bridge = {
+  toggleMic: null as (() => void) | null,
+  handleEnd:  null as (() => void) | null,
+};
+
 function CallTimer({ startedAt }: { startedAt: number | null }) {
   const [secs, setSecs] = useState(0);
   useEffect(() => {
@@ -41,6 +47,17 @@ export function DmCallOverlay() {
   const { startCallerAudio, startCalleeAudio, toggleMic, setDeafened, setEarpiece, cleanupAudio } = useDmCallAudio();
 
   const { state, targetUserId, targetDisplayName, targetAvatarUrl, dmThreadId, minimized, startedAt } = dmCall;
+
+  // ── Populate bridge so MinimizedDmCallBar can call these without prop-drilling ──
+  useEffect(() => {
+    _bridge.toggleMic = toggleMic;
+    _bridge.handleEnd = () => {
+      sendDmCallSignal({ type: 'call_end', targetId: targetUserId, callerId: user?.id });
+      cleanupAudio();
+      endDmCall();
+    };
+    return () => { _bridge.toggleMic = null; _bridge.handleEnd = null; };
+  }, [toggleMic, targetUserId, user?.id, cleanupAudio, endDmCall]);
 
   // Auto-cancel outgoing call after 30 s
   useEffect(() => {
@@ -143,44 +160,8 @@ export function DmCallOverlay() {
     setEarpiece(next);
   };
 
-  // ── Minimized call bar ──────────────────────────────────────────────────
-  if (minimized && state === 'connected') {
-    return (
-      <div className="fixed top-0 left-0 right-0 z-[9000] flex items-center gap-3 px-4 py-2 bg-emerald-600/95 backdrop-blur-md shadow-lg">
-        <div className="relative shrink-0">
-          <Avatar className="h-7 w-7">
-            <AvatarImage src={targetAvatarUrl || undefined} />
-            <AvatarFallback className="bg-emerald-800 text-white text-xs">
-              {getInitials(displayName)}
-            </AvatarFallback>
-          </Avatar>
-          <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-300 border-2 border-emerald-600 animate-pulse" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white text-xs font-semibold truncate">{displayName}</p>
-          <CallTimer startedAt={startedAt} />
-        </div>
-        <button
-          onClick={() => setDmCallState({ minimized: false })}
-          className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-        >
-          <Phone size={14} />
-        </button>
-        <button
-          onClick={toggleMic}
-          className={cn('p-1.5 rounded-lg transition-colors shrink-0', micMuted ? 'text-red-300 bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10')}
-        >
-          {micMuted ? <MicOff size={14} /> : <Mic size={14} />}
-        </button>
-        <button
-          onClick={handleEnd}
-          className="p-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors shrink-0"
-        >
-          <PhoneOff size={14} />
-        </button>
-      </div>
-    );
-  }
+  // ── Minimized: bar is rendered in-flow by Layout.tsx — nothing here ──────
+  if (minimized && state === 'connected') return null;
 
   // ── Full-screen overlay ─────────────────────────────────────────────────
   return (
@@ -344,6 +325,66 @@ export function DmCallOverlay() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Minimized call bar — rendered in-flow by Layout, no overlay ─────────────
+export function MinimizedDmCallBar() {
+  const { dmCall, setDmCallState } = useAppStore();
+  const micMuted = useAppStore((s) => s.micMuted);
+  const { state, minimized, startedAt, targetDisplayName, targetAvatarUrl } = dmCall;
+
+  if (!(minimized && state === 'connected')) return null;
+
+  const displayName = targetDisplayName ?? 'Unknown';
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2 bg-emerald-700/95 backdrop-blur-md shadow-md shrink-0">
+      <div className="relative shrink-0">
+        <Avatar className="h-7 w-7">
+          <AvatarImage src={targetAvatarUrl || undefined} />
+          <AvatarFallback className="bg-emerald-900 text-white text-xs">
+            {getInitials(displayName)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-300 border-2 border-emerald-700 animate-pulse" />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-white text-xs font-semibold truncate">{displayName}</p>
+        <CallTimer startedAt={startedAt} />
+      </div>
+
+      {/* Expand back to full-screen */}
+      <button
+        onClick={() => setDmCallState({ minimized: false })}
+        className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+        title="Expand call"
+      >
+        <Phone size={14} />
+      </button>
+
+      {/* Mic toggle */}
+      <button
+        onClick={() => _bridge.toggleMic?.()}
+        className={cn(
+          'p-1.5 rounded-lg transition-colors shrink-0',
+          micMuted ? 'text-red-300 bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10',
+        )}
+        title={micMuted ? 'Unmute' : 'Mute'}
+      >
+        {micMuted ? <MicOff size={14} /> : <Mic size={14} />}
+      </button>
+
+      {/* End call */}
+      <button
+        onClick={() => _bridge.handleEnd?.()}
+        className="p-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors shrink-0"
+        title="End call"
+      >
+        <PhoneOff size={14} />
+      </button>
     </div>
   );
 }
