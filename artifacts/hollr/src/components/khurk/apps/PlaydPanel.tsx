@@ -1890,7 +1890,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
       {trackCtxMenu && (
         <TrackCtxMenu
           x={trackCtxMenu.x} y={trackCtxMenu.y} track={trackCtxMenu.track}
-          ctxCopied={ctxCopied}
+          ctxCopied={ctxCopied} accent={ACCENT}
           onClose={() => setTrackCtxMenu(null)}
           onPlayNow={() => { playTrack(trackCtxMenu.track); setTrackCtxMenu(null); }}
           onPlayNext={() => { dispatch({ type: 'INSERT_NEXT', track: trackCtxMenu.track }); setTrackCtxMenu(null); }}
@@ -1905,7 +1905,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
 
       {/* ── Track info modal ── */}
       {trackInfoModal && (
-        <TrackInfoModal track={trackInfoModal} onClose={() => setTrackInfoModal(null)} />
+        <TrackInfoModal track={trackInfoModal} onClose={() => setTrackInfoModal(null)} accent={ACCENT} />
       )}
     </div>
   );
@@ -1997,7 +1997,7 @@ function TrackCtxMenu({
 }
 
 /* ─── Track Info Modal ───────────────────────────────────────────────────── */
-function TrackInfoModal({ track, onClose }: { track: Track; onClose: () => void }) {
+function TrackInfoModal({ track, onClose, accent }: { track: Track; onClose: () => void; accent: string }) {
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', key);
@@ -2046,7 +2046,7 @@ function TrackInfoModal({ track, onClose }: { track: Track; onClose: () => void 
         <div style={{ padding: '10px 16px 16px' }}>
           {rows.map(([label, value]) => (
             <div key={label} style={{ display: 'flex', gap: 12, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'baseline' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: ACCENT, width: 72, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: accent, width: 72, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
               <span style={{ fontSize: 12, color: 'var(--foreground)', wordBreak: 'break-all', opacity: 0.9 }}>{value}</span>
             </div>
           ))}
