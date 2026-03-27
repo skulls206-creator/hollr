@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useListServerMembers, getListServerMembersQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
@@ -47,6 +47,7 @@ function MemberRow({
   const { show: showMenu } = useContextMenu();
   const isOnline = member.user.status !== 'offline';
   const isSelf = member.userId === me?.id;
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canActOn =
     canModerate &&
@@ -192,6 +193,17 @@ function MemberRow({
   return (
     <div
       onContextMenu={handleContextMenu}
+      onTouchStart={e => {
+        const touch = e.touches[0];
+        const x = touch.clientX;
+        const y = touch.clientY;
+        longPressTimer.current = setTimeout(() => {
+          longPressTimer.current = null;
+          handleContextMenu({ clientX: x, clientY: y, preventDefault: () => {}, stopPropagation: () => {} } as any);
+        }, 400);
+      }}
+      onTouchEnd={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
+      onTouchMove={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
       className={`flex items-center gap-3 px-2 py-2 rounded-md hover:bg-secondary/50 transition-colors group ${!isOnline ? 'opacity-50' : ''}`}
     >
       <button

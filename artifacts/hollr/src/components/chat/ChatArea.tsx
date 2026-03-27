@@ -137,6 +137,7 @@ export function ChatArea() {
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(searchQuery, 300);
 
@@ -167,8 +168,11 @@ export function ChatArea() {
     setSearchOpen(false);
     setSearchQuery('');
     setHighlightedMessageId(msg.id);
-    // Clear highlight after 3 seconds
-    setTimeout(() => setHighlightedMessageId(null), 3000);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedMessageId(null);
+      highlightTimerRef.current = null;
+    }, 3000);
   }, []);
 
   // Keyboard shortcut: Esc closes search

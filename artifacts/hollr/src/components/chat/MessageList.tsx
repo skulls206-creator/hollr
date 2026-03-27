@@ -1,11 +1,11 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { useListMessages, useEditMessage, useDeleteMessage, getListMessagesQueryKey } from '@workspace/api-client-react';
+import { useListMessages, useEditMessage, useDeleteMessage, getListMessagesQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
-import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare, Copy, ExternalLink, EyeOff, Eye } from 'lucide-react';
+import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare, Copy, ExternalLink, EyeOff, Eye, User, AtSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppStore } from '@/store/use-app-store';
 import { cn } from '@/lib/utils';
@@ -81,7 +81,7 @@ export function MessageList({
   const qc = useQueryClient();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { openThread, openProfileCard, chatFontSize } = useAppStore();
+  const { openThread, openProfileCard, chatFontSize, setActiveDmThread, triggerMention } = useAppStore();
   const { show: showMenu } = useContextMenu();
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -308,6 +308,68 @@ export function MessageList({
     };
   }, [openContextMenu]);
 
+  const handleAuthorContextMenu = useCallback((e: React.MouseEvent, author: any, authorId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const isSelf = user?.id === authorId;
+    const actions: any[] = [
+      {
+        id: 'view-profile',
+        label: 'View Profile',
+        icon: <User size={14} />,
+        onClick: () => openProfileCard({ userId: authorId, position: { x: e.clientX, y: e.clientY } }),
+      },
+    ];
+    if (!isSelf) {
+      actions.push(
+        {
+          id: 'message',
+          label: 'Message',
+          icon: <MessageSquare size={14} />,
+          onClick: async () => {
+            try {
+              const res = await fetch(`${import.meta.env.BASE_URL}api/dms`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ userId: authorId }),
+              });
+              if (!res.ok) throw new Error();
+              const thread = await res.json();
+              qc.setQueryData(getListDmThreadsQueryKey(), (old: any[]) => {
+                const existing = (old || []).filter((t: any) => t.id !== thread.id);
+                return [...existing, thread];
+              });
+              setActiveDmThread(thread.id);
+            } catch { toast({ title: 'Could not open DM', variant: 'destructive' }); }
+          },
+        },
+        {
+          id: 'mention',
+          label: 'Mention in Chat',
+          icon: <AtSign size={14} />,
+          onClick: () => triggerMention(author?.displayName || author?.username || ''),
+        },
+      );
+    }
+    actions.push(
+      {
+        id: 'copy-username',
+        label: 'Copy Username',
+        icon: <Copy size={14} />,
+        onClick: () => navigator.clipboard.writeText(author?.username || ''),
+        dividerBefore: true,
+      },
+      {
+        id: 'copy-id',
+        label: 'Copy User ID',
+        icon: <Copy size={14} />,
+        onClick: () => navigator.clipboard.writeText(authorId),
+      },
+    );
+    showMenu({ x: e.clientX, y: e.clientY, actions });
+  }, [user, openProfileCard, qc, setActiveDmThread, triggerMention, showMenu, toast]);
+
   if (isLoading) {
     return <div className="flex-1 flex items-center justify-center text-muted-foreground">Loading messages…</div>;
   }
@@ -368,6 +430,7 @@ export function MessageList({
                   userId: msg.authorId,
                   position: { x: e.clientX, y: e.clientY },
                 })}
+                onContextMenu={e => handleAuthorContextMenu(e, msg.author, msg.authorId)}
                 className="shrink-0 mr-4"
               >
                 <Avatar className="h-10 w-10 hover:opacity-80 transition-opacity">
@@ -388,6 +451,7 @@ export function MessageList({
                 <div className="flex items-center gap-2 mb-0.5">
                   <button
                     onClick={e => openProfileCard({ userId: msg.authorId, position: { x: e.clientX, y: e.clientY } })}
+                    onContextMenu={e => handleAuthorContextMenu(e, msg.author, msg.authorId)}
                     className="font-medium text-base text-indigo-400 hover:underline flex items-center gap-1"
                   >
                     {msg.author.displayName || msg.author.username}
