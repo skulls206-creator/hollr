@@ -247,7 +247,7 @@ type PlayerAction =
 
 function buildInitialState(storagePrefix: string): PlayerState {
   const stored = {
-    volume: parseFloat(localStorage.getItem(`${storagePrefix}:vol`) ?? '0.8'),
+    volume: parseFloat(localStorage.getItem(`${storagePrefix}:vol`) ?? '0.5'),
     eqGains: (() => {
       try { return JSON.parse(localStorage.getItem(`${storagePrefix}:eq`) ?? 'null') ?? new Array(10).fill(0); }
       catch { return new Array(10).fill(0); }
@@ -447,6 +447,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   useEffect(() => {
     const audio = new Audio();
     audio.preload = 'metadata';
+    audio.volume = isMutedRef.current ? 0 : volumeRef.current;
     audioRef.current = audio;
 
     audio.addEventListener('timeupdate', () => {
