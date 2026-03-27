@@ -10,7 +10,7 @@ import {
   ListMusic, Search, FolderOpen, Sliders, ChevronRight,
   ChevronDown, ChevronUp, ChevronLeft, Music2, X, MoreHorizontal,
   GalleryHorizontalEnd, Tag, Copy, Check, Info, ListPlus,
-  ListEnd, Minus, Hash, FileAudio, Columns,
+  ListEnd, Minus, Hash, FileAudio, Columns, Palette,
 } from 'lucide-react';
 import * as jsmediatags from 'jsmediatags';
 import type { NativePanelProps } from '@/lib/khurk-apps';
@@ -46,8 +46,60 @@ type SortDir = 'asc' | 'desc';
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 const EQ_FREQS = [60, 120, 250, 500, 1000, 2000, 4000, 8000, 12000, 16000];
 const EQ_LABELS = ['60', '120', '250', '500', '1k', '2k', '4k', '8k', '12k', '16k'];
-const ACCENT = '#f07020';
 const AUDIO_EXTS = /\.(mp3|flac|wav|ogg|aac|m4a|opus|wma|aiff)$/i;
+
+/* ─── Playd Themes ───────────────────────────────────────────────────────── */
+interface PlaydTheme {
+  id: string;
+  label: string;
+  accent: string;
+  accentMuted: string;
+  bg: string;
+  s1: string;
+  s2: string;
+  sidebar: string;
+  border: string;
+  text: string;
+  muted: string;
+}
+const PLAYD_THEMES: PlaydTheme[] = [
+  {
+    id: 'ember', label: 'Ember',
+    accent: '#f07020', accentMuted: 'rgba(240,112,32,0.15)',
+    bg: '#0e0e0e', s1: '#181818', s2: '#141414', sidebar: '#111111',
+    border: '#262626', text: '#f2f2f2', muted: '#888888',
+  },
+  {
+    id: 'neon', label: 'Neon',
+    accent: '#00d4ff', accentMuted: 'rgba(0,212,255,0.15)',
+    bg: '#060c10', s1: '#0d1820', s2: '#0a121a', sidebar: '#08101a',
+    border: '#152535', text: '#e8f6ff', muted: '#5b8fa8',
+  },
+  {
+    id: 'sakura', label: 'Sakura',
+    accent: '#f472b6', accentMuted: 'rgba(244,114,182,0.15)',
+    bg: '#0e080d', s1: '#1a1018', s2: '#150d13', sidebar: '#110b10',
+    border: '#2a1525', text: '#fde8f4', muted: '#8a5578',
+  },
+  {
+    id: 'emerald', label: 'Emerald',
+    accent: '#10d97e', accentMuted: 'rgba(16,217,126,0.15)',
+    bg: '#060e0a', s1: '#0d1a10', s2: '#0a140d', sidebar: '#08110b',
+    border: '#152a1a', text: '#e4fdf0', muted: '#4a8a60',
+  },
+  {
+    id: 'violet', label: 'Violet',
+    accent: '#a855f7', accentMuted: 'rgba(168,85,247,0.15)',
+    bg: '#0a060f', s1: '#160d20', s2: '#120a1a', sidebar: '#0e0816',
+    border: '#231540', text: '#f0e8ff', muted: '#7050a0',
+  },
+  {
+    id: 'arctic', label: 'Arctic',
+    accent: '#60a5fa', accentMuted: 'rgba(96,165,250,0.15)',
+    bg: '#07090f', s1: '#0d1020', s2: '#0a0e1a', sidebar: '#08091a',
+    border: '#151a30', text: '#e8eeff', muted: '#5570a0',
+  },
+];
 
 /* ─── jsmediatags wrapper (ID3v1/v2, FLAC, OGG Vorbis) ──────────────────── */
 type TagMeta = Partial<Pick<Track, 'title' | 'artist' | 'album' | 'genre' | 'artDataUrl' | 'trackNumber'>>;
@@ -298,20 +350,19 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 /* ─── SortableHeader ─────────────────────────────────────────────────────── */
 function SortHeader({
-  field, label, currentField, currentDir, onSort,
+  field, label, currentField, currentDir, onSort, accent,
 }: {
   field: SortField; label: string; currentField: SortField; currentDir: SortDir;
-  onSort: (f: SortField) => void;
+  onSort: (f: SortField) => void; accent: string;
 }) {
   const active = field === currentField;
   return (
     <button
       onClick={() => onSort(field)}
       className="flex items-center gap-0.5 hover:text-white transition-colors"
-      style={{ color: active ? '#f07020' : undefined }}
+      style={{ color: active ? accent : undefined }}
     >
       {label}
-      {/* Always render sort indicator for active col; show faint arrow on hover for others */}
       {active
         ? (currentDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)
         : <ChevronUp size={10} className="opacity-0 group-hover:opacity-20" />
@@ -348,6 +399,14 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   const [trackCtxMenu, setTrackCtxMenu] = useState<{ x: number; y: number; track: Track } | null>(null);
   const [trackInfoModal, setTrackInfoModal] = useState<Track | null>(null);
   const [ctxCopied, setCtxCopied] = useState<string | null>(null);
+
+  /* ── Theme ── */
+  const [themeId, setThemeId] = useState<string>(() =>
+    localStorage.getItem(`${storagePrefix}:theme`) ?? 'ember'
+  );
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const theme = PLAYD_THEMES.find(t => t.id === themeId) ?? PLAYD_THEMES[0];
+  const ACCENT = theme.accent;
 
   /* ── Mobile/responsive state ── */
   const panelRootRef = useRef<HTMLDivElement>(null);
@@ -843,11 +902,26 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   // gridCols already includes the leading index slot; replicate that on mobile
   const activeGrid = isMobile ? ['20px', ...mobileColWidths].join(' ') : gridCols;
 
+  const changeTheme = (id: string) => {
+    setThemeId(id);
+    localStorage.setItem(`${storagePrefix}:theme`, id);
+    setThemePickerOpen(false);
+  };
+
   return (
     <div
       ref={panelRootRef}
       className="h-full flex flex-col overflow-hidden select-none text-sm"
-      style={{ background: 'var(--background)', color: 'var(--foreground)', fontFamily: 'inherit' }}
+      style={{
+        background: theme.bg,
+        color: theme.text,
+        fontFamily: 'inherit',
+        '--surface-1': theme.s1,
+        '--surface-2': theme.s2,
+        '--border': theme.border,
+        '--foreground': theme.text,
+        '--muted-foreground': theme.muted,
+      } as React.CSSProperties}
     >
       {/* ── Top toolbar ── */}
       <div
@@ -924,7 +998,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                       key={col.id}
                       onClick={() => { handleSort(col.field); setSortPickerOpen(false); }}
                       className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs transition-colors text-left"
-                      style={{ color: active ? ACCENT : 'var(--foreground)', background: active ? 'rgba(240,112,32,0.08)' : 'none' }}
+                      style={{ color: active ? ACCENT : 'var(--foreground)', background: active ? theme.accentMuted : 'none' }}
                       onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
                       onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'none'; }}
                     >
@@ -957,6 +1031,75 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
             {tracks.length} tracks
           </span>
         )}
+
+        {/* Theme picker */}
+        <div className="relative shrink-0">
+          <button
+            onClick={() => setThemePickerOpen(v => !v)}
+            className="p-1.5 rounded-md transition-colors hover:bg-white/10 flex items-center"
+            style={{ color: themePickerOpen ? ACCENT : 'var(--muted-foreground)' }}
+            title="Theme"
+          >
+            <Palette size={14} />
+          </button>
+          {themePickerOpen && (
+            <>
+              <div className="fixed inset-0 z-[9997]" onClick={() => setThemePickerOpen(false)} />
+              <div
+                className="absolute right-0 top-full mt-1.5 z-[9998] rounded-2xl border shadow-2xl p-3"
+                style={{ background: theme.s2, borderColor: theme.border, width: 220 }}
+              >
+                <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 px-1" style={{ color: theme.muted }}>
+                  Playd Theme
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {PLAYD_THEMES.map(t => {
+                    const active = t.id === themeId;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => changeTheme(t.id)}
+                        className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all"
+                        style={{
+                          background: active ? t.accentMuted : 'rgba(255,255,255,0.04)',
+                          border: `1.5px solid ${active ? t.accent : 'transparent'}`,
+                        }}
+                      >
+                        {/* Color swatch */}
+                        <div className="relative w-8 h-8 rounded-full overflow-hidden" style={{ background: t.bg }}>
+                          {/* Accent arc */}
+                          <div
+                            className="absolute inset-0 rounded-full"
+                            style={{
+                              background: `conic-gradient(${t.accent} 0deg 180deg, ${t.s1} 180deg 360deg)`,
+                            }}
+                          />
+                          <div
+                            className="absolute inset-1 rounded-full"
+                            style={{ background: t.bg }}
+                          />
+                          <div
+                            className="absolute inset-[6px] rounded-full"
+                            style={{ background: t.accent }}
+                          />
+                        </div>
+                        <span
+                          className="text-[9px] font-semibold"
+                          style={{ color: active ? t.accent : theme.muted }}
+                        >
+                          {t.label}
+                        </span>
+                        {active && (
+                          <div className="w-1 h-1 rounded-full" style={{ background: t.accent }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Mobile sort picker backdrop */}
@@ -1006,7 +1149,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                   <div
                     key={colId}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                    style={{ background: 'rgba(240,112,32,0.10)' }}
+                    style={{ background: theme.accentMuted }}
                   >
                     {/* Up / Down reorder */}
                     <div className="flex flex-col gap-0.5 shrink-0">
@@ -1118,7 +1261,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                     onClick={() => { dispatch({ type: 'SET_LIBRARY_VIEW', view: item.id }); if (isMobile) setMobileSidebarOpen(false); }}
                     className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left"
                     style={{
-                      background: active ? 'rgba(240,112,32,0.15)' : 'transparent',
+                      background: active ? theme.accentMuted : 'transparent',
                       color: active ? ACCENT : 'var(--muted-foreground)',
                       fontWeight: active ? 600 : 400,
                     }}
@@ -1139,7 +1282,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                 onClick={() => { dispatch({ type: 'SET_LIBRARY_VIEW', view: 'recently-added' }); if (isMobile) setMobileSidebarOpen(false); }}
                 className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors w-full text-left"
                 style={{
-                  background: libraryView === 'recently-added' ? 'rgba(240,112,32,0.15)' : 'transparent',
+                  background: libraryView === 'recently-added' ? theme.accentMuted : 'transparent',
                   color: libraryView === 'recently-added' ? ACCENT : 'var(--muted-foreground)',
                   fontWeight: libraryView === 'recently-added' ? 600 : 400,
                 }}
@@ -1202,7 +1345,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
             <div className="flex-1 flex flex-col items-center justify-center gap-5">
               <div
                 className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl"
-                style={{ background: `linear-gradient(135deg, #c0340a, #f07020)` }}
+                style={{ background: `linear-gradient(135deg, ${ACCENT}99, ${ACCENT})` }}
               >
                 <Music2 size={32} color="white" />
               </div>
@@ -1348,7 +1491,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                         </button>
                       )}
 
-                      <SortHeader field={col.field} label={col.label} currentField={sortField} currentDir={sortDir} onSort={handleSort} />
+                      <SortHeader field={col.field} label={col.label} currentField={sortField} currentDir={sortDir} onSort={handleSort} accent={ACCENT} />
 
                       {/* ▶ shift right — desktop only */}
                       {!isMobile && (
@@ -1391,7 +1534,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                         style={{
                           gridTemplateColumns: activeGrid,
                           height: rowH,
-                          background: isSelected ? 'rgba(240,112,32,0.14)' : isActive ? 'rgba(240,112,32,0.07)' : 'transparent',
+                          background: isSelected ? theme.accentMuted : isActive ? `${ACCENT}12` : 'transparent',
                           borderLeft: isActive ? `3px solid ${ACCENT}` : '3px solid transparent',
                         }}
                         onMouseEnter={e => { if (!isSelected && !isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
@@ -1583,14 +1726,14 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                       <button
                         onClick={() => dispatch({ type: 'TOGGLE_SHUFFLE' })}
                         className="flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors"
-                        style={{ color: shuffle ? ACCENT : 'var(--muted-foreground)', background: shuffle ? 'rgba(240,112,32,0.12)' : 'transparent' }}
+                        style={{ color: shuffle ? ACCENT : 'var(--muted-foreground)', background: shuffle ? theme.accentMuted : 'transparent' }}
                       >
                         <Shuffle size={13} /> Shuffle
                       </button>
                       <button
                         onClick={() => dispatch({ type: 'CYCLE_REPEAT' })}
                         className="flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors"
-                        style={{ color: repeat !== 'none' ? ACCENT : 'var(--muted-foreground)', background: repeat !== 'none' ? 'rgba(240,112,32,0.12)' : 'transparent' }}
+                        style={{ color: repeat !== 'none' ? ACCENT : 'var(--muted-foreground)', background: repeat !== 'none' ? theme.accentMuted : 'transparent' }}
                       >
                         {repeat === 'one' ? <Repeat1 size={13} /> : <Repeat size={13} />}
                         {repeat === 'one' ? 'One' : repeat === 'all' ? 'All' : 'Off'}
@@ -1600,7 +1743,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                     <button
                       onClick={() => { dispatch({ type: 'TOGGLE_EQ' }); setMobileOverflowOpen(false); }}
                       className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors"
-                      style={{ color: eqOpen ? ACCENT : 'var(--muted-foreground)', background: eqOpen ? 'rgba(240,112,32,0.12)' : 'transparent' }}
+                      style={{ color: eqOpen ? ACCENT : 'var(--muted-foreground)', background: eqOpen ? theme.accentMuted : 'transparent' }}
                     >
                       <Sliders size={13} /> Equalizer
                     </button>
