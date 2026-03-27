@@ -311,7 +311,11 @@ function SortHeader({
       style={{ color: active ? '#f07020' : undefined }}
     >
       {label}
-      {active && (currentDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
+      {/* Always render sort indicator for active col; show faint arrow on hover for others */}
+      {active
+        ? (currentDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)
+        : <ChevronUp size={10} className="opacity-0 group-hover:opacity-20" />
+      }
     </button>
   );
 }
@@ -326,7 +330,9 @@ const COL_DEFS: ColDef[] = [
   { id: 'trackNumber', field: 'trackNumber', label: 'Tr#',    width: '40px', align: 'center' },
   { id: 'duration',    field: 'duration',    label: 'Time',   width: '50px', align: 'right'  },
 ];
-const DEFAULT_COL_ORDER: ColId[] = ['title', 'artist', 'album', 'trackNumber', 'duration'];
+const DEFAULT_COL_ORDER: ColId[] = ['trackNumber', 'title', 'artist', 'album', 'duration'];
+const MOBILE_COLS: ColId[] = ['trackNumber', 'title', 'duration'];
+const MOBILE_GRID = '24px 36px 1fr 50px';
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePanelProps) {
@@ -343,6 +349,17 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   const [trackCtxMenu, setTrackCtxMenu] = useState<{ x: number; y: number; track: Track } | null>(null);
   const [trackInfoModal, setTrackInfoModal] = useState<Track | null>(null);
   const [ctxCopied, setCtxCopied] = useState<string | null>(null);
+
+  /* ── Mobile/responsive state ── */
+  const panelRootRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sortPickerOpen, setSortPickerOpen] = useState(false);
+  const [mobileOverflowOpen, setMobileOverflowOpen] = useState(false);
+
+  /* ── Long-press refs (mobile context menu) ── */
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressPos = useRef<{ x: number; y: number } | null>(null);
 
   /* ── Audio refs ── */
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -621,6 +638,46 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
     localStorage.setItem(`${storagePrefix}:sidebar`, sidebarOpen ? '1' : '0');
   }, [sidebarOpen, storagePrefix]);
 
+  /* ── ResizeObserver: detect narrow panel ── */
+  useEffect(() => {
+    const el = panelRootRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width ?? el.offsetWidth;
+      setIsMobile(w <= 480);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /* ── Long-press context menu (mobile) ── */
+  const handleTrackTouchStart = useCallback((e: React.TouchEvent, track: Track) => {
+    const t = e.touches[0];
+    longPressPos.current = { x: t.clientX, y: t.clientY };
+    longPressTimer.current = setTimeout(() => {
+      if (longPressPos.current) {
+        setTrackCtxMenu({ x: longPressPos.current.x, y: longPressPos.current.y, track });
+        longPressPos.current = null;
+      }
+    }, 500);
+  }, []);
+
+  const handleTrackTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!longPressPos.current) return;
+    const t = e.touches[0];
+    const dx = t.clientX - longPressPos.current.x;
+    const dy = t.clientY - longPressPos.current.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 10) {
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      longPressPos.current = null;
+    }
+  }, []);
+
+  const handleTrackTouchEnd = useCallback(() => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressPos.current = null;
+  }, []);
+
   /* ── Computed: filtered + sorted track list for current view ── */
   const filteredTracks = useMemo(() => {
     let list = [...tracks];
@@ -771,52 +828,121 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   const groupItems = libraryView === 'artists' ? artists : libraryView === 'genres' ? genres : albums;
 
   /* ─────────────────────────────── Main UI ────────────────────────────── */
+  const activeCols = isMobile ? MOBILE_COLS : colOrder;
+  const activeGrid = isMobile ? MOBILE_GRID : gridCols;
+
   return (
     <div
+      ref={panelRootRef}
       className="h-full flex flex-col overflow-hidden select-none text-sm"
       style={{ background: 'var(--background)', color: 'var(--foreground)', fontFamily: 'inherit' }}
     >
       {/* ── Top toolbar ── */}
       <div
-        className="flex items-center gap-2 px-2 h-9 shrink-0 border-b"
+        className="flex items-center gap-1.5 px-2 h-10 shrink-0 border-b"
         style={{ background: 'var(--surface-1, #1a1a1a)', borderColor: 'var(--border)' }}
       >
+        {/* Sidebar toggle: on mobile opens overlay, on desktop inline */}
         <button
-          onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
-          className="p-1 rounded transition-colors hover:bg-white/10"
-          style={{ color: sidebarOpen ? ACCENT : 'var(--muted-foreground)' }}
+          onClick={() => isMobile ? setMobileSidebarOpen(v => !v) : dispatch({ type: 'TOGGLE_SIDEBAR' })}
+          className="p-1.5 rounded transition-colors hover:bg-white/10 shrink-0"
+          style={{ color: (isMobile ? mobileSidebarOpen : sidebarOpen) ? ACCENT : 'var(--muted-foreground)' }}
           title="Toggle sidebar"
         >
           <GalleryHorizontalEnd size={14} />
         </button>
-        <div className="flex-1 flex items-center gap-1.5 bg-black/20 rounded-md px-2 h-6 border" style={{ borderColor: 'var(--border)' }}>
-          <Search size={11} style={{ color: 'var(--muted-foreground)' }} />
+
+        {/* Search input */}
+        <div className="flex-1 flex items-center gap-1.5 bg-black/20 rounded-md px-2 h-7 border" style={{ borderColor: 'var(--border)' }}>
+          <Search size={11} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />
           <input
             type="text"
-            placeholder="Search tracks, artists, albums…"
+            placeholder="Search…"
             value={search}
             onChange={e => dispatch({ type: 'SET_SEARCH', search: e.target.value })}
-            className="flex-1 bg-transparent outline-none text-xs placeholder:opacity-40"
+            className="flex-1 bg-transparent outline-none text-xs placeholder:opacity-40 min-w-0"
             style={{ color: 'var(--foreground)' }}
           />
           {search && (
-            <button onClick={() => dispatch({ type: 'SET_SEARCH', search: '' })} className="opacity-50 hover:opacity-100">
+            <button onClick={() => dispatch({ type: 'SET_SEARCH', search: '' })} className="opacity-50 hover:opacity-100 shrink-0">
               <X size={10} />
             </button>
           )}
         </div>
-        <span className="text-xs shrink-0" style={{ color: 'var(--muted-foreground)' }}>
-          {tracks.length} tracks
-        </span>
+
+        {/* Mobile sort picker button */}
+        {isMobile && (
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setSortPickerOpen(v => !v)}
+              className="flex items-center gap-1 px-2 h-7 rounded-md text-[11px] font-semibold border transition-colors hover:bg-white/10"
+              style={{ borderColor: 'var(--border)', color: ACCENT }}
+              title="Sort"
+            >
+              <ChevronUp size={11} className={sortDir === 'desc' ? 'rotate-180' : ''} style={{ transition: 'transform 0.2s' }} />
+              {COL_DEFS.find(c => c.field === sortField)?.label ?? 'Sort'}
+            </button>
+            {sortPickerOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 rounded-xl border shadow-2xl py-1.5 z-[9999]"
+                style={{ background: 'var(--surface-1, #1c1c1c)', borderColor: 'rgba(255,255,255,0.1)', minWidth: 160, backdropFilter: 'blur(12px)' }}
+                onPointerDown={e => e.stopPropagation()}
+              >
+                {COL_DEFS.map(col => {
+                  const active = col.field === sortField;
+                  return (
+                    <button
+                      key={col.id}
+                      onClick={() => { handleSort(col.field); setSortPickerOpen(false); }}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs transition-colors text-left"
+                      style={{ color: active ? ACCENT : 'var(--foreground)', background: active ? 'rgba(240,112,32,0.08)' : 'none' }}
+                      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'none'; }}
+                    >
+                      <span className={active ? 'font-semibold' : ''}>{col.label}</span>
+                      {active && (sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Track count — desktop only */}
+        {!isMobile && (
+          <span className="text-xs shrink-0" style={{ color: 'var(--muted-foreground)' }}>
+            {tracks.length} tracks
+          </span>
+        )}
       </div>
 
+      {/* Mobile sort picker backdrop */}
+      {isMobile && sortPickerOpen && (
+        <div className="fixed inset-0 z-[9998]" onClick={() => setSortPickerOpen(false)} />
+      )}
+
       {/* ── Body: sidebar + content ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+
+        {/* ── Sidebar overlay backdrop (mobile) ── */}
+        {isMobile && mobileSidebarOpen && (
+          <div
+            className="absolute inset-0 z-40"
+            style={{ background: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
 
         {/* ── Sidebar ── */}
-        {sidebarOpen && (
+        {(isMobile ? mobileSidebarOpen : sidebarOpen) && (
           <div
-            className="w-48 shrink-0 flex flex-col overflow-hidden border-r"
+            className={cn(
+              'flex flex-col overflow-hidden border-r',
+              isMobile
+                ? 'absolute top-0 left-0 h-full z-50 w-56'
+                : 'w-48 shrink-0',
+            )}
             style={{ background: 'var(--surface-1, #161616)', borderColor: 'var(--border)' }}
           >
             {/* Library nav */}
@@ -833,8 +959,8 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                 return (
                   <button
                     key={String(item.id)}
-                    onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: item.id })}
-                    className="flex items-center gap-2 px-2 py-1 rounded text-xs transition-colors text-left"
+                    onClick={() => { dispatch({ type: 'SET_LIBRARY_VIEW', view: item.id }); if (isMobile) setMobileSidebarOpen(false); }}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left"
                     style={{
                       background: active ? 'rgba(240,112,32,0.15)' : 'transparent',
                       color: active ? ACCENT : 'var(--muted-foreground)',
@@ -854,8 +980,8 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                 Playlists
               </p>
               <button
-                onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: 'recently-added' })}
-                className="flex items-center gap-2 px-2 py-1 rounded text-xs transition-colors w-full text-left"
+                onClick={() => { dispatch({ type: 'SET_LIBRARY_VIEW', view: 'recently-added' }); if (isMobile) setMobileSidebarOpen(false); }}
+                className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors w-full text-left"
                 style={{
                   background: libraryView === 'recently-added' ? 'rgba(240,112,32,0.15)' : 'transparent',
                   color: libraryView === 'recently-added' ? ACCENT : 'var(--muted-foreground)',
@@ -879,8 +1005,8 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                     return (
                       <button
                         key={artist}
-                        onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: 'artist', name: artist } })}
-                        className="w-full text-left px-3 py-0.5 text-xs truncate transition-colors hover:bg-white/5"
+                        onClick={() => { dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: 'artist', name: artist } }); if (isMobile) setMobileSidebarOpen(false); }}
+                        className="w-full text-left px-3 py-1 text-xs truncate transition-colors hover:bg-white/5"
                         style={{ color: active ? ACCENT : 'var(--muted-foreground)', fontWeight: active ? 600 : 400 }}
                       >
                         {artist || 'Unknown'}
@@ -898,8 +1024,8 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                     return (
                       <button
                         key={genre}
-                        onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: 'genre', name: genre } })}
-                        className="w-full text-left px-3 py-0.5 text-xs truncate transition-colors hover:bg-white/5"
+                        onClick={() => { dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: 'genre', name: genre } }); if (isMobile) setMobileSidebarOpen(false); }}
+                        className="w-full text-left px-3 py-1 text-xs truncate transition-colors hover:bg-white/5"
                         style={{ color: active ? ACCENT : 'var(--muted-foreground)', fontWeight: active ? 600 : 400 }}
                       >
                         {genre || 'Unknown'}
@@ -945,7 +1071,22 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
           {/* ── Scanning state ── */}
           {scanning && (
             <div className="flex-1 flex flex-col items-center justify-center gap-4">
-              <Loader2 size={28} className="animate-spin" style={{ color: ACCENT }} />
+              {/* Gradient icon ring */}
+              <div className="relative flex items-center justify-center">
+                <div
+                  className="w-16 h-16 rounded-full animate-spin"
+                  style={{
+                    background: `conic-gradient(${ACCENT} 0deg, transparent 260deg)`,
+                    opacity: 0.3,
+                  }}
+                />
+                <div
+                  className="absolute inset-1 rounded-full flex items-center justify-center"
+                  style={{ background: 'var(--surface-1, #161616)' }}
+                >
+                  <Music2 size={24} style={{ color: ACCENT }} />
+                </div>
+              </div>
               <div className="text-center">
                 <p className="text-sm font-semibold mb-1">Scanning music library…</p>
                 <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
@@ -954,7 +1095,10 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
               </div>
               {scanTotal > 0 && (
                 <div className="w-48 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                  <div className="h-full rounded-full transition-all" style={{ width: `${scanPct}%`, background: ACCENT }} />
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${scanPct}%`, background: `linear-gradient(90deg, ${ACCENT}aa, ${ACCENT})`, transition: 'width 0.2s ease' }}
+                  />
                 </div>
               )}
             </div>
@@ -1018,44 +1162,48 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Column headers */}
               <div
-                className="grid items-center px-2 h-7 text-[10px] font-semibold uppercase tracking-wide shrink-0 border-b select-none"
+                className="grid items-center px-2 h-8 text-[10px] font-semibold uppercase tracking-wide shrink-0 border-b select-none"
                 style={{
-                  gridTemplateColumns: gridCols,
+                  gridTemplateColumns: activeGrid,
                   borderColor: 'var(--border)',
                   color: 'var(--muted-foreground)',
                   background: 'var(--surface-1, #1a1a1a)',
                 }}
               >
-                <span className="text-center">#</span>
-                {colOrder.map((colId, ci) => {
+                <span className="text-center opacity-50">#</span>
+                {activeCols.map((colId, ci) => {
                   const col = COL_DEFS.find(c => c.id === colId)!;
                   const isFirst = ci === 0;
-                  const isLast = ci === colOrder.length - 1;
+                  const isLast = ci === activeCols.length - 1;
                   return (
                     <div
                       key={colId}
                       className="flex items-center gap-0.5 group min-w-0"
                       style={{ justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start' }}
                     >
-                      {/* ◀ shift left */}
-                      <button
-                        onClick={e => { e.stopPropagation(); moveCol(colId, -1); }}
-                        className={cn('rounded transition-all p-0.5 shrink-0', isFirst ? 'invisible pointer-events-none' : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-white')}
-                        title="Move column left"
-                      >
-                        <ChevronLeft size={9} />
-                      </button>
+                      {/* ◀ shift left — desktop only */}
+                      {!isMobile && (
+                        <button
+                          onClick={e => { e.stopPropagation(); moveCol(colId, -1); }}
+                          className={cn('rounded transition-all p-0.5 shrink-0', isFirst ? 'invisible pointer-events-none' : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-white')}
+                          title="Move column left"
+                        >
+                          <ChevronLeft size={9} />
+                        </button>
+                      )}
 
                       <SortHeader field={col.field} label={col.label} currentField={sortField} currentDir={sortDir} onSort={handleSort} />
 
-                      {/* ▶ shift right */}
-                      <button
-                        onClick={e => { e.stopPropagation(); moveCol(colId, 1); }}
-                        className={cn('rounded transition-all p-0.5 shrink-0', isLast ? 'invisible pointer-events-none' : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-white')}
-                        title="Move column right"
-                      >
-                        <ChevronRight size={9} />
-                      </button>
+                      {/* ▶ shift right — desktop only */}
+                      {!isMobile && (
+                        <button
+                          onClick={e => { e.stopPropagation(); moveCol(colId, 1); }}
+                          className={cn('rounded transition-all p-0.5 shrink-0', isLast ? 'invisible pointer-events-none' : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-white')}
+                          title="Move column right"
+                        >
+                          <ChevronRight size={9} />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -1072,43 +1220,56 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                   filteredTracks.map((track, idx) => {
                     const isActive = currentTrack?.id === track.id;
                     const isSelected = selectedTrackId === track.id;
+                    const rowH = isMobile ? 48 : 36;
                     return (
                       <div
                         key={track.id}
                         onDoubleClick={() => playTrack(track)}
                         onClick={() => dispatch({ type: 'SELECT_TRACK', id: track.id })}
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTrackCtxMenu({ x: e.clientX, y: e.clientY, track }); }}
-                        className="grid items-center px-2 h-8 cursor-pointer transition-colors"
+                        onTouchStart={e => handleTrackTouchStart(e, track)}
+                        onTouchMove={handleTrackTouchMove}
+                        onTouchEnd={handleTrackTouchEnd}
+                        onTouchCancel={handleTrackTouchEnd}
+                        className="grid items-center px-2 cursor-pointer transition-colors"
                         style={{
-                          gridTemplateColumns: gridCols,
-                          background: isSelected ? 'rgba(240,112,32,0.12)' : isActive ? 'rgba(240,112,32,0.06)' : 'transparent',
-                          borderLeft: isActive ? `2px solid ${ACCENT}` : '2px solid transparent',
+                          gridTemplateColumns: activeGrid,
+                          height: rowH,
+                          background: isSelected ? 'rgba(240,112,32,0.14)' : isActive ? 'rgba(240,112,32,0.07)' : 'transparent',
+                          borderLeft: isActive ? `3px solid ${ACCENT}` : '3px solid transparent',
                         }}
-                        onMouseEnter={e => { if (!isSelected && !isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; }}
+                        onMouseEnter={e => { if (!isSelected && !isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
                         onMouseLeave={e => { if (!isSelected && !isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                       >
-                        <span className="text-center text-[10px]" style={{ color: isActive ? ACCENT : 'var(--muted-foreground)' }}>
+                        <span className="text-center text-[10px]" style={{ color: isActive ? ACCENT : 'var(--muted-foreground)', opacity: isActive ? 1 : 0.5 }}>
                           {isActive && isPlaying ? '▶' : idx + 1}
                         </span>
-                        {colOrder.map(colId => {
+                        {activeCols.map(colId => {
                           if (colId === 'title') return (
                             <div key="title" className="flex items-center gap-2 min-w-0 pr-2">
                               {track.artDataUrl ? (
-                                <img src={track.artDataUrl} alt="" className="w-5 h-5 rounded shrink-0 object-cover" />
+                                <img src={track.artDataUrl} alt="" className={cn('rounded shrink-0 object-cover', isMobile ? 'w-8 h-8' : 'w-5 h-5')} />
                               ) : (
-                                <div className="w-5 h-5 rounded shrink-0 flex items-center justify-center" style={{ background: artistColor(track.artist) }}>
-                                  <Music2 size={10} color="white" />
+                                <div className={cn('rounded shrink-0 flex items-center justify-center', isMobile ? 'w-8 h-8' : 'w-5 h-5')} style={{ background: artistColor(track.artist) }}>
+                                  <Music2 size={isMobile ? 14 : 10} color="white" />
                                 </div>
                               )}
-                              <span className="truncate text-xs" style={{ color: isActive ? ACCENT : 'var(--foreground)', fontWeight: isActive ? 600 : 400 }}>
-                                {track.title}
-                              </span>
+                              <div className="min-w-0 flex-1">
+                                <span className="block truncate text-xs font-medium" style={{ color: isActive ? ACCENT : 'var(--foreground)', fontWeight: isActive ? 600 : 500 }}>
+                                  {track.title}
+                                </span>
+                                {isMobile && (
+                                  <span className="block truncate text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                                    {track.artist}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           );
                           if (colId === 'artist') return <span key="artist" className="text-xs truncate pr-2" style={{ color: 'var(--muted-foreground)' }}>{track.artist}</span>;
                           if (colId === 'album') return <span key="album" className="text-xs truncate pr-2" style={{ color: 'var(--muted-foreground)' }}>{track.album}</span>;
-                          if (colId === 'trackNumber') return <span key="trackNumber" className="text-xs text-center" style={{ color: 'var(--muted-foreground)' }}>{track.trackNumber ?? '—'}</span>;
-                          if (colId === 'duration') return <span key="duration" className="text-xs text-right" style={{ color: 'var(--muted-foreground)' }}>{formatDuration(track.duration)}</span>;
+                          if (colId === 'trackNumber') return <span key="trackNumber" className="text-xs text-center tabular-nums" style={{ color: isActive ? ACCENT : 'var(--muted-foreground)', opacity: isActive ? 1 : 0.6 }}>{track.trackNumber ?? '—'}</span>;
+                          if (colId === 'duration') return <span key="duration" className="text-xs text-right tabular-nums pr-1" style={{ color: 'var(--muted-foreground)', opacity: 0.7 }}>{formatDuration(track.duration)}</span>;
                           return null;
                         })}
                       </div>
@@ -1176,128 +1337,253 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
         className="shrink-0 border-t"
         style={{ background: 'var(--surface-1, #111)', borderColor: 'var(--border)' }}
       >
-        {/* Seek bar */}
-        <div className="relative group h-1 cursor-pointer" onClick={e => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          seekTo((e.clientX - rect.left) / rect.width);
-        }}>
+        {/* Seek bar — full width, slightly taller on mobile for touch */}
+        <div
+          className="relative cursor-pointer"
+          style={{ height: isMobile ? 4 : 3 }}
+          onClick={e => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            seekTo((e.clientX - rect.left) / rect.width);
+          }}
+        >
           <div className="absolute inset-0" style={{ background: 'var(--border)' }} />
           <div
-            className="absolute left-0 top-0 h-full transition-all"
-            style={{ width: `${seekPct}%`, background: ACCENT }}
+            className="absolute left-0 top-0 h-full"
+            style={{ width: `${seekPct}%`, background: ACCENT, transition: 'width 0.1s linear' }}
           />
         </div>
 
-        <div className="flex items-center gap-2 px-3 h-[68px]">
-          {/* Album art + track info */}
-          <div className="flex items-center gap-2.5 w-56 shrink-0 min-w-0">
+        {isMobile ? (
+          /* ── Mobile compact player bar ── */
+          <div className="flex items-center gap-2 px-3 h-14">
+            {/* Album art */}
             {currentTrack?.artDataUrl ? (
-              <img src={currentTrack.artDataUrl} alt="" className="w-11 h-11 rounded object-cover shrink-0 shadow-md" />
+              <img src={currentTrack.artDataUrl} alt="" className="w-9 h-9 rounded object-cover shrink-0 shadow" />
             ) : currentTrack ? (
-              <div
-                className="w-11 h-11 rounded shrink-0 flex items-center justify-center shadow-md"
-                style={{ background: artistColor(currentTrack.artist) }}
-              >
-                <Music2 size={20} color="white" />
+              <div className="w-9 h-9 rounded shrink-0 flex items-center justify-center shadow" style={{ background: artistColor(currentTrack.artist) }}>
+                <Music2 size={16} color="white" />
               </div>
             ) : (
-              <div className="w-11 h-11 rounded shrink-0" style={{ background: 'var(--border)' }} />
+              <div className="w-9 h-9 rounded shrink-0" style={{ background: 'var(--border)' }} />
             )}
+
+            {/* Title + artist */}
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold truncate" style={{ color: currentTrack ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
+              <p className="text-xs font-semibold truncate leading-tight" style={{ color: currentTrack ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
                 {currentTrack?.title ?? 'No track selected'}
               </p>
-              <p className="text-[10px] truncate" style={{ color: 'var(--muted-foreground)' }}>
-                {currentTrack ? `${currentTrack.artist} — ${currentTrack.album}` : 'Double-click a track to play'}
-              </p>
-              <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-                {formatDuration(currentTime)} / {formatDuration(duration)}
+              <p className="text-[10px] truncate leading-tight" style={{ color: 'var(--muted-foreground)' }}>
+                {currentTrack ? `${currentTrack.artist}` : 'Tap a track to play'}
               </p>
             </div>
-          </div>
 
-          {/* Spectrum visualizer */}
-          <canvas
-            ref={canvasRef}
-            width={96}
-            height={36}
-            className="shrink-0 rounded opacity-80"
-            style={{ background: 'transparent' }}
-          />
+            {/* Time */}
+            <span className="text-[10px] tabular-nums shrink-0" style={{ color: 'var(--muted-foreground)' }}>
+              {formatDuration(currentTime)}
+            </span>
 
-          {/* Transport controls */}
-          <div className="flex items-center gap-1 mx-auto shrink-0">
-            <button
-              onClick={() => dispatch({ type: 'TOGGLE_SHUFFLE' })}
-              className="p-1.5 rounded transition-colors"
-              style={{ color: shuffle ? ACCENT : 'var(--muted-foreground)' }}
-              title="Shuffle"
-            >
-              <Shuffle size={14} />
-            </button>
+            {/* Transport: prev / play / next */}
             <button
               onClick={() => dispatch({ type: 'PREV_TRACK' })}
-              className="p-1.5 rounded transition-colors hover:text-white"
+              className="p-1.5 rounded transition-colors"
               style={{ color: 'var(--muted-foreground)' }}
-              title="Previous"
             >
               <SkipBack size={18} />
             </button>
             <button
               onClick={togglePlay}
-              className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:brightness-110 active:scale-95 shadow-md"
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 shadow"
               style={{ background: ACCENT, color: 'white' }}
             >
               {isPlaying ? <Pause size={16} /> : <Play size={16} />}
             </button>
             <button
               onClick={() => dispatch({ type: 'NEXT_TRACK' })}
-              className="p-1.5 rounded transition-colors hover:text-white"
+              className="p-1.5 rounded transition-colors"
               style={{ color: 'var(--muted-foreground)' }}
-              title="Next"
             >
               <SkipForward size={18} />
             </button>
-            <button
-              onClick={() => dispatch({ type: 'CYCLE_REPEAT' })}
-              className="p-1.5 rounded transition-colors"
-              style={{ color: repeat !== 'none' ? ACCENT : 'var(--muted-foreground)' }}
-              title={repeat === 'none' ? 'Repeat off' : repeat === 'all' ? 'Repeat all' : 'Repeat one'}
-            >
-              {repeat === 'one' ? <Repeat1 size={14} /> : <Repeat size={14} />}
-            </button>
-          </div>
 
-          {/* Right controls: EQ toggle + volume */}
-          <div className="flex items-center gap-2 ml-auto shrink-0 w-48 justify-end">
-            <button
-              onClick={() => dispatch({ type: 'TOGGLE_EQ' })}
-              className="p-1.5 rounded transition-colors flex items-center gap-1 text-[10px] font-semibold"
-              style={{ color: eqOpen ? ACCENT : 'var(--muted-foreground)' }}
-              title="Equalizer"
-            >
-              <Sliders size={13} />
-              EQ
-            </button>
-            <button
-              onClick={() => dispatch({ type: 'SET_MUTED', muted: !isMuted })}
-              className="p-1 rounded transition-colors"
-              style={{ color: 'var(--muted-foreground)' }}
-            >
-              {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={isMuted ? 0 : volume}
-              onChange={e => dispatch({ type: 'SET_VOLUME', volume: parseFloat(e.target.value) })}
-              className="w-20"
-              style={{ accentColor: ACCENT, cursor: 'pointer' }}
-            />
+            {/* ⋯ overflow — shows shuffle, repeat, EQ, volume */}
+            <div className="relative">
+              <button
+                onClick={() => setMobileOverflowOpen(v => !v)}
+                className="p-1.5 rounded transition-colors"
+                style={{ color: mobileOverflowOpen ? ACCENT : 'var(--muted-foreground)' }}
+                title="More"
+              >
+                <MoreHorizontal size={18} />
+              </button>
+              {mobileOverflowOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMobileOverflowOpen(false)} />
+                  <div
+                    className="absolute right-0 bottom-full mb-2 z-50 rounded-lg border shadow-xl p-3 flex flex-col gap-3 w-48"
+                    style={{ background: 'var(--surface-2, #1e1e1e)', borderColor: 'var(--border)' }}
+                  >
+                    {/* Shuffle + Repeat row */}
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => dispatch({ type: 'TOGGLE_SHUFFLE' })}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors"
+                        style={{ color: shuffle ? ACCENT : 'var(--muted-foreground)', background: shuffle ? 'rgba(240,112,32,0.12)' : 'transparent' }}
+                      >
+                        <Shuffle size={13} /> Shuffle
+                      </button>
+                      <button
+                        onClick={() => dispatch({ type: 'CYCLE_REPEAT' })}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors"
+                        style={{ color: repeat !== 'none' ? ACCENT : 'var(--muted-foreground)', background: repeat !== 'none' ? 'rgba(240,112,32,0.12)' : 'transparent' }}
+                      >
+                        {repeat === 'one' ? <Repeat1 size={13} /> : <Repeat size={13} />}
+                        {repeat === 'one' ? 'One' : repeat === 'all' ? 'All' : 'Off'}
+                      </button>
+                    </div>
+                    {/* EQ toggle */}
+                    <button
+                      onClick={() => { dispatch({ type: 'TOGGLE_EQ' }); setMobileOverflowOpen(false); }}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors"
+                      style={{ color: eqOpen ? ACCENT : 'var(--muted-foreground)', background: eqOpen ? 'rgba(240,112,32,0.12)' : 'transparent' }}
+                    >
+                      <Sliders size={13} /> Equalizer
+                    </button>
+                    {/* Volume */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => dispatch({ type: 'SET_MUTED', muted: !isMuted })}
+                        className="p-1 rounded shrink-0 transition-colors"
+                        style={{ color: 'var(--muted-foreground)' }}
+                      >
+                        {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                      </button>
+                      <input
+                        type="range"
+                        min={0} max={1} step={0.01}
+                        value={isMuted ? 0 : volume}
+                        onChange={e => dispatch({ type: 'SET_VOLUME', volume: parseFloat(e.target.value) })}
+                        className="flex-1"
+                        style={{ accentColor: ACCENT, cursor: 'pointer' }}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          /* ── Desktop player bar ── */
+          <div className="flex items-center gap-2 px-3 h-[68px]">
+            {/* Album art + track info */}
+            <div className="flex items-center gap-2.5 w-56 shrink-0 min-w-0">
+              {currentTrack?.artDataUrl ? (
+                <img src={currentTrack.artDataUrl} alt="" className="w-11 h-11 rounded object-cover shrink-0 shadow-md" />
+              ) : currentTrack ? (
+                <div
+                  className="w-11 h-11 rounded shrink-0 flex items-center justify-center shadow-md"
+                  style={{ background: artistColor(currentTrack.artist) }}
+                >
+                  <Music2 size={20} color="white" />
+                </div>
+              ) : (
+                <div className="w-11 h-11 rounded shrink-0" style={{ background: 'var(--border)' }} />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold truncate" style={{ color: currentTrack ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
+                  {currentTrack?.title ?? 'No track selected'}
+                </p>
+                <p className="text-[10px] truncate" style={{ color: 'var(--muted-foreground)' }}>
+                  {currentTrack ? `${currentTrack.artist} — ${currentTrack.album}` : 'Double-click a track to play'}
+                </p>
+                <p className="text-[10px] tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                  {formatDuration(currentTime)} / {formatDuration(duration)}
+                </p>
+              </div>
+            </div>
+
+            {/* Spectrum visualizer */}
+            <canvas
+              ref={canvasRef}
+              width={96}
+              height={36}
+              className="shrink-0 rounded opacity-80"
+              style={{ background: 'transparent' }}
+            />
+
+            {/* Transport controls */}
+            <div className="flex items-center gap-1 mx-auto shrink-0">
+              <button
+                onClick={() => dispatch({ type: 'TOGGLE_SHUFFLE' })}
+                className="p-1.5 rounded transition-colors"
+                style={{ color: shuffle ? ACCENT : 'var(--muted-foreground)' }}
+                title="Shuffle"
+              >
+                <Shuffle size={14} />
+              </button>
+              <button
+                onClick={() => dispatch({ type: 'PREV_TRACK' })}
+                className="p-1.5 rounded transition-colors hover:text-white"
+                style={{ color: 'var(--muted-foreground)' }}
+                title="Previous"
+              >
+                <SkipBack size={18} />
+              </button>
+              <button
+                onClick={togglePlay}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:brightness-110 active:scale-95 shadow-md"
+                style={{ background: ACCENT, color: 'white' }}
+              >
+                {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+              </button>
+              <button
+                onClick={() => dispatch({ type: 'NEXT_TRACK' })}
+                className="p-1.5 rounded transition-colors hover:text-white"
+                style={{ color: 'var(--muted-foreground)' }}
+                title="Next"
+              >
+                <SkipForward size={18} />
+              </button>
+              <button
+                onClick={() => dispatch({ type: 'CYCLE_REPEAT' })}
+                className="p-1.5 rounded transition-colors"
+                style={{ color: repeat !== 'none' ? ACCENT : 'var(--muted-foreground)' }}
+                title={repeat === 'none' ? 'Repeat off' : repeat === 'all' ? 'Repeat all' : 'Repeat one'}
+              >
+                {repeat === 'one' ? <Repeat1 size={14} /> : <Repeat size={14} />}
+              </button>
+            </div>
+
+            {/* Right controls: EQ toggle + volume */}
+            <div className="flex items-center gap-2 ml-auto shrink-0 w-48 justify-end">
+              <button
+                onClick={() => dispatch({ type: 'TOGGLE_EQ' })}
+                className="p-1.5 rounded transition-colors flex items-center gap-1 text-[10px] font-semibold"
+                style={{ color: eqOpen ? ACCENT : 'var(--muted-foreground)' }}
+                title="Equalizer"
+              >
+                <Sliders size={13} />
+                EQ
+              </button>
+              <button
+                onClick={() => dispatch({ type: 'SET_MUTED', muted: !isMuted })}
+                className="p-1 rounded transition-colors"
+                style={{ color: 'var(--muted-foreground)' }}
+              >
+                {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={isMuted ? 0 : volume}
+                onChange={e => dispatch({ type: 'SET_VOLUME', volume: parseFloat(e.target.value) })}
+                className="w-20"
+                style={{ accentColor: ACCENT, cursor: 'pointer' }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Track context menu ── */}
