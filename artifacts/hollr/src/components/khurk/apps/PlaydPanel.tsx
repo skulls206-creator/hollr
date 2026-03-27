@@ -306,7 +306,6 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   const gainNodeRef = useRef<GainNode | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
-  const objectUrlsRef = useRef<Map<string, string>>(new Map());
   const artUrlsRef = useRef<string[]>([]);
   const didSetupAudio = useRef(false);
   const prevDirRef = useRef<FileSystemDirectoryHandle | null>(null);
@@ -482,7 +481,6 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
           if (meta.artDataUrl) artUrls.push(meta.artDataUrl);
 
           const url = URL.createObjectURL(file);
-          objectUrlsRef.current.set(filename + i, url);
           await new Promise<void>((res) => {
             const tmp = new Audio(url);
             tmp.preload = 'metadata';
