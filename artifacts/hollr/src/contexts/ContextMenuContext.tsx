@@ -4,6 +4,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   type ReactNode,
 } from 'react';
@@ -56,13 +57,29 @@ function AppContextMenu({
   const emojiPickerBtnRef = useRef<HTMLButtonElement>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
+  // Rough pre-render height estimate to avoid visible jump on first frame
   const estimatedHeight =
+    (config.title ? 52 : 0) +
     (config.quickReactions ? 56 : 0) +
     config.actions.filter(a => a.dividerBefore).length * 5 +
     config.actions.length * 36 + 16;
 
-  const x = Math.min(config.x, window.innerWidth - MENU_WIDTH - 8);
-  const y = Math.min(config.y, window.innerHeight - estimatedHeight - 8);
+  const clampX = (px: number) => Math.min(Math.max(px, 8), window.innerWidth - MENU_WIDTH - 8);
+  const clampY = (py: number, h: number) => {
+    const PADDING = 8;
+    // Prefer opening below; flip above if it would overflow the bottom
+    if (py + h + PADDING > window.innerHeight) return Math.max(py - h - PADDING, PADDING);
+    return Math.max(py, PADDING);
+  };
+
+  const [pos, setPos] = useState({ x: clampX(config.x), y: clampY(config.y, estimatedHeight) });
+
+  // After render, measure actual height and reposition precisely
+  useLayoutEffect(() => {
+    if (!menuRef.current) return;
+    const h = menuRef.current.getBoundingClientRect().height;
+    setPos({ x: clampX(config.x), y: clampY(config.y, h) });
+  }, [config.x, config.y]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -95,7 +112,7 @@ function AppContextMenu({
       <div
         ref={menuRef}
         className="absolute w-[220px] bg-[#111214] border border-[#ffffff0f] rounded-md shadow-[0_8px_32px_rgba(0,0,0,0.6)] py-1.5 overflow-visible"
-        style={{ left: x, top: y }}
+        style={{ left: pos.x, top: pos.y }}
       >
         {/* App/item title header */}
         {config.title && (
