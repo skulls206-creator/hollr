@@ -404,7 +404,7 @@ export function ChannelSidebar() {
       : dmThreads;
 
     return (
-      <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
+      <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         {/* ── Header: title ↔ search input ── */}
         <div className="h-12 border-b border-border/10 flex items-center pl-2 pr-3 shadow-sm shrink-0">
           {dmSearchActive ? (
@@ -640,7 +640,7 @@ export function ChannelSidebar() {
   };
 
   return (
-    <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
+    <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {/* Server Header with dropdown */}
       <div className="relative">
         <div className="h-12 border-b border-border/10 flex items-center shadow-sm">
@@ -1108,7 +1108,7 @@ function UserProfilePanel({
   const displayName = (user as any).displayName || (user as any).username || 'You';
 
   return (
-    <div className="shrink-0 relative pb-[env(safe-area-inset-bottom)]">
+    <div className="shrink-0 relative pb-[env(safe-area-inset-bottom)]" style={{ zIndex: 100, isolation: 'isolate', touchAction: 'manipulation' }}>
       {inVoice && (
         <div className="px-2 pt-2 pb-1">
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
@@ -1140,6 +1140,7 @@ function UserProfilePanel({
       {(micPickerOpen || outputPickerOpen) && (
         <div
           className="fixed inset-0 z-40"
+          style={{ cursor: 'pointer' }}
           onClick={() => { setMicPickerOpen(false); setOutputPickerOpen(false); }}
         />
       )}

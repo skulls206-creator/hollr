@@ -168,7 +168,7 @@ export function Layout() {
         • Right: flex-col column — music bar (top) + chat row (fill)
       The music bar only spans the right column, so sidebars go to the very top.
     */
-    <div className="flex flex-col h-[100dvh] w-full bg-background overflow-hidden font-sans text-foreground">
+    <div className="flex flex-col h-[100dvh] w-full bg-background overflow-hidden font-sans text-foreground" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
 
       {/* Classic mode: backdrop only for channel sidebar on mobile */}
       {layoutMode === 'classic' && classicChannelOpen && (
