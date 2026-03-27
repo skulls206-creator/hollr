@@ -22,6 +22,16 @@ import onlyXmrBanner from '@assets/generated_images/banner_onlyxmr.png';
 export interface NativePanelProps {
   /** App ID — used for any app-specific local preferences (e.g. sidebar collapsed). */
   storagePrefix: string;
+  /**
+   * For apps that need local folder access — the FileSystemDirectoryHandle
+   * currently connected by the user (null = none yet). Managed by AppWindow.
+   */
+  dirHandle?: FileSystemDirectoryHandle | null;
+  /**
+   * Callback to open the OS folder picker (delegates to AppWindow so the
+   * connected folder name shows correctly in the header).
+   */
+  onPickFolder?: () => void;
 }
 
 export interface KhurkApp {
@@ -56,6 +66,9 @@ const BallpointPanel = lazy(() =>
 );
 const FoldrPanel = lazy(() =>
   import('@/components/khurk/apps/FoldrPanel').then(m => ({ default: m.FoldrPanel }))
+);
+const PlaydPanel = lazy(() =>
+  import('@/components/khurk/apps/PlaydPanel').then(m => ({ default: m.PlaydPanel }))
 );
 
 export function HollrIcon({ size = 26 }: { size?: number }) {
@@ -96,6 +109,7 @@ export const KHURK_APPS: KhurkApp[] = [
     imageSrc: playdImg,
     bannerSrc: playdBanner,
     gradient: ['#c0340a', '#f07020'],
+    nativePanel: PlaydPanel,
   },
   {
     id: 'foldr',

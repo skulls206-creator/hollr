@@ -499,7 +499,11 @@ export function AppWindow() {
               <Loader2 size={20} className="animate-spin text-muted-foreground" />
             </div>
           }>
-            <NativePanel storagePrefix={app.id} />
+            <NativePanel
+              storagePrefix={app.id}
+              dirHandle={nativeDirHandle}
+              onPickFolder={handlePickFolder}
+            />
           </Suspense>
         ) : (
           /* Iframe — used for all non-native apps */
