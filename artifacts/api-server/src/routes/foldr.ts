@@ -3,13 +3,14 @@ import multer from "multer";
 import { eq, and, isNull, isNotNull, desc, asc } from "drizzle-orm";
 import { db, foldrFilesTable, foldrFoldersTable } from "@workspace/db";
 import { encryptFile, decryptFile } from "../lib/foldr-crypto";
+import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getR2Client, getR2BucketName } from "../lib/r2Client";
+import { randomUUID } from "crypto";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
-const LIGHTHOUSE_API_KEY = process.env.LIGHTHOUSE_API_KEY ?? "";
-const LIGHTHOUSE_UPLOAD_URL = "https://node.lighthouse.storage/api/v0/add";
-const LIGHTHOUSE_GATEWAY   = "https://gateway.lighthouse.storage/ipfs";
+const PRIVATE_OBJECT_DIR = (process.env.PRIVATE_OBJECT_DIR ?? "").replace(/^\//, "");
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated() || !req.user?.id) {
@@ -21,9 +22,7 @@ function requireAuth(req: Request, res: Response): string | null {
 
 function filePublic(f: typeof foldrFilesTable.$inferSelect, req: Request) {
   const base = `${req.protocol}://${req.get("host")}`;
-  const downloadUrl = f.isEncrypted
-    ? `${base}/api/foldr/files/${f.id}/content`
-    : `${LIGHTHOUSE_GATEWAY}/${f.cid}`;
+  const downloadUrl = `${base}/api/foldr/files/${f.id}/content`;
   return {
     id: f.id,
     folderId: f.folderId,
@@ -35,7 +34,6 @@ function filePublic(f: typeof foldrFilesTable.$inferSelect, req: Request) {
     isStarred: f.isStarred,
     sortOrder: f.sortOrder,
     url: downloadUrl,
-    gatewayUrl: `${LIGHTHOUSE_GATEWAY}/${f.cid}`,
     uploadedAt: f.uploadedAt,
     deletedAt: f.deletedAt,
   };
@@ -133,7 +131,7 @@ router.delete("/foldr/folders/:id", async (req: Request, res: Response) => {
 
 /* ── Files ────────────────────────────────────────────────────────────── */
 
-/** POST /api/foldr/upload — encrypt then upload to Lighthouse */
+/** POST /api/foldr/upload — encrypt then upload to R2 object storage */
 router.post("/foldr/upload", upload.single("file"), async (req: Request, res: Response) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
@@ -144,29 +142,22 @@ router.post("/foldr/upload", upload.single("file"), async (req: Request, res: Re
   try {
     const { folderId } = req.body;
 
-    // Encrypt file content
-    const plainBuf = file.buffer;
-    const { encryptedBuf, encryptedKey } = encryptFile(plainBuf);
+    // Encrypt file content (AES-256-GCM)
+    const { encryptedBuf, encryptedKey } = encryptFile(file.buffer);
 
-    // Upload encrypted bytes to Lighthouse
-    const formData = new FormData();
-    const blob = new Blob([new Uint8Array(encryptedBuf)], { type: "application/octet-stream" });
-    formData.append("file", blob, file.originalname + ".enc");
+    // Upload encrypted bytes to R2 object storage
+    const objectId = randomUUID();
+    const objectKey = `${PRIVATE_OBJECT_DIR}/foldr/${userId}/${objectId}.enc`.replace(/^\//, "");
 
-    const lhRes = await fetch(LIGHTHOUSE_UPLOAD_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LIGHTHOUSE_API_KEY}` },
-      body: formData,
-    });
+    const r2 = getR2Client();
+    const bucket = getR2BucketName();
 
-    if (!lhRes.ok) {
-      const text = await lhRes.text();
-      console.error("[Foldr] Lighthouse upload error:", text);
-      res.status(502).json({ error: "Upload to Lighthouse failed" });
-      return;
-    }
-
-    const lhResult = await lhRes.json() as { Name: string; Hash: string; Size: string };
+    await r2.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      Body: Buffer.from(encryptedBuf),
+      ContentType: "application/octet-stream",
+    }));
 
     const [row] = await db.insert(foldrFilesTable).values({
       userId,
@@ -174,7 +165,7 @@ router.post("/foldr/upload", upload.single("file"), async (req: Request, res: Re
       name: file.originalname,
       size: file.size,
       mimeType: file.mimetype,
-      cid: lhResult.Hash,
+      cid: objectKey,          // repurpose cid column to store the R2 object key
       isEncrypted: true,
       encryptedKey,
     }).returning();
@@ -249,28 +240,27 @@ router.get("/foldr/files/:id/content", async (req: Request, res: Response) => {
       .where(and(eq(foldrFilesTable.id, req.params.id), eq(foldrFilesTable.userId, userId)));
 
     if (!file) { res.status(404).json({ error: "File not found" }); return; }
+    if (!file.cid) { res.status(404).json({ error: "File storage key missing" }); return; }
 
-    const lhUrl = `${LIGHTHOUSE_GATEWAY}/${file.cid}`;
-    const lhRes = await fetch(lhUrl);
-    if (!lhRes.ok) { res.status(502).json({ error: "Failed to fetch from Lighthouse" }); return; }
+    // Fetch encrypted bytes from R2
+    const r2 = getR2Client();
+    const bucket = getR2BucketName();
+    const r2Res = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: file.cid }));
 
-    const encryptedBuf = Buffer.from(await lhRes.arrayBuffer());
+    if (!r2Res.Body) { res.status(502).json({ error: "Empty response from storage" }); return; }
 
-    let finalBuf: Buffer;
-    if (file.isEncrypted && file.encryptedKey) {
-      finalBuf = decryptFile(encryptedBuf, file.encryptedKey);
-    } else {
-      finalBuf = encryptedBuf;
-    }
+    const encryptedBuf = Buffer.from(await r2Res.Body.transformToByteArray());
+
+    const finalBuf = (file.isEncrypted && file.encryptedKey)
+      ? decryptFile(encryptedBuf, file.encryptedKey)
+      : encryptedBuf;
 
     const isDownload = req.query.download === "1";
     res.setHeader("Content-Type", file.mimeType);
     res.setHeader("Content-Length", finalBuf.length.toString());
-    if (isDownload) {
-      res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name)}"`);
-    } else {
-      res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(file.name)}"`);
-    }
+    res.setHeader("Content-Disposition",
+      `${isDownload ? "attachment" : "inline"}; filename="${encodeURIComponent(file.name)}"`
+    );
     res.send(finalBuf);
   } catch (err) {
     console.error("[Foldr] content error:", err);
@@ -316,6 +306,13 @@ router.delete("/foldr/files/:id", async (req: Request, res: Response) => {
         .where(and(eq(foldrFilesTable.id, req.params.id), eq(foldrFilesTable.userId, userId)))
         .returning();
       if (!row) { res.status(404).json({ error: "File not found" }); return; }
+      // Best-effort: remove the R2 object
+      if (row.cid) {
+        try {
+          const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+          await getR2Client().send(new DeleteObjectCommand({ Bucket: getR2BucketName(), Key: row.cid }));
+        } catch { /* ignore storage cleanup errors */ }
+      }
     } else {
       const [row] = await db.update(foldrFilesTable)
         .set({ deletedAt: new Date() })

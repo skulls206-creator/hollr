@@ -43,7 +43,7 @@ function _decrypt(key: Buffer, packed: Buffer): Buffer {
 /**
  * Encrypt a file buffer.
  * Returns: { encryptedBuf, encryptedKey }
- *   encryptedBuf  — encrypted bytes to upload to Lighthouse
+ *   encryptedBuf  — encrypted bytes to upload to R2 object storage
  *   encryptedKey  — base64-encoded encrypted file key to store in DB
  */
 export function encryptFile(plainBuf: Buffer): { encryptedBuf: Buffer; encryptedKey: string } {
@@ -57,7 +57,7 @@ export function encryptFile(plainBuf: Buffer): { encryptedBuf: Buffer; encrypted
 }
 
 /**
- * Decrypt a file buffer fetched from Lighthouse.
+ * Decrypt a file buffer fetched from R2 object storage.
  * encryptedKey — the string stored in the DB (starts with "fenc:").
  */
 export function decryptFile(encryptedBuf: Buffer, encryptedKey: string): Buffer {

@@ -1,0 +1,115 @@
+You need to: (1) wire the upload handler to your backend, and (2) be very explicit with the AI about that wiring and about error handling/state. Here’s how to do both.
+
+1. What the code needs to do
+At a minimum, your upload flow should:
+
+Capture the file(s) from input / drag‑drop.
+
+POST them to your backend /api/foldr/upload (browser → your server).
+
+On the server, call Lighthouse’s SDK/API with your API key, get back { Hash, Name, Size }.
+
+Save a FileItem row in your DB (with CID, gateway URL, owner = Hollr user).
+
+Return that JSON to the frontend and update the file list.
+
+If anything fails, show a toast / inline error and keep the row around with status “Failed” instead of it “just going away”.
+
+If your current AI‑generated code skips step 2/3 (or uses lighthouse.upload('/path/on/disk') directly in the browser), it will silently fail because that Node‑style path API only works server‑side.
+
+2. Exact instructions to give your AI
+Paste something like this as a system or long developer message to your code‑gen agent:
+
+You are coding the upload feature for my React component <FoldrPanel> inside a Hollr chat app.
+Do not call Lighthouse with a Node file path from the browser. Instead:
+
+Implement a client‑side upload handler in React:
+
+ts
+async function handleUpload(files: FileList) {
+  setUploading(true);
+  try {
+    const formData = new FormData();
+    Array.from(files).forEach(f => formData.append('files', f));
+    const res = await fetch('/api/foldr/upload', {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    const data: FileItem[] = await res.json();
+    // merge into current file list UI state
+    setFiles(prev => [...data, ...prev]);
+  } catch (err) {
+    // surface error to user, do not silently hide
+    setUploadError((err as Error).message);
+  } finally {
+    setUploading(false);
+  }
+}
+Wire this function to the <input type="file"> and to the drag‑and‑drop zone.
+
+Implement the API route /api/foldr/upload on the server:
+
+Parse multipart form data and save the temporary uploaded file(s) to disk or an in‑memory buffer.
+
+For each file, call Lighthouse’s Node SDK like this:
+
+ts
+import lighthouse from '@lighthouse-web3/sdk';
+
+const apiKey = process.env.LIGHTHOUSE_API_KEY!;
+
+const uploadRes = await lighthouse.upload(
+  '/absolute/path/to/tempfile',  // server path, *not* a URL
+  apiKey
+);
+// uploadRes.data = { Name, Hash, Size }
+
+Map the result to your FileItem model, store it in the database with:
+
+cid = uploadRes.data.Hash
+
+name = uploadRes.data.Name
+
+size = Number(uploadRes.data.Size)
+
+ownerId = hollrUser.id
+
+workspaceId and folderId from query/body params.
+
+Respond with the array of FileItem JSON objects.
+
+Add robust error handling:
+
+If Lighthouse throws or returns non‑200, log it and return 500 with JSON { error: 'Lighthouse upload failed' }.
+
+Frontend must show this in a toast or inline error, and keep the row with status failed instead of removing it.
+
+Show upload progress using either XMLHttpRequest onprogress or by chunking later.
+
+After a successful upload, immediately refetch the folder contents:
+
+ts
+await handleUpload(files);
+await fetchFilesForCurrentFolder();
+Ensure the upload input is cleared after success so subsequent uploads work reliably.
+
+This will force the AI to stop trying to “talk directly” to Lighthouse from the browser with the wrong API and instead use the documented Node/JS flow.
+
+3. Quick debugging checklist for why “it just goes away”
+When you run this version, check:
+
+Browser devtools → Network:
+
+Do you see a POST /api/foldr/upload?
+
+Status 200 or 4xx/5xx?
+
+Browser devtools → Console:
+
+Any unhandled promise rejection or CORS error?
+
+Server logs:
+
+Does the Lighthouse SDK throw (bad API key, invalid path, etc.)?
