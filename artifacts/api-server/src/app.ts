@@ -68,7 +68,11 @@ app.use(express.urlencoded({ extended: true }));
 // Rate limiting is only enforced in production — dev reloads/tests would exhaust limits instantly.
 const isDev = process.env.NODE_ENV !== 'production';
 
-const authLimiter = rateLimit({
+// Strict limiter applied ONLY to credential submission (login/signup).
+// Session checks (/auth/user), logout, and profile changes must NOT count against
+// this limit — they are called frequently by the client (e.g. during voice calls) and
+// hitting the limit would lock the user out of signing back in.
+const credentialLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
@@ -86,7 +90,9 @@ const generalLimiter = rateLimit({
   skip: () => isDev,
 });
 
-app.use("/api/auth", authLimiter);
+// Apply strict limiter only to login and signup — not to session checks or other auth routes.
+app.use("/api/auth/login", credentialLimiter);
+app.use("/api/auth/signup", credentialLimiter);
 app.use("/api", generalLimiter);
 
 // --- Auth middleware must run before any user-ID-keyed limiter ---
