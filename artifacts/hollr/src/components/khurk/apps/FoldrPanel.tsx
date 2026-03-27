@@ -179,6 +179,9 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Row hover state — must be declared before any early returns
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   const setView = (v: 'list' | 'grid') => { setViewMode(v); localStorage.setItem(`${storagePrefix}:view`, v); };
   const setTheme = (id: string) => { setThemeId(id); localStorage.setItem(`${storagePrefix}:theme`, id); };
 
@@ -391,9 +394,6 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
       borderRadius: '6px', padding: '4px 8px', fontSize: '12px', outline: 'none', width: '100%',
     },
   };
-
-  /* ── Row hover state ── */
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   return (
     <div style={s.panel}>
