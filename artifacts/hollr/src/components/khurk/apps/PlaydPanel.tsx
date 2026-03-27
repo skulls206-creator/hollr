@@ -9,7 +9,8 @@ import {
   Repeat, Repeat1, Shuffle, Music, Library, Disc, User,
   ListMusic, Search, FolderOpen, Sliders, ChevronRight,
   ChevronDown, ChevronUp, Loader2, Music2, X, MoreHorizontal,
-  GalleryHorizontalEnd, Tag,
+  GalleryHorizontalEnd, Tag, Copy, Check, Info, ListPlus,
+  ListEnd, Minus, Hash, FileAudio,
 } from 'lucide-react';
 import * as jsmediatags from 'jsmediatags';
 import type { NativePanelProps } from '@/lib/khurk-apps';
@@ -187,7 +188,10 @@ type PlayerAction =
   | { type: 'SELECT_TRACK'; id: string | null }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'NEXT_TRACK' }
-  | { type: 'PREV_TRACK' };
+  | { type: 'PREV_TRACK' }
+  | { type: 'INSERT_NEXT'; track: Track }
+  | { type: 'APPEND_TO_QUEUE'; track: Track }
+  | { type: 'REMOVE_FROM_LIBRARY'; id: string };
 
 function buildInitialState(storagePrefix: string): PlayerState {
   const stored = {
@@ -254,6 +258,23 @@ function playerReducer(state: PlayerState, action: PlayerAction): PlayerState {
       if (prev < 0) prev = state.repeat === 'all' ? state.queue.length - 1 : 0;
       return { ...state, currentIndex: prev };
     }
+    case 'INSERT_NEXT': {
+      if (state.queue.length === 0) return { ...state, queue: [action.track], currentIndex: 0 };
+      const q = [...state.queue];
+      q.splice(state.currentIndex + 1, 0, action.track);
+      return { ...state, queue: q };
+    }
+    case 'APPEND_TO_QUEUE':
+      return { ...state, queue: [...state.queue, action.track] };
+    case 'REMOVE_FROM_LIBRARY': {
+      const tracks = state.tracks.filter(t => t.id !== action.id);
+      const removedAt = state.queue.findIndex(t => t.id === action.id);
+      const queue = state.queue.filter(t => t.id !== action.id);
+      let ci = state.currentIndex;
+      if (removedAt >= 0 && removedAt < ci) ci--;
+      else if (removedAt === ci) ci = Math.min(ci, queue.length - 1);
+      return { ...state, tracks, queue, currentIndex: ci };
+    }
     default: return state;
   }
 }
@@ -305,6 +326,11 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
     selectedTrackId, sidebarOpen } = state;
 
   const currentTrack = queue[currentIndex] ?? null;
+
+  /* ── Context menu state ── */
+  const [trackCtxMenu, setTrackCtxMenu] = useState<{ x: number; y: number; track: Track } | null>(null);
+  const [trackInfoModal, setTrackInfoModal] = useState<Track | null>(null);
+  const [ctxCopied, setCtxCopied] = useState<string | null>(null);
 
   /* ── Audio refs ── */
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -669,6 +695,24 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
     });
   }, [sortField, sortDir]);
 
+  /* ── Context menu helpers ── */
+  useEffect(() => {
+    if (!trackCtxMenu) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element).closest('[data-playd-ctx]')) setTrackCtxMenu(null);
+    };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setTrackCtxMenu(null); };
+    document.addEventListener('mousedown', close, true);
+    document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', close, true); document.removeEventListener('keydown', key); };
+  }, [trackCtxMenu]);
+
+  const ctxCopy = useCallback((text: string, key: string) => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCtxCopied(key);
+    setTimeout(() => setCtxCopied(null), 1500);
+  }, []);
+
   /* ── Nav label ── */
   function viewLabel(v: LibraryView) {
     if (typeof v === 'string') {
@@ -968,6 +1012,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                         key={track.id}
                         onDoubleClick={() => playTrack(track)}
                         onClick={() => dispatch({ type: 'SELECT_TRACK', id: track.id })}
+                        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTrackCtxMenu({ x: e.clientX, y: e.clientY, track }); }}
                         className="grid items-center px-2 h-8 cursor-pointer transition-colors"
                         style={{
                           gridTemplateColumns: '24px 1fr 160px 160px 40px 50px',
@@ -1190,6 +1235,173 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
               style={{ accentColor: ACCENT, cursor: 'pointer' }}
             />
           </div>
+        </div>
+      </div>
+
+      {/* ── Track context menu ── */}
+      {trackCtxMenu && (
+        <TrackCtxMenu
+          x={trackCtxMenu.x} y={trackCtxMenu.y} track={trackCtxMenu.track}
+          ctxCopied={ctxCopied}
+          onClose={() => setTrackCtxMenu(null)}
+          onPlayNow={() => { playTrack(trackCtxMenu.track); setTrackCtxMenu(null); }}
+          onPlayNext={() => { dispatch({ type: 'INSERT_NEXT', track: trackCtxMenu.track }); setTrackCtxMenu(null); }}
+          onAddToQueue={() => { dispatch({ type: 'APPEND_TO_QUEUE', track: trackCtxMenu.track }); setTrackCtxMenu(null); }}
+          onGoToArtist={() => { dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: 'artist', name: trackCtxMenu.track.artist } }); setTrackCtxMenu(null); }}
+          onGoToAlbum={() => { dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: 'album', name: trackCtxMenu.track.album } }); setTrackCtxMenu(null); }}
+          onCopy={ctxCopy}
+          onViewInfo={() => { setTrackInfoModal(trackCtxMenu.track); setTrackCtxMenu(null); }}
+          onRemove={() => { dispatch({ type: 'REMOVE_FROM_LIBRARY', id: trackCtxMenu.track.id }); setTrackCtxMenu(null); }}
+        />
+      )}
+
+      {/* ── Track info modal ── */}
+      {trackInfoModal && (
+        <TrackInfoModal track={trackInfoModal} onClose={() => setTrackInfoModal(null)} />
+      )}
+    </div>
+  );
+}
+
+/* ─── Track Context Menu ─────────────────────────────────────────────────── */
+function TrackCtxMenu({
+  x, y, track, ctxCopied,
+  onClose, onPlayNow, onPlayNext, onAddToQueue,
+  onGoToArtist, onGoToAlbum,
+  onCopy, onViewInfo, onRemove,
+}: {
+  x: number; y: number; track: Track; ctxCopied: string | null;
+  onClose: () => void; onPlayNow: () => void; onPlayNext: () => void;
+  onAddToQueue: () => void; onGoToArtist: () => void; onGoToAlbum: () => void;
+  onCopy: (text: string, key: string) => void;
+  onViewInfo: () => void; onRemove: () => void;
+}) {
+  // Auto-flip if near right/bottom edge
+  const w = 210;
+  const left = x + w > window.innerWidth ? x - w : x;
+  const top = y + 340 > window.innerHeight ? y - 340 : y;
+
+  const sep = <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 8px' }} />;
+
+  function Row({ icon, label, onClick, danger, copyKey }: {
+    icon: React.ReactNode; label: string; onClick: () => void;
+    danger?: boolean; copyKey?: string;
+  }) {
+    const copied = copyKey && ctxCopied === copyKey;
+    return (
+      <button
+        onClick={onClick}
+        className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-lg transition-colors text-left"
+        style={{ color: danger ? '#f87171' : 'var(--foreground)', background: 'none' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
+      >
+        <span style={{ color: danger ? '#f87171' : ACCENT, width: 14, flexShrink: 0, display: 'flex' }}>
+          {copied ? <Check size={12} color="#22c55e" /> : icon}
+        </span>
+        {copied ? <span style={{ color: '#22c55e' }}>Copied!</span> : label}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      data-playd-ctx="true"
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: 'fixed', top, left, zIndex: 9999,
+        background: 'var(--surface-1, #1c1c1c)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 10, boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+        padding: '6px 4px', minWidth: w,
+        backdropFilter: 'blur(12px)',
+      }}
+    >
+      {/* Track header */}
+      <div style={{ padding: '6px 10px 8px', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: 4 }}>
+        <div className="text-xs font-semibold truncate" style={{ color: 'var(--foreground)', maxWidth: w - 24 }}>{track.title}</div>
+        <div className="text-[10px] truncate mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{track.artist} · {track.album}</div>
+      </div>
+
+      <Row icon={<Play size={12} />} label="Play Now" onClick={onPlayNow} />
+      <Row icon={<ListPlus size={12} />} label="Play Next" onClick={onPlayNext} />
+      <Row icon={<ListEnd size={12} />} label="Add to Queue" onClick={onAddToQueue} />
+      {sep}
+      <Row icon={<User size={12} />} label={`Go to Artist: ${track.artist}`} onClick={onGoToArtist} />
+      <Row icon={<Disc size={12} />} label={`Go to Album: ${track.album}`} onClick={onGoToAlbum} />
+      {sep}
+      <Row icon={<Copy size={12} />} label="Copy Title" copyKey="title"
+        onClick={() => onCopy(track.title, 'title')} />
+      <Row icon={<Copy size={12} />} label="Copy Artist" copyKey="artist"
+        onClick={() => onCopy(track.artist, 'artist')} />
+      <Row icon={<Copy size={12} />} label={'Copy "Artist – Title"'} copyKey="both"
+        onClick={() => onCopy(`${track.artist} – ${track.title}`, 'both')} />
+      {track.album && (
+        <Row icon={<Copy size={12} />} label="Copy Album" copyKey="album"
+          onClick={() => onCopy(track.album, 'album')} />
+      )}
+      {sep}
+      <Row icon={<Info size={12} />} label="Track Info…" onClick={onViewInfo} />
+      {sep}
+      <Row icon={<Minus size={12} />} label="Remove from Library" onClick={onRemove} danger />
+    </div>
+  );
+}
+
+/* ─── Track Info Modal ───────────────────────────────────────────────────── */
+function TrackInfoModal({ track, onClose }: { track: Track; onClose: () => void }) {
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, [onClose]);
+
+  const rows: [string, string][] = [
+    ['Title', track.title],
+    ['Artist', track.artist],
+    ['Album', track.album],
+    ...(track.genre ? [['Genre', track.genre] as [string, string]] : []),
+    ...(track.trackNumber != null ? [['Track #', String(track.trackNumber)] as [string, string]] : []),
+    ['Duration', formatDuration(track.duration)],
+    ['Filename', track.filename],
+    ['Path', track.path],
+  ];
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: 'var(--surface-1, #1c1c1c)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, maxWidth: 440, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.8)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          {track.artDataUrl ? (
+            <img src={track.artDataUrl} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+          ) : (
+            <div style={{ width: 56, height: 56, borderRadius: 8, background: artistColor(track.artist), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <FileAudio size={22} color="rgba(255,255,255,0.7)" />
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--foreground)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', padding: 4 }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Info rows */}
+        <div style={{ padding: '10px 16px 16px' }}>
+          {rows.map(([label, value]) => (
+            <div key={label} style={{ display: 'flex', gap: 12, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'baseline' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: ACCENT, width: 72, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+              <span style={{ fontSize: 12, color: 'var(--foreground)', wordBreak: 'break-all', opacity: 0.9 }}>{value}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

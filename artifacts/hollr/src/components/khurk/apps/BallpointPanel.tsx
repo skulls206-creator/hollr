@@ -20,7 +20,8 @@ import {
   AlignLeft, AlignCenter, AlignRight, List, ListOrdered,
   CheckSquare, Undo2, Redo2, Search, ChevronLeft, X, Pin,
   Archive, Trash2, RotateCcw, Cloud, ChevronDown, MoreVertical,
-  FileText, Star, Clock,
+  FileText, Star, Clock, Copy, Download, Type, Hash as HashIcon,
+  Check,
 } from 'lucide-react';
 import type { NativePanelProps } from '@/lib/khurk-apps';
 import { useAuth } from '@workspace/replit-auth-web';
@@ -94,6 +95,56 @@ function noteColor(id: string) {
   return NOTE_COLORS[Math.abs(h) % NOTE_COLORS.length];
 }
 
+/* ─── Export helpers ─────────────────────────────────────────────────────── */
+function htmlToMarkdown(html: string): string {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  function nodeToMd(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    const el = node as Element;
+    const kids = () => Array.from(el.childNodes).map(nodeToMd).join('');
+    switch (el.tagName.toLowerCase()) {
+      case 'h1': return `# ${kids()}\n\n`;
+      case 'h2': return `## ${kids()}\n\n`;
+      case 'h3': return `### ${kids()}\n\n`;
+      case 'h4': return `#### ${kids()}\n\n`;
+      case 'p': return `${kids()}\n\n`;
+      case 'strong': case 'b': return `**${kids()}**`;
+      case 'em': case 'i': return `*${kids()}*`;
+      case 'u': return `<u>${kids()}</u>`;
+      case 'code': return `\`${kids()}\``;
+      case 'pre': return `\`\`\`\n${kids()}\n\`\`\`\n\n`;
+      case 'blockquote': return `> ${kids()}\n\n`;
+      case 'ul': return `${kids()}`;
+      case 'ol': return Array.from(el.children).map((li, i) => `${i + 1}. ${nodeToMd(li)}`).join('');
+      case 'li': return `- ${kids()}\n`;
+      case 'a': return `[${kids()}](${el.getAttribute('href') ?? ''})`;
+      case 'br': return '\n';
+      case 'hr': return '---\n\n';
+      default: return kids();
+    }
+  }
+  return nodeToMd(div).trim();
+}
+
+function downloadTextFile(content: string, filename: string, mime = 'text/plain') {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function countWords(html: string) {
+  const text = (document.createElement('div')).innerHTML = html, div = document.createElement('div');
+  div.innerHTML = String(text);
+  const plain = div.textContent ?? '';
+  const words = plain.trim().split(/\s+/).filter(Boolean).length;
+  const chars = plain.length;
+  return { words, chars };
+}
+
 export function BallpointPanel({ storagePrefix }: NativePanelProps) {
   const { user } = useAuth();
   const [notes, setNotes] = useState<BpNote[]>([]);
@@ -108,6 +159,8 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
   const [fontFamily, setFontFamily] = useState('Sans-serif');
   const [showNoteMenu, setShowNoteMenu] = useState(false);
   const [showFontMenu, setShowFontMenu] = useState(false);
+  const [noteCtxMenu, setNoteCtxMenu] = useState<{ x: number; y: number; note: BpNote } | null>(null);
+  const [ctxCopied, setCtxCopied] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const notesRef = useRef<BpNote[]>([]);
   const noteMenuRef = useRef<HTMLDivElement>(null);
@@ -173,6 +226,30 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     setTabs(prev => prev.filter(t => t.noteId !== id));
     if (activeTab === id) { setActiveTab(null); setView('list'); }
   }, [activeTab]);
+
+  const duplicateNote = useCallback(async (note: BpNote) => {
+    const res = await fetch(`${API}api/ballpoint/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ title: `Copy of ${note.title}`, content: note.content }),
+    });
+    if (!res.ok) return;
+    const newNote: BpNote = await res.json();
+    setNotes(prev => [newNote, ...prev]);
+  }, []);
+
+  /* ── Context menu close ── */
+  useEffect(() => {
+    if (!noteCtxMenu) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element).closest('[data-bp-ctx]')) setNoteCtxMenu(null);
+    };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setNoteCtxMenu(null); };
+    document.addEventListener('mousedown', close, true);
+    document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', close, true); document.removeEventListener('keydown', key); };
+  }, [noteCtxMenu]);
 
   /* ── Auto-save ── */
   const scheduleSave = useCallback((id: string, title: string, content: string) => {
@@ -579,10 +656,50 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
               onRestore={() => patchNote(note.id, { isTrashed: false })}
               onDelete={() => deleteNote(note.id)}
               inTrash={section === 'trash'}
+              onCtxMenu={(x, y) => setNoteCtxMenu({ x, y, note })}
             />
           ))
         )}
       </div>
+
+      {/* Note context menu */}
+      {noteCtxMenu && (
+        <BpNoteCtxMenu
+          x={noteCtxMenu.x} y={noteCtxMenu.y} note={noteCtxMenu.note}
+          ctxCopied={ctxCopied}
+          inTrash={section === 'trash'}
+          onClose={() => setNoteCtxMenu(null)}
+          onOpen={() => { openNote(noteCtxMenu.note); setNoteCtxMenu(null); }}
+          onDuplicate={() => { duplicateNote(noteCtxMenu.note); setNoteCtxMenu(null); }}
+          onExportMd={() => {
+            const md = htmlToMarkdown(noteCtxMenu.note.content);
+            const safe = noteCtxMenu.note.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'note';
+            downloadTextFile(md, `${safe}.md`, 'text/markdown');
+            setNoteCtxMenu(null);
+          }}
+          onExportTxt={() => {
+            const div = document.createElement('div');
+            div.innerHTML = noteCtxMenu.note.content;
+            const txt = div.textContent ?? '';
+            const safe = noteCtxMenu.note.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'note';
+            downloadTextFile(txt, `${safe}.txt`);
+            setNoteCtxMenu(null);
+          }}
+          onCopyText={() => {
+            const div = document.createElement('div');
+            div.innerHTML = noteCtxMenu.note.content;
+            navigator.clipboard.writeText(div.textContent ?? '').catch(() => {});
+            setCtxCopied(true);
+            setTimeout(() => setCtxCopied(false), 1500);
+            setNoteCtxMenu(null);
+          }}
+          onPin={() => { patchNote(noteCtxMenu.note.id, { isPinned: !noteCtxMenu.note.isPinned }); setNoteCtxMenu(null); }}
+          onArchive={() => { patchNote(noteCtxMenu.note.id, { isArchived: !noteCtxMenu.note.isArchived }); setNoteCtxMenu(null); }}
+          onTrash={() => { patchNote(noteCtxMenu.note.id, { isTrashed: true }); setNoteCtxMenu(null); }}
+          onRestore={() => { patchNote(noteCtxMenu.note.id, { isTrashed: false }); setNoteCtxMenu(null); }}
+          onDelete={() => { deleteNote(noteCtxMenu.note.id); setNoteCtxMenu(null); }}
+        />
+      )}
 
       {/* Bottom tab bar */}
       <div
@@ -615,12 +732,12 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
 
 /* ── Note Card ── */
 function NoteCard({
-  note, isActive, color, onOpen, onPin, onArchive, onTrash, onRestore, onDelete, inTrash,
+  note, isActive, color, onOpen, onPin, onArchive, onTrash, onRestore, onDelete, inTrash, onCtxMenu,
 }: {
   note: BpNote; isActive: boolean; color: string;
   onOpen: () => void; onPin: () => void; onArchive: () => void;
   onTrash: () => void; onRestore: () => void; onDelete: () => void;
-  inTrash: boolean;
+  inTrash: boolean; onCtxMenu?: (x: number, y: number) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -644,6 +761,7 @@ function NoteCard({
         boxShadow: isActive ? `0 0 0 1px ${ACCENT}40` : '0 1px 3px rgba(0,0,0,0.2)',
       }}
       onClick={onOpen}
+      onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onCtxMenu?.(e.clientX, e.clientY); }}
     >
       {/* Color accent bar */}
       <div className="h-1" style={{ background: color }} />
@@ -741,5 +859,118 @@ function CtxItem({ children, onClick, icon, danger }: {
     >
       {icon}{children}
     </button>
+  );
+}
+
+/* ── Ballpoint Note Context Menu ── */
+function BpNoteCtxMenu({
+  x, y, note, ctxCopied, inTrash,
+  onClose, onOpen, onDuplicate, onExportMd, onExportTxt, onCopyText,
+  onPin, onArchive, onTrash, onRestore, onDelete,
+}: {
+  x: number; y: number; note: BpNote; ctxCopied: boolean; inTrash: boolean;
+  onClose: () => void; onOpen: () => void; onDuplicate: () => void;
+  onExportMd: () => void; onExportTxt: () => void; onCopyText: () => void;
+  onPin: () => void; onArchive: () => void; onTrash: () => void;
+  onRestore: () => void; onDelete: () => void;
+}) {
+  const w = 220;
+  const left = x + w > window.innerWidth ? x - w : x;
+  const top = y + 420 > window.innerHeight ? y - 420 : y;
+
+  const { words, chars } = countWords(note.content);
+  const plain = (() => { const d = document.createElement('div'); d.innerHTML = note.content; return d.textContent ?? ''; })();
+  const readMin = Math.max(1, Math.round(words / 200));
+
+  const sep = <div style={{ height: 1, background: BORDER, margin: '3px 10px' }} />;
+
+  function Row({ icon, label, sub, onClick, danger }: {
+    icon: React.ReactNode; label: string; sub?: string; onClick: () => void; danger?: boolean;
+  }) {
+    return (
+      <button
+        data-bp-ctx="true"
+        onClick={onClick}
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors text-left group"
+        style={{ color: danger ? '#f87171' : FG, background: 'none' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
+      >
+        <span style={{ color: danger ? '#f87171' : ACCENT2, width: 15, flexShrink: 0, display: 'flex' }}>{icon}</span>
+        <span className="flex-1">{label}</span>
+        {sub && <span style={{ color: MUTED, fontSize: 10 }}>{sub}</span>}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      data-bp-ctx="true"
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: 'fixed', top, left, zIndex: 10000,
+        background: SURFACE,
+        border: `1px solid ${BORDER}`,
+        borderRadius: 14, boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+        padding: '6px 4px', minWidth: w,
+        backdropFilter: 'blur(16px)',
+      }}
+    >
+      {/* Header */}
+      <div style={{ padding: '8px 12px 8px', borderBottom: `1px solid ${BORDER}`, marginBottom: 4 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, color: FG, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: w - 28 }}>{note.title || 'Untitled'}</div>
+        <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>
+          {words} words · {chars} chars · ~{readMin} min read
+        </div>
+      </div>
+
+      <Row icon={<FileText size={13} />} label="Open Note" onClick={onOpen} />
+
+      {sep}
+
+      <Row icon={<Copy size={13} />} label="Duplicate" onClick={onDuplicate} />
+      <Row icon={<Download size={13} />} label="Export as Markdown" sub=".md" onClick={onExportMd} />
+      <Row icon={<Type size={13} />} label="Export as Plain Text" sub=".txt" onClick={onExportTxt} />
+      <Row
+        icon={ctxCopied ? <Check size={13} /> : <Copy size={13} />}
+        label={ctxCopied ? 'Copied!' : 'Copy All Text'}
+        onClick={onCopyText}
+      />
+
+      {sep}
+
+      {!inTrash && (
+        <>
+          <Row icon={<Star size={13} />} label={note.isPinned ? 'Unpin' : 'Pin to Top'} onClick={onPin} />
+          <Row icon={<Archive size={13} />} label={note.isArchived ? 'Unarchive' : 'Archive'} onClick={onArchive} />
+          {sep}
+        </>
+      )}
+
+      {/* Word count stats row */}
+      <div style={{ display: 'flex', gap: 6, padding: '6px 12px 4px', color: MUTED, fontSize: 10, borderBottom: `1px solid ${BORDER}`, marginBottom: 4 }}>
+        <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+          <HashIcon size={9} /> {words}w
+        </span>
+        <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+          <Type size={9} /> {chars}c
+        </span>
+        <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+          📖 {readMin}m
+        </span>
+        <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+          {plain.trim().split(/\n+/).filter(Boolean).length}p
+        </span>
+      </div>
+
+      {inTrash ? (
+        <>
+          <Row icon={<RotateCcw size={13} />} label="Restore" onClick={onRestore} />
+          <Row icon={<Trash2 size={13} />} label="Delete Forever" onClick={onDelete} danger />
+        </>
+      ) : (
+        <Row icon={<Trash2 size={13} />} label="Move to Trash" onClick={onTrash} danger />
+      )}
+    </div>
   );
 }

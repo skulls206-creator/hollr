@@ -470,6 +470,33 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
     if (res.ok) { setFolders(prev => prev.filter(x => x.id !== folder.id)); fetchAll(); }
   };
 
+  const duplicateFile = useCallback(async (file: FoldrFile) => {
+    const url = await downloadOrPreview(file, false);
+    if (!url) return;
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const ext = file.name.includes('.') ? '' : '';
+      const dotIdx = file.name.lastIndexOf('.');
+      const base = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
+      const extPart = dotIdx > 0 ? file.name.slice(dotIdx) : '';
+      const newFile = new File([blob], `${base} (copy)${extPart}`, { type: file.mimeType });
+      await handleUpload([newFile]);
+      if (file.isClientEncrypted) setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch {
+      setUploadError('Failed to duplicate file.');
+    }
+  }, [downloadOrPreview, handleUpload]);
+
+  const createSubfolderIn = useCallback(async (parentFolder: FoldrFolder, name: string) => {
+    const res = await fetch(`${API}api/foldr/folders`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, parentId: parentFolder.id }),
+    });
+    if (res.ok) { const f: FoldrFolder = await res.json(); setFolders(prev => [...prev, f]); }
+  }, []);
+
   /* ── Drag/drop sort ── */
   const onDragStart = (type: 'file' | 'folder', id: string) => { dragItem.current = { type, id }; };
   const onDragOver = (e: React.DragEvent, id: string) => { e.preventDefault(); dragOver.current = id; };
@@ -849,15 +876,26 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
       {/* Context menu */}
       {ctxMenu && (
-        <ContextMenu
+        <FoldrCtxMenu
           x={ctxMenu.x} y={ctxMenu.y} t={t}
           isFolder={ctxMenu.isFolder}
           inTrash={section === 'trash'}
+          item={ctxMenu.item}
+          onClose={() => setCtxMenu(null)}
+          onOpen={() => {
+            if (ctxMenu.isFolder) setFolderStack(st => [...st, ctxMenu.item as FoldrFolder]);
+            else { setSelected(ctxMenu.item as FoldrFile); setDrawerOpen(true); }
+            setCtxMenu(null);
+          }}
+          onDownload={ctxMenu.isFolder ? undefined : () => { triggerDownload(ctxMenu.item as FoldrFile); setCtxMenu(null); }}
           onRename={() => { setRenamingId((ctxMenu.item as { id: string }).id); setRenameValue(ctxMenu.item.name); setCtxMenu(null); }}
+          onDuplicate={ctxMenu.isFolder ? undefined : () => { duplicateFile(ctxMenu.item as FoldrFile); setCtxMenu(null); }}
           onDelete={() => { if (ctxMenu.isFolder) deleteFolder(ctxMenu.item as FoldrFolder); else (section === 'trash' ? hardDeleteFile : trashFile)(ctxMenu.item as FoldrFile); setCtxMenu(null); }}
           onStar={ctxMenu.isFolder ? undefined : () => { toggleStar(ctxMenu.item as FoldrFile); setCtxMenu(null); }}
           onRestore={ctxMenu.isFolder ? undefined : () => { restoreFile(ctxMenu.item as FoldrFile); setCtxMenu(null); }}
-          isStarred={(ctxMenu.item as FoldrFile).isStarred}
+          isStarred={!(ctxMenu.isFolder) && (ctxMenu.item as FoldrFile).isStarred}
+          onNewSubfolder={ctxMenu.isFolder ? (name: string) => { createSubfolderIn(ctxMenu.item as FoldrFolder, name); setCtxMenu(null); } : undefined}
+          onCopyName={() => { navigator.clipboard.writeText(ctxMenu.item.name).catch(() => {}); setCtxMenu(null); }}
         />
       )}
     </div>
@@ -1017,36 +1055,153 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
   );
 }
 
-interface ContextMenuItem {
-  label: string;
-  action: () => void;
-  danger?: boolean;
-}
-
-function ContextMenu({ x, y, t, isFolder, inTrash, onRename, onDelete, onStar, onRestore, isStarred }: {
+/* ─── Rich context menu ─────────────────────────────────────────────────── */
+function FoldrCtxMenu({ x, y, t, isFolder, inTrash, item, onClose, onOpen, onDownload, onRename, onDuplicate, onDelete, onStar, onRestore, isStarred, onNewSubfolder, onCopyName }: {
   x: number; y: number; t: Theme; isFolder: boolean; inTrash: boolean;
-  onRename: () => void; onDelete: () => void; onStar?: () => void; onRestore?: () => void; isStarred?: boolean;
+  item: FoldrFile | FoldrFolder;
+  onClose: () => void; onOpen: () => void;
+  onDownload?: () => void; onRename: () => void; onDuplicate?: () => void;
+  onDelete: () => void; onStar?: () => void; onRestore?: () => void;
+  isStarred?: boolean; onNewSubfolder?: (name: string) => void; onCopyName: () => void;
 }) {
-  const items: ContextMenuItem[] = [
-    { label: 'Rename', action: onRename },
-    ...(!isFolder && onStar ? [{ label: isStarred ? 'Unstar' : 'Star', action: onStar }] : []),
-    ...(!isFolder && onRestore && inTrash ? [{ label: 'Restore', action: onRestore }] : []),
-    { label: inTrash ? 'Delete Forever' : 'Move to Trash', action: onDelete, danger: true },
-  ];
+  const [showInfo, setShowInfo] = useState(false);
+  const [subfolderInput, setSubfolderInput] = useState('');
+  const [showSubfolder, setShowSubfolder] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const w = 220;
+  const left = x + w > window.innerWidth ? x - w : x;
+  const top = y + 480 > window.innerHeight ? Math.max(8, y - 480) : y;
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element).closest('[data-foldr-ctx]')) onClose();
+    };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', close, true);
+    document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', close, true); document.removeEventListener('keydown', key); };
+  }, [onClose]);
+
+  const file = isFolder ? null : item as FoldrFile;
+
+  function Row({ icon, label, onClick, danger, sub }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean; sub?: string }) {
+    return (
+      <button
+        data-foldr-ctx="true"
+        onClick={onClick}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '7px 10px', background: 'none', border: 'none', cursor: 'pointer', color: danger ? '#f87171' : t.text, borderRadius: 7, fontSize: 12 }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.rowHover; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
+      >
+        <span style={{ color: danger ? '#f87171' : t.accent, width: 14, flexShrink: 0, display: 'flex' }}>{icon}</span>
+        <span style={{ flex: 1 }}>{label}</span>
+        {sub && <span style={{ color: t.muted, fontSize: 10 }}>{sub}</span>}
+      </button>
+    );
+  }
+
+  const sep = <div style={{ height: 1, background: t.border, margin: '3px 8px' }} />;
 
   return (
-    <div style={{ position: 'fixed', top: y, left: x, background: t.surface, border: `1px solid ${t.border}`, borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)', zIndex: 9999, minWidth: '140px', padding: '4px', fontSize: '12px' }}>
-      {items.map((item, i) => (
-        <button
-          key={i}
-          onClick={item.action}
-          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', color: item.danger ? '#ef4444' : t.text, borderRadius: '5px' }}
-          onMouseEnter={e => { (e.target as HTMLElement).style.background = t.surface2; }}
-          onMouseLeave={e => { (e.target as HTMLElement).style.background = 'none'; }}
-        >
-          {item.label}
-        </button>
-      ))}
+    <div
+      data-foldr-ctx="true"
+      onClick={e => e.stopPropagation()}
+      style={{ position: 'fixed', top, left, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.45)', zIndex: 9999, minWidth: w, padding: '6px 4px', fontSize: 12 }}
+    >
+      {/* Item name */}
+      <div style={{ padding: '6px 10px 8px', borderBottom: `1px solid ${t.border}`, marginBottom: 4 }}>
+        <div style={{ fontWeight: 600, color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: w - 24, fontSize: 12 }}>{item.name}</div>
+        <div style={{ color: t.muted, fontSize: 10, marginTop: 2 }}>
+          {isFolder ? 'Folder' : `${formatBytes((item as FoldrFile).size)} · ${(item as FoldrFile).mimeType.split('/')[1]?.toUpperCase() || 'File'}`}
+        </div>
+      </div>
+
+      <Row icon={<FolderOpen size={13} />} label={isFolder ? 'Open Folder' : 'Open / Preview'} onClick={onOpen} />
+      {!isFolder && onDownload && (
+        <Row icon={<Download size={13} />} label="Download" onClick={onDownload} />
+      )}
+
+      {sep}
+
+      <Row icon={<Edit2 size={13} />} label="Rename" onClick={onRename} />
+      {!isFolder && onDuplicate && (
+        <Row icon={<Copy size={13} />} label="Duplicate" onClick={onDuplicate} />
+      )}
+      <Row
+        icon={copied ? <CheckCheck size={13} /> : <Copy size={13} />}
+        label={copied ? 'Copied!' : 'Copy Filename'}
+        onClick={() => {
+          navigator.clipboard.writeText(item.name).catch(() => {});
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+      />
+
+      {sep}
+
+      {isFolder && onNewSubfolder && (
+        <>
+          {showSubfolder ? (
+            <div data-foldr-ctx="true" style={{ padding: '4px 8px 6px' }}>
+              <input
+                autoFocus
+                placeholder="Subfolder name…"
+                value={subfolderInput}
+                onChange={e => setSubfolderInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && subfolderInput.trim()) { onNewSubfolder(subfolderInput.trim()); }
+                  if (e.key === 'Escape') setShowSubfolder(false);
+                }}
+                style={{ width: '100%', padding: '5px 8px', background: t.surface2, border: `1px solid ${t.accent}`, borderRadius: 6, color: t.text, fontSize: 12, outline: 'none' }}
+              />
+            </div>
+          ) : (
+            <Row icon={<FolderPlus size={13} />} label="New Subfolder" onClick={() => setShowSubfolder(true)} />
+          )}
+          {sep}
+        </>
+      )}
+
+      {!isFolder && onStar && (
+        <Row icon={<Star size={13} />} label={isStarred ? 'Remove Star' : 'Add Star'} onClick={onStar} />
+      )}
+
+      {!isFolder && file && (
+        <Row
+          icon={<Info size={13} />}
+          label={showInfo ? 'Hide Info' : 'Get Info'}
+          onClick={() => setShowInfo(v => !v)}
+        />
+      )}
+
+      {showInfo && file && (
+        <div data-foldr-ctx="true" style={{ margin: '2px 8px 4px', padding: '8px 10px', background: t.surface2, borderRadius: 8, fontSize: 11 }}>
+          {[
+            ['Name', file.name],
+            ['Size', formatBytes(file.size)],
+            ['Type', file.mimeType],
+            ['Uploaded', formatDate(file.uploadedAt)],
+            ['Encrypted', file.isClientEncrypted ? 'Yes (AES-256)' : file.isEncrypted ? 'Server-side' : 'No'],
+          ].map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', gap: 8, marginBottom: 3 }}>
+              <span style={{ color: t.muted, width: 64, flexShrink: 0 }}>{k}</span>
+              <span style={{ color: t.text, wordBreak: 'break-all' }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {sep}
+
+      {inTrash ? (
+        <>
+          {!isFolder && onRestore && <Row icon={<RotateCcw size={13} />} label="Restore" onClick={onRestore} />}
+          <Row icon={<Trash2 size={13} />} label="Delete Forever" onClick={onDelete} danger />
+        </>
+      ) : (
+        <Row icon={<Trash2 size={13} />} label="Move to Trash" onClick={onDelete} danger />
+      )}
     </div>
   );
 }
