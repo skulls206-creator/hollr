@@ -940,15 +940,16 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
         </button>
 
         {/* Search input */}
-        <div className="flex-1 flex items-center gap-1.5 bg-black/20 rounded-md px-2 h-7 border" style={{ borderColor: 'var(--border)' }}>
-          <Search size={11} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />
+        <div className="flex-1 flex items-center gap-1.5 rounded-md px-2 h-7 border" style={{ background: theme.s2, borderColor: theme.border }}>
+          <Search size={11} style={{ color: theme.muted, flexShrink: 0 }} />
           <input
             type="text"
             placeholder="Search…"
             value={search}
             onChange={e => dispatch({ type: 'SET_SEARCH', search: e.target.value })}
-            className="flex-1 bg-transparent outline-none text-xs placeholder:opacity-40 min-w-0"
-            style={{ color: 'var(--foreground)' }}
+            className="flex-1 outline-none text-xs placeholder:opacity-40 min-w-0"
+            style={{ color: theme.text, background: 'transparent' }}
+            autoComplete="off"
           />
           {search && (
             <button onClick={() => dispatch({ type: 'SET_SEARCH', search: '' })} className="opacity-50 hover:opacity-100 shrink-0">
