@@ -75,7 +75,13 @@ export function AppWindow() {
     pipWindows, addPipWindow,
     layoutMode, toggleMobileSidebar, toggleClassicChannel,
     appWindowSidebarHidden, toggleAppWindowSidebar,
+    dmCall,
   } = useAppStore();
+
+  // When the minimized call bar is visible (fixed top-0), push the window below it
+  // so the header/close controls are always accessible.
+  const callBarVisible = dmCall.minimized && dmCall.state === 'connected';
+  const CALL_BAR_H = 44; // px — matches DmCallOverlay minimized bar height
   const { toast } = useToast();
   const { show: showMenu } = useContextMenu();
   const [refreshCount, setRefreshCount] = useState(0);
@@ -378,7 +384,10 @@ export function AppWindow() {
   const NativePanel = app.nativePanel;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden bg-background">
+    <div
+      className="flex flex-col flex-1 min-h-0 h-full overflow-hidden bg-background transition-[padding-top]"
+      style={{ paddingTop: callBarVisible ? CALL_BAR_H : 0 }}
+    >
       {/* ── Header ── */}
       <div
         className="flex items-center gap-2 px-3 py-2 bg-surface-1 border-b border-border/30 shrink-0 select-none cursor-default"
