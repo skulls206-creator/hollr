@@ -44,7 +44,7 @@ export function DmCallOverlay() {
   const [earpieceOn, setEarpieceState] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { startCallerAudio, startCalleeAudio, toggleMic, setDeafened, setEarpiece, cleanupAudio } = useDmCallAudio();
+  const { startCallerAudio, startCalleeAudio, toggleMic, setDeafened, setEarpiece, earpieceRef, cleanupAudio } = useDmCallAudio();
 
   const { state, targetUserId, targetDisplayName, targetAvatarUrl, dmThreadId, minimized, startedAt } = dmCall;
 
@@ -154,10 +154,15 @@ export function DmCallOverlay() {
     setDeafened(next);
   };
 
-  const handleEarpieceToggle = () => {
+  const handleEarpieceToggle = async () => {
     const next = !earpieceOn;
     setEarpieceState(next);
-    setEarpiece(next);
+    await setEarpiece(next);
+    // If the hook reverted earpieceRef (e.g. Android can't route to earpiece),
+    // mirror that revert in the local UI state.
+    if (next && !earpieceRef.current) {
+      setEarpieceState(false);
+    }
   };
 
   // ── Minimized: bar is rendered in-flow by Layout.tsx — nothing here ──────

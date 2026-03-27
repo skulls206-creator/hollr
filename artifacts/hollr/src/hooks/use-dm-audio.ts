@@ -4,13 +4,44 @@ import { setDmCallRtcSignalListener, sendDmCallSignal } from './use-realtime';
 import { fetchIceServers } from '@/lib/ice-servers';
 import { toast } from '@/hooks/use-toast';
 
+// ── Create a hidden video element and attach it to the DOM.
+// Using <video> (not <audio>) is required for iOS Safari earpiece routing
+// via playsInline. The element must be in the DOM for iOS to honor routing.
+function createHiddenVideoElement(): HTMLVideoElement {
+  const el = document.createElement('video');
+  el.autoplay = true;
+  el.playsInline = true; // default: earpiece on iOS; inline on everything else
+  el.setAttribute('webkit-playsinline', 'true');
+  el.muted = false;
+  el.style.cssText =
+    'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;' +
+    'top:-9999px;left:-9999px;';
+  document.body.appendChild(el);
+  return el;
+}
+
 export function useDmCallAudio() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Using a video element (cast to HTMLAudioElement for compat) so iOS can
+  // route audio via playsInline. Always attached to the DOM.
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
   const remoteDescSetRef = useRef(false);
   const peerIdRef = useRef<string | null>(null);
+
+  // Persisted state refs — applied immediately when audio element exists,
+  // and re-applied when the element is created if toggled early.
+  const deafenedRef = useRef(false);
+  const earpieceRef = useRef(false);
+
+  // ── Ensure a video element exists ──────────────────────────────────────────
+  const getOrCreateVideo = useCallback((): HTMLVideoElement => {
+    if (!remoteVideoRef.current || !document.body.contains(remoteVideoRef.current)) {
+      remoteVideoRef.current = createHiddenVideoElement();
+    }
+    return remoteVideoRef.current;
+  }, []);
 
   const cleanupAudio = useCallback(() => {
     if (pcRef.current) {
@@ -23,10 +54,11 @@ export function useDmCallAudio() {
     }
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null;
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.pause();
-      remoteAudioRef.current.srcObject = null;
-      remoteAudioRef.current = null;
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.pause();
+      remoteVideoRef.current.srcObject = null;
+      remoteVideoRef.current.remove(); // detach from DOM
+      remoteVideoRef.current = null;
     }
     pendingIceRef.current = [];
     remoteDescSetRef.current = false;
@@ -43,13 +75,11 @@ export function useDmCallAudio() {
     const pc = new RTCPeerConnection({ iceServers });
     pcRef.current = pc;
 
-    // Pre-create the audio element so it's tied to this user gesture stack
-    // (avoids autoplay policy blocks when ontrack fires asynchronously)
-    if (!remoteAudioRef.current) {
-      const audio = new Audio();
-      audio.autoplay = true;
-      remoteAudioRef.current = audio;
-    }
+    // Ensure the DOM video element exists (pre-create in user gesture context)
+    const video = getOrCreateVideo();
+    // Re-apply persisted state to the freshly created element
+    video.muted = deafenedRef.current;
+    video.playsInline = !earpieceRef.current; // see setEarpiece for the iOS logic
 
     // Get local audio
     try {
@@ -61,25 +91,19 @@ export function useDmCallAudio() {
       toast({ title: 'Microphone unavailable', description: 'Could not access your microphone.', variant: 'destructive' });
     }
 
-    // Play remote audio
+    // Play remote audio via the video element
     pc.ontrack = (e) => {
-      const audio = remoteAudioRef.current!;
-      const incomingStream = e.streams[0];
-      if (incomingStream) {
-        audio.srcObject = incomingStream;
-      } else {
-        // Fallback: wrap the single track in a MediaStream
-        const ms = new MediaStream([e.track]);
-        audio.srcObject = ms;
-      }
-      audio.play().catch((err) => {
+      const vid = remoteVideoRef.current ?? getOrCreateVideo();
+      const incomingStream = e.streams[0] ?? new MediaStream([e.track]);
+      vid.srcObject = incomingStream;
+      // Re-apply deafen state in case it was toggled before track arrived
+      vid.muted = deafenedRef.current;
+      vid.play().catch((err) => {
         console.warn('[DM call] Remote audio play() blocked:', err);
-        // Retry once after a short delay — handles autoplay policy
-        setTimeout(() => audio.play().catch(console.warn), 500);
+        setTimeout(() => vid.play().catch(console.warn), 500);
       });
     };
 
-    // Log ICE/connection state transitions for debugging
     pc.oniceconnectionstatechange = () => {
       console.log('[DM call] ICE state:', pc.iceConnectionState);
       if (pc.iceConnectionState === 'failed') {
@@ -90,7 +114,6 @@ export function useDmCallAudio() {
       console.log('[DM call] Connection state:', pc.connectionState);
     };
 
-    // ICE candidate exchange
     pc.onicecandidate = (e) => {
       if (e.candidate && peerIdRef.current) {
         sendDmCallSignal({ type: 'call_ice', targetId: peerIdRef.current, candidate: e.candidate });
@@ -98,7 +121,7 @@ export function useDmCallAudio() {
     };
 
     return pc;
-  }, []);
+  }, [getOrCreateVideo]);
 
   // ── Flush pending ICE candidates once remote description is set ───────────
   const flushIce = useCallback(async (pc: RTCPeerConnection) => {
@@ -108,7 +131,6 @@ export function useDmCallAudio() {
     pendingIceRef.current = [];
   }, []);
 
-  // ── Called by DmCallOverlay when caller receives call_accept ─────────────
   const startCallerAudio = useCallback(async (peerId: string) => {
     const pc = await createPeer(peerId);
     const offer = await pc.createOffer();
@@ -116,13 +138,10 @@ export function useDmCallAudio() {
     sendDmCallSignal({ type: 'call_offer', targetId: peerId, sdp: offer });
   }, [createPeer]);
 
-  // ── Called by DmCallOverlay when callee accepts ──────────────────────────
-  // Just store peerId; actual peer is created when offer arrives from caller
   const startCalleeAudio = useCallback((peerId: string) => {
     peerIdRef.current = peerId;
   }, []);
 
-  // ── Register WebRTC signal listener ──────────────────────────────────────
   useEffect(() => {
     setDmCallRtcSignalListener(async (signal) => {
       const { type: ctype, sdp, candidate } = signal ?? {};
@@ -166,7 +185,7 @@ export function useDmCallAudio() {
     };
   }, [createPeer, flushIce, cleanupAudio]);
 
-  // ── Mic toggle (actually enables/disables the audio track) ───────────────
+  // ── Mic toggle ───────────────────────────────────────────────────────────
   const toggleMic = useCallback(() => {
     const store = useAppStore.getState();
     const nextMuted = !store.micMuted;
@@ -176,37 +195,85 @@ export function useDmCallAudio() {
     store.toggleMicMuted();
   }, []);
 
-  // ── Deafen: mute/unmute incoming audio (works on all browsers/platforms) ──
+  // ── Deafen: mute/unmute incoming audio ────────────────────────────────────
+  // deafenedRef persists the state so if the track hasn't arrived yet (or the
+  // element is recreated on reconnect) we still apply it correctly.
   const setDeafened = useCallback((deafened: boolean) => {
-    const audio = remoteAudioRef.current;
-    if (audio) audio.muted = deafened;
+    deafenedRef.current = deafened;
+    const vid = remoteVideoRef.current;
+    if (vid) vid.muted = deafened;
   }, []);
 
-  // ── Earpiece: route audio to earpiece vs speakerphone ────────────────────
-  // setSinkId works on Chrome/Edge; for iOS Safari we flip playsInline and
-  // re-attach the srcObject to force the audio session to re-route.
+  // ── Earpiece routing ──────────────────────────────────────────────────────
+  // Strategy (in priority order):
+  //
+  // 1. Chrome/Edge Desktop — setSinkId with device enumeration
+  //    'communications' is a valid alias on Windows; on Android Chrome it
+  //    doesn't correspond to the physical earpiece, so we enumerate devices.
+  //
+  // 2. iOS Safari — <video playsInline> trick.
+  //    playsInline=false → full-screen audio mode → loudspeaker
+  //    playsInline=true  → inline playback          → earpiece / receiver
+  //    Changing playsInline requires re-attaching srcObject to take effect.
+  //
+  // 3. Android Chrome — setSinkId doesn't expose earpiece as a device.
+  //    We inform the user that earpiece routing isn't available in the browser.
   const setEarpiece = useCallback(async (useEarpiece: boolean) => {
-    const audio = remoteAudioRef.current;
-    if (!audio) return;
+    earpieceRef.current = useEarpiece;
+    const vid = remoteVideoRef.current;
+    if (!vid) return;
 
-    // Chrome / Edge path
-    if (typeof (audio as any).setSinkId === 'function') {
+    // ── Path A: setSinkId (Chrome/Edge desktop + headphone/BT devices) ──────
+    if (typeof (vid as any).setSinkId === 'function') {
       try {
-        // 'communications' = headset/earpiece; '' = system default (speaker)
-        await (audio as any).setSinkId(useEarpiece ? 'communications' : '');
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const outputs = devices.filter(d => d.kind === 'audiooutput');
+
+        if (useEarpiece) {
+          // Prefer a device labeled earpiece/receiver/built-in
+          const earpiece = outputs.find(d =>
+            /earpiece|receiver|built.?in ear/i.test(d.label)
+          );
+          await (vid as any).setSinkId(earpiece?.deviceId ?? 'communications');
+        } else {
+          // Default output device (system speaker)
+          await (vid as any).setSinkId('');
+        }
         return;
-      } catch {}
+      } catch (err: any) {
+        // NotFoundError or NotAllowedError — setSinkId exists but earpiece
+        // device isn't available (common on Android Chrome).
+        console.warn('[DM call] setSinkId failed:', err?.message ?? err);
+
+        // Fall through to iOS path if applicable; otherwise inform user.
+        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        if (!isIOS) {
+          toast({
+            title: 'Earpiece not available',
+            description: 'Your browser or device doesn\'t support switching to earpiece. Use headphones instead.',
+            variant: 'destructive',
+          });
+          // Revert UI state
+          earpieceRef.current = false;
+          return;
+        }
+      }
     }
 
-    // iOS Safari fallback: playsInline=true → earpiece, false → loudspeaker
-    (audio as any).playsInline = useEarpiece;
-    if (audio.srcObject) {
-      const src = audio.srcObject;
-      audio.srcObject = null;
-      audio.srcObject = src;
-      audio.play().catch(() => {});
+    // ── Path B: iOS Safari — flip playsInline and re-attach srcObject ────────
+    // playsInline=false → loudspeaker (fills the room)
+    // playsInline=true  → receiver/earpiece (quiet, holds to ear)
+    vid.playsInline = useEarpiece;
+    (vid as any)['webkit-playsinline'] = useEarpiece;
+
+    if (vid.srcObject) {
+      const src = vid.srcObject;
+      vid.srcObject = null;
+      await new Promise(r => setTimeout(r, 50)); // brief pause for iOS session flush
+      vid.srcObject = src;
+      vid.play().catch(() => {});
     }
   }, []);
 
-  return { startCallerAudio, startCalleeAudio, toggleMic, setDeafened, setEarpiece, cleanupAudio };
+  return { startCallerAudio, startCalleeAudio, toggleMic, setDeafened, setEarpiece, earpieceRef, cleanupAudio };
 }
