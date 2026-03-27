@@ -8,7 +8,7 @@ import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
   Repeat, Repeat1, Shuffle, Music, Library, Disc, User,
   ListMusic, Search, FolderOpen, Sliders, ChevronRight,
-  ChevronDown, ChevronUp, ChevronLeft, Loader2, Music2, X, MoreHorizontal,
+  ChevronDown, ChevronUp, ChevronLeft, Music2, X, MoreHorizontal,
   GalleryHorizontalEnd, Tag, Copy, Check, Info, ListPlus,
   ListEnd, Minus, Hash, FileAudio, Columns,
 } from 'lucide-react';
@@ -331,8 +331,7 @@ const COL_DEFS: ColDef[] = [
   { id: 'duration',    field: 'duration',    label: 'Time',   width: '50px', align: 'right'  },
 ];
 const DEFAULT_COL_ORDER: ColId[] = ['trackNumber', 'title', 'artist', 'album', 'duration'];
-const MOBILE_COLS: ColId[] = ['trackNumber', 'title', 'duration'];
-const MOBILE_GRID = '24px 36px 1fr 50px';
+const MOBILE_SUPPORTED_COLS: ColId[] = ['trackNumber', 'title', 'duration'];
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePanelProps) {
@@ -829,10 +828,8 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   const groupItems = libraryView === 'artists' ? artists : libraryView === 'genres' ? genres : albums;
 
   /* ─────────────────────────────── Main UI ────────────────────────────── */
-  // On mobile: use user's colOrder but filtered to cols that have a mobile grid slot.
-  // Always include 'title'; all MOBILE_COLS are supported. Non-mobile-slot cols (artist, album) are hidden.
-  const MOBILE_SUPPORTED: ColId[] = ['trackNumber', 'title', 'duration'];
-  const mobileActiveCols: ColId[] = colOrder.filter(c => MOBILE_SUPPORTED.includes(c));
+  // On mobile: use user's colOrder filtered to mobile-supported cols (artist/album not shown).
+  const mobileActiveCols: ColId[] = colOrder.filter(c => MOBILE_SUPPORTED_COLS.includes(c));
   // Ensure title is always present
   if (!mobileActiveCols.includes('title')) mobileActiveCols.unshift('title');
   const activeCols = isMobile ? mobileActiveCols : colOrder;
@@ -967,14 +964,14 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
             {/* Active columns — shown in order, with up/down reorder arrows */}
             <p className="text-[9px] font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--muted-foreground)' }}>Active (in order)</p>
             <div className="flex flex-col gap-1 mb-3">
-              {colOrder.filter(c => MOBILE_SUPPORTED.includes(c as ColId)).map((colId, idx, arr) => {
+              {colOrder.filter(c => MOBILE_SUPPORTED_COLS.includes(c as ColId)).map((colId, idx, arr) => {
                 const col = COL_DEFS.find(c => c.id === colId)!;
                 const isCoreCol = colId === 'title';
                 const canMoveUp = idx > 0;
                 const canMoveDown = idx < arr.length - 1;
                 const moveColInOrder = (delta: -1 | 1) => {
                   // Swap within the mobile-visible subset, then splice back into full colOrder
-                  const mobileVisible = colOrder.filter(c => MOBILE_SUPPORTED.includes(c as ColId));
+                  const mobileVisible = colOrder.filter(c => MOBILE_SUPPORTED_COLS.includes(c as ColId));
                   const i = mobileVisible.indexOf(colId);
                   const j = i + delta;
                   if (j < 0 || j >= mobileVisible.length) return;
@@ -983,10 +980,10 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                   // Rebuild full colOrder: replace mobile-visible segment in place
                   let mi = 0;
                   const reordered: ColId[] = colOrder.map(c => {
-                    if (MOBILE_SUPPORTED.includes(c as ColId)) return next[mi++] as ColId;
+                    if (MOBILE_SUPPORTED_COLS.includes(c as ColId)) return next[mi++] as ColId;
                     return c as ColId;
                   });
-                  dispatch({ type: 'SET_COL_ORDER', order: reordered });
+                  setColOrder(reordered);
                 };
                 return (
                   <div
@@ -1017,7 +1014,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                     {/* Remove (hide) — not allowed for title */}
                     {!isCoreCol && (
                       <button
-                        onClick={() => dispatch({ type: 'SET_COL_ORDER', order: colOrder.filter(c => c !== colId) })}
+                        onClick={() => setColOrder(colOrder.filter(c => c !== colId))}
                         className="p-1 rounded transition-colors"
                         style={{ color: 'var(--muted-foreground)' }}
                         title="Hide column"
@@ -1032,11 +1029,11 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
             </div>
 
             {/* Hidden columns — tap to add */}
-            {MOBILE_SUPPORTED.filter(c => !colOrder.includes(c as ColId)).length > 0 && (
+            {MOBILE_SUPPORTED_COLS.filter(c => !colOrder.includes(c as ColId)).length > 0 && (
               <>
                 <p className="text-[9px] font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--muted-foreground)' }}>Hidden (tap to add)</p>
                 <div className="flex flex-col gap-1">
-                  {MOBILE_SUPPORTED.filter(c => !colOrder.includes(c as ColId)).map(colId => {
+                  {MOBILE_SUPPORTED_COLS.filter(c => !colOrder.includes(c as ColId)).map(colId => {
                     const col = COL_DEFS.find(c => c.id === colId)!;
                     return (
                       <button
@@ -1044,7 +1041,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                         onClick={() => {
                           const base = [...colOrder, colId as ColId];
                           const ordered = DEFAULT_COL_ORDER.filter(c => base.includes(c as ColId)) as ColId[];
-                          dispatch({ type: 'SET_COL_ORDER', order: ordered });
+                          setColOrder(ordered);
                         }}
                         className="flex items-center justify-between px-3 py-2 rounded-xl transition-colors text-left"
                         style={{ background: 'rgba(255,255,255,0.04)' }}
