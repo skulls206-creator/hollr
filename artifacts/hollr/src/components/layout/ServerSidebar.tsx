@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { SupporterDiamondButton } from '@/components/ui/SupporterDiamondButton';
@@ -81,6 +81,7 @@ function SortableServerItem({
       <Tooltip>
         <TooltipTrigger asChild>
           <motion.button
+            data-server-icon
             onClick={onClick}
             onContextMenu={onContextMenu}
             className="relative group flex items-center justify-center w-full h-12"
@@ -132,6 +133,7 @@ function SortableKhurkItem({
       <Tooltip>
         <TooltipTrigger asChild>
           <motion.button
+            data-app-icon
             onClick={onClick}
             onContextMenu={onContextMenu}
             className="relative group flex items-center justify-center w-full h-12"
@@ -166,6 +168,65 @@ export function ServerSidebar() {
   const { toast } = useToast();
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
   const { visibleApps, hasAnyDismissed, dismissOne, dismissAll, restoreAll } = useKhurkDismissals();
+
+  // ── Blank-area long-press (server rail) ──────────────────────────────────
+  const railLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const railLongPressTriggered = useRef(false);
+
+  const openRailContextMenu = useCallback((x: number, y: number) => {
+    const store = useAppStore.getState();
+    const actions: any[] = [
+      {
+        id: 'reload-app',
+        label: 'Reload App',
+        icon: <RefreshCw size={14} />,
+        onClick: () => window.location.reload(),
+      },
+      {
+        id: 'create-server',
+        label: 'Create a Server',
+        icon: <Plus size={14} />,
+        onClick: () => store.setCreateServerModalOpen(true),
+        dividerBefore: true,
+      },
+      {
+        id: 'join-server',
+        label: 'Join a Server',
+        icon: <UserPlus size={14} />,
+        onClick: () => store.setJoinServerModalOpen(true),
+      },
+      {
+        id: 'settings',
+        label: 'Settings',
+        icon: <Settings size={14} />,
+        onClick: () => store.setUserSettingsModalOpen(true),
+        dividerBefore: true,
+      },
+    ];
+    showMenu({ x, y, actions });
+  }, [showMenu]);
+
+  const handleRailContextMenu = useCallback((e: React.MouseEvent) => {
+    // Only fire on the rail background, not on any clickable icon button
+    if ((e.target as HTMLElement).closest('button,a,[role="button"]')) return;
+    e.preventDefault();
+    openRailContextMenu(e.clientX, e.clientY);
+  }, [openRailContextMenu]);
+
+  const handleRailTouchStart = useCallback((e: React.TouchEvent) => {
+    if ((e.target as HTMLElement).closest('button,a,[role="button"]')) return;
+    railLongPressTriggered.current = false;
+    const touch = e.touches[0];
+    const x = touch.clientX; const y = touch.clientY;
+    railLongPressTimer.current = setTimeout(() => {
+      railLongPressTriggered.current = true;
+      openRailContextMenu(x, y);
+    }, 600);
+  }, [openRailContextMenu]);
+
+  const handleRailTouchEnd = useCallback(() => {
+    if (railLongPressTimer.current) { clearTimeout(railLongPressTimer.current); railLongPressTimer.current = null; }
+  }, []);
 
   // ── Server order ──
   const [serverOrder, setServerOrder] = useState<string[]>([]);
@@ -353,10 +414,16 @@ export function ServerSidebar() {
     >
       <div className="w-[72px] h-full bg-surface-0 shrink-0 flex flex-col overflow-hidden border-r border-border/10 z-20">
       {/* ── Scrollable section (servers + apps) ── */}
-      <div className={cn(
-        "flex-1 flex flex-col items-center py-3 gap-2 overflow-x-hidden no-scrollbar",
-        isAnyDragging ? "overflow-y-hidden" : "overflow-y-auto"
-      )}>
+      <div
+        className={cn(
+          "flex-1 flex flex-col items-center py-3 gap-2 overflow-x-hidden no-scrollbar",
+          isAnyDragging ? "overflow-y-hidden" : "overflow-y-auto"
+        )}
+        onContextMenu={handleRailContextMenu}
+        onTouchStart={handleRailTouchStart}
+        onTouchEnd={handleRailTouchEnd}
+        onTouchMove={handleRailTouchEnd}
+      >
 
         {/* Direct Messages */}
         <Tooltip>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   Hash, Volume2, Plus, ChevronDown, ChevronUp, Settings, Mic, MicOff, Headphones, VolumeX,
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
@@ -80,6 +80,12 @@ export function ChannelSidebar() {
   const [dmMsgResults, setDmMsgResults] = useState<any[]>([]);
   const [dmSearching, setDmSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Long-press for blank-area context menus ───────────────────────────────
+  const blankLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blankLongPressTriggered = useRef(false);
+  const dmEntryLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dmEntryLongPressTriggered = useRef(false);
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const openSearch = useCallback(() => {
@@ -401,7 +407,17 @@ export function ChannelSidebar() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
+        <div
+          className="flex-1 overflow-y-auto p-2 no-scrollbar"
+          onContextMenu={e => {
+            if ((e.target as HTMLElement).closest('button,a,[role="button"],input')) return;
+            e.preventDefault();
+            openDmSidebarMenu(e.clientX, e.clientY);
+          }}
+          onTouchStart={e => handleBlankTouchStart(openDmSidebarMenu, e)}
+          onTouchEnd={handleBlankTouchEnd}
+          onTouchMove={handleBlankTouchEnd}
+        >
           {/* ── Message search results ── */}
           {dmSearchActive && dmSearch.trim().length >= 2 && (
             <div className="mb-2">
@@ -451,13 +467,27 @@ export function ChannelSidebar() {
             const dmUnread = dmUnreadCounts[thread.id] ?? 0;
             return (
               <button
+                data-dm-row
                 key={thread.id}
                 onClick={() => {
+                  if (dmEntryLongPressTriggered.current) return;
                   setActiveDmThread(thread.id);
                   clearDmUnreadCount(thread.id);
                   if (!sidebarLocked) closeSidebar();
                 }}
                 onContextMenu={e => handleDmContextMenu(e, thread, other)}
+                onTouchStart={e => {
+                  dmEntryLongPressTriggered.current = false;
+                  const touch = e.touches[0];
+                  const x = touch.clientX; const y = touch.clientY;
+                  dmEntryLongPressTimer.current = setTimeout(() => {
+                    dmEntryLongPressTriggered.current = true;
+                    handleDmContextMenu({ preventDefault: () => {}, clientX: x, clientY: y } as any, thread, other);
+                  }, 600);
+                }}
+                onTouchEnd={() => {
+                  if (dmEntryLongPressTimer.current) { clearTimeout(dmEntryLongPressTimer.current); dmEntryLongPressTimer.current = null; }
+                }}
                 className={cn(
                   'w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors',
                   activeDmThreadId === thread.id
@@ -500,16 +530,16 @@ export function ChannelSidebar() {
     );
   }
 
-  const handleSidebarContextMenu = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('[data-channel-row]')) return;
-    e.preventDefault();
+  // ── Shared: open blank-area context menu for the server channel list ─────
+  const openChannelSidebarMenu = useCallback((x: number, y: number) => {
+    const store = useAppStore.getState();
     showMenu({
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
       actions: [
         {
-          id: 'refresh',
-          label: 'Refresh',
+          id: 'refresh-channels',
+          label: 'Refresh Channels',
           icon: <RefreshCw size={14} />,
           onClick: () => {
             qc.invalidateQueries({ queryKey: getListChannelsQueryKey(activeServerId!) });
@@ -517,9 +547,97 @@ export function ChannelSidebar() {
             qc.invalidateQueries({ queryKey: ['unread', activeServerId] });
           },
         },
+        {
+          id: 'reload-app',
+          label: 'Reload App',
+          icon: <RefreshCw size={14} />,
+          onClick: () => window.location.reload(),
+          dividerBefore: true,
+        },
+        {
+          id: 'create-channel',
+          label: 'Create Channel',
+          icon: <Plus size={14} />,
+          onClick: () => store.setCreateChannelModalOpen(true),
+          dividerBefore: true,
+        },
+        {
+          id: 'invite-people',
+          label: 'Invite People',
+          icon: <UserPlus size={14} />,
+          onClick: () => store.setInviteModalOpen(true),
+        },
+        {
+          id: 'server-settings',
+          label: 'Server Settings',
+          icon: <Settings size={14} />,
+          onClick: () => store.setServerSettingsModalOpen(true),
+        },
       ],
     });
+  }, [showMenu, qc, activeServerId]);
+
+  // ── Shared: open blank-area context menu for the DM list ─────────────────
+  const openDmSidebarMenu = useCallback((x: number, y: number) => {
+    const store = useAppStore.getState();
+    showMenu({
+      x,
+      y,
+      actions: [
+        {
+          id: 'refresh-dms',
+          label: 'Refresh DMs',
+          icon: <RefreshCw size={14} />,
+          onClick: () => {
+            qc.invalidateQueries({ queryKey: getListDmThreadsQueryKey() });
+          },
+        },
+        {
+          id: 'reload-app',
+          label: 'Reload App',
+          icon: <RefreshCw size={14} />,
+          onClick: () => window.location.reload(),
+          dividerBefore: true,
+        },
+        {
+          id: 'new-dm',
+          label: 'New Direct Message',
+          icon: <MessageSquarePlus size={14} />,
+          onClick: () => store.setNewDmModalOpen(true),
+          dividerBefore: true,
+        },
+      ],
+    });
+  }, [showMenu, qc]);
+
+  const handleSidebarContextMenu = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button,a,[role="button"],input')) return;
+    e.preventDefault();
+    openChannelSidebarMenu(e.clientX, e.clientY);
   };
+
+  // ── Long-press helpers for blank areas ───────────────────────────────────
+  const handleBlankTouchStart = useCallback((
+    openFn: (x: number, y: number) => void,
+    e: React.TouchEvent,
+  ) => {
+    if ((e.target as HTMLElement).closest('button,a,[role="button"],input')) return;
+    blankLongPressTriggered.current = false;
+    const touch = e.touches[0];
+    const x = touch.clientX;
+    const y = touch.clientY;
+    blankLongPressTimer.current = setTimeout(() => {
+      blankLongPressTriggered.current = true;
+      openFn(x, y);
+    }, 600);
+  }, []);
+
+  const handleBlankTouchEnd = useCallback(() => {
+    if (blankLongPressTimer.current) {
+      clearTimeout(blankLongPressTimer.current);
+      blankLongPressTimer.current = null;
+    }
+  }, []);
 
   return (
     <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
@@ -576,7 +694,14 @@ export function ChannelSidebar() {
       </div>
 
       {/* Channel List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-4 no-scrollbar" onClick={() => setServerMenuOpen(false)} onContextMenu={handleSidebarContextMenu}>
+      <div
+        className="flex-1 overflow-y-auto p-2 space-y-4 no-scrollbar"
+        onClick={() => setServerMenuOpen(false)}
+        onContextMenu={handleSidebarContextMenu}
+        onTouchStart={e => handleBlankTouchStart(openChannelSidebarMenu, e)}
+        onTouchEnd={handleBlankTouchEnd}
+        onTouchMove={handleBlankTouchEnd}
+      >
 
         {/* Text Channels */}
         <div>
