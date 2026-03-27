@@ -1,637 +1,608 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+/**
+ * BallpointPanel — account-backed rich text editor (Tiptap + DB storage)
+ * Layout: collapsible sidebar note list | editor with tab bar + formatting toolbar
+ */
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import TextAlign from '@tiptap/extension-text-align';
+import { TextStyle } from '@tiptap/extension-text-style';
+import FontFamily from '@tiptap/extension-font-family';
+import Link from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
+import Color from '@tiptap/extension-color';
+import Image from '@tiptap/extension-image';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 import {
-  FileText, Plus, Star, Archive, Trash2, RotateCcw, Trash,
-  Eye, EyeOff, FolderOpen, Search, X, Check, Edit2, Copy,
+  Bold, Italic, Underline as UnderlineIcon, Plus, Minus, Link2, ImageIcon,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered,
+  CheckSquare, Undo2, Redo2, Search, ChevronLeft, ChevronRight, X, Pin,
+  Archive, Trash2, RotateCcw, PanelLeft, Cloud,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import type { NativePanelProps } from '@/lib/khurk-apps';
+import { useAuth } from '@workspace/replit-auth-web';
 
-export interface NativePanelProps {
-  dirHandle: FileSystemDirectoryHandle | null;
-  onPickFolder: () => void;
-  storagePrefix: string;
-}
+const API = import.meta.env.BASE_URL;
 
-type NoteSection = 'all' | 'favorites' | 'archive' | 'trash';
-
-interface NoteEntry {
-  name: string;
+interface BpNote {
+  id: string;
+  userId: string;
+  title: string;
   content: string;
-  lastModified: number;
+  isPinned: boolean;
+  isArchived: boolean;
+  isTrashed: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  const hrs = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  if (hrs < 24) return `${hrs}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return new Date(ts).toLocaleDateString();
+type Section = 'all' | 'pinned' | 'archived' | 'trash';
+
+interface OpenTab { noteId: string }
+
+const FONTS = ['Sans-serif', 'Serif', 'Monospace', 'Cursive'];
+const FONT_FAMILY_MAP: Record<string, string> = {
+  'Sans-serif': 'ui-sans-serif, system-ui, sans-serif',
+  'Serif': 'ui-serif, Georgia, serif',
+  'Monospace': 'ui-monospace, monospace',
+  'Cursive': 'cursive',
+};
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function titleFromName(name: string): string {
-  return name.replace(/\.(md|txt)$/i, '').replace(/[-_]/g, ' ');
+function getPlainText(html: string) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent ?? '';
 }
 
-function storageKey(prefix: string, handle: FileSystemDirectoryHandle, suffix: string): string {
-  // Combine the app's stable ID prefix with the folder name to prevent collisions
-  // between different apps or different folders that share the same display name.
-  return `${prefix}:${handle.name}:${suffix}`;
-}
-
-function lastFolderKey(prefix: string): string {
-  return `${prefix}:lastFolderName`;
-}
-
-function loadSet(key: string): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(key) ?? '[]')); } catch { return new Set(); }
-}
-
-function saveSet(key: string, s: Set<string>) {
-  localStorage.setItem(key, JSON.stringify([...s]));
-}
-
-function simpleMarkdown(text: string): string {
-  if (!text.trim()) return '';
-  let h = text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/```([\s\S]*?)```/g, (_m, c) => `<pre style="background:rgba(255,255,255,0.05);border-radius:6px;padding:8px 12px;font-size:11px;overflow-x:auto;margin:8px 0"><code>${c.trim()}</code></pre>`)
-    .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;font-size:11px">$1</code>')
-    .replace(/^# (.+)$/gm, '<h1 style="font-size:1.2em;font-weight:700;margin:14px 0 4px">$1</h1>')
-    .replace(/^## (.+)$/gm, '<h2 style="font-size:1em;font-weight:600;margin:12px 0 4px">$1</h2>')
-    .replace(/^### (.+)$/gm, '<h3 style="font-size:.9em;font-weight:600;margin:10px 0 4px">$1</h3>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
-    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
-    .replace(/^- \[x\] (.+)$/gim, '<div style="display:flex;gap:6px;align-items:flex-start;margin:2px 0"><input type="checkbox" checked disabled style="margin-top:3px;accent-color:#7c3aed"/><span style="opacity:.6;text-decoration:line-through">$1</span></div>')
-    .replace(/^- \[ \] (.+)$/gim, '<div style="display:flex;gap:6px;align-items:flex-start;margin:2px 0"><input type="checkbox" disabled style="margin-top:3px"/><span>$1</span></div>')
-    .replace(/^[-*] (.+)$/gm, '<li style="margin-left:16px;list-style-type:disc;margin-bottom:2px">$1</li>')
-    .replace(/^\d+\. (.+)$/gm, '<li style="margin-left:16px;list-style-type:decimal;margin-bottom:2px">$1</li>')
-    .replace(/^> (.+)$/gm, '<blockquote style="border-left:3px solid #7c3aed;padding-left:10px;margin:6px 0;opacity:.7">$1</blockquote>')
-    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:12px 0"/>')
-    .replace(/\n\n+/g, '</p><p style="margin:6px 0">')
-    .replace(/\n/g, '<br/>');
-  return `<p style="margin:6px 0">${h}</p>`;
-}
-
-export function BallpointPanel({ dirHandle, onPickFolder, storagePrefix }: NativePanelProps) {
-  const [notes, setNotes] = useState<NoteEntry[]>([]);
-  const [activeNote, setActiveNote] = useState<string | null>(null);
-  const [content, setContent] = useState('');
-  const [section, setSection] = useState<NoteSection>('all');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [archive, setArchive] = useState<Set<string>>(new Set());
-  const [trash, setTrash] = useState<Set<string>>(new Set());
-  const [showPreview, setShowPreview] = useState(false);
+export function BallpointPanel({ storagePrefix }: NativePanelProps) {
+  const { user } = useAuth();
+  const [notes, setNotes] = useState<BpNote[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [section, setSection] = useState<Section>('all');
   const [search, setSearch] = useState('');
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [renameVal, setRenameVal] = useState('');
-  const [ctxMenu, setCtxMenu] = useState<{ note: string; x: number; y: number } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [tabs, setTabs] = useState<OpenTab[]>([]);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [fontSize, setFontSize] = useState(14);
+  const [fontFamily, setFontFamily] = useState('Sans-serif');
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const notesRef = useRef<BpNote[]>([]);
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeNoteRef = useRef<string | null>(null);
-  const dirRef = useRef<FileSystemDirectoryHandle | null>(null);
-  const contentRef = useRef('');
-  const notesRef = useRef<NoteEntry[]>([]);
-  activeNoteRef.current = activeNote;
-  dirRef.current = dirHandle;
-  contentRef.current = content;
-  notesRef.current = notes;
+  useEffect(() => { notesRef.current = notes; }, [notes]);
 
-  const loadNotes = useCallback(async (handle: FileSystemDirectoryHandle) => {
+  const lsKey = `${storagePrefix}:sidebar`;
+  useEffect(() => {
+    const stored = localStorage.getItem(lsKey);
+    if (stored !== null) setSidebarOpen(stored === '1');
+  }, [lsKey]);
+
+  const activeNote = notes.find(n => n.id === activeTab) ?? null;
+
+  /* ── API ── */
+  const fetchNotes = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const entries: NoteEntry[] = [];
-      for await (const entry of handle.values()) {
-        if (entry.kind !== 'file' || !/\.(md|txt)$/i.test(entry.name) || entry.name.startsWith('.')) continue;
-        const file = await entry.getFile();
-        entries.push({ name: entry.name, content: await file.text(), lastModified: file.lastModified });
-      }
-      entries.sort((a, b) => b.lastModified - a.lastModified);
-      setNotes(entries);
-      if (entries.length > 0) {
-        setActiveNote(entries[0].name);
-        setContent(entries[0].content);
-      } else {
-        setActiveNote(null);
-        setContent('');
-      }
+      const [res, trashRes] = await Promise.all([
+        fetch(`${API}api/ballpoint/notes`, { credentials: 'include' }),
+        fetch(`${API}api/ballpoint/notes/trash`, { credentials: 'include' }),
+      ]);
+      if (!res.ok || !trashRes.ok) throw new Error('fetch failed');
+      const active: BpNote[] = await res.json();
+      const trashed: BpNote[] = await trashRes.json();
+      setNotes([...active, ...trashed]);
+    } catch {
+      // non-fatal
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
-  useEffect(() => {
-    if (!dirHandle) { setNotes([]); setActiveNote(null); setContent(''); return; }
-    // Persist folder name so we can show a reconnect prompt next time
-    localStorage.setItem(lastFolderKey(storagePrefix), dirHandle.name);
-    setFavorites(loadSet(storageKey(storagePrefix, dirHandle, 'fav')));
-    setArchive(loadSet(storageKey(storagePrefix, dirHandle, 'arc')));
-    setTrash(loadSet(storageKey(storagePrefix, dirHandle, 'trash')));
-    loadNotes(dirHandle);
-  }, [dirHandle, loadNotes]);
-
-  // Flush any pending autosave to disk when the panel is unmounted or the app
-  // is closed, so keystrokes within the 800ms debounce window are not lost.
-  useEffect(() => () => {
-    if (!saveTimerRef.current) return;
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = null;
-    const handle = dirRef.current;
-    const name = activeNoteRef.current;
-    const text = contentRef.current;
-    if (!handle || !name) return;
-    handle.getFileHandle(name, { create: true })
-      .then(fh => fh.createWritable())
-      .then(w => w.write(text).then(() => w.close()))
-      .catch(() => { /* best-effort */ });
-  }, []);
-
-  const scheduleAutoSave = useCallback(() => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      const handle = dirRef.current;
-      const name = activeNoteRef.current;
-      const text = contentRef.current;
-      if (!handle || !name) return;
-      setSaving(true);
-      try {
-        const fh = await handle.getFileHandle(name, { create: true });
-        const w = await fh.createWritable();
-        await w.write(text);
-        await w.close();
-        const now = Date.now();
-        // Re-sort by lastModified desc so the edited note rises to top
-        setNotes(prev =>
-          prev
-            .map(n => n.name === name ? { ...n, content: text, lastModified: now } : n)
-            .sort((a, b) => b.lastModified - a.lastModified)
-        );
-      } catch (e) { console.warn('[Ballpoint] save:', e); }
-      setSaving(false);
-    }, 800);
-  }, []);
-
-  const handleContentChange = useCallback((val: string) => {
-    setContent(val);
-    scheduleAutoSave();
-  }, [scheduleAutoSave]);
-
-  const flushSave = useCallback(async () => {
-    if (!saveTimerRef.current) return;
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = null;
-    const handle = dirRef.current;
-    const name = activeNoteRef.current;
-    const text = contentRef.current;
-    if (!handle || !name) return;
-    try {
-      const fh = await handle.getFileHandle(name, { create: true });
-      const w = await fh.createWritable();
-      await w.write(text);
-      await w.close();
-      // Keep notes state in sync so that switching back to this note loads
-      // the correct (just-saved) content rather than the pre-edit snapshot.
-      const now = Date.now();
-      setNotes(prev =>
-        prev
-          .map(n => n.name === name ? { ...n, content: text, lastModified: now } : n)
-          .sort((a, b) => b.lastModified - a.lastModified),
-      );
-    } catch {}
-  }, []);
+  useEffect(() => { fetchNotes(); }, [fetchNotes]);
 
   const createNote = useCallback(async () => {
-    if (!dirHandle) return;
-    const existing = new Set(notes.map(n => n.name));
-    let i = 1;
-    let name = `untitled-${i}.md`;
-    while (existing.has(name)) name = `untitled-${++i}.md`;
-    try {
-      const fh = await dirHandle.getFileHandle(name, { create: true });
-      const w = await fh.createWritable(); await w.write(''); await w.close();
-      const entry: NoteEntry = { name, content: '', lastModified: Date.now() };
-      setNotes(prev => [entry, ...prev]);
-      setActiveNote(name);
-      setContent('');
-      setSection('all');
-    } catch (e) { console.warn('[Ballpoint] create:', e); }
-  }, [dirHandle, notes]);
+    const res = await fetch(`${API}api/ballpoint/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ title: 'Untitled', content: '' }),
+    });
+    if (!res.ok) return;
+    const note: BpNote = await res.json();
+    setNotes(prev => [note, ...prev]);
+    setTabs(prev => [...prev, { noteId: note.id }]);
+    setActiveTab(note.id);
+    setSection('all');
+  }, []);
 
-  const selectNote = useCallback(async (name: string) => {
-    await flushSave();
-    // Read from ref so we always get the freshest in-memory content,
-    // even if React hasn't yet re-rendered after the flushSave state update.
-    const note = notesRef.current.find(n => n.name === name);
-    if (note) { setActiveNote(name); setContent(note.content); }
-  }, [flushSave]);
+  const patchNote = useCallback(async (id: string, patch: Partial<BpNote>) => {
+    const res = await fetch(`${API}api/ballpoint/notes/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) return;
+    const updated: BpNote = await res.json();
+    setNotes(prev => prev.map(n => n.id === id ? updated : n));
+    notesRef.current = notesRef.current.map(n => n.id === id ? updated : n);
+  }, []);
 
-  const startRename = (name: string) => {
-    setRenaming(name);
-    setRenameVal(titleFromName(name));
-    setCtxMenu(null);
+  const deleteNote = useCallback(async (id: string) => {
+    await fetch(`${API}api/ballpoint/notes/${id}`, { method: 'DELETE', credentials: 'include' });
+    setNotes(prev => prev.filter(n => n.id !== id));
+    setTabs(prev => prev.filter(t => t.noteId !== id));
+    if (activeTab === id) setActiveTab(null);
+  }, [activeTab]);
+
+  /* ── Auto-save ── */
+  const scheduleSave = useCallback((id: string, title: string, content: string) => {
+    clearTimeout(saveTimer.current);
+    setSaving(true);
+    saveTimer.current = setTimeout(async () => {
+      await patchNote(id, { title, content });
+      setSaving(false);
+    }, 900);
+  }, [patchNote]);
+
+  /* ── Tiptap editor ── */
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      TextStyle,
+      FontFamily.configure({ types: ['textStyle'] }),
+      Link.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: 'Start writing…' }),
+      Color,
+      Image,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+    ],
+    content: '',
+    onUpdate({ editor }) {
+      const note = notesRef.current.find(n => n.id === activeTab);
+      if (!note) return;
+      const html = editor.getHTML();
+      const firstLine = editor.getText().split('\n')[0]?.slice(0, 80) || 'Untitled';
+      setNotes(prev => prev.map(n =>
+        n.id === note.id ? { ...n, content: html, title: firstLine } : n
+      ));
+      notesRef.current = notesRef.current.map(n =>
+        n.id === note.id ? { ...n, content: html, title: firstLine } : n
+      );
+      scheduleSave(note.id, firstLine, html);
+    },
+  });
+
+  /* Sync editor when active note changes */
+  const lastLoadedId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editor) return;
+    if (activeNote && lastLoadedId.current !== activeNote.id) {
+      lastLoadedId.current = activeNote.id;
+      editor.commands.setContent(activeNote.content || '');
+    } else if (!activeNote) {
+      lastLoadedId.current = null;
+      editor.commands.setContent('');
+    }
+  }, [editor, activeNote]);
+
+  /* Sync font family to editor */
+  const prevFamily = useRef('');
+  useEffect(() => {
+    if (!editor || prevFamily.current === fontFamily) return;
+    prevFamily.current = fontFamily;
+    editor.chain().setFontFamily(FONT_FAMILY_MAP[fontFamily]).run();
+  }, [fontFamily, editor]);
+
+  /* ── Toolbar helpers ── */
+  const setFontSizeNum = (size: number) => {
+    const clamped = Math.min(Math.max(size, 8), 96);
+    setFontSize(clamped);
+    editor?.chain().focus().setMark('textStyle', { fontSize: `${clamped}px` }).run();
   };
 
-  const commitRename = useCallback(async () => {
-    if (!dirHandle || !renaming || !renameVal.trim()) { setRenaming(null); return; }
-    const ext = renaming.endsWith('.txt') ? '.txt' : '.md';
-    let newName = renameVal.trim() + ext;
-    if (newName === renaming) { setRenaming(null); return; }
-    const existing = new Set(notes.map(n => n.name));
-    let i = 1;
-    const base = renameVal.trim();
-    while (existing.has(newName) && newName !== renaming) newName = `${base}-${i++}${ext}`;
-    try {
-      const oldFh = await dirHandle.getFileHandle(renaming);
-      const text = await (await oldFh.getFile()).text();
-      const newFh = await dirHandle.getFileHandle(newName, { create: true });
-      const w = await newFh.createWritable(); await w.write(text); await w.close();
-      await dirHandle.removeEntry(renaming);
-      const migrate = (s: Set<string>, key: string): Set<string> => {
-        if (!s.has(renaming)) return s;
-        const n = new Set(s); n.delete(renaming); n.add(newName);
-        saveSet(storageKey(storagePrefix, dirHandle, key), n);
-        return n;
-      };
-      setFavorites(p => migrate(p, 'fav'));
-      setArchive(p => migrate(p, 'arc'));
-      setTrash(p => migrate(p, 'trash'));
-      setNotes(prev => prev.map(n => n.name === renaming ? { ...n, name: newName } : n));
-      if (activeNote === renaming) setActiveNote(newName);
-    } catch (e) { console.warn('[Ballpoint] rename:', e); }
-    setRenaming(null);
-  }, [dirHandle, renaming, renameVal, notes, activeNote]);
+  const setLink = () => {
+    const prev = editor?.getAttributes('link').href ?? '';
+    const url = window.prompt('Link URL', prev);
+    if (url === null) return;
+    if (url === '') { editor?.chain().focus().unsetLink().run(); return; }
+    editor?.chain().focus().setLink({ href: url }).run();
+  };
 
-  const toggleFav = useCallback((name: string) => {
-    if (!dirHandle) return;
-    setFavorites(prev => {
-      const n = new Set(prev);
-      if (n.has(name)) n.delete(name); else n.add(name);
-      saveSet(storageKey(storagePrefix, dirHandle, 'fav'), n);
-      return n;
-    });
-    setCtxMenu(null);
-  }, [dirHandle]);
+  const addImage = () => {
+    const url = window.prompt('Image URL');
+    if (url) editor?.chain().focus().setImage({ src: url }).run();
+  };
 
-  const toggleArc = useCallback((name: string) => {
-    if (!dirHandle) return;
-    setArchive(prev => {
-      const n = new Set(prev);
-      if (n.has(name)) n.delete(name); else n.add(name);
-      saveSet(storageKey(storagePrefix, dirHandle, 'arc'), n);
-      return n;
-    });
-    setCtxMenu(null);
-  }, [dirHandle]);
-
-  const moveToTrash = useCallback((name: string) => {
-    if (!dirHandle) return;
-    setTrash(prev => {
-      const n = new Set(prev); n.add(name);
-      saveSet(storageKey(storagePrefix, dirHandle, 'trash'), n);
-      return n;
-    });
-    if (activeNote === name) {
-      const next = notes.find(n => n.name !== name && !trash.has(n.name));
-      if (next) { setActiveNote(next.name); setContent(next.content); }
-      else { setActiveNote(null); setContent(''); }
+  /* ── Heading type selector ── */
+  const headingType = (() => {
+    if (!editor) return 'Paragraph';
+    for (let i = 1; i <= 6; i++) {
+      if (editor.isActive('heading', { level: i })) return `Heading ${i}`;
     }
-    setCtxMenu(null);
-  }, [dirHandle, activeNote, notes, trash]);
+    return 'Paragraph';
+  })();
 
-  const restoreNote = useCallback((name: string) => {
-    if (!dirHandle) return;
-    setTrash(prev => {
-      const n = new Set(prev); n.delete(name);
-      saveSet(storageKey(storagePrefix, dirHandle, 'trash'), n);
-      return n;
-    });
-    setCtxMenu(null);
-  }, [dirHandle]);
+  const setHeading = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === 'Paragraph') { editor?.chain().focus().setParagraph().run(); return; }
+    const lvl = parseInt(val.split(' ')[1]) as 1 | 2 | 3 | 4 | 5 | 6;
+    editor?.chain().focus().toggleHeading({ level: lvl }).run();
+  };
 
-  const deleteForever = useCallback(async (name: string) => {
-    if (!dirHandle) return;
-    try {
-      await dirHandle.removeEntry(name);
-      setNotes(prev => prev.filter(n => n.name !== name));
-      setTrash(prev => {
-        const n = new Set(prev); n.delete(name);
-        saveSet(storageKey(storagePrefix, dirHandle, 'trash'), n);
-        return n;
-      });
-      if (activeNote === name) { setActiveNote(null); setContent(''); }
-    } catch (e) { console.warn('[Ballpoint] delete:', e); }
-    setCtxMenu(null);
-  }, [dirHandle, activeNote]);
-
-  const duplicateNote = useCallback(async (name: string) => {
-    if (!dirHandle) return;
-    const note = notes.find(n => n.name === name);
-    if (!note) return;
-    const ext = name.endsWith('.txt') ? '.txt' : '.md';
-    const base = name.replace(/\.(md|txt)$/, '');
-    let newName = `${base} copy${ext}`;
-    const existing = new Set(notes.map(n => n.name));
-    let i = 1;
-    while (existing.has(newName)) newName = `${base} copy ${i++}${ext}`;
-    try {
-      const fh = await dirHandle.getFileHandle(newName, { create: true });
-      const w = await fh.createWritable(); await w.write(note.content); await w.close();
-      setNotes(prev => [{ name: newName, content: note.content, lastModified: Date.now() }, ...prev]);
-    } catch (e) { console.warn('[Ballpoint] dupe:', e); }
-    setCtxMenu(null);
-  }, [dirHandle, notes]);
-
-  const filteredNotes = notes.filter(n => {
-    // Section filter
-    if (section === 'trash') { if (!trash.has(n.name)) return false; }
-    else if (section === 'favorites') { if (trash.has(n.name) || !favorites.has(n.name)) return false; }
-    else if (section === 'archive') { if (trash.has(n.name) || !archive.has(n.name)) return false; }
-    else { if (trash.has(n.name) || archive.has(n.name)) return false; }
-    // Search filter applied consistently in every section
+  /* ── Filtered note list ── */
+  const visibleNotes = notes.filter(n => {
+    if (section === 'trash') return n.isTrashed;
+    if (n.isTrashed) return false;
+    if (section === 'pinned') return n.isPinned && !n.isArchived;
+    if (section === 'archived') return n.isArchived;
+    if (n.isArchived) return false;
     if (search) {
       const q = search.toLowerCase();
-      return n.name.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+      return n.title.toLowerCase().includes(q) || getPlainText(n.content).toLowerCase().includes(q);
     }
     return true;
   });
 
-  const isReadOnly = activeNote ? trash.has(activeNote) : false;
-  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const openNote = (note: BpNote) => {
+    if (!tabs.find(t => t.noteId === note.id)) {
+      setTabs(prev => [...prev, { noteId: note.id }]);
+    }
+    setActiveTab(note.id);
+  };
 
-  if (!dirHandle) {
-    const lastFolder = localStorage.getItem(lastFolderKey(storagePrefix));
+  const closeTab = (noteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTabs(prev => {
+      const next = prev.filter(t => t.noteId !== noteId);
+      if (activeTab === noteId) {
+        const idx = prev.findIndex(t => t.noteId === noteId);
+        const fallback = next[idx] ?? next[idx - 1] ?? null;
+        setActiveTab(fallback?.noteId ?? null);
+      }
+      return next;
+    });
+  };
+
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const scrollTabs = (dir: 'left' | 'right') => {
+    tabBarRef.current?.scrollBy({ left: dir === 'left' ? -120 : 120, behavior: 'smooth' });
+  };
+
+  if (!user) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-[#0f0a1e] gap-5 px-6 text-white">
-        <div className="w-14 h-14 rounded-2xl bg-purple-600/20 flex items-center justify-center">
-          <FileText size={28} className="text-purple-400" strokeWidth={1.5} />
-        </div>
-        <div className="text-center space-y-1.5">
-          <h2 className="text-base font-semibold">Ballpoint Notes</h2>
-          <p className="text-sm text-white/50 leading-relaxed max-w-xs">
-            Connect a local folder to store your notes as plain Markdown files on your device.
-          </p>
-        </div>
-        {lastFolder && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.05] border border-white/[0.06] text-[12px]">
-            <FolderOpen size={12} className="text-purple-400 shrink-0" />
-            <span className="text-white/40">Last used:</span>
-            <span className="text-white/70 font-medium">{lastFolder}</span>
-          </div>
-        )}
-        <button
-          onClick={onPickFolder}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
-        >
-          <FolderOpen size={16} />
-          {lastFolder ? `Reconnect "${lastFolder}"` : 'Connect Folder'}
-        </button>
+      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+        Sign in to use Ballpoint
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 min-h-0 h-full overflow-hidden bg-[#0f0a1e] text-white select-none">
-      {ctxMenu && (
-        <NoteContextMenu
-          note={ctxMenu.note} x={ctxMenu.x} y={ctxMenu.y}
-          inTrash={trash.has(ctxMenu.note)} inArchive={archive.has(ctxMenu.note)} isFav={favorites.has(ctxMenu.note)}
-          onClose={() => setCtxMenu(null)}
-          onRename={() => startRename(ctxMenu.note)}
-          onFav={() => toggleFav(ctxMenu.note)}
-          onArchive={() => toggleArc(ctxMenu.note)}
-          onTrash={() => moveToTrash(ctxMenu.note)}
-          onRestore={() => restoreNote(ctxMenu.note)}
-          onDeleteForever={() => deleteForever(ctxMenu.note)}
-          onDuplicate={() => duplicateNote(ctxMenu.note)}
-        />
-      )}
+    <div className="h-full flex flex-col bg-background text-foreground overflow-hidden select-none font-sans">
 
-      {/* ── Sidebar ── */}
-      <div className="w-[200px] shrink-0 flex flex-col border-r border-white/[0.06] bg-[#0c0820]">
-        <div className="px-2 pt-2.5 pb-1.5 shrink-0">
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.05]">
-            <Search size={11} className="text-white/30 shrink-0" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" className="flex-1 bg-transparent text-[11px] text-white placeholder:text-white/25 outline-none" />
-            {search && <button onClick={() => setSearch('')} className="text-white/20 hover:text-white/50 transition-colors"><X size={9} /></button>}
-          </div>
-        </div>
+      {/* ── Top bar ── */}
+      <div className="flex items-center gap-1 border-b border-border px-2 h-10 shrink-0 bg-background/90 backdrop-blur">
+        <button
+          onClick={createNote}
+          className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+          title="New note"
+        ><Plus size={15} /></button>
+        <button onClick={() => scrollTabs('left')} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
+          <ChevronLeft size={14} />
+        </button>
 
-        <div className="px-1.5 pb-1 shrink-0">
-          {(['all', 'favorites', 'archive', 'trash'] as NoteSection[]).map(s => {
-            const counts: Record<NoteSection, number> = {
-              all: notes.filter(n => !trash.has(n.name) && !archive.has(n.name)).length,
-              favorites: notes.filter(n => favorites.has(n.name) && !trash.has(n.name)).length,
-              archive: notes.filter(n => archive.has(n.name) && !trash.has(n.name)).length,
-              trash: notes.filter(n => trash.has(n.name)).length,
-            };
-            const icons: Record<NoteSection, React.ReactNode> = {
-              all: <FileText size={11} />,
-              favorites: <Star size={11} />,
-              archive: <Archive size={11} />,
-              trash: <Trash2 size={11} />,
-            };
-            const labels: Record<NoteSection, string> = { all: 'All Notes', favorites: 'Favorites', archive: 'Archive', trash: 'Trash' };
+        {/* Tabs */}
+        <div ref={tabBarRef} className="flex-1 flex items-center gap-0.5 overflow-x-auto scrollbar-none">
+          {tabs.map(t => {
+            const note = notes.find(n => n.id === t.noteId);
+            const isActive = t.noteId === activeTab;
             return (
-              <button key={s} onClick={() => setSection(s)}
-                className={cn('w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors text-left',
-                  section === s ? 'bg-purple-600/25 text-purple-300' : 'text-white/45 hover:text-white/75 hover:bg-white/[0.04]'
-                )}>
-                {icons[s]}
-                <span>{labels[s]}</span>
-                <span className="ml-auto text-[10px] opacity-40">{counts[s] || ''}</span>
+              <button
+                key={t.noteId}
+                onClick={() => setActiveTab(t.noteId)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs whitespace-nowrap max-w-[160px] transition-colors shrink-0 ${
+                  isActive ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent/50'
+                }`}
+              >
+                <span className="truncate">{note?.title || 'Untitled'}</span>
+                <X size={11} className="shrink-0 opacity-60 hover:opacity-100" onClick={e => closeTab(t.noteId, e)} />
               </button>
             );
           })}
         </div>
 
-        <div className="h-px bg-white/[0.05] mx-2 my-1 shrink-0" />
+        <button onClick={() => scrollTabs('right')} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
+          <ChevronRight size={14} />
+        </button>
 
-        <div className="flex-1 overflow-y-auto py-1 px-1.5">
-          {loading && <p className="text-[11px] text-white/25 text-center py-6">Loading…</p>}
-          {!loading && filteredNotes.length === 0 && (
-            <div className="flex flex-col items-center gap-2 py-8 px-3 text-center">
-              <FileText size={18} className="text-white/10" strokeWidth={1.5} />
-              <p className="text-[11px] text-white/25">
-                {section === 'trash' ? 'Trash is empty' : section === 'archive' ? 'Nothing archived' : section === 'favorites' ? 'No pinned notes' : 'No notes yet'}
-              </p>
-            </div>
-          )}
-          {filteredNotes.map(note => (
-            <div key={note.name}>
-              {renaming === note.name ? (
-                <div className="flex items-center gap-1 px-1.5 py-1">
-                  <input autoFocus value={renameVal} onChange={e => setRenameVal(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(null); }}
-                    className="flex-1 bg-white/[0.08] text-[11px] text-white px-2 py-1 rounded outline-none border border-purple-500/50" />
-                  <button onClick={commitRename} className="text-emerald-400 p-0.5"><Check size={11} /></button>
-                  <button onClick={() => setRenaming(null)} className="text-white/25 p-0.5"><X size={11} /></button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => selectNote(note.name)}
-                  onContextMenu={e => { e.preventDefault(); setCtxMenu({ note: note.name, x: e.clientX, y: e.clientY }); }}
-                  className={cn('w-full text-left px-2 py-2 rounded-lg mb-0.5 transition-colors group',
-                    activeNote === note.name ? 'bg-purple-600/20 border border-purple-500/20' : 'hover:bg-white/[0.04]'
-                  )}>
-                  <div className="flex items-start justify-between gap-1">
-                    <span className="text-[11px] font-medium text-white/85 leading-tight truncate">{titleFromName(note.name)}</span>
-                    {favorites.has(note.name) && <Star size={8} className="text-yellow-400 fill-yellow-400 shrink-0 mt-0.5" />}
-                  </div>
-                  <p className="text-[10px] text-white/25 truncate mt-0.5 leading-tight">
-                    {note.content.split('\n').find(l => l.trim()) || 'Empty note'}
-                  </p>
-                  <p className="text-[9px] text-white/15 mt-1">{relativeTime(note.lastModified)}</p>
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="px-2 py-2 shrink-0 border-t border-white/[0.05]">
-          <button onClick={createNote}
-            className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-[11px] font-medium transition-colors border border-purple-500/20">
-            <Plus size={12} />New Note
-          </button>
+        <div className="flex items-center gap-0.5 ml-1 shrink-0">
+          {saving && <Cloud size={13} className="text-muted-foreground animate-pulse" />}
+          <button onClick={() => editor?.chain().focus().undo().run()} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground" title="Undo"><Undo2 size={14} /></button>
+          <button onClick={() => editor?.chain().focus().redo().run()} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground" title="Redo"><Redo2 size={14} /></button>
+          <button
+            onClick={() => setSidebarOpen(v => { localStorage.setItem(lsKey, !v ? '1' : '0'); return !v; })}
+            className={`p-1 rounded hover:bg-accent transition-colors ${sidebarOpen ? 'text-foreground' : 'text-muted-foreground'}`}
+            title="Toggle sidebar"
+          ><PanelLeft size={14} /></button>
+          <button
+            onClick={() => setShowSearch(v => !v)}
+            className={`p-1 rounded hover:bg-accent transition-colors ${showSearch ? 'text-foreground' : 'text-muted-foreground'}`}
+            title="Search"
+          ><Search size={14} /></button>
         </div>
       </div>
 
-      {/* ── Editor ── */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 select-text">
-        {!activeNote ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
-            <FileText size={28} className="text-white/10" strokeWidth={1.5} />
-            <p className="text-sm text-white/25">Select a note or create a new one</p>
-            <button onClick={createNote}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-sm transition-colors border border-purple-500/20">
-              <Plus size={14} />New Note
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.06] bg-[#0c0820] shrink-0">
-              {renaming === activeNote ? (
-                <div className="flex items-center gap-1 flex-1">
-                  <input autoFocus value={renameVal} onChange={e => setRenameVal(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(null); }}
-                    className="flex-1 bg-white/[0.08] text-sm text-white px-2 py-1 rounded outline-none border border-purple-500/50" />
-                  <button onClick={commitRename} className="text-emerald-400 p-1"><Check size={13} /></button>
-                  <button onClick={() => setRenaming(null)} className="text-white/25 p-1"><X size={13} /></button>
-                </div>
-              ) : (
-                <button onDoubleClick={() => startRename(activeNote)} title="Double-click to rename"
-                  className="flex-1 min-w-0 text-sm font-semibold text-white/75 hover:text-white text-left truncate transition-colors">
-                  {titleFromName(activeNote)}
+      {/* ── Formatting toolbar ── */}
+      {activeNote && (
+        <div className="flex items-center gap-0.5 border-b border-border px-2 h-9 shrink-0 bg-background/70 overflow-x-auto scrollbar-none">
+          <ToolBtn active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold">
+            <Bold size={13} />
+          </ToolBtn>
+          <ToolBtn active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} title="Italic">
+            <Italic size={13} />
+          </ToolBtn>
+          <ToolBtn active={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleUnderline().run()} title="Underline">
+            <UnderlineIcon size={13} />
+          </ToolBtn>
+
+          <div className="w-px h-5 bg-border mx-1 shrink-0" />
+
+          <button onMouseDown={e => { e.preventDefault(); setFontSizeNum(fontSize - 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Minus size={11} /></button>
+          <span className="text-xs w-8 text-center text-muted-foreground">{fontSize}px</span>
+          <button onMouseDown={e => { e.preventDefault(); setFontSizeNum(fontSize + 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Plus size={11} /></button>
+
+          <div className="w-px h-5 bg-border mx-1 shrink-0" />
+
+          <select
+            value={headingType}
+            onChange={setHeading}
+            className="text-xs h-6 rounded border border-border bg-background text-foreground px-1 cursor-pointer focus:outline-none"
+          >
+            <option>Paragraph</option>
+            {[1,2,3,4,5,6].map(i => <option key={i} value={`Heading ${i}`}>Heading {i}</option>)}
+          </select>
+
+          <div className="w-px h-5 bg-border mx-1 shrink-0" />
+
+          <select
+            value={fontFamily}
+            onChange={e => setFontFamily(e.target.value)}
+            className="text-xs h-6 rounded border border-border bg-background text-foreground px-1 cursor-pointer focus:outline-none"
+          >
+            {FONTS.map(f => <option key={f}>{f}</option>)}
+          </select>
+
+          <div className="w-px h-5 bg-border mx-1 shrink-0" />
+
+          <ToolBtn active={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="Numbered list">
+            <ListOrdered size={13} />
+          </ToolBtn>
+          <ToolBtn active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="Bullet list">
+            <List size={13} />
+          </ToolBtn>
+          <ToolBtn active={editor?.isActive('taskList')} onClick={() => editor?.chain().focus().toggleTaskList().run()} title="Task list">
+            <CheckSquare size={13} />
+          </ToolBtn>
+
+          <div className="w-px h-5 bg-border mx-1 shrink-0" />
+
+          <ToolBtn active={editor?.isActive('link')} onClick={setLink} title="Link">
+            <Link2 size={13} />
+          </ToolBtn>
+          <ToolBtn onClick={addImage} title="Image">
+            <ImageIcon size={13} />
+          </ToolBtn>
+
+          <div className="w-px h-5 bg-border mx-1 shrink-0" />
+
+          <ToolBtn active={editor?.isActive({ textAlign: 'left' })} onClick={() => editor?.chain().focus().setTextAlign('left').run()} title="Left"><AlignLeft size={13} /></ToolBtn>
+          <ToolBtn active={editor?.isActive({ textAlign: 'center' })} onClick={() => editor?.chain().focus().setTextAlign('center').run()} title="Center"><AlignCenter size={13} /></ToolBtn>
+          <ToolBtn active={editor?.isActive({ textAlign: 'right' })} onClick={() => editor?.chain().focus().setTextAlign('right').run()} title="Right"><AlignRight size={13} /></ToolBtn>
+          <ToolBtn active={editor?.isActive({ textAlign: 'justify' })} onClick={() => editor?.chain().focus().setTextAlign('justify').run()} title="Justify"><AlignJustify size={13} /></ToolBtn>
+        </div>
+      )}
+
+      {/* ── Body ── */}
+      <div className="flex-1 flex overflow-hidden">
+
+        {/* Sidebar */}
+        {sidebarOpen && (
+          <div className="w-56 shrink-0 border-r border-border flex flex-col overflow-hidden bg-background">
+            {/* Section nav */}
+            <div className="flex flex-col gap-0.5 p-2 border-b border-border shrink-0">
+              {(['all', 'pinned', 'archived', 'trash'] as Section[]).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSection(s)}
+                  className={`flex items-center gap-2 px-2 py-1 rounded text-xs capitalize transition-colors ${section === s ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent/50'}`}
+                >
+                  {s === 'pinned' && <Pin size={11} />}
+                  {s === 'archived' && <Archive size={11} />}
+                  {s === 'trash' && <Trash2 size={11} />}
+                  {s === 'all' && <span className="w-[11px]" />}
+                  {s === 'all' ? 'All Notes' : s.charAt(0).toUpperCase() + s.slice(1)}
                 </button>
-              )}
-              <span className="text-[10px] text-white/15 shrink-0">{wordCount}w</span>
-              {saving && <span className="text-[10px] text-white/25 shrink-0">Saving…</span>}
-              <button onClick={() => setShowPreview(v => !v)} title={showPreview ? 'Hide preview' : 'Show preview'}
-                className={cn('p-1.5 rounded-md transition-colors shrink-0',
-                  showPreview ? 'text-purple-400 bg-purple-600/20' : 'text-white/25 hover:text-white/60 hover:bg-white/[0.06]')}>
-                {showPreview ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
-              <button onClick={createNote} title="New note" className="p-1.5 rounded-md text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-colors shrink-0">
-                <Plus size={13} />
-              </button>
+              ))}
             </div>
 
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-              <textarea
-                value={content}
-                onChange={e => handleContentChange(e.target.value)}
-                disabled={isReadOnly}
-                placeholder={isReadOnly ? '(In trash — restore to edit)' : 'Start writing in Markdown…'}
-                spellCheck
-                className={cn('flex-1 bg-transparent px-5 py-4 resize-none outline-none font-mono text-[13px] leading-relaxed text-white/80 placeholder:text-white/15 disabled:opacity-30',
-                  showPreview && 'border-r border-white/[0.06]')}
-              />
-              {showPreview && (
-                <div
-                  className="flex-1 overflow-y-auto px-5 py-4 text-[13px] text-white/75 leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: simpleMarkdown(content) }}
+            {/* Search */}
+            {showSearch && (
+              <div className="px-2 py-1.5 border-b border-border shrink-0">
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search notes…"
+                  className="w-full text-xs px-2 py-1 rounded bg-accent/50 border border-border focus:outline-none placeholder:text-muted-foreground"
                 />
-              )}
-            </div>
-
-            {isReadOnly && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 border-t border-orange-500/20 shrink-0">
-                <Trash2 size={12} className="text-orange-400" />
-                <span className="text-[11px] text-orange-300">In Trash —</span>
-                <button onClick={() => restoreNote(activeNote)} className="text-[11px] text-orange-200 underline underline-offset-2">Restore</button>
-                <span className="text-white/20 mx-1">·</span>
-                <button onClick={() => deleteForever(activeNote)} className="text-[11px] text-red-400 underline underline-offset-2">Delete Forever</button>
               </div>
             )}
-          </>
+
+            {/* Note list */}
+            <div className="flex-1 overflow-y-auto">
+              {loading ? (
+                <div className="p-4 text-xs text-muted-foreground">Loading…</div>
+              ) : visibleNotes.length === 0 ? (
+                <div className="p-4 text-xs text-muted-foreground">No notes</div>
+              ) : (
+                visibleNotes.map(note => (
+                  <NoteListItem
+                    key={note.id}
+                    note={note}
+                    isActive={activeTab === note.id}
+                    onClick={() => openNote(note)}
+                    onPin={() => patchNote(note.id, { isPinned: !note.isPinned })}
+                    onArchive={() => patchNote(note.id, { isArchived: !note.isArchived })}
+                    onTrash={() => patchNote(note.id, { isTrashed: !note.isTrashed })}
+                    onRestore={() => patchNote(note.id, { isTrashed: false })}
+                    onDelete={() => deleteNote(note.id)}
+                    inTrash={section === 'trash'}
+                  />
+                ))
+              )}
+            </div>
+          </div>
         )}
+
+        {/* Editor pane */}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {activeNote ? (
+            <>
+              <div className="flex-1 overflow-y-auto">
+                <EditorContent
+                  editor={editor}
+                  className="ballpoint-editor h-full max-w-3xl mx-auto px-8 py-8"
+                />
+              </div>
+              <div className="h-6 border-t border-border flex items-center px-4 gap-4 text-[10px] text-muted-foreground shrink-0">
+                <span>{editor?.getText().length ?? 0} chars</span>
+                <span>Saved {formatDate(activeNote.updatedAt)}</span>
+                {saving && <span className="text-primary animate-pulse">Saving…</span>}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+              <p className="text-sm">Select a note or create a new one</p>
+              <button
+                onClick={createNote}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90 transition-opacity"
+              >
+                <Plus size={14} /> New Note
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function NoteContextMenu({
-  note, x, y, inTrash, inArchive, isFav,
-  onClose, onRename, onFav, onArchive, onTrash, onRestore, onDeleteForever, onDuplicate,
+/* ── Sub-components ── */
+
+function ToolBtn({
+  children,
+  active,
+  onClick,
+  title,
 }: {
-  note: string; x: number; y: number;
-  inTrash: boolean; inArchive: boolean; isFav: boolean;
-  onClose: () => void; onRename: () => void; onFav: () => void;
-  onArchive: () => void; onTrash: () => void; onRestore: () => void;
-  onDeleteForever: () => void; onDuplicate: () => void;
+  children: React.ReactNode;
+  active?: boolean | null;
+  onClick?: () => void;
+  title?: string;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ x, y });
+  return (
+    <button
+      onMouseDown={e => { e.preventDefault(); onClick?.(); }}
+      title={title}
+      className={`p-1.5 rounded transition-colors ${active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function NoteListItem({
+  note, isActive, onClick, onPin, onArchive, onTrash, onRestore, onDelete, inTrash,
+}: {
+  note: BpNote;
+  isActive: boolean;
+  onClick: () => void;
+  onPin: () => void;
+  onArchive: () => void;
+  onTrash: () => void;
+  onRestore: () => void;
+  onDelete: () => void;
+  inTrash: boolean;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setPos({ x: x + r.width > window.innerWidth ? x - r.width : x, y: y + r.height > window.innerHeight ? y - r.height : y });
-  }, [x, y]);
-
-  useEffect(() => {
-    const hide = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent && e.key !== 'Escape') return;
-      if (e instanceof MouseEvent && ref.current?.contains(e.target as Node)) return;
-      onClose();
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
     };
-    document.addEventListener('mousedown', hide);
-    document.addEventListener('keydown', hide);
-    return () => { document.removeEventListener('mousedown', hide); document.removeEventListener('keydown', hide); };
-  }, [onClose]);
-
-  type MI = { label: string; icon: React.ReactNode; danger?: boolean; action: () => void } | 'div';
-  const items: MI[] = [];
-  if (!inTrash) {
-    items.push({ label: isFav ? 'Unpin from Favorites' : 'Pin to Favorites', icon: <Star size={11} className={isFav ? 'fill-yellow-400 text-yellow-400' : ''} />, action: onFav });
-    items.push({ label: 'Rename', icon: <Edit2 size={11} />, action: onRename });
-    items.push({ label: 'Duplicate', icon: <Copy size={11} />, action: onDuplicate });
-    items.push('div');
-    items.push({ label: inArchive ? 'Unarchive' : 'Archive', icon: <Archive size={11} />, action: onArchive });
-    items.push({ label: 'Move to Trash', icon: <Trash2 size={11} />, danger: true, action: onTrash });
-  } else {
-    items.push({ label: 'Restore Note', icon: <RotateCcw size={11} />, action: onRestore });
-    items.push('div');
-    items.push({ label: 'Delete Forever', icon: <Trash size={11} />, danger: true, action: onDeleteForever });
-  }
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [menuOpen]);
 
   return (
-    <div ref={ref} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999 }}
-      className="w-44 bg-[#1a1030] border border-white/10 rounded-xl shadow-2xl py-1 text-[11px]">
-      {items.map((item, i) =>
-        item === 'div' ? <div key={i} className="h-px bg-white/[0.06] my-1" /> : (
-          <button key={i} onClick={item.action}
-            className={cn('w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.06] transition-colors text-left',
-              item.danger ? 'text-red-400 hover:text-red-300' : 'text-white/65 hover:text-white')}>
-            {item.icon}{item.label}
-          </button>
-        )
+    <div
+      onClick={onClick}
+      onContextMenu={e => { e.preventDefault(); setMenuOpen(true); }}
+      className={`relative group px-3 py-2.5 cursor-pointer border-b border-border/50 transition-colors ${isActive ? 'bg-accent' : 'hover:bg-accent/40'}`}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-xs font-medium truncate">{note.title || 'Untitled'}</span>
+        {note.isPinned && <Pin size={10} className="shrink-0 text-muted-foreground" />}
+      </div>
+      <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+        {getPlainText(note.content).slice(0, 60) || '—'}
+      </p>
+      <span className="text-[9px] text-muted-foreground/70 mt-0.5 block">{formatDate(note.updatedAt)}</span>
+
+      {menuOpen && (
+        <div ref={menuRef} className="absolute right-2 top-8 z-50 w-40 rounded-md border border-border bg-popover shadow-lg text-xs overflow-hidden">
+          {inTrash ? (
+            <>
+              <CtxItem onClick={() => { onRestore(); setMenuOpen(false); }} icon={<RotateCcw size={12} />}>Restore</CtxItem>
+              <CtxItem onClick={() => { onDelete(); setMenuOpen(false); }} icon={<Trash2 size={12} />} danger>Delete Forever</CtxItem>
+            </>
+          ) : (
+            <>
+              <CtxItem onClick={() => { onPin(); setMenuOpen(false); }} icon={<Pin size={12} />}>{note.isPinned ? 'Unpin' : 'Pin'}</CtxItem>
+              <CtxItem onClick={() => { onArchive(); setMenuOpen(false); }} icon={<Archive size={12} />}>{note.isArchived ? 'Unarchive' : 'Archive'}</CtxItem>
+              <CtxItem onClick={() => { onTrash(); setMenuOpen(false); }} icon={<Trash2 size={12} />} danger>Move to Trash</CtxItem>
+            </>
+          )}
+        </div>
       )}
     </div>
+  );
+}
+
+function CtxItem({ children, onClick, icon, danger }: { children: React.ReactNode; onClick: () => void; icon?: React.ReactNode; danger?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 hover:bg-accent text-left transition-colors ${danger ? 'text-destructive' : ''}`}
+    >
+      {icon}{children}
+    </button>
   );
 }

@@ -14,6 +14,8 @@ import turnRouter from "./turn";
 import notificationsRouter from "./notifications";
 import activityRouter from "./activity";
 import supporterRouter from "./supporter";
+import foldrRouter from "./foldr";
+import ballpointRouter from "./ballpoint";
 
 const router: IRouter = Router();
 
@@ -32,5 +34,7 @@ router.use(turnRouter);
 router.use(notificationsRouter);
 router.use(activityRouter);
 router.use(supporterRouter);
+router.use(foldrRouter);
+router.use(ballpointRouter);
 
 export default router;

@@ -20,13 +20,7 @@ import onlyGamesBanner from '@assets/generated_images/banner_onlygames.png';
 import onlyXmrBanner from '@assets/generated_images/banner_onlyxmr.png';
 
 export interface NativePanelProps {
-  dirHandle: FileSystemDirectoryHandle | null;
-  onPickFolder: () => void;
-  /**
-   * Stable prefix for localStorage keys derived from the app ID.
-   * Using app.id (e.g. "ballpoint") prevents cross-app collisions for
-   * folders that share the same display name.
-   */
+  /** App ID — used for any app-specific local preferences (e.g. sidebar collapsed). */
   storagePrefix: string;
 }
 

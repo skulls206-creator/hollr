@@ -228,3 +228,38 @@ export const notificationsTable = pgTable("notifications", {
 ]);
 
 export type DbNotification = typeof notificationsTable.$inferSelect;
+
+// ── Foldr (cloud file manager) ─────────────────────────────────────────────
+export const foldrFilesTable = pgTable("foldr_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => userProfilesTable.userId, { onDelete: "cascade" }),
+  name: varchar("name", { length: 512 }).notNull(),
+  size: integer("size").notNull(),
+  mimeType: varchar("mime_type", { length: 128 }).notNull(),
+  cid: varchar("cid", { length: 256 }).notNull(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+}, (t) => [
+  index("foldr_files_user_id_idx").on(t.userId),
+  index("foldr_files_uploaded_at_idx").on(t.uploadedAt),
+]);
+
+export type FoldrFile = typeof foldrFilesTable.$inferSelect;
+
+// ── Ballpoint (rich text notes) ────────────────────────────────────────────
+export const ballpointNotesTable = pgTable("ballpoint_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => userProfilesTable.userId, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull().default("Untitled"),
+  content: text("content").notNull().default(""),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  isArchived: boolean("is_archived").notNull().default(false),
+  isTrashed: boolean("is_trashed").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  index("ballpoint_notes_user_id_idx").on(t.userId),
+  index("ballpoint_notes_updated_at_idx").on(t.updatedAt),
+]);
+
+export type BallpointNote = typeof ballpointNotesTable.$inferSelect;
