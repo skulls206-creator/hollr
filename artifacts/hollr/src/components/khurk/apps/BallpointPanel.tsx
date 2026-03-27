@@ -732,25 +732,14 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
 
 /* ── Note Card ── */
 function NoteCard({
-  note, isActive, color, onOpen, onPin, onArchive, onTrash, onRestore, onDelete, inTrash, onCtxMenu,
+  note, isActive, color, onOpen, inTrash, onCtxMenu,
 }: {
   note: BpNote; isActive: boolean; color: string;
   onOpen: () => void; onPin: () => void; onArchive: () => void;
   onTrash: () => void; onRestore: () => void; onDelete: () => void;
   inTrash: boolean; onCtxMenu?: (x: number, y: number) => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const preview = getPlainText(note.content).slice(0, 100);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [menuOpen]);
 
   return (
     <div
@@ -780,47 +769,24 @@ function NoteCard({
             </p>
           </div>
 
-          {/* Context menu button */}
-          <div className="relative shrink-0" ref={menuRef}>
-            <button
-              onClick={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
-              className="p-1.5 rounded-xl hover:bg-white/10 transition-colors"
-              style={{ color: MUTED }}
-            >
-              <MoreVertical size={14} />
-            </button>
-
-            {menuOpen && (
-              <div
-                className="absolute right-0 top-8 z-50 rounded-2xl overflow-hidden shadow-2xl border"
-                style={{ background: SURFACE, borderColor: BORDER, minWidth: 170 }}
-                onClick={e => e.stopPropagation()}
-              >
-                {inTrash ? (
-                  <>
-                    <CtxItem onClick={() => { onRestore(); setMenuOpen(false); }} icon={<RotateCcw size={13} />}>Restore</CtxItem>
-                    <CtxItem onClick={() => { onDelete(); setMenuOpen(false); }} icon={<Trash2 size={13} />} danger>Delete Forever</CtxItem>
-                  </>
-                ) : (
-                  <>
-                    <CtxItem onClick={() => { onPin(); setMenuOpen(false); }} icon={<Pin size={13} />}>
-                      {note.isPinned ? 'Unpin' : 'Pin'}
-                    </CtxItem>
-                    <CtxItem onClick={() => { onArchive(); setMenuOpen(false); }} icon={<Archive size={13} />}>
-                      {note.isArchived ? 'Unarchive' : 'Archive'}
-                    </CtxItem>
-                    <div style={{ height: 1, background: BORDER }} />
-                    <CtxItem onClick={() => { onTrash(); setMenuOpen(false); }} icon={<Trash2 size={13} />} danger>Move to Trash</CtxItem>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+          {/* ⋯ button — opens full context menu (fixed-positioned, never overflows) */}
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              onCtxMenu?.(rect.right, rect.bottom + 4);
+            }}
+            className="p-1.5 rounded-xl hover:bg-white/10 transition-colors shrink-0"
+            style={{ color: MUTED }}
+          >
+            <MoreVertical size={14} />
+          </button>
         </div>
 
         <div className="flex items-center gap-1 mt-2">
           <Clock size={10} style={{ color: MUTED }} />
           <span className="text-[10px]" style={{ color: MUTED }}>{formatDate(note.updatedAt)}</span>
+          {inTrash && <span className="text-[10px] ml-1" style={{ color: MUTED }}>· Trash</span>}
         </div>
       </div>
     </div>

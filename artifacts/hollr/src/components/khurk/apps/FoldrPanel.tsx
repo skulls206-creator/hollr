@@ -223,9 +223,15 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
   // Row hover state
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // Drag visual state (React state so folder highlight re-renders)
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+
+  // Dense / compact view
+  const [dense, setDense] = useState<boolean>(() => localStorage.getItem(`${storagePrefix}:dense`) === 'true');
 
   const setView = (v: 'list' | 'grid') => { setViewMode(v); localStorage.setItem(`${storagePrefix}:view`, v); };
   const setTheme = (id: string) => { setThemeId(id); localStorage.setItem(`${storagePrefix}:theme`, id); };
+  const toggleDense = () => setDense(v => { const n = !v; localStorage.setItem(`${storagePrefix}:dense`, String(n)); return n; });
 
   /* ── Key management ── */
   useEffect(() => {
@@ -497,16 +503,26 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
     if (res.ok) { const f: FoldrFolder = await res.json(); setFolders(prev => [...prev, f]); }
   }, []);
 
-  /* ── Drag/drop sort ── */
+  /* ── Drag/drop ── */
   const onDragStart = (type: 'file' | 'folder', id: string) => { dragItem.current = { type, id }; };
-  const onDragOver = (e: React.DragEvent, id: string) => { e.preventDefault(); dragOver.current = id; };
+  const onDragOver = (e: React.DragEvent, id: string, isFolder: boolean) => {
+    e.preventDefault();
+    dragOver.current = id;
+    if (isFolder && dragItem.current?.type === 'file') setDragOverFolderId(id);
+  };
+  const onDragLeave = (id: string) => { if (dragOverFolderId === id) setDragOverFolderId(null); };
   const onDrop = async (e: React.DragEvent, targetId: string, targetType: 'file' | 'folder') => {
     e.preventDefault();
-    if (!dragItem.current || dragItem.current.id === targetId) return;
+    setDragOverFolderId(null);
+    if (!dragItem.current || dragItem.current.id === targetId) { dragItem.current = null; return; }
     const src = dragItem.current;
-
     const isFile = src.type === 'file';
-    if (isFile && targetType === 'file') {
+
+    if (isFile && targetType === 'folder') {
+      /* Move file into folder */
+      await fetch(`${API}api/foldr/files/${src.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ folderId: targetId }) });
+      fetchAll();
+    } else if (isFile && targetType === 'file') {
       const targetFile = files.find(f => f.id === targetId);
       if (targetFile) {
         await fetch(`${API}api/foldr/files/${src.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ sortOrder: targetFile.sortOrder - 1 }) });
@@ -522,6 +538,12 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
     dragItem.current = null;
     dragOver.current = null;
   };
+
+  /* Move file to folder via context menu */
+  const moveFileToFolder = useCallback(async (file: FoldrFile, folderId: string | null) => {
+    await fetch(`${API}api/foldr/files/${file.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ folderId }) });
+    fetchAll();
+  }, [fetchAll]);
 
   /* ── Copy helper ── */
   const copyText = async (text: string, key: string) => {
@@ -586,18 +608,21 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
     fileCard: (isSelected: boolean) => ({
       background: isSelected ? t.rowSelected : t.surface,
       border: `1px solid ${isSelected ? t.accent : t.border}`,
-      borderRadius: '14px', padding: '12px 14px',
-      display: 'flex', alignItems: 'center', gap: '12px',
+      borderRadius: dense ? '10px' : '14px',
+      padding: dense ? '6px 10px' : '12px 14px',
+      display: 'flex', alignItems: 'center', gap: dense ? '8px' : '12px',
       cursor: 'pointer', transition: 'background 0.12s',
-      marginBottom: '8px',
+      marginBottom: dense ? '3px' : '8px',
     }),
-    folderCard: (isHovered: boolean) => ({
-      background: isHovered ? t.surface2 : t.surface,
-      border: `1px solid ${t.border}`,
-      borderRadius: '14px', padding: '12px 14px',
-      display: 'flex', alignItems: 'center', gap: '12px',
-      cursor: 'pointer', transition: 'background 0.12s',
-      marginBottom: '8px',
+    folderCard: (isHovered: boolean, isDropTarget: boolean) => ({
+      background: isDropTarget ? t.accent + '22' : isHovered ? t.surface2 : t.surface,
+      border: `1px solid ${isDropTarget ? t.accent : t.border}`,
+      borderRadius: dense ? '10px' : '14px',
+      padding: dense ? '6px 10px' : '12px 14px',
+      display: 'flex', alignItems: 'center', gap: dense ? '8px' : '12px',
+      cursor: 'pointer', transition: 'background 0.12s, border-color 0.12s',
+      marginBottom: dense ? '3px' : '8px',
+      boxShadow: isDropTarget ? `0 0 0 2px ${t.accent}55` : undefined,
     }),
   };
 
@@ -664,9 +689,14 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
             {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
           </button>
         )}
-        <button onClick={() => setView(viewMode === 'list' ? 'grid' : 'list')} style={{ ...s.iconBtn, padding: '6px', flexShrink: 0 }}>
+        <button onClick={() => setView(viewMode === 'list' ? 'grid' : 'list')} style={{ ...s.iconBtn, padding: '6px', flexShrink: 0 }} title={viewMode === 'list' ? 'Grid view' : 'List view'}>
           {viewMode === 'list' ? <LayoutGrid size={15} /> : <List size={15} />}
         </button>
+        {viewMode === 'list' && (
+          <button onClick={toggleDense} style={{ ...s.iconBtn, padding: '6px', flexShrink: 0, background: dense ? t.accent + '30' : t.surface2, border: `1px solid ${dense ? t.accent : t.border}` }} title={dense ? 'Comfortable view' : 'Compact view'}>
+            <HardDrive size={14} style={{ color: dense ? t.accent : t.text }} />
+          </button>
+        )}
       </div>
       <input ref={fileInputRef} type="file" multiple hidden onChange={e => e.target.files && handleUpload(e.target.files)} />
 
@@ -758,14 +788,16 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
             {currentFolders.map(folder => (
               <div key={folder.id}
                 draggable onDragStart={() => onDragStart('folder', folder.id)}
-                onDragOver={e => onDragOver(e, folder.id)} onDrop={e => onDrop(e, folder.id, 'folder')}
+                onDragOver={e => onDragOver(e, folder.id, true)}
+                onDragLeave={() => onDragLeave(folder.id)}
+                onDrop={e => onDrop(e, folder.id, 'folder')}
                 onMouseEnter={() => setHoveredId(folder.id)} onMouseLeave={() => setHoveredId(null)}
                 onClick={() => setFolderStack(st => [...st, folder])}
                 onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: folder, isFolder: true }); }}
-                style={s.folderCard(hoveredId === folder.id)}
+                style={s.folderCard(hoveredId === folder.id, dragOverFolderId === folder.id)}
               >
-                <div style={{ width: 42, height: 42, borderRadius: '11px', background: t.accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <FolderIcon size={22} style={{ color: t.folderColor }} />
+                <div style={{ width: dense ? 28 : 42, height: dense ? 28 : 42, borderRadius: dense ? '8px' : '11px', background: t.accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <FolderIcon size={dense ? 15 : 22} style={{ color: t.folderColor }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {renamingId === folder.id ? (
@@ -773,15 +805,18 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
                       onKeyDown={e => { if (e.key === 'Enter') submitRename(folder.id, true); if (e.key === 'Escape') setRenamingId(null); }}
                       onBlur={() => submitRename(folder.id, true)} style={{ ...s.input, fontSize: '13px' }} onClick={e => e.stopPropagation()} />
                   ) : (
-                    <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.text }}>{folder.name}</div>
+                    <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.text, fontSize: dense ? '12px' : '13px' }}>{folder.name}</div>
                   )}
-                  <div style={{ fontSize: '11px', color: t.muted, marginTop: '2px' }}>{formatDate(folder.createdAt)}</div>
+                  {!dense && <div style={{ fontSize: '11px', color: t.muted, marginTop: '2px' }}>{formatDate(folder.createdAt)}</div>}
                 </div>
+                {dragOverFolderId === folder.id && (
+                  <span style={{ fontSize: 10, color: t.accent, fontWeight: 600, flexShrink: 0, padding: '2px 6px', background: t.accent + '18', borderRadius: '6px' }}>Drop to move</span>
+                )}
                 <button onClick={e => { e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, item: folder, isFolder: true }); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, padding: '4px' }}>
-                  <MoreHorizontal size={16} />
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, padding: dense ? '2px' : '4px' }}>
+                  <MoreHorizontal size={dense ? 14 : 16} />
                 </button>
-                <ChevronRight size={16} style={{ color: t.muted, flexShrink: 0 }} />
+                <ChevronRight size={dense ? 13 : 16} style={{ color: t.muted, flexShrink: 0 }} />
               </div>
             ))}
 
@@ -789,17 +824,17 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
             {displayFiles.map(file => (
               <div key={file.id}
                 draggable onDragStart={() => onDragStart('file', file.id)}
-                onDragOver={e => onDragOver(e, file.id)} onDrop={e => onDrop(e, file.id, 'file')}
+                onDragOver={e => onDragOver(e, file.id, false)} onDrop={e => onDrop(e, file.id, 'file')}
                 onMouseEnter={() => setHoveredId(file.id)} onMouseLeave={() => setHoveredId(null)}
                 onClick={() => { setSelected(file); setDrawerOpen(true); }}
                 onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: file, isFolder: false }); }}
-                style={s.fileCard(selected?.id === file.id)}
+                style={{ ...s.fileCard(selected?.id === file.id), background: selected?.id === file.id ? t.rowSelected : hoveredId === file.id ? t.surface2 : t.surface }}
               >
-                <div style={{ width: 42, height: 42, borderRadius: '11px', background: t.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
-                  <FileTypeIcon mime={file.mimeType} size={22} />
+                <div style={{ width: dense ? 28 : 42, height: dense ? 28 : 42, borderRadius: dense ? '8px' : '11px', background: t.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
+                  <FileTypeIcon mime={file.mimeType} size={dense ? 14 : 22} />
                   {file.isEncrypted && (
                     <div style={{ position: 'absolute', bottom: -3, right: -3, background: t.accent, borderRadius: '50%', padding: '2px', lineHeight: 0 }}>
-                      <Lock size={8} style={{ color: t.accentText }} />
+                      <Lock size={dense ? 6 : 8} style={{ color: t.accentText }} />
                     </div>
                   )}
                 </div>
@@ -810,17 +845,20 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
                       onBlur={() => submitRename(file.id, false)} style={{ ...s.input, fontSize: '13px' }} onClick={e => e.stopPropagation()} />
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.text }}>{file.name}</div>
+                      <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.text, fontSize: dense ? '12px' : '13px' }}>{file.name}</div>
                       {file.isStarred && <Star size={11} style={{ color: '#f59e0b', flexShrink: 0 }} fill="currentColor" />}
                     </div>
                   )}
-                  <div style={{ fontSize: '11px', color: t.muted, marginTop: '2px' }}>{formatBytes(file.size)} · {formatDate(file.uploadedAt)}</div>
+                  {!dense && <div style={{ fontSize: '11px', color: t.muted, marginTop: '2px' }}>{formatBytes(file.size)} · {formatDate(file.uploadedAt)}</div>}
+                  {dense && <div style={{ fontSize: '10px', color: t.muted }}>{formatBytes(file.size)}</div>}
                 </div>
-                <button onClick={e => { e.stopPropagation(); toggleStar(file); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: file.isStarred ? '#f59e0b' : t.muted, padding: '6px', flexShrink: 0 }}>
-                  <Star size={14} />
-                </button>
-                <button onClick={e => { e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, item: file, isFolder: false }); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, padding: '6px', flexShrink: 0 }}>
-                  <MoreHorizontal size={15} />
+                {!dense && (
+                  <button onClick={e => { e.stopPropagation(); toggleStar(file); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: file.isStarred ? '#f59e0b' : t.muted, padding: '6px', flexShrink: 0 }}>
+                    <Star size={14} />
+                  </button>
+                )}
+                <button onClick={e => { e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, item: file, isFolder: false }); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, padding: dense ? '2px' : '6px', flexShrink: 0 }}>
+                  <MoreHorizontal size={dense ? 14 : 15} />
                 </button>
               </div>
             ))}
@@ -881,6 +919,7 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
           isFolder={ctxMenu.isFolder}
           inTrash={section === 'trash'}
           item={ctxMenu.item}
+          allFolders={folders}
           onClose={() => setCtxMenu(null)}
           onOpen={() => {
             if (ctxMenu.isFolder) setFolderStack(st => [...st, ctxMenu.item as FoldrFolder]);
@@ -896,6 +935,7 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
           isStarred={!(ctxMenu.isFolder) && (ctxMenu.item as FoldrFile).isStarred}
           onNewSubfolder={ctxMenu.isFolder ? (name: string) => { createSubfolderIn(ctxMenu.item as FoldrFolder, name); setCtxMenu(null); } : undefined}
           onCopyName={() => { navigator.clipboard.writeText(ctxMenu.item.name).catch(() => {}); setCtxMenu(null); }}
+          onMoveToFolder={ctxMenu.isFolder ? undefined : (folderId) => { moveFileToFolder(ctxMenu.item as FoldrFile, folderId); setCtxMenu(null); }}
         />
       )}
     </div>
@@ -1056,18 +1096,20 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
 }
 
 /* ─── Rich context menu ─────────────────────────────────────────────────── */
-function FoldrCtxMenu({ x, y, t, isFolder, inTrash, item, onClose, onOpen, onDownload, onRename, onDuplicate, onDelete, onStar, onRestore, isStarred, onNewSubfolder, onCopyName }: {
+function FoldrCtxMenu({ x, y, t, isFolder, inTrash, item, onClose, onOpen, onDownload, onRename, onDuplicate, onDelete, onStar, onRestore, isStarred, onNewSubfolder, onCopyName, allFolders, onMoveToFolder }: {
   x: number; y: number; t: Theme; isFolder: boolean; inTrash: boolean;
   item: FoldrFile | FoldrFolder;
   onClose: () => void; onOpen: () => void;
   onDownload?: () => void; onRename: () => void; onDuplicate?: () => void;
   onDelete: () => void; onStar?: () => void; onRestore?: () => void;
   isStarred?: boolean; onNewSubfolder?: (name: string) => void; onCopyName: () => void;
+  allFolders?: FoldrFolder[]; onMoveToFolder?: (folderId: string | null) => void;
 }) {
   const [showInfo, setShowInfo] = useState(false);
   const [subfolderInput, setSubfolderInput] = useState('');
   const [showSubfolder, setShowSubfolder] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showMoveMenu, setShowMoveMenu] = useState(false);
 
   const w = 220;
   const left = x + w > window.innerWidth ? x - w : x;
@@ -1137,6 +1179,44 @@ function FoldrCtxMenu({ x, y, t, isFolder, inTrash, item, onClose, onOpen, onDow
           setTimeout(() => setCopied(false), 1500);
         }}
       />
+
+      {/* Move to Folder (files only, not in trash) */}
+      {!isFolder && !inTrash && onMoveToFolder && allFolders && allFolders.length > 0 && (
+        <>
+          {showMoveMenu ? (
+            <div data-foldr-ctx="true" style={{ margin: '2px 4px 4px', background: t.surface2, borderRadius: 8, overflow: 'hidden', border: `1px solid ${t.border}` }}>
+              <div style={{ padding: '5px 10px 3px', fontSize: 10, color: t.muted, fontWeight: 600 }}>MOVE TO FOLDER</div>
+              {allFolders.filter(f => f.id !== (item as FoldrFile).folderId).map(f => (
+                <button
+                  data-foldr-ctx="true"
+                  key={f.id}
+                  onClick={() => onMoveToFolder(f.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', color: t.text, fontSize: 12 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.rowHover; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
+                >
+                  <FolderIcon size={12} style={{ color: t.folderColor, flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                </button>
+              ))}
+              {(item as FoldrFile).folderId && (
+                <button
+                  data-foldr-ctx="true"
+                  onClick={() => onMoveToFolder(null)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', color: t.text, fontSize: 12 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.rowHover; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
+                >
+                  <FolderOpen size={12} style={{ color: t.muted, flexShrink: 0 }} />
+                  <span>Root (no folder)</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <Row icon={<FolderIcon size={13} />} label="Move to Folder →" onClick={() => setShowMoveMenu(true)} sub={allFolders.length + ' folders'} />
+          )}
+        </>
+      )}
 
       {sep}
 
