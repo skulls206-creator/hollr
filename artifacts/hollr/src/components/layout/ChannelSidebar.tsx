@@ -337,6 +337,62 @@ export function ChannelSidebar() {
     });
   };
 
+  // ── DM blank-area context menu (declared before early return to avoid TDZ) ──
+  const openDmSidebarMenu = useCallback((x: number, y: number) => {
+    const store = useAppStore.getState();
+    showMenu({
+      x,
+      y,
+      actions: [
+        {
+          id: 'refresh-dms',
+          label: 'Refresh DMs',
+          icon: <RefreshCw size={14} />,
+          onClick: () => {
+            qc.invalidateQueries({ queryKey: getListDmThreadsQueryKey() });
+          },
+        },
+        {
+          id: 'reload-app',
+          label: 'Reload App',
+          icon: <RefreshCw size={14} />,
+          onClick: () => window.location.reload(),
+          dividerBefore: true,
+        },
+        {
+          id: 'new-dm',
+          label: 'New Direct Message',
+          icon: <MessageSquarePlus size={14} />,
+          onClick: () => store.setNewDmModalOpen(true),
+          dividerBefore: true,
+        },
+      ],
+    });
+  }, [showMenu, qc]);
+
+  // ── Long-press helpers for blank areas (also before early return) ─────────
+  const handleBlankTouchStart = useCallback((
+    openFn: (x: number, y: number) => void,
+    e: React.TouchEvent,
+  ) => {
+    if ((e.target as HTMLElement).closest('button,a,[role="button"],input')) return;
+    blankLongPressTriggered.current = false;
+    const touch = e.touches[0];
+    const x = touch.clientX;
+    const y = touch.clientY;
+    blankLongPressTimer.current = setTimeout(() => {
+      blankLongPressTriggered.current = true;
+      openFn(x, y);
+    }, 600);
+  }, []);
+
+  const handleBlankTouchEnd = useCallback(() => {
+    if (blankLongPressTimer.current) {
+      clearTimeout(blankLongPressTimer.current);
+      blankLongPressTimer.current = null;
+    }
+  }, []);
+
   if (!activeServerId) {
     // Filter threads by search query (client-side username match)
     const filteredThreads = dmSearch.trim()
@@ -577,67 +633,11 @@ export function ChannelSidebar() {
     });
   }, [showMenu, qc, activeServerId]);
 
-  // ── Shared: open blank-area context menu for the DM list ─────────────────
-  const openDmSidebarMenu = useCallback((x: number, y: number) => {
-    const store = useAppStore.getState();
-    showMenu({
-      x,
-      y,
-      actions: [
-        {
-          id: 'refresh-dms',
-          label: 'Refresh DMs',
-          icon: <RefreshCw size={14} />,
-          onClick: () => {
-            qc.invalidateQueries({ queryKey: getListDmThreadsQueryKey() });
-          },
-        },
-        {
-          id: 'reload-app',
-          label: 'Reload App',
-          icon: <RefreshCw size={14} />,
-          onClick: () => window.location.reload(),
-          dividerBefore: true,
-        },
-        {
-          id: 'new-dm',
-          label: 'New Direct Message',
-          icon: <MessageSquarePlus size={14} />,
-          onClick: () => store.setNewDmModalOpen(true),
-          dividerBefore: true,
-        },
-      ],
-    });
-  }, [showMenu, qc]);
-
   const handleSidebarContextMenu = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button,a,[role="button"],input')) return;
     e.preventDefault();
     openChannelSidebarMenu(e.clientX, e.clientY);
   };
-
-  // ── Long-press helpers for blank areas ───────────────────────────────────
-  const handleBlankTouchStart = useCallback((
-    openFn: (x: number, y: number) => void,
-    e: React.TouchEvent,
-  ) => {
-    if ((e.target as HTMLElement).closest('button,a,[role="button"],input')) return;
-    blankLongPressTriggered.current = false;
-    const touch = e.touches[0];
-    const x = touch.clientX;
-    const y = touch.clientY;
-    blankLongPressTimer.current = setTimeout(() => {
-      blankLongPressTriggered.current = true;
-      openFn(x, y);
-    }, 600);
-  }, []);
-
-  const handleBlankTouchEnd = useCallback(() => {
-    if (blankLongPressTimer.current) {
-      clearTimeout(blankLongPressTimer.current);
-      blankLongPressTimer.current = null;
-    }
-  }, []);
 
   return (
     <div className="w-[300px] bg-surface-2 shrink-0 flex flex-col h-full border-r border-border/5">
