@@ -141,6 +141,7 @@ pnpm --filter @workspace/db push
   - **FoldrPanel** (`src/components/khurk/apps/FoldrPanel.tsx`): IPFS-backed cloud file manager — uploads to Lighthouse (lighthouse.storage) via `POST /api/foldr/upload`, lists files from DB, grid/list toggle, file type icons with image previews, detail sidebar showing file info + IPFS CID + copy, download, delete. Drag-and-drop upload supported. Soft-delete only (files remain pinned on IPFS).
   - **DB tables**: `foldr_files` (id, userId, name, size, mimeType, cid, uploadedAt, deletedAt) + `ballpoint_notes` (id, userId, title, content as HTML, isPinned, isArchived, isTrashed, timestamps)
   - **API routes**: `GET/POST /api/ballpoint/notes`, `GET /api/ballpoint/notes/trash`, `PATCH/DELETE /api/ballpoint/notes/:id`; `POST /api/foldr/upload`, `GET /api/foldr/files`, `DELETE /api/foldr/files/:id`
+  - **Ballpoint encryption**: All note `title` and `content` fields are AES-256-GCM encrypted at rest before writing to the DB (`artifacts/api-server/src/lib/ballpoint-crypto.ts`). Format: `enc:<base64(iv+authTag+ciphertext)>`. Random 12-byte IV per encryption. Key is `BALLPOINT_ENCRYPTION_KEY` (64-char hex, 256-bit). Legacy plaintext rows pass through transparently. Non-sensitive metadata (isPinned, isArchived, isTrashed, timestamps) stored in plaintext.
 
 ## Key Design Decisions
 

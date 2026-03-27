@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, ballpointNotesTable } from "@workspace/db";
+import { encryptNote, decryptNote, encrypt, decrypt } from "../lib/ballpoint-crypto";
 
 const router: IRouter = Router();
 
@@ -10,6 +11,11 @@ function requireAuth(req: Request, res: Response): string | null {
     return null;
   }
   return req.user.id;
+}
+
+/** Decrypt a DB row and return it as a plain object safe for the API response. */
+function toPublic(row: typeof ballpointNotesTable.$inferSelect) {
+  return decryptNote(row);
 }
 
 /** GET /api/ballpoint/notes */
@@ -22,7 +28,7 @@ router.get("/ballpoint/notes", async (req: Request, res: Response) => {
       .from(ballpointNotesTable)
       .where(and(eq(ballpointNotesTable.userId, userId), eq(ballpointNotesTable.isTrashed, false)))
       .orderBy(desc(ballpointNotesTable.updatedAt));
-    res.json(notes);
+    res.json(notes.map(toPublic));
   } catch (err) {
     console.error("[Ballpoint] list error:", err);
     res.status(500).json({ error: "Failed to list notes" });
@@ -39,7 +45,7 @@ router.get("/ballpoint/notes/trash", async (req: Request, res: Response) => {
       .from(ballpointNotesTable)
       .where(and(eq(ballpointNotesTable.userId, userId), eq(ballpointNotesTable.isTrashed, true)))
       .orderBy(desc(ballpointNotesTable.updatedAt));
-    res.json(notes);
+    res.json(notes.map(toPublic));
   } catch (err) {
     console.error("[Ballpoint] trash list error:", err);
     res.status(500).json({ error: "Failed to list trash" });
@@ -52,8 +58,12 @@ router.post("/ballpoint/notes", async (req: Request, res: Response) => {
   if (!userId) return;
   try {
     const { title = "Untitled", content = "" } = req.body;
-    const [note] = await db.insert(ballpointNotesTable).values({ userId, title, content }).returning();
-    res.status(201).json(note);
+    const encrypted = encryptNote({ title, content });
+    const [note] = await db
+      .insert(ballpointNotesTable)
+      .values({ userId, title: encrypted.title, content: encrypted.content })
+      .returning();
+    res.status(201).json(toPublic(note));
   } catch (err) {
     console.error("[Ballpoint] create error:", err);
     res.status(500).json({ error: "Failed to create note" });
@@ -67,11 +77,15 @@ router.patch("/ballpoint/notes/:id", async (req: Request, res: Response) => {
   try {
     const { title, content, isPinned, isArchived, isTrashed } = req.body;
     const update: Partial<typeof ballpointNotesTable.$inferInsert> = {};
-    if (title !== undefined) update.title = title;
-    if (content !== undefined) update.content = content;
-    if (isPinned !== undefined) update.isPinned = isPinned;
+
+    // Encrypt text fields before storing
+    if (title !== undefined)    update.title   = encrypt(title);
+    if (content !== undefined)  update.content = encrypt(content);
+
+    // Non-sensitive flags stay as-is
+    if (isPinned !== undefined)   update.isPinned   = isPinned;
     if (isArchived !== undefined) update.isArchived = isArchived;
-    if (isTrashed !== undefined) update.isTrashed = isTrashed;
+    if (isTrashed !== undefined)  update.isTrashed  = isTrashed;
 
     const [note] = await db
       .update(ballpointNotesTable)
@@ -80,7 +94,7 @@ router.patch("/ballpoint/notes/:id", async (req: Request, res: Response) => {
       .returning();
 
     if (!note) { res.status(404).json({ error: "Note not found" }); return; }
-    res.json(note);
+    res.json(toPublic(note));
   } catch (err) {
     console.error("[Ballpoint] update error:", err);
     res.status(500).json({ error: "Failed to update note" });
