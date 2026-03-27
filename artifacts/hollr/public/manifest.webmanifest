@@ -1,23 +1,31 @@
 {
-  "name": "HOLLR",
-  "short_name": "HOLLR",
-  "description": "Real-time chat, voice, and the full KHURK ecosystem in one place.",
-  "start_url": "/app",
+  "name": "hollr.chat — Chat & Voice",
+  "short_name": "hollr",
+  "description": "Real-time messaging, voice chat, and the full KHURK ecosystem — Ballpoint notes, Foldr files, and Playd music — in one beautiful app.",
+  "start_url": "/",
   "scope": "/",
-  "id": "/app",
+  "id": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "display_override": ["window-controls-overlay", "tabbed", "standalone", "minimal-ui", "browser"],
   "orientation": "any",
   "background_color": "#0A0D14",
   "theme_color": "#0A0D14",
-  "categories": ["social", "communication"],
-  "lang": "en",
+  "categories": ["social", "communication", "utilities", "music", "productivity"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
@@ -32,6 +40,12 @@
       "purpose": "maskable"
     },
     {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
@@ -41,17 +55,31 @@
   "shortcuts": [
     {
       "name": "Open App",
-      "short_name": "App",
-      "description": "Open Hollr Chat",
-      "url": "/app",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "short_name": "Home",
+      "description": "Open hollr.chat",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Direct Messages",
       "short_name": "DMs",
-      "description": "Open your direct messages",
-      "url": "/app",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "description": "Jump to your direct messages",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Ballpoint Notes",
+      "short_name": "Notes",
+      "description": "Open Ballpoint cloud notes",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Playd Music",
+      "short_name": "Playd",
+      "description": "Open Playd music player",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ],
   "screenshots": [
@@ -60,7 +88,64 @@
       "sizes": "1200x630",
       "type": "image/jpeg",
       "form_factor": "wide",
-      "label": "Hollr Chat — real-time messaging & the KHURK ecosystem"
+      "label": "hollr.chat — real-time chat, voice, and the KHURK app ecosystem"
+    },
+    {
+      "src": "/screenshot-narrow.jpg",
+      "sizes": "390x844",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "hollr.chat on mobile — message, call, and listen on the go"
     }
-  ]
+  ],
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "audio/mpeg": [".mp3"],
+        "audio/flac": [".flac"],
+        "audio/ogg": [".ogg"],
+        "audio/wav": [".wav"],
+        "audio/aac": [".aac"],
+        "audio/x-m4a": [".m4a"],
+        "text/plain": [".txt", ".md"],
+        "application/json": [".json"]
+      },
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }],
+      "launch_type": "single-client"
+    }
+  ],
+  "note_taking": {
+    "new_note_url": "/"
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+hollr",
+      "url": "/?intent=%s"
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "tab_strip": {
+    "home_tab": {
+      "url": "/"
+    },
+    "new_tab_button": {
+      "url": "/"
+    }
+  },
+  "handle_links": "preferred"
 }
