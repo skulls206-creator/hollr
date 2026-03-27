@@ -1913,12 +1913,12 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
 
 /* ─── Track Context Menu ─────────────────────────────────────────────────── */
 function TrackCtxMenu({
-  x, y, track, ctxCopied,
+  x, y, track, ctxCopied, accent,
   onClose, onPlayNow, onPlayNext, onAddToQueue,
   onGoToArtist, onGoToAlbum,
   onCopy, onViewInfo, onRemove,
 }: {
-  x: number; y: number; track: Track; ctxCopied: string | null;
+  x: number; y: number; track: Track; ctxCopied: string | null; accent: string;
   onClose: () => void; onPlayNow: () => void; onPlayNext: () => void;
   onAddToQueue: () => void; onGoToArtist: () => void; onGoToAlbum: () => void;
   onCopy: (text: string, key: string) => void;
@@ -1944,7 +1944,7 @@ function TrackCtxMenu({
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
       >
-        <span style={{ color: danger ? '#f87171' : ACCENT, width: 14, flexShrink: 0, display: 'flex' }}>
+        <span style={{ color: danger ? '#f87171' : accent, width: 14, flexShrink: 0, display: 'flex' }}>
           {copied ? <Check size={12} color="#22c55e" /> : icon}
         </span>
         {copied ? <span style={{ color: '#22c55e' }}>Copied!</span> : label}
