@@ -10,7 +10,7 @@ import {
   ListMusic, Search, FolderOpen, Sliders, ChevronRight,
   ChevronDown, ChevronUp, ChevronLeft, Loader2, Music2, X, MoreHorizontal,
   GalleryHorizontalEnd, Tag, Copy, Check, Info, ListPlus,
-  ListEnd, Minus, Hash, FileAudio,
+  ListEnd, Minus, Hash, FileAudio, Columns,
 } from 'lucide-react';
 import * as jsmediatags from 'jsmediatags';
 import type { NativePanelProps } from '@/lib/khurk-apps';
@@ -356,6 +356,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sortPickerOpen, setSortPickerOpen] = useState(false);
   const [mobileOverflowOpen, setMobileOverflowOpen] = useState(false);
+  const [mobileColSheetOpen, setMobileColSheetOpen] = useState(false);
 
   /* ── Long-press refs (mobile context menu) ── */
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -828,8 +829,21 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   const groupItems = libraryView === 'artists' ? artists : libraryView === 'genres' ? genres : albums;
 
   /* ─────────────────────────────── Main UI ────────────────────────────── */
-  const activeCols = isMobile ? MOBILE_COLS : colOrder;
-  const activeGrid = isMobile ? MOBILE_GRID : gridCols;
+  // On mobile: use user's colOrder but filtered to cols that have a mobile grid slot.
+  // Always include 'title'; all MOBILE_COLS are supported. Non-mobile-slot cols (artist, album) are hidden.
+  const MOBILE_SUPPORTED: ColId[] = ['trackNumber', 'title', 'duration'];
+  const mobileActiveCols: ColId[] = colOrder.filter(c => MOBILE_SUPPORTED.includes(c));
+  // Ensure title is always present
+  if (!mobileActiveCols.includes('title')) mobileActiveCols.unshift('title');
+  const activeCols = isMobile ? mobileActiveCols : colOrder;
+  // Build mobile grid dynamically: 24px per supported non-title col (trackNumber/duration fixed), 1fr for title
+  const mobileGridParts: string[] = mobileActiveCols.map(c => {
+    if (c === 'trackNumber') return '24px';
+    if (c === 'title') return '1fr';
+    if (c === 'duration') return '50px';
+    return '0px';
+  });
+  const activeGrid = isMobile ? mobileGridParts.join(' ') : gridCols;
 
   return (
     <div
@@ -909,6 +923,19 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
           </div>
         )}
 
+        {/* Columns button — mobile only */}
+        {isMobile && (
+          <button
+            onClick={() => setMobileColSheetOpen(true)}
+            className="flex items-center gap-1 px-2 h-7 rounded-md text-[11px] font-semibold border transition-colors hover:bg-white/10 shrink-0"
+            style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+            title="Columns"
+          >
+            <Columns size={11} />
+            Cols
+          </button>
+        )}
+
         {/* Track count — desktop only */}
         {!isMobile && (
           <span className="text-xs shrink-0" style={{ color: 'var(--muted-foreground)' }}>
@@ -920,6 +947,61 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
       {/* Mobile sort picker backdrop */}
       {isMobile && sortPickerOpen && (
         <div className="fixed inset-0 z-[9998]" onClick={() => setSortPickerOpen(false)} />
+      )}
+
+      {/* Mobile Columns bottom-sheet */}
+      {isMobile && mobileColSheetOpen && (
+        <>
+          <div className="fixed inset-0 z-[9998] bg-black/50" onClick={() => setMobileColSheetOpen(false)} />
+          <div
+            className="fixed bottom-0 left-0 right-0 z-[9999] rounded-t-2xl border-t px-4 py-4"
+            style={{ background: 'var(--surface-2, #1e1e1e)', borderColor: 'var(--border)' }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold">Visible Columns</p>
+              <button onClick={() => setMobileColSheetOpen(false)} className="p-1 rounded" style={{ color: 'var(--muted-foreground)' }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-1">
+              {COL_DEFS.filter(col => ['trackNumber', 'title', 'duration'].includes(col.id)).map(col => {
+                const inOrder = colOrder.includes(col.id);
+                const isCoreCol = col.id === 'title';
+                return (
+                  <button
+                    key={col.id}
+                    onClick={() => {
+                      if (isCoreCol) return;
+                      if (inOrder) {
+                        dispatch({ type: 'SET_COL_ORDER', order: colOrder.filter(c => c !== col.id) });
+                      } else {
+                        const base = [...colOrder, col.id];
+                        const ordered = DEFAULT_COL_ORDER.filter(c => base.includes(c));
+                        dispatch({ type: 'SET_COL_ORDER', order: ordered });
+                      }
+                    }}
+                    disabled={isCoreCol}
+                    className="flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors text-left"
+                    style={{
+                      background: inOrder ? 'rgba(240,112,32,0.12)' : 'rgba(255,255,255,0.04)',
+                      opacity: isCoreCol ? 0.5 : 1,
+                      cursor: isCoreCol ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <span className="text-sm" style={{ color: inOrder ? ACCENT : 'var(--foreground)' }}>{col.label}</span>
+                    {inOrder
+                      ? <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: ACCENT }}><ChevronUp size={12} color="white" className="rotate-90" /></div>
+                      : <div className="w-5 h-5 rounded-full border" style={{ borderColor: 'var(--border)' }} />
+                    }
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] mt-3 text-center" style={{ color: 'var(--muted-foreground)' }}>
+              On small screens title is always shown. Tap to toggle other columns.
+            </p>
+          </div>
+        </>
       )}
 
       {/* ── Body: sidebar + content ── */}
@@ -1220,7 +1302,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                   filteredTracks.map((track, idx) => {
                     const isActive = currentTrack?.id === track.id;
                     const isSelected = selectedTrackId === track.id;
-                    const rowH = isMobile ? 48 : 36;
+                    const rowH = isMobile ? 48 : 32;
                     return (
                       <div
                         key={track.id}
