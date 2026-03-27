@@ -1108,7 +1108,7 @@ function UserProfilePanel({
   const displayName = (user as any).displayName || (user as any).username || 'You';
 
   return (
-    <div className="shrink-0 relative">
+    <div className="shrink-0 relative pb-[env(safe-area-inset-bottom)]">
       {inVoice && (
         <div className="px-2 pt-2 pb-1">
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
