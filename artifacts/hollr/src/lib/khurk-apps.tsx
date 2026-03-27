@@ -26,12 +26,12 @@ export interface NativePanelProps {
    * For apps that need local folder access — the FileSystemDirectoryHandle
    * currently connected by the user (null = none yet). Managed by AppWindow.
    */
-  dirHandle?: FileSystemDirectoryHandle | null;
+  dirHandle: FileSystemDirectoryHandle | null;
   /**
    * Callback to open the OS folder picker (delegates to AppWindow so the
    * connected folder name shows correctly in the header).
    */
-  onPickFolder?: () => void;
+  onPickFolder: () => void;
 }
 
 export interface KhurkApp {

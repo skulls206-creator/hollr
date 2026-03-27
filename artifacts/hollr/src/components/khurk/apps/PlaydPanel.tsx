@@ -349,6 +349,8 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
       audio.src = '';
       cancelAnimationFrame(animFrameRef.current);
       audioCtxRef.current?.close();
+      artUrlsRef.current.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
+      artUrlsRef.current = [];
     };
   }, []);
 
@@ -442,7 +444,11 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
 
   /* ── Scan directory when dirHandle changes ── */
   useEffect(() => {
-    if (!dirHandle || dirHandle === prevDirRef.current) return;
+    if (!dirHandle) {
+      prevDirRef.current = null;
+      return;
+    }
+    if (dirHandle === prevDirRef.current) return;
     prevDirRef.current = dirHandle;
 
     let cancelled = false;
