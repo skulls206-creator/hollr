@@ -26,9 +26,28 @@ if (!basePath) {
   );
 }
 
+const EMPTY_SHIM_FILTER = /^(react-native-fs)$/;
+
+const nodeOnlyShimPlugin: import('vite').Plugin = {
+  name: 'node-only-shim',
+  enforce: 'pre',
+  resolveId(id) {
+    if (EMPTY_SHIM_FILTER.test(id)) return '\0node-only-shim';
+  },
+  load(id) {
+    if (id === '\0node-only-shim') return 'module.exports = {};';
+  },
+};
+
+const jsmediatagsPath = path.resolve(
+  import.meta.dirname,
+  "node_modules/jsmediatags/build2/jsmediatags.js",
+);
+
 export default defineConfig({
   base: basePath,
   plugins: [
+    nodeOnlyShimPlugin,
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
@@ -50,8 +69,29 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+      "jsmediatags": jsmediatagsPath,
     },
     dedupe: ["react", "react-dom"],
+  },
+  optimizeDeps: {
+    include: ['jsmediatags'],
+    esbuildOptions: {
+      plugins: [
+        {
+          name: 'shim-react-native-fs',
+          setup(build) {
+            build.onResolve({ filter: /^react-native-fs$/ }, () => ({
+              path: 'react-native-fs-shim',
+              namespace: 'node-shim',
+            }));
+            build.onLoad({ filter: /.*/, namespace: 'node-shim' }, () => ({
+              contents: 'module.exports = {};',
+              loader: 'js' as const,
+            }));
+          },
+        },
+      ],
+    },
   },
   root: path.resolve(import.meta.dirname),
   build: {

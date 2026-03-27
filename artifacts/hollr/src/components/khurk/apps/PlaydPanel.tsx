@@ -1,7 +1,7 @@
 /**
  * PlaydPanel — foobar2000-style local music player
  * File System Access API · Web Audio API EQ · Media Session API · Spectrum visualizer
- * Zero external package dependencies (inline ID3v2/v1 parser)
+ * Uses jsmediatags for ID3/FLAC/Vorbis metadata parsing
  */
 import { useState, useEffect, useCallback, useRef, useMemo, useReducer } from 'react';
 import {
@@ -9,8 +9,9 @@ import {
   Repeat, Repeat1, Shuffle, Music, Library, Disc, User,
   ListMusic, Search, FolderOpen, Sliders, ChevronRight,
   ChevronDown, ChevronUp, Loader2, Music2, X, MoreHorizontal,
-  GalleryHorizontalEnd,
+  GalleryHorizontalEnd, Tag,
 } from 'lucide-react';
+import * as jsmediatags from 'jsmediatags';
 import type { NativePanelProps } from '@/lib/khurk-apps';
 import { cn } from '@/lib/utils';
 
@@ -30,9 +31,10 @@ interface Track {
 }
 
 type LibraryView =
-  | 'all' | 'artists' | 'albums' | 'recently-added'
+  | 'all' | 'artists' | 'albums' | 'recently-added' | 'genres'
   | { type: 'artist'; name: string }
-  | { type: 'album'; name: string };
+  | { type: 'album'; name: string }
+  | { type: 'genre'; name: string };
 
 type RepeatMode = 'none' | 'all' | 'one';
 type SortField = 'title' | 'artist' | 'album' | 'duration';
@@ -44,101 +46,55 @@ const EQ_LABELS = ['60', '120', '250', '500', '1k', '2k', '4k', '8k', '12k', '16
 const ACCENT = '#f07020';
 const AUDIO_EXTS = /\.(mp3|flac|wav|ogg|aac|m4a|opus|wma|aiff)$/i;
 
-/* ─── Inline ID3v2/v1 parser (zero deps) ─────────────────────────────────── */
-function decodeSyncsafe(b: Uint8Array, o: number) {
-  return ((b[o] & 0x7f) << 21) | ((b[o + 1] & 0x7f) << 14) | ((b[o + 2] & 0x7f) << 7) | (b[o + 3] & 0x7f);
-}
-function decodeFrameSize(b: Uint8Array, o: number) {
-  return (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
-}
-function decodeText(encoding: number, data: Uint8Array): string {
-  try {
-    if (encoding === 1) return new TextDecoder('utf-16').decode(data);
-    if (encoding === 2) return new TextDecoder('utf-16be').decode(data);
-    if (encoding === 3) return new TextDecoder('utf-8').decode(data);
-    return new TextDecoder('latin1').decode(data);
-  } catch { return ''; }
-}
-function cleanStr(s: string) { return s.replace(/\0/g, '').trim(); }
+/* ─── jsmediatags wrapper (ID3v1/v2, FLAC, OGG Vorbis) ──────────────────── */
+type TagMeta = Partial<Pick<Track, 'title' | 'artist' | 'album' | 'genre' | 'artDataUrl'>>;
 
-function parseID3v2(bytes: Uint8Array): Partial<Pick<Track, 'title' | 'artist' | 'album' | 'genre' | 'artDataUrl'>> {
-  const version = bytes[3];
-  const headerSize = decodeSyncsafe(bytes, 6) + 10;
-  const result: Partial<Pick<Track, 'title' | 'artist' | 'album' | 'genre' | 'artDataUrl'>> = {};
-  let offset = 10;
-
-  while (offset < headerSize && offset + 10 < bytes.length) {
-    const frameId = String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);
-    if (frameId === '\0\0\0\0' || !/^[A-Z0-9]{4}$/.test(frameId)) break;
-
-    const frameSize = version === 4
-      ? decodeSyncsafe(bytes, offset + 4)
-      : decodeFrameSize(bytes, offset + 4);
-
-    if (frameSize <= 0 || offset + 10 + frameSize > bytes.length) break;
-    const data = bytes.slice(offset + 10, offset + 10 + frameSize);
-
-    if (['TIT2', 'TPE1', 'TALB', 'TCON'].includes(frameId) && data.length > 0) {
-      const text = cleanStr(decodeText(data[0], data.slice(1)));
-      if (frameId === 'TIT2') result.title = text;
-      else if (frameId === 'TPE1') result.artist = text;
-      else if (frameId === 'TALB') result.album = text;
-      else if (frameId === 'TCON') result.genre = text.replace(/^\((\d+)\)$/, '').trim() || text;
-    }
-
-    if (frameId === 'APIC' && data.length > 3 && !result.artDataUrl) {
-      let i = 1;
-      while (i < data.length && data[i] !== 0) i++;
-      i += 2;
-      while (i < data.length && data[i] !== 0) i++;
-      i++;
-      if (i < data.length) {
-        const imgData = data.slice(i);
-        const isJpeg = imgData[0] === 0xff && imgData[1] === 0xd8;
-        const isPng = imgData[0] === 0x89 && imgData[1] === 0x50;
-        if (isJpeg || isPng) {
-          try {
-            const blob = new Blob([imgData], { type: isJpeg ? 'image/jpeg' : 'image/png' });
-            result.artDataUrl = URL.createObjectURL(blob);
-          } catch { /* ignore */ }
-        }
-      }
-    }
-
-    offset += 10 + frameSize;
-  }
-  return result;
+function readAudioMetadata(file: File): Promise<TagMeta> {
+  return new Promise((resolve) => {
+    try {
+      jsmediatags.read(file, {
+        onSuccess: (tag) => {
+          const t = tag.tags;
+          let artDataUrl: string | undefined;
+          if (t.picture) {
+            try {
+              const bytes = new Uint8Array(t.picture.data);
+              const blob = new Blob([bytes], { type: t.picture.format || 'image/jpeg' });
+              artDataUrl = URL.createObjectURL(blob);
+            } catch { /* ignore */ }
+          }
+          resolve({
+            title: t.title || undefined,
+            artist: t.artist || undefined,
+            album: t.album || undefined,
+            genre: t.genre
+              ? (t.genre.replace(/^\((\d+)\)$/, (_, n) => ID3_GENRES[parseInt(n, 10)] ?? '').trim() || t.genre)
+              : undefined,
+            artDataUrl,
+          });
+        },
+        onError: () => resolve({}),
+      });
+    } catch { resolve({}); }
+  });
 }
 
-function parseID3v1(bytes: Uint8Array): Partial<Pick<Track, 'title' | 'artist' | 'album'>> {
-  const dec = new TextDecoder('latin1');
-  return {
-    title: cleanStr(dec.decode(bytes.slice(3, 33))) || undefined,
-    artist: cleanStr(dec.decode(bytes.slice(33, 63))) || undefined,
-    album: cleanStr(dec.decode(bytes.slice(63, 93))) || undefined,
-  };
-}
-
-async function readAudioMetadata(
-  file: File,
-): Promise<Partial<Pick<Track, 'title' | 'artist' | 'album' | 'genre' | 'artDataUrl'>>> {
-  try {
-    const headerSize = Math.min(file.size, 512 * 1024);
-    const buf = await file.slice(0, headerSize).arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
-      return parseID3v2(bytes);
-    }
-    if (file.size >= 128) {
-      const tail = await file.slice(file.size - 128).arrayBuffer();
-      const tailBytes = new Uint8Array(tail);
-      if (tailBytes[0] === 0x54 && tailBytes[1] === 0x41 && tailBytes[2] === 0x47) {
-        return parseID3v1(tailBytes);
-      }
-    }
-  } catch { /* ignore */ }
-  return {};
-}
+/* ID3v1 numeric genre lookup table (subset) */
+const ID3_GENRES: Record<number, string> = {
+  0:'Blues',1:'Classic Rock',2:'Country',3:'Dance',4:'Disco',5:'Funk',6:'Grunge',7:'Hip-Hop',
+  8:'Jazz',9:'Metal',10:'New Age',11:'Oldies',12:'Other',13:'Pop',14:'R&B',15:'Rap',16:'Reggae',
+  17:'Rock',18:'Techno',19:'Industrial',20:'Alternative',21:'Ska',22:'Death Metal',23:'Pranks',
+  24:'Soundtrack',25:'Euro-Techno',26:'Ambient',27:'Trip-Hop',28:'Vocal',29:'Jazz+Funk',
+  30:'Fusion',31:'Trance',32:'Classical',33:'Instrumental',34:'Acid',35:'House',36:'Game',
+  37:'Sound Clip',38:'Gospel',39:'Noise',40:'AlternRock',41:'Bass',42:'Soul',43:'Punk',
+  44:'Space',45:'Meditative',46:'Instrumental Pop',47:'Instrumental Rock',48:'Ethnic',
+  49:'Gothic',50:'Darkwave',51:'Techno-Industrial',52:'Electronic',53:'Pop-Folk',
+  54:'Eurodance',55:'Dream',56:'Southern Rock',57:'Comedy',58:'Cult',59:'Gangsta',
+  60:'Top 40',61:'Christian Rap',62:'Pop/Funk',63:'Jungle',64:'Native American',65:'Cabaret',
+  66:'New Wave',67:'Psychedelic',68:'Rave',69:'Showtunes',70:'Trailer',71:'Lo-Fi',
+  72:'Tribal',73:'Acid Punk',74:'Acid Jazz',75:'Polka',76:'Retro',77:'Musical',
+  78:'Rock & Roll',79:'Hard Rock',
+};
 
 /* ─── Filename / path metadata parser ────────────────────────────────────── */
 function parseFilename(filename: string, pathParts: string[]): { title: string; artist: string; album: string } {
@@ -359,9 +315,11 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   const volumeRef = useRef(volume);
   const isMutedRef = useRef(isMuted);
   const eqGainsRef = useRef(eqGains);
+  const repeatRef = useRef(repeat);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
   useEffect(() => { eqGainsRef.current = eqGains; }, [eqGains]);
+  useEffect(() => { repeatRef.current = repeat; }, [repeat]);
 
   /* ── Init HTMLAudioElement ── */
   useEffect(() => {
@@ -376,7 +334,12 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
       dispatch({ type: 'SET_TIME', currentTime: 0, duration: audio.duration || 0 });
     });
     audio.addEventListener('ended', () => {
-      dispatch({ type: 'NEXT_TRACK' });
+      if (repeatRef.current === 'one') {
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      } else {
+        dispatch({ type: 'NEXT_TRACK' });
+      }
     });
     audio.addEventListener('play', () => dispatch({ type: 'SET_PLAYING', playing: true }));
     audio.addEventListener('pause', () => dispatch({ type: 'SET_PLAYING', playing: false }));
@@ -613,6 +576,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
     if (typeof libraryView === 'object') {
       if (libraryView.type === 'artist') list = list.filter(t => t.artist === libraryView.name);
       else if (libraryView.type === 'album') list = list.filter(t => t.album === libraryView.name);
+      else if (libraryView.type === 'genre') list = list.filter(t => t.genre === libraryView.name);
     } else if (libraryView === 'recently-added') {
       list = list.sort((a, b) => b.addedAt - a.addedAt).slice(0, 50);
     }
@@ -644,6 +608,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
 
   const artists = useMemo(() => [...new Set(tracks.map(t => t.artist))].sort(), [tracks]);
   const albums = useMemo(() => [...new Set(tracks.map(t => t.album))].sort(), [tracks]);
+  const genres = useMemo(() => [...new Set(tracks.map(t => t.genre).filter(Boolean))].sort(), [tracks]);
 
   /* ── Play a track ── */
   const playTrack = useCallback((track: Track, fromList?: Track[]) => {
@@ -687,77 +652,21 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   /* ── Nav label ── */
   function viewLabel(v: LibraryView) {
     if (typeof v === 'string') {
-      return v === 'all' ? 'All Tracks' : v === 'artists' ? 'Artists' : v === 'albums' ? 'Albums' : 'Recently Added';
+      if (v === 'all') return 'All Tracks';
+      if (v === 'artists') return 'Artists';
+      if (v === 'albums') return 'Albums';
+      if (v === 'genres') return 'Genres';
+      return 'Recently Added';
     }
-    return v.type === 'artist' ? v.name : v.name;
+    return v.name;
   }
 
-  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const seekPct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const scanPct = scanTotal > 0 ? Math.round((scanDone / scanTotal) * 100) : 0;
 
-  /* ── Empty state (no folder connected) ── */
-  if (!dirHandle) {
-    return (
-      <div
-        className="h-full flex flex-col items-center justify-center gap-5 select-none"
-        style={{ background: 'var(--background)', color: 'var(--foreground)' }}
-      >
-        <div
-          className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-xl"
-          style={{ background: `linear-gradient(135deg, #c0340a, #f07020)` }}
-        >
-          <Music2 size={40} color="white" />
-        </div>
-        <div className="text-center">
-          <p className="text-lg font-bold mb-1">Connect your music folder</p>
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-            Grant access to a folder of audio files to start listening
-          </p>
-        </div>
-        <button
-          onClick={onPickFolder}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 active:scale-95"
-          style={{ background: ACCENT, color: 'white' }}
-        >
-          <FolderOpen size={16} />
-          Connect Folder
-        </button>
-        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-          Works best in Chrome / Edge on desktop
-        </p>
-      </div>
-    );
-  }
-
-  /* ── Scanning state ── */
-  if (scanning) {
-    const pct = scanTotal > 0 ? Math.round((scanDone / scanTotal) * 100) : 0;
-    return (
-      <div
-        className="h-full flex flex-col items-center justify-center gap-4 select-none"
-        style={{ background: 'var(--background)', color: 'var(--foreground)' }}
-      >
-        <Loader2 size={32} className="animate-spin" style={{ color: ACCENT }} />
-        <div className="text-center">
-          <p className="text-sm font-semibold mb-1">Scanning music library…</p>
-          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-            {scanTotal > 0 ? `${scanDone} / ${scanTotal} files` : 'Collecting files…'}
-          </p>
-        </div>
-        {scanTotal > 0 && (
-          <div className="w-48 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${pct}%`, background: ACCENT }}
-            />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  /* ── Artists / Albums list view ── */
-  const isGroupView = libraryView === 'artists' || libraryView === 'albums';
-  const groupItems = libraryView === 'artists' ? artists : albums;
+  /* ── Artists / Albums / Genres group view ── */
+  const isGroupView = libraryView === 'artists' || libraryView === 'albums' || libraryView === 'genres';
+  const groupItems = libraryView === 'artists' ? artists : libraryView === 'genres' ? genres : albums;
 
   /* ─────────────────────────────── Main UI ────────────────────────────── */
   return (
@@ -815,6 +724,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                   { id: 'all', icon: <Library size={13} />, label: 'All Tracks' },
                   { id: 'artists', icon: <User size={13} />, label: 'Artists' },
                   { id: 'albums', icon: <Disc size={13} />, label: 'Albums' },
+                  { id: 'genres', icon: <Tag size={13} />, label: 'Genres' },
                 ] as Array<{ id: LibraryView; icon: React.ReactNode; label: string }>
               ).map(item => {
                 const active = libraryView === item.id;
@@ -855,32 +765,101 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
               </button>
             </div>
 
-            {/* Artist/Album quick list */}
+            {/* Quick list: Artists or Genres depending on nav selection */}
             <div className="flex-1 overflow-y-auto">
-              <p className="text-[9px] font-semibold uppercase tracking-widest px-3 py-1.5 sticky top-0" style={{ color: 'var(--muted-foreground)', background: 'var(--surface-1, #161616)' }}>
-                {artists.length} Artists
-              </p>
-              {artists.slice(0, 100).map(artist => {
-                const active = typeof libraryView === 'object' && libraryView.type === 'artist' && libraryView.name === artist;
-                return (
-                  <button
-                    key={artist}
-                    onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: 'artist', name: artist } })}
-                    className="w-full text-left px-3 py-0.5 text-xs truncate transition-colors hover:bg-white/5"
-                    style={{ color: active ? ACCENT : 'var(--muted-foreground)', fontWeight: active ? 600 : 400 }}
-                  >
-                    {artist || 'Unknown'}
-                  </button>
-                );
-              })}
+              {libraryView !== 'genres' && typeof libraryView !== 'object' || (typeof libraryView === 'object' && libraryView.type !== 'genre') ? (
+                <>
+                  <p className="text-[9px] font-semibold uppercase tracking-widest px-3 py-1.5 sticky top-0" style={{ color: 'var(--muted-foreground)', background: 'var(--surface-1, #161616)' }}>
+                    {artists.length} Artists
+                  </p>
+                  {artists.slice(0, 100).map(artist => {
+                    const active = typeof libraryView === 'object' && libraryView.type === 'artist' && libraryView.name === artist;
+                    return (
+                      <button
+                        key={artist}
+                        onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: 'artist', name: artist } })}
+                        className="w-full text-left px-3 py-0.5 text-xs truncate transition-colors hover:bg-white/5"
+                        style={{ color: active ? ACCENT : 'var(--muted-foreground)', fontWeight: active ? 600 : 400 }}
+                      >
+                        {artist || 'Unknown'}
+                      </button>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  <p className="text-[9px] font-semibold uppercase tracking-widest px-3 py-1.5 sticky top-0" style={{ color: 'var(--muted-foreground)', background: 'var(--surface-1, #161616)' }}>
+                    {genres.length} Genres
+                  </p>
+                  {genres.slice(0, 100).map(genre => {
+                    const active = typeof libraryView === 'object' && libraryView.type === 'genre' && libraryView.name === genre;
+                    return (
+                      <button
+                        key={genre}
+                        onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: 'genre', name: genre } })}
+                        className="w-full text-left px-3 py-0.5 text-xs truncate transition-colors hover:bg-white/5"
+                        style={{ color: active ? ACCENT : 'var(--muted-foreground)', fontWeight: active ? 600 : 400 }}
+                      >
+                        {genre || 'Unknown'}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </div>
           </div>
         )}
 
         {/* ── Main content ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Breadcrumb */}
-          {(typeof libraryView === 'object' || libraryView === 'recently-added') && (
+
+          {/* ── No folder connected ── */}
+          {!dirHandle && !scanning && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-5">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl"
+                style={{ background: `linear-gradient(135deg, #c0340a, #f07020)` }}
+              >
+                <Music2 size={32} color="white" />
+              </div>
+              <div className="text-center">
+                <p className="font-bold mb-1">Connect your music folder</p>
+                <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                  Grant access to a folder of audio files to start listening
+                </p>
+              </div>
+              <button
+                onClick={onPickFolder}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-110 active:scale-95"
+                style={{ background: ACCENT, color: 'white' }}
+              >
+                <FolderOpen size={16} />
+                Connect Folder
+              </button>
+              <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>Works best in Chrome / Edge on desktop</p>
+            </div>
+          )}
+
+          {/* ── Scanning state ── */}
+          {scanning && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-4">
+              <Loader2 size={28} className="animate-spin" style={{ color: ACCENT }} />
+              <div className="text-center">
+                <p className="text-sm font-semibold mb-1">Scanning music library…</p>
+                <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                  {scanTotal > 0 ? `${scanDone} / ${scanTotal} files` : 'Collecting files…'}
+                </p>
+              </div>
+              {scanTotal > 0 && (
+                <div className="w-48 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                  <div className="h-full rounded-full transition-all" style={{ width: `${scanPct}%`, background: ACCENT }} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Breadcrumb — only when library is loaded */}
+          {dirHandle && !scanning && (typeof libraryView === 'object' || libraryView === 'recently-added') && (
             <div className="px-3 py-1.5 flex items-center gap-1.5 text-xs shrink-0 border-b" style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
               <button
                 onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: 'all' })}
@@ -891,17 +870,22 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
             </div>
           )}
 
-          {/* Group view (Artists / Albums) */}
-          {isGroupView && (
+          {/* Group view (Artists / Albums / Genres) */}
+          {dirHandle && !scanning && isGroupView && (
             <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2">
               {groupItems.map(name => {
-                const count = tracks.filter(t => (libraryView === 'artists' ? t.artist : t.album) === name).length;
-                const sample = tracks.find(t => (libraryView === 'artists' ? t.artist : t.album) === name);
+                const groupType = libraryView === 'artists' ? 'artist' : libraryView === 'genres' ? 'genre' : 'album';
+                const countField = libraryView === 'artists' ? 'artist' : libraryView === 'genres' ? 'genre' : 'album';
+                const count = tracks.filter(t => t[countField as keyof Track] === name).length;
+                const sample = tracks.find(t => t[countField as keyof Track] === name);
                 const bg = artistColor(name);
+                const icon = libraryView === 'artists' ? <User size={15} color="white" />
+                  : libraryView === 'genres' ? <Tag size={15} color="white" />
+                  : <Disc size={15} color="white" />;
                 return (
                   <button
                     key={name}
-                    onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: libraryView === 'artists' ? 'artist' : 'album', name } })}
+                    onClick={() => dispatch({ type: 'SET_LIBRARY_VIEW', view: { type: groupType, name } })}
                     className="flex items-center gap-2.5 p-2 rounded-lg text-left transition-colors hover:bg-white/5 border"
                     style={{ borderColor: 'var(--border)' }}
                   >
@@ -909,7 +893,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                       <img src={sample.artDataUrl} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
                     ) : (
                       <div className="w-9 h-9 rounded shrink-0 flex items-center justify-center" style={{ background: bg }}>
-                        {libraryView === 'artists' ? <User size={15} color="white" /> : <Disc size={15} color="white" />}
+                        {icon}
                       </div>
                     )}
                     <div className="min-w-0">
@@ -928,7 +912,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
           )}
 
           {/* Track list */}
-          {!isGroupView && (
+          {dirHandle && !scanning && !isGroupView && (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Column headers */}
               <div
@@ -1069,7 +1053,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
           <div className="absolute inset-0" style={{ background: 'var(--border)' }} />
           <div
             className="absolute left-0 top-0 h-full transition-all"
-            style={{ width: `${pct}%`, background: ACCENT }}
+            style={{ width: `${seekPct}%`, background: ACCENT }}
           />
         </div>
 
