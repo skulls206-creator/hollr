@@ -238,7 +238,7 @@ export function Layout() {
               • Normal chat: fixed on mobile (hamburger), relative on desktop. */}
         <div
           className={[
-            'flex z-40 shrink-0 transition-all duration-200',
+            'flex z-[55] shrink-0 transition-all duration-200',
             layoutMode === 'classic'
               // Classic: icon rail (ServerSidebar, 72px) is always in-flow.
               // Channel sidebar slides independently beside it.
