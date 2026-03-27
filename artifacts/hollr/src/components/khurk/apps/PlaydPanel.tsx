@@ -836,14 +836,15 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
   // Ensure title is always present
   if (!mobileActiveCols.includes('title')) mobileActiveCols.unshift('title');
   const activeCols = isMobile ? mobileActiveCols : colOrder;
-  // Build mobile grid dynamically: 24px per supported non-title col (trackNumber/duration fixed), 1fr for title
-  const mobileGridParts: string[] = mobileActiveCols.map(c => {
-    if (c === 'trackNumber') return '24px';
+  // Build mobile grid dynamically: first col is the index '#' (20px), then one slot per mobileActiveCols entry
+  const mobileColWidths: string[] = mobileActiveCols.map(c => {
+    if (c === 'trackNumber') return '30px';
     if (c === 'title') return '1fr';
     if (c === 'duration') return '50px';
     return '0px';
   });
-  const activeGrid = isMobile ? mobileGridParts.join(' ') : gridCols;
+  // gridCols already includes the leading index slot; replicate that on mobile
+  const activeGrid = isMobile ? ['20px', ...mobileColWidths].join(' ') : gridCols;
 
   return (
     <div
@@ -963,42 +964,101 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                 <X size={16} />
               </button>
             </div>
-            <div className="flex flex-col gap-1">
-              {COL_DEFS.filter(col => ['trackNumber', 'title', 'duration'].includes(col.id)).map(col => {
-                const inOrder = colOrder.includes(col.id);
-                const isCoreCol = col.id === 'title';
+            {/* Active columns — shown in order, with up/down reorder arrows */}
+            <p className="text-[9px] font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--muted-foreground)' }}>Active (in order)</p>
+            <div className="flex flex-col gap-1 mb-3">
+              {colOrder.filter(c => MOBILE_SUPPORTED.includes(c as ColId)).map((colId, idx, arr) => {
+                const col = COL_DEFS.find(c => c.id === colId)!;
+                const isCoreCol = colId === 'title';
+                const canMoveUp = idx > 0;
+                const canMoveDown = idx < arr.length - 1;
+                const moveColInOrder = (delta: -1 | 1) => {
+                  // Swap within the mobile-visible subset, then splice back into full colOrder
+                  const mobileVisible = colOrder.filter(c => MOBILE_SUPPORTED.includes(c as ColId));
+                  const i = mobileVisible.indexOf(colId);
+                  const j = i + delta;
+                  if (j < 0 || j >= mobileVisible.length) return;
+                  const next = [...mobileVisible];
+                  [next[i], next[j]] = [next[j], next[i]];
+                  // Rebuild full colOrder: replace mobile-visible segment in place
+                  let mi = 0;
+                  const reordered: ColId[] = colOrder.map(c => {
+                    if (MOBILE_SUPPORTED.includes(c as ColId)) return next[mi++] as ColId;
+                    return c as ColId;
+                  });
+                  dispatch({ type: 'SET_COL_ORDER', order: reordered });
+                };
                 return (
-                  <button
-                    key={col.id}
-                    onClick={() => {
-                      if (isCoreCol) return;
-                      if (inOrder) {
-                        dispatch({ type: 'SET_COL_ORDER', order: colOrder.filter(c => c !== col.id) });
-                      } else {
-                        const base = [...colOrder, col.id];
-                        const ordered = DEFAULT_COL_ORDER.filter(c => base.includes(c));
-                        dispatch({ type: 'SET_COL_ORDER', order: ordered });
-                      }
-                    }}
-                    disabled={isCoreCol}
-                    className="flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors text-left"
-                    style={{
-                      background: inOrder ? 'rgba(240,112,32,0.12)' : 'rgba(255,255,255,0.04)',
-                      opacity: isCoreCol ? 0.5 : 1,
-                      cursor: isCoreCol ? 'not-allowed' : 'pointer',
-                    }}
+                  <div
+                    key={colId}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl"
+                    style={{ background: 'rgba(240,112,32,0.10)' }}
                   >
-                    <span className="text-sm" style={{ color: inOrder ? ACCENT : 'var(--foreground)' }}>{col.label}</span>
-                    {inOrder
-                      ? <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: ACCENT }}><ChevronUp size={12} color="white" className="rotate-90" /></div>
-                      : <div className="w-5 h-5 rounded-full border" style={{ borderColor: 'var(--border)' }} />
-                    }
-                  </button>
+                    {/* Up / Down reorder */}
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <button
+                        onClick={() => moveColInOrder(-1)}
+                        disabled={!canMoveUp || isCoreCol}
+                        className="p-0.5 rounded transition-colors"
+                        style={{ color: canMoveUp && !isCoreCol ? 'var(--muted-foreground)' : 'transparent', cursor: canMoveUp && !isCoreCol ? 'pointer' : 'default' }}
+                      >
+                        <ChevronUp size={12} />
+                      </button>
+                      <button
+                        onClick={() => moveColInOrder(1)}
+                        disabled={!canMoveDown || isCoreCol}
+                        className="p-0.5 rounded transition-colors"
+                        style={{ color: canMoveDown && !isCoreCol ? 'var(--muted-foreground)' : 'transparent', cursor: canMoveDown && !isCoreCol ? 'pointer' : 'default' }}
+                      >
+                        <ChevronDown size={12} />
+                      </button>
+                    </div>
+                    <span className="text-sm flex-1" style={{ color: ACCENT }}>{col.label}</span>
+                    {/* Remove (hide) — not allowed for title */}
+                    {!isCoreCol && (
+                      <button
+                        onClick={() => dispatch({ type: 'SET_COL_ORDER', order: colOrder.filter(c => c !== colId) })}
+                        className="p-1 rounded transition-colors"
+                        style={{ color: 'var(--muted-foreground)' }}
+                        title="Hide column"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                    {isCoreCol && <span className="text-[10px] px-1" style={{ color: 'var(--muted-foreground)' }}>always</span>}
+                  </div>
                 );
               })}
             </div>
+
+            {/* Hidden columns — tap to add */}
+            {MOBILE_SUPPORTED.filter(c => !colOrder.includes(c as ColId)).length > 0 && (
+              <>
+                <p className="text-[9px] font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--muted-foreground)' }}>Hidden (tap to add)</p>
+                <div className="flex flex-col gap-1">
+                  {MOBILE_SUPPORTED.filter(c => !colOrder.includes(c as ColId)).map(colId => {
+                    const col = COL_DEFS.find(c => c.id === colId)!;
+                    return (
+                      <button
+                        key={colId}
+                        onClick={() => {
+                          const base = [...colOrder, colId as ColId];
+                          const ordered = DEFAULT_COL_ORDER.filter(c => base.includes(c as ColId)) as ColId[];
+                          dispatch({ type: 'SET_COL_ORDER', order: ordered });
+                        }}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl transition-colors text-left"
+                        style={{ background: 'rgba(255,255,255,0.04)' }}
+                      >
+                        <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{col?.label}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: ACCENT + '22', color: ACCENT }}>+ Add</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
             <p className="text-[10px] mt-3 text-center" style={{ color: 'var(--muted-foreground)' }}>
-              On small screens title is always shown. Tap to toggle other columns.
+              Title is always visible. Use arrows to reorder columns.
             </p>
           </div>
         </>
