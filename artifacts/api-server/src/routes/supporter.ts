@@ -1,10 +1,12 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { userProfilesTable } from "@workspace/db/schema";
-import { eq, sql as drizzleSql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getUncachableStripeClient } from "../stripeClient";
 
 const router: IRouter = Router();
+
+const PRODUCT_NAME = 'hollr Supporter';
 
 function getAppBaseUrl(): string {
   const domain = (process.env.REPLIT_DOMAINS ?? '').split(',')[0].trim();
@@ -12,19 +14,55 @@ function getAppBaseUrl(): string {
   return 'http://localhost:3000';
 }
 
-async function getSupporterPriceIds(): Promise<Set<string>> {
+/** Fetch active prices for the hollr Supporter product straight from the Stripe API. */
+async function fetchSupporterPricesFromStripe() {
+  const stripe = await getUncachableStripeClient();
+
+  // Find the active product by name
+  const products = await stripe.products.search({
+    query: `name:'${PRODUCT_NAME}' AND active:'true'`,
+    limit: 1,
+  });
+
+  const product = products.data[0];
+  if (!product) return [];
+
+  // List all active prices for that product
+  const prices = await stripe.prices.list({
+    product: product.id,
+    active: true,
+    limit: 10,
+  });
+
+  // Shape to match what the frontend expects
+  return prices.data
+    .map(p => ({
+      price_id: p.id,
+      unit_amount: p.unit_amount ?? 0,
+      currency: p.currency,
+      recurring: p.recurring
+        ? {
+            interval: p.recurring.interval,
+            interval_count: p.recurring.interval_count,
+            usage_type: p.recurring.usage_type,
+            meter: null,
+            trial_period_days: p.recurring.trial_period_days ?? null,
+          }
+        : null,
+    }))
+    .sort((a, b) => a.unit_amount - b.unit_amount);
+}
+
+/** Validate that a given priceId belongs to the hollr Supporter product via Stripe API. */
+async function isSupporterPriceId(priceId: string): Promise<boolean> {
   try {
-    const result = await db.execute(
-      drizzleSql`
-        SELECT pr.id as price_id
-        FROM stripe.products p
-        JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
-        WHERE p.name = 'hollr Supporter' AND p.active = true
-      `
-    );
-    return new Set((result.rows as Array<{ price_id: string }>).map(r => r.price_id));
+    const stripe = await getUncachableStripeClient();
+    const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
+    if (!price.active) return false;
+    const prod = price.product as { name?: string; active?: boolean } | null;
+    return !!(prod && prod.active && prod.name === PRODUCT_NAME);
   } catch {
-    return new Set();
+    return false;
   }
 }
 
@@ -35,17 +73,22 @@ router.get('/supporter/status', async (req: Request, res: Response) => {
     return;
   }
 
-  const profile = await db.query.userProfilesTable.findFirst({
-    where: eq(userProfilesTable.userId, req.user.id),
-  });
+  try {
+    const profile = await db.query.userProfilesTable.findFirst({
+      where: eq(userProfilesTable.userId, req.user.id),
+    });
 
-  res.json({
-    isSupporter: profile?.isSupporter ?? false,
-    hasCustomerId: !!(profile?.stripeCustomerId),
-  });
+    res.json({
+      isSupporter: profile?.isSupporter ?? false,
+      hasCustomerId: !!(profile?.stripeCustomerId),
+    });
+  } catch (err) {
+    console.error('[supporter] status error:', err);
+    res.status(500).json({ error: 'Failed to fetch supporter status' });
+  }
 });
 
-// GET /api/supporter/prices — return monthly + yearly price IDs from Stripe
+// GET /api/supporter/prices — return active prices from Stripe API directly
 router.get('/supporter/prices', async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -53,17 +96,10 @@ router.get('/supporter/prices', async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await db.execute(
-      drizzleSql`
-        SELECT pr.id as price_id, pr.unit_amount, pr.currency, pr.recurring
-        FROM stripe.products p
-        JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
-        WHERE p.name = 'hollr Supporter' AND p.active = true
-        ORDER BY pr.unit_amount ASC
-      `
-    );
-    res.json({ prices: result.rows });
-  } catch {
+    const prices = await fetchSupporterPricesFromStripe();
+    res.json({ prices });
+  } catch (err) {
+    console.error('[supporter] prices error:', err);
     res.json({ prices: [] });
   }
 });
@@ -81,49 +117,52 @@ router.post('/supporter/checkout', async (req: Request, res: Response) => {
     return;
   }
 
-  // Server-side validate: priceId must be one of the known hollr Supporter prices
-  const allowedPriceIds = await getSupporterPriceIds();
-  if (!allowedPriceIds.has(priceId)) {
+  // Server-side validate: priceId must belong to the hollr Supporter product
+  const valid = await isSupporterPriceId(priceId);
+  if (!valid) {
     res.status(400).json({ error: 'Invalid priceId — not a supporter price' });
     return;
   }
 
-  const profile = await db.query.userProfilesTable.findFirst({
-    where: eq(userProfilesTable.userId, req.user.id),
-  });
-
-  // Profile must exist — it is created at signup and required for Stripe linkage.
-  // If somehow missing, fail fast rather than silently losing the customer ID.
-  if (!profile) {
-    res.status(400).json({ error: 'User profile not found — please contact support' });
-    return;
-  }
-
-  const stripe = await getUncachableStripeClient();
-
-  let customerId = profile.stripeCustomerId ?? null;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      metadata: { userId: req.user.id },
+  try {
+    const profile = await db.query.userProfilesTable.findFirst({
+      where: eq(userProfilesTable.userId, req.user.id),
     });
-    customerId = customer.id;
-    await db
-      .update(userProfilesTable)
-      .set({ stripeCustomerId: customerId })
-      .where(eq(userProfilesTable.userId, req.user.id));
+
+    if (!profile) {
+      res.status(400).json({ error: 'User profile not found — please contact support' });
+      return;
+    }
+
+    const stripe = await getUncachableStripeClient();
+
+    let customerId = profile.stripeCustomerId ?? null;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        metadata: { userId: req.user.id },
+      });
+      customerId = customer.id;
+      await db
+        .update(userProfilesTable)
+        .set({ stripeCustomerId: customerId })
+        .where(eq(userProfilesTable.userId, req.user.id));
+    }
+
+    const appUrl = getAppBaseUrl();
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: 'subscription',
+      success_url: `${appUrl}/?supporter=success`,
+      cancel_url: `${appUrl}/?supporter=cancel`,
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('[supporter] checkout error:', err);
+    res.status(500).json({ error: 'Failed to create checkout session' });
   }
-
-  const appUrl = getAppBaseUrl();
-  const session = await stripe.checkout.sessions.create({
-    customer: customerId,
-    payment_method_types: ['card'],
-    line_items: [{ price: priceId, quantity: 1 }],
-    mode: 'subscription',
-    success_url: `${appUrl}/?supporter=success`,
-    cancel_url: `${appUrl}/?supporter=cancel`,
-  });
-
-  res.json({ url: session.url });
 });
 
 // POST /api/supporter/portal — create a Stripe billing portal session
@@ -133,23 +172,28 @@ router.post('/supporter/portal', async (req: Request, res: Response) => {
     return;
   }
 
-  const profile = await db.query.userProfilesTable.findFirst({
-    where: eq(userProfilesTable.userId, req.user.id),
-  });
+  try {
+    const profile = await db.query.userProfilesTable.findFirst({
+      where: eq(userProfilesTable.userId, req.user.id),
+    });
 
-  if (!profile?.stripeCustomerId) {
-    res.status(400).json({ error: 'No billing account found' });
-    return;
+    if (!profile?.stripeCustomerId) {
+      res.status(400).json({ error: 'No billing account found' });
+      return;
+    }
+
+    const stripe = await getUncachableStripeClient();
+    const appUrl = getAppBaseUrl();
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: profile.stripeCustomerId,
+      return_url: `${appUrl}/`,
+    });
+
+    res.json({ url: portalSession.url });
+  } catch (err) {
+    console.error('[supporter] portal error:', err);
+    res.status(500).json({ error: 'Failed to open billing portal' });
   }
-
-  const stripe = await getUncachableStripeClient();
-  const appUrl = getAppBaseUrl();
-  const portalSession = await stripe.billingPortal.sessions.create({
-    customer: profile.stripeCustomerId,
-    return_url: `${appUrl}/`,
-  });
-
-  res.json({ url: portalSession.url });
 });
 
 export default router;

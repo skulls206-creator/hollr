@@ -1,36 +1,50 @@
-import { getStripeSync } from './stripeClient';
+import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { db } from '@workspace/db';
 import { userProfilesTable } from '@workspace/db/schema';
-import { eq, sql as drizzleSql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 const SUPPORTER_PRODUCT_NAME = 'hollr Supporter';
 
+/**
+ * Check via Stripe API (not the local synced tables) whether a customer
+ * currently has an active/trialing hollr Supporter subscription.
+ * Falls back to false on any error.
+ */
 async function syncSupporterStatusForCustomer(stripeCustomerId: string) {
   try {
-    // Check if ANY active/trialing subscription for the 'hollr Supporter' product exists.
-    // Using EXISTS so a customer with multiple subscriptions is handled correctly.
-    const result = await db.execute(
-      drizzleSql`
-        SELECT EXISTS (
-          SELECT 1
-          FROM stripe.subscriptions s
-          JOIN stripe.subscription_items si ON si.subscription = s.id
-          JOIN stripe.prices pr ON pr.id = si.price
-          JOIN stripe.products p ON p.id = pr.product
-          WHERE s.customer = ${stripeCustomerId}
-            AND p.name = ${SUPPORTER_PRODUCT_NAME}
-            AND p.active = true
-            AND s.status IN ('active', 'trialing')
-        ) AS is_active
-      `
+    const stripe = await getUncachableStripeClient();
+
+    // List active/trialing subscriptions for this customer
+    const subscriptions = await stripe.subscriptions.list({
+      customer: stripeCustomerId,
+      status: 'active',
+      limit: 20,
+      expand: ['data.items.data.price.product'],
+    });
+
+    // Also include trialing subscriptions
+    const trialingSubscriptions = await stripe.subscriptions.list({
+      customer: stripeCustomerId,
+      status: 'trialing',
+      limit: 20,
+      expand: ['data.items.data.price.product'],
+    });
+
+    const allSubs = [...subscriptions.data, ...trialingSubscriptions.data];
+
+    const isActive = allSubs.some(sub =>
+      sub.items.data.some(item => {
+        const product = item.price?.product as { name?: string; active?: boolean } | null;
+        return product && product.active && product.name === SUPPORTER_PRODUCT_NAME;
+      })
     );
-    const row = result.rows[0] as { is_active?: boolean } | undefined;
-    const isActive = row?.is_active === true;
 
     await db
       .update(userProfilesTable)
       .set({ isSupporter: isActive })
       .where(eq(userProfilesTable.stripeCustomerId, stripeCustomerId));
+
+    console.log(`[webhookHandlers] supporter status for ${stripeCustomerId}: ${isActive}`);
   } catch (err) {
     console.error('[webhookHandlers] syncSupporterStatus error:', err);
   }
@@ -47,7 +61,7 @@ export class WebhookHandlers {
       );
     }
 
-    // Let stripe-replit-sync process and sync data to stripe.* tables first
+    // Let stripe-replit-sync process and sync data to stripe.* tables
     const sync = await getStripeSync();
     await sync.processWebhook(payload, signature);
 
