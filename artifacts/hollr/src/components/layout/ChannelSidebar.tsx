@@ -256,6 +256,7 @@ export function ChannelSidebar() {
 
   const handleDmContextMenu = (e: React.MouseEvent, thread: any, other: any) => {
     e.preventDefault();
+    e.stopPropagation();
     const cx = e.clientX;
     const cy = e.clientY;
     showMenu({
@@ -525,6 +526,7 @@ export function ChannelSidebar() {
             return (
               <div
                 data-dm-row
+                role="button"
                 key={thread.id}
                 className={cn(
                   'group w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer',
