@@ -900,6 +900,23 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                 style={{ background: 'var(--surface-1, #1c1c1c)', borderColor: 'rgba(255,255,255,0.1)', minWidth: 160, backdropFilter: 'blur(12px)' }}
                 onPointerDown={e => e.stopPropagation()}
               >
+                {/* Asc / Desc explicit toggle */}
+                <div className="flex items-center gap-1 px-3 pb-1.5 border-b mb-1" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                  <button
+                    onClick={() => dispatch({ type: 'SET_SORT', field: sortField, dir: 'asc' })}
+                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-semibold transition-colors"
+                    style={{ background: sortDir === 'asc' ? ACCENT + '30' : 'transparent', color: sortDir === 'asc' ? ACCENT : 'var(--muted-foreground)' }}
+                  >
+                    <ChevronUp size={11} /> A → Z
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: 'SET_SORT', field: sortField, dir: 'desc' })}
+                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-semibold transition-colors"
+                    style={{ background: sortDir === 'desc' ? ACCENT + '30' : 'transparent', color: sortDir === 'desc' ? ACCENT : 'var(--muted-foreground)' }}
+                  >
+                    <ChevronDown size={11} /> Z → A
+                  </button>
+                </div>
                 {COL_DEFS.map(col => {
                   const active = col.field === sortField;
                   return (
