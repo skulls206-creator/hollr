@@ -529,7 +529,7 @@ export function ChannelSidebar() {
                 role="button"
                 key={thread.id}
                 className={cn(
-                  'group w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer',
+                  'group w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer select-none',
                   activeDmThreadId === thread.id
                     ? 'bg-secondary text-foreground'
                     : dmUnread > 0
@@ -550,7 +550,7 @@ export function ChannelSidebar() {
                   dmEntryLongPressTimer.current = setTimeout(() => {
                     dmEntryLongPressTriggered.current = true;
                     handleDmContextMenu({ preventDefault: () => {}, clientX: x, clientY: y } as any, thread, other);
-                  }, 600);
+                  }, 400);
                 }}
                 onTouchEnd={() => {
                   if (dmEntryLongPressTimer.current) { clearTimeout(dmEntryLongPressTimer.current); dmEntryLongPressTimer.current = null; }

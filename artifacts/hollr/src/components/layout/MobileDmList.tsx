@@ -141,7 +141,7 @@ export function MobileDmList() {
     longPressTimer.current = setTimeout(() => {
       longPressTriggered.current = true;
       openDmContextMenu(x, y, thread, other);
-    }, 600);
+    }, 400);
   };
 
   const handleTouchEnd = () => {
@@ -228,7 +228,7 @@ export function MobileDmList() {
               onTouchEnd={handleTouchEnd}
               onTouchMove={handleTouchEnd}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors',
+                'w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors select-none',
                 activeDmThreadId === thread.id
                   ? 'bg-secondary text-foreground'
                   : dmUnread > 0
