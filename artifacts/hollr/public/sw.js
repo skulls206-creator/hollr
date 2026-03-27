@@ -1,7 +1,7 @@
 /* hollr.chat service worker — offline shell + push notifications */
 /* Strategy: Cache-first for assets, network-first for API, app-shell for navigation */
 
-const CACHE_VERSION = 'hollr-v4';
+const CACHE_VERSION = 'hollr-v5';
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const API_CACHE   = `${CACHE_VERSION}-api`;
@@ -199,6 +199,25 @@ self.addEventListener('notificationclick', (event) => {
         }
       })
   );
+});
+
+// ── Background sync (retry failed message sends when back online) ────────────
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'hollr-message-queue') {
+    event.waitUntil(
+      self.clients
+        .matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clients) => {
+          // Tell the app to flush any queued messages now that we have connectivity
+          if (clients.length > 0) {
+            clients.forEach((c) => c.postMessage({ type: 'FLUSH_MESSAGE_QUEUE' }));
+          } else {
+            // No window open — open the app so it can flush on next load
+            return self.clients.openWindow('/');
+          }
+        })
+    );
+  }
 });
 
 // ── Periodic background sync (if supported) ─────────────────────────────────

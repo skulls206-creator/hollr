@@ -8,6 +8,7 @@ import { useAppStore } from '@/store/use-app-store';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
+import { enqueueMessage } from '@/lib/bg-sync';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -247,7 +248,12 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           return [...old, newMsg];
         });
       },
-      onError: () => toast({ title: "Failed to send", variant: "destructive" })
+      onError: () => {
+        enqueueMessage({ channelId, content: trimmed });
+        toast({ title: "You're offline — message queued", description: "It will send automatically when you reconnect.", variant: "destructive" });
+        setContent('');
+        if (textareaRef.current) textareaRef.current.style.height = '36px';
+      },
     });
   }, [content, isUploading, channelId, sendMessage, toast, executeSlashCommand]);
 

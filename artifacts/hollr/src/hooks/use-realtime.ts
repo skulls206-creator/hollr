@@ -6,6 +6,7 @@ import type { MusicState } from '@workspace/api-zod';
 import { useAppStore } from '@/store/use-app-store';
 import { playNotificationSound, playVoiceJoinSound, playVoiceLeaveSound, startCallRinging, stopCallRinging } from '@/lib/notification-sound';
 import { dmLastSeenMsgId, markDmThreadRead } from '@/lib/dm-seen-tracker';
+import { flushMessageQueue, getQueue } from '@/lib/bg-sync';
 
 // Module-level singleton so any module can send signals without creating a second WS connection
 let _sendSignal: ((payload: any) => void) | null = null;
@@ -206,8 +207,18 @@ export function useRealtime(userId?: string) {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
+    // Flush queued messages on reconnect (triggered by background sync or on startup)
+    if (getQueue().length > 0) {
+      flushMessageQueue(import.meta.env.BASE_URL);
+    }
+
     const onSwMessage = (event: MessageEvent) => {
       const { type, callerId, notifType } = event.data ?? {};
+
+      if (type === 'FLUSH_MESSAGE_QUEUE') {
+        flushMessageQueue(import.meta.env.BASE_URL);
+        return;
+      }
 
       if (type === 'CALL_DECLINE_FROM_NOTIFICATION') {
         const snap = useAppStore.getState();
