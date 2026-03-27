@@ -1,0 +1,127 @@
+Core layout upgrades
+Keep the right‑side panel but make it feel like a full app:
+
+Top bar
+
+Show current Hollr user + avatar, used storage, and network (Lighthouse / Filecoin).
+
+Add a “New” menu: New Folder, New Workspace, Import from URL/CID.
+
+Left mini‑sidebar inside the panel
+
+Sections: “My Files”, “Shared with me”, “Chat Attachments”, “Starred”, “Trash”.
+​
+
+Optional: a dropdown at top to switch “Workspace” (per community / DM / Hollr Space).
+
+Main content area
+
+True file list with columns: Name, Type, Size, Uploaded, Owner, Access, Actions.
+
+Toggle between list and grid view.
+
+Infinite scroll or pagination.
+
+Bottom bar
+
+Show current folder path (breadcrumb), number of items, and quick filters (images, video, docs).
+
+File actions you should expose
+Every file row should have a contextual actions menu plus quick icons:
+
+One‑click IPFS/Lighthouse actions
+
+Copy CID, copy gateway URL, open in new tab via Lighthouse gateway.
+
+View on-chain storage receipt / transaction if you have that.
+
+Sharing / permissions
+
+“Share” opens a modal to grant access to Hollr users, groups, or by link token.
+
+Set: can view, can download, can pin to a chat, expiration, password.
+
+Show who it’s shared with and allow revocation.
+
+Organization
+
+Move to folder, duplicate, rename, delete (to Trash), star.
+
+Tagging: custom tags or auto‑tags (image, video, contract, code).
+
+Preview
+
+In‑panel preview for images, audio, video, PDFs, and text/JSON; with a “Pop out” button.
+
+For code/text, show a syntax‑highlighted viewer.
+
+Hollr‑specific integration
+This is your unfair advantage—tie Foldr tightly to chat:
+
+Chat‑aware folders
+
+Auto‑create a folder per conversation: “/Chats/DM‑skulls”, “/Chats/Channel‑X”.
+
+When the panel is opened from a chat, it automatically scopes to that chat’s folder.
+
+Attachments bridge
+
+Any file uploaded in chat is automatically stored in Foldr and appears under “Chat Attachments” with a back‑link to the original message.
+​
+
+From Foldr, “Send to chat” lets you drop a file into the current conversation with one click.
+
+Mentions and links
+
+Generate short Hollr links like hollr://foldr/{cid} that render as rich cards in chat (thumbnail, filename, size).
+
+Support @mention in the share dialog to grant access to people in that chat.
+
+Presence and activity
+
+Show “last accessed by X 2m ago” or “currently being viewed in this channel by 3 people”.
+
+IPFS/Lighthouse power features
+Surface what’s unique about decentralized storage, not just generic cloud:
+
+Persistence & cost transparency
+
+Display “Stored permanently via Lighthouse” with pay‑once amount and date.
+
+For devs: show raw CID, content size, replication status.
+
+Encryption & keys
+
+Indicate if a file is encrypted before upload, with a key management UI (e.g., “Encrypted with your Hollr key; only you and whitelisted users can decrypt”).
+
+Versioning via IPNS / mutable pointers
+
+For important docs, allow creating a “Permanent Link” that always points to the latest CID for that file using IPNS or Lighthouse programmable storage.
+​
+​
+
+Suggested main views
+Design 3–4 primary tabs inside the Foldr panel:
+
+“Browse” – full file/folder hierarchy.
+
+“Recents” – files sorted by last opened.
+
+“Shared” – files you shared and files shared with you.
+
+“Insights” – storage used per chat/workspace, top files, last uploads.
+
+Minimal roadmap for the AI
+Here is a clean spec you can feed back into your builder agent:
+
+Replace current right‑side pane with a two‑column layout: left nav (sections + workspaces), right main (toolbar + file table + breadcrumbs).
+
+Implement file list with: name, type, size, uploaded, access, actions, and list/grid toggle.
+
+Implement full CRUD: upload, new folder, move, rename, delete to trash, restore from trash.
+
+Implement “Share” model scoped to Hollr users and channels, with per‑file ACL stored in your backend.
+
+Auto‑scope files to the active chat’s workspace and allow sending files to/from chat messages.
+
+Expose IPFS/Lighthouse details (CID, gateway URL, storage tx) in a details sidebar for the selected file.

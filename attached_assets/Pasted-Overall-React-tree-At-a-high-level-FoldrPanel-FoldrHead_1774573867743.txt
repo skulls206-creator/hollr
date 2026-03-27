@@ -1,0 +1,344 @@
+Overall React tree
+At a high level:
+
+<FoldrPanel>
+
+<FoldrHeader>
+
+<FoldrBody>
+
+<FoldrSidebar>
+
+<FoldrMain>
+
+<FoldrToolbar>
+
+<FoldrBreadcrumbs>
+
+<FoldrContent> (empty state or file table / grid)
+
+<FoldrDetailsDrawer> (slides in on file select)
+
+<UploadDropzoneOverlay> (optional global overlay)
+
+This stays inside your Hollr right‑hand column; Hollr just renders <FoldrPanel hollrUser={currentUser} activeChat={currentChat} />.
+
+Props and data model
+Key props to pass from Hollr:
+
+hollrUser: { id, username, avatarUrl }
+
+activeChat: { id, type: 'dm'|'channel', name }
+
+Core Foldr entities (front‑end models, backed by your API):
+
+Workspace – one per chat or user:
+
+{ id, name, scopeType: 'chat'|'user'|'global', scopeId }
+
+Folder:
+
+{ id, name, parentId, workspaceId, path }
+
+FileItem:
+
+{ id, name, size, mimeType, cid, ipfsGatewayUrl, folderId, workspaceId, owner, createdAt, updatedAt, access, isStarred, isDeleted }
+
+Share:
+
+{ id, fileId, targetType: 'user'|'channel'|'link', targetId, permission: 'view'|'download'|'edit', expiresAt }
+​
+
+FoldrPanel
+Responsibilities:
+
+Bootstrap: fetch or create workspace for activeChat.id.
+
+Load folder tree + file list for current folder.
+
+Own top‑level UI state:
+
+ts
+const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
+const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
+const [selectedItems, setSelectedItems] = useState<string[]>([]);
+const [isUploading, setIsUploading] = useState(false);
+const [searchQuery, setSearchQuery] = useState('');
+APIs used internally:
+
+GET /foldr/workspaces?scope=chat&scopeId={activeChat.id}
+
+GET /foldr/folders?workspaceId=...
+
+GET /foldr/files?workspaceId=...&folderId=...&q=...
+
+POST /foldr/upload (streams to Lighthouse/IPFS and returns FileItem with cid, ipfsGatewayUrl).
+
+FoldrHeader
+Top bar UX:
+
+Left: app icon + “Foldr Storage” + badge “Stored on IPFS via Lighthouse”.
+
+Center: workspace selector:
+
+My Space, This Chat, maybe Shared.
+
+Right: storage summary and actions:
+
+“Used 1.2 GB” (from your backend), refresh icon, settings icon.
+
+State/props:
+
+currentWorkspace, workspaces, onWorkspaceChange(workspaceId).
+
+FoldrSidebar
+Narrow vertical panel inside Foldr (not Hollr):
+
+Sections:
+
+“Browse”
+
+“Recents”
+
+“Shared with me”
+
+“Starred”
+
+“Chat Attachments” (auto‑filtered to files originating from this chat).
+
+“Trash”
+
+Plus a mini folder tree under “Browse”:
+
+Root
+
+Chats
+
+#{activeChat.name}
+
+Personal
+
+Props:
+
+sections (fixed array)
+
+activeSection
+
+onSectionChange(section)
+
+folders, onFolderSelect(folderId)
+
+Behavior:
+
+When “Chat Attachments” selected, call GET /foldr/files?workspaceId=...&origin=chat and display list.
+
+When folder selected, update currentFolderId.
+
+FoldrToolbar
+Row just under the header, aligned with main content.
+
+Left side:
+
+“New” primary button with dropdown:
+
+“Upload files” (opens file dialog)
+
+“New folder”
+
+“Import from IPFS CID” (user pastes a CID to “link” something already on IPFS).
+
+Middle:
+
+Search input: filters files with debounced call to GET /foldr/files?q=.
+
+Right:
+
+View toggle (list/grid icons).
+
+Sort dropdown (Name, Size, Date, Type).
+
+“Select all” checkbox if a folder has content.
+
+Props:
+
+onUploadClick, onNewFolder, onImportCID
+
+searchQuery, onSearchChange
+
+viewMode, onViewModeChange.
+
+FoldrBreadcrumbs
+Simple path component:
+
+Example: Chats / #general / Images
+
+Each segment clickable; last is current.
+
+Props:
+
+segments: { id, label }[]
+
+onSegmentClick(folderId).
+
+FoldrContent
+Switch between:
+
+Empty state (no files):
+
+Big drop area: “Drop files to store them permanently via Lighthouse” with upload button.
+​
+
+List view: <FileTable>
+
+Grid view: <FileGrid>
+
+FileTable
+Columns:
+
+“Name” (icon + name + small extension / type)
+
+“Size”
+
+“Uploaded”
+
+“Access” (Private, Shared, Public)
+
+“Actions” (button / kebab)
+
+Interactions:
+
+Click row → select file + open details drawer.
+
+Double‑click folder row → enter folder.
+
+Right‑click row → context menu.
+
+Props:
+
+files: FileItem[]
+
+onFileOpen(file)
+
+onFolderOpen(folderId)
+
+onSelectionChange(ids: string[])
+
+onAction(file, actionType).
+
+FileGrid
+Same data, card layout, good thumbnails for images/video.
+
+FoldrDetailsDrawer
+Slides in from the right edge of the Foldr panel when selectedFile is non‑null.
+
+Sections:
+
+Preview
+
+Thumbnail or viewer: image, audio player, basic video player, PDF viewer, text/code viewer.
+
+File info
+
+Name, size, type, created, last access, owner.
+
+IPFS / Lighthouse
+
+CID (copy button)
+
+Gateway URL (copy, open in new tab)
+
+“View storage receipt” (if you surface Lighthouse tx / receipt).
+
+Access
+
+Current visibility: Private / Shared / Public.
+
+List of shares (users, channels, links) with revoke buttons.
+
+CTA “Manage access” → Share modal.
+
+Actions
+
+“Send to this chat” (posts a Hollr message with rich file card referencing this file).
+
+“Star / Unstar”
+
+“Move”
+
+“Delete” (to Trash).
+
+Props:
+
+file: FileItem | null
+
+onClose()
+
+onShareClick(file)
+
+onSendToChat(file)
+
+onDelete(file).
+
+Upload flow
+You want a consistent path for drag‑and‑drop, toolbar, and “Chat attachments” uploads.
+
+Implementation sketch:
+
+<UploadDropzone> wraps the whole <FoldrMain> area; on drop, call handleUpload(files, { workspaceId, folderId, origin: 'foldr' | 'chat' }).
+
+handleUpload should:
+
+Immediately show local “pending files” rows with status “Uploading…”.
+
+POST to your backend, which uses @lighthouse-web3/sdk or API to upload and returns cid, ipfsGatewayUrl.
+
+Replace pending entries with final FileItems.
+
+ShareModal
+Pulled up from details drawer or row action.
+
+Fields:
+
+“Who can access?” – radio: Only me, People / channels I choose, Anyone with link.
+
+For “People / channels I choose”:
+
+Hollr search input (users + channels).
+
+Chips showing selected principals.
+
+Per‑principal permission: view or download.
+
+Optional: “Link expires on” date picker, “Add password”.
+
+Backend endpoints:
+
+GET /foldr/files/{id}/shares
+
+POST /foldr/files/{id}/shares
+
+DELETE /foldr/shares/{id}.
+
+Chat integration hooks
+From Foldr back into Hollr, you just need callbacks:
+
+onSendToChat(file: FileItem) prop on FoldrPanel that Hollr implements as “insert message with Foldr attachment”.
+
+When a message contains a Foldr attachment, clicking it opens the Foldr panel focussed on that file’s workspace/folder and selects it.
+
+Internally, Foldr should tag files with origin metadata:
+
+{ origin: 'chat' | 'upload', originChatId?: string, originMessageId?: string }
+
+So “Chat Attachments” view is a simple filter on origin='chat' and originChatId=activeChat.id.
+
+How to phrase this to your AI
+You can paste something like this as a system or long prompt:
+
+Build a full in‑chat file manager called Foldr inside my Hollr chat app.
+The component is <FoldrPanel hollrUser activeChat /> rendered on the right side of the chat.
+Implement the following React component tree and behavior:
+[then paste the sections “Overall React tree”, “Props and data model”, and the component responsibilities almost verbatim].
+

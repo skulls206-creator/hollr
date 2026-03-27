@@ -230,17 +230,38 @@ export const notificationsTable = pgTable("notifications", {
 export type DbNotification = typeof notificationsTable.$inferSelect;
 
 // ── Foldr (cloud file manager) ─────────────────────────────────────────────
+
+export const foldrFoldersTable = pgTable("foldr_folders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => userProfilesTable.userId, { onDelete: "cascade" }),
+  name: varchar("name", { length: 255 }).notNull(),
+  parentId: varchar("parent_id"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("foldr_folders_user_id_idx").on(t.userId),
+  index("foldr_folders_parent_id_idx").on(t.parentId),
+]);
+
+export type FoldrFolder = typeof foldrFoldersTable.$inferSelect;
+
 export const foldrFilesTable = pgTable("foldr_files", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => userProfilesTable.userId, { onDelete: "cascade" }),
+  folderId: varchar("folder_id"),
   name: varchar("name", { length: 512 }).notNull(),
   size: integer("size").notNull(),
   mimeType: varchar("mime_type", { length: 128 }).notNull(),
   cid: varchar("cid", { length: 256 }).notNull(),
+  isEncrypted: boolean("is_encrypted").notNull().default(false),
+  encryptedKey: text("encrypted_key"),
+  isStarred: boolean("is_starred").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 }, (t) => [
   index("foldr_files_user_id_idx").on(t.userId),
+  index("foldr_files_folder_id_idx").on(t.folderId),
   index("foldr_files_uploaded_at_idx").on(t.uploadedAt),
 ]);
 
