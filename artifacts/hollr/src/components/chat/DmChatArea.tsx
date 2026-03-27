@@ -619,6 +619,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
               {showHeader ? (
                 <Avatar
                   className="h-10 w-10 mr-4 shrink-0 cursor-pointer"
+                  onClick={e => handleAuthorContextMenu(e, msg)}
                   onContextMenu={e => handleAuthorContextMenu(e, msg)}
                 >
                   <AvatarImage src={msg.author.avatarUrl || undefined} />
@@ -637,6 +638,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                   <div className="flex items-baseline gap-2 mb-0.5">
                     <span
                       className="font-medium text-base text-indigo-400 cursor-pointer hover:underline inline-flex items-center gap-1"
+                      onClick={e => handleAuthorContextMenu(e, msg)}
                       onContextMenu={e => handleAuthorContextMenu(e, msg)}
                     >
                       {msg.author.displayName || msg.author.username}

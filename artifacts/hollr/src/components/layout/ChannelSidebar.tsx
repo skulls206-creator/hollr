@@ -4,6 +4,7 @@ import {
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
   Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera, RefreshCw, Menu, Search, Video,
+  MoreVertical,
 } from 'lucide-react';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { initiateVideoCall } from '@/hooks/use-video-call';
@@ -522,9 +523,17 @@ export function ChannelSidebar() {
             const other = thread.participants?.find((p: any) => p.id !== user?.id) ?? thread.participants?.[0];
             const dmUnread = dmUnreadCounts[thread.id] ?? 0;
             return (
-              <button
+              <div
                 data-dm-row
                 key={thread.id}
+                className={cn(
+                  'group w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer',
+                  activeDmThreadId === thread.id
+                    ? 'bg-secondary text-foreground'
+                    : dmUnread > 0
+                    ? 'text-foreground hover:bg-secondary/50'
+                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                )}
                 onClick={() => {
                   if (dmEntryLongPressTriggered.current) return;
                   setActiveDmThread(thread.id);
@@ -544,14 +553,9 @@ export function ChannelSidebar() {
                 onTouchEnd={() => {
                   if (dmEntryLongPressTimer.current) { clearTimeout(dmEntryLongPressTimer.current); dmEntryLongPressTimer.current = null; }
                 }}
-                className={cn(
-                  'w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors',
-                  activeDmThreadId === thread.id
-                    ? 'bg-secondary text-foreground'
-                    : dmUnread > 0
-                    ? 'text-foreground hover:bg-secondary/50'
-                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-                )}
+                onTouchMove={() => {
+                  if (dmEntryLongPressTimer.current) { clearTimeout(dmEntryLongPressTimer.current); dmEntryLongPressTimer.current = null; }
+                }}
               >
                 <div className="relative shrink-0">
                   <Avatar className="h-10 w-10">
@@ -572,12 +576,21 @@ export function ChannelSidebar() {
                     </p>
                   )}
                 </div>
-                {dmUnread > 0 && (
-                  <span className="shrink-0 min-w-[18px] h-[18px] px-1 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {dmUnread > 99 ? '99+' : dmUnread}
-                  </span>
-                )}
-              </button>
+                <div className="shrink-0 flex items-center gap-1">
+                  {dmUnread > 0 && (
+                    <span className="group-hover:hidden min-w-[18px] h-[18px] px-1 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                      {dmUnread > 99 ? '99+' : dmUnread}
+                    </span>
+                  )}
+                  <button
+                    className="hidden group-hover:flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={e => { e.stopPropagation(); handleDmContextMenu(e, thread, other); }}
+                    title="More options"
+                  >
+                    <MoreVertical size={14} />
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
