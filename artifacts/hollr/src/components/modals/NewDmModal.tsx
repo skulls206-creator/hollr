@@ -93,7 +93,7 @@ export function NewDmModal() {
           {/* Backdrop */}
           <motion.div
             key="backdrop"
-            className="fixed inset-0 bg-black/60 z-[60]"
+            className="fixed inset-0 bg-black/60 z-[200]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -103,7 +103,7 @@ export function NewDmModal() {
           {/* Modal */}
           <motion.div
             key="modal"
-            className="fixed inset-0 flex items-center justify-center z-[61] px-4 pointer-events-none"
+            className="fixed inset-0 flex items-center justify-center z-[201] px-4 pointer-events-none"
             initial={{ opacity: 0, scale: 0.96, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}

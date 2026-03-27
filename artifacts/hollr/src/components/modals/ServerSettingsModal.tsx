@@ -57,7 +57,7 @@ export function ServerSettingsModal() {
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4"
+      className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       onClick={() => setServerSettingsModalOpen(false)}
     >
