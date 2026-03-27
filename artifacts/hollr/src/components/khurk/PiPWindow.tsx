@@ -1,10 +1,12 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence, useMotionValue, useDragControls } from 'framer-motion';
 import { useAppStore, type PipWindowEntry } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon } from '@/lib/khurk-apps';
-import { X, Maximize2, GripHorizontal, RefreshCw, ChevronsUpDown, ChevronsDownUp, ExternalLink } from 'lucide-react';
+import { X, Maximize2, GripHorizontal, RefreshCw, ChevronsUpDown, ChevronsDownUp, ExternalLink, FolderOpen, FolderCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { useToast } from '@/hooks/use-toast';
+import { loadHandleFromIdb, saveHandleToIdb } from '@/lib/khurk-fs-idb';
 
 const DEFAULT_W  = 380;
 const DEFAULT_H  = 240;
@@ -31,6 +33,7 @@ function SinglePipWindow({
 }) {
   const { removePipWindow, restorePipWindow } = useAppStore();
   const { show: showMenu } = useContextMenu();
+  const { toast } = useToast();
   const [refreshCount, setRefreshCount] = useState(0);
   const [size, setSize] = useState({ w: DEFAULT_W, h: DEFAULT_H });
 
@@ -42,6 +45,10 @@ function SinglePipWindow({
   const isResizing = useRef(false);
   const [, forceRender] = useState(0);
 
+  // ── Native panel folder state ─────────────────────────────────────────────
+  const [nativeDirHandle, setNativeDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [connectedFolderName, setConnectedFolderName] = useState<string | null>(null);
+
   // Initial position staggered from bottom-right
   const initX = Math.max(MARGIN, window.innerWidth  - DEFAULT_W - MARGIN - spawnIndex * STAGGER);
   const initY = Math.max(MARGIN, window.innerHeight - DEFAULT_H - HEADER_H - DOCK_CLEAR - spawnIndex * STAGGER);
@@ -52,6 +59,56 @@ function SinglePipWindow({
 
   const app = KHURK_APPS.find(a => a.id === entry.appId);
   if (!app) return null;
+
+  const NativePanel = app.nativePanel ?? null;
+  const isNative = !!NativePanel;
+
+  // ── Auto-restore handle from IDB when window opens (native apps only) ─────
+  useEffect(() => {
+    if (!isNative) return;
+    let cancelled = false;
+    loadHandleFromIdb(app.id).then(async (stored) => {
+      if (cancelled || !stored) return;
+      try {
+        const perm = await stored.requestPermission({ mode: 'readwrite' });
+        if (!cancelled && perm === 'granted') {
+          setNativeDirHandle(stored);
+          setConnectedFolderName(stored.name);
+        }
+      } catch { /* permission denied or unsupported */ }
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app.id, isNative]);
+
+  // ── Persist handle to IDB whenever it changes ─────────────────────────────
+  useEffect(() => {
+    if (!isNative || !nativeDirHandle) return;
+    saveHandleToIdb(app.id, nativeDirHandle);
+  }, [app.id, isNative, nativeDirHandle]);
+
+  // ── Folder picker ─────────────────────────────────────────────────────────
+  const handlePickFolder = useCallback(async () => {
+    if (!('showDirectoryPicker' in window)) {
+      toast({
+        title: 'Not supported in this browser',
+        description: 'File System Access requires Chrome or Edge on desktop.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    let dir: FileSystemDirectoryHandle;
+    try {
+      dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      toast({ title: 'Could not open folder', description: String(err instanceof Error ? err.message : err), variant: 'destructive' });
+      return;
+    }
+    setNativeDirHandle(dir);
+    setConnectedFolderName(dir.name);
+    toast({ title: `Folder connected: ${dir.name}` });
+  }, [toast]);
 
   // ── Window-level right-click menu ──────────────────────────────────────────
   const handleWindowContextMenu = useCallback((e: React.MouseEvent) => {
@@ -70,6 +127,12 @@ function SinglePipWindow({
           icon: <RefreshCw size={14} />,
           onClick: () => setRefreshCount(c => c + 1),
         },
+        ...(isNative ? [{
+          id: 'folder',
+          label: connectedFolderName ? `Change Folder (${connectedFolderName})` : 'Connect a Folder…',
+          icon: connectedFolderName ? <FolderCheck size={14} /> : <FolderOpen size={14} />,
+          onClick: handlePickFolder,
+        }] : []),
         {
           id: 'snap',
           label: isSnapped ? 'Restore Size' : 'Snap to Smallest',
@@ -108,17 +171,15 @@ function SinglePipWindow({
         },
       ],
     });
-  }, [app, entry.id, isSnapped, size.w, size.h, showMenu, restorePipWindow, removePipWindow]);
+  }, [app, entry.id, isNative, isSnapped, size.w, size.h, connectedFolderName, showMenu, restorePipWindow, removePipWindow, handlePickFolder]);
 
   // ── Snap toggle ────────────────────────────────────────────────────────────
   const handleSnapToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSnapped) {
-      // Restore to remembered size
       setSize({ w: savedSize.current.w, h: savedSize.current.h });
       setIsSnapped(false);
     } else {
-      // Save current size then collapse to minimum
       savedSize.current = { w: size.w, h: size.h };
       setSize({ w: MIN_W, h: MIN_H });
       setIsSnapped(true);
@@ -132,11 +193,9 @@ function SinglePipWindow({
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
-    // Exit snap mode when user manually resizes — they're taking control again
     setIsSnapped(false);
-
     isResizing.current = true;
-    forceRender(n => n + 1); // re-render to remove CSS transition immediately
+    forceRender(n => n + 1);
 
     const startX = e.clientX;
     const startY = e.clientY;
@@ -147,12 +206,11 @@ function SinglePipWindow({
       const newW = Math.max(MIN_W, Math.min(MAX_W, startW + (ev.clientX - startX)));
       const newH = Math.max(MIN_H, Math.min(MAX_H, startH + (ev.clientY - startY)));
       setSize({ w: newW, h: newH });
-      // Keep savedSize in sync so a subsequent snap restores to where the user landed
       savedSize.current = { w: newW, h: newH };
     };
     const onUp = () => {
       isResizing.current = false;
-      forceRender(n => n + 1); // re-render to restore CSS transition
+      forceRender(n => n + 1);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
@@ -176,7 +234,6 @@ function SinglePipWindow({
         y,
         width: size.w,
         height: totalH,
-        // Animate size changes (snap/restore) but skip transition during live resize
         transition: isResizing.current
           ? 'none'
           : 'width 0.22s cubic-bezier(0.16,1,0.3,1), height 0.22s cubic-bezier(0.16,1,0.3,1)',
@@ -218,6 +275,23 @@ function SinglePipWindow({
         <span className="text-[9px] text-muted-foreground/40 font-mono shrink-0 tabular-nums">
           {size.w}×{size.h}
         </span>
+
+        {/* Folder button — native apps only */}
+        {isNative && (
+          <button
+            title={connectedFolderName ? `Connected: ${connectedFolderName} — click to change` : 'Connect a folder'}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); handlePickFolder(); }}
+            className={cn(
+              'p-1 rounded transition-colors',
+              connectedFolderName
+                ? 'text-emerald-400 hover:text-emerald-300'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {connectedFolderName ? <FolderCheck size={9} /> : <FolderOpen size={9} />}
+          </button>
+        )}
 
         {/* Snap to min / Restore size */}
         <button
@@ -263,16 +337,44 @@ function SinglePipWindow({
         </button>
       </div>
 
-      {/* ── Iframe (fills remaining height, hidden when snapped to save resources) ── */}
-      <div className="relative flex-1 min-h-0" onContextMenu={handleWindowContextMenu}>
-        <iframe
-          key={`pip-${entry.id}-${refreshCount}`}
-          src={app.url}
-          title={`${app.name} — PiP`}
-          className="absolute inset-0 w-full h-full border-none block"
-          allow="camera; microphone; fullscreen; clipboard-read; clipboard-write; autoplay"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation"
-        />
+      {/* ── Content area ── */}
+      <div className="relative flex-1 min-h-0 overflow-hidden flex flex-col" onContextMenu={handleWindowContextMenu}>
+        {NativePanel ? (
+          /* Native React panel — no iframe */
+          <Suspense fallback={
+            <div className="flex-1 flex items-center justify-center bg-background">
+              <div className="flex flex-col items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl overflow-hidden shadow-md"
+                  style={{ background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)` }}
+                >
+                  {app.imageSrc
+                    ? <img src={app.imageSrc} alt={app.name} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center"><HollrIcon size={20} /></div>
+                  }
+                </div>
+                <Loader2 size={16} className="animate-spin text-muted-foreground" />
+              </div>
+            </div>
+          }>
+            <NativePanel
+              key={refreshCount}
+              storagePrefix={app.id}
+              dirHandle={nativeDirHandle}
+              onPickFolder={handlePickFolder}
+            />
+          </Suspense>
+        ) : (
+          /* Iframe — for non-native apps */
+          <iframe
+            key={`pip-${entry.id}-${refreshCount}`}
+            src={app.url}
+            title={`${app.name} — PiP`}
+            className="absolute inset-0 w-full h-full border-none block"
+            allow="camera; microphone; fullscreen; clipboard-read; clipboard-write; autoplay"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation"
+          />
+        )}
       </div>
 
       {/* ── Resize handle — bottom-right corner, hidden when snapped ── */}

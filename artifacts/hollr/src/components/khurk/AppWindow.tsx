@@ -6,45 +6,8 @@ import { useToast } from '@/hooks/use-toast';
 import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, PanelLeft, PanelLeftClose, MessageSquare, FolderOpen, FolderCheck, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ── IndexedDB helpers for persisting FileSystemDirectoryHandle across sessions ─
-// The File System Access API allows structured-cloning handles into IndexedDB,
-// enabling true reconnect without re-prompting the picker every time.
-
-const IDB_NAME = 'khurk-fs-handles';
-const IDB_STORE = 'handles';
-
-function openHandleDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function saveHandleToIdb(appId: string, handle: FileSystemDirectoryHandle): Promise<void> {
-  try {
-    const db = await openHandleDb();
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).put(handle, appId);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (e) { console.warn('[khurk] Could not persist handle to IDB:', e); }
-}
-
-async function loadHandleFromIdb(appId: string): Promise<FileSystemDirectoryHandle | null> {
-  try {
-    const db = await openHandleDb();
-    return await new Promise((resolve) => {
-      const tx = db.transaction(IDB_STORE, 'readonly');
-      const req = tx.objectStore(IDB_STORE).get(appId);
-      req.onsuccess = () => resolve((req.result as FileSystemDirectoryHandle) ?? null);
-      req.onerror = () => resolve(null);
-    });
-  } catch { return null; }
-}
+// ── IndexedDB helpers (shared with PiPWindow) ────────────────────────────────
+import { saveHandleToIdb, loadHandleFromIdb } from '@/lib/khurk-fs-idb';
 
 // ── Recursive directory reader ──────────────────────────────────────────────
 // Used only for iframe-based apps (vault protocol). Native panels read directly.
