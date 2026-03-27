@@ -35,7 +35,7 @@ const nodeOnlyShimPlugin: import('vite').Plugin = {
     if (EMPTY_SHIM_FILTER.test(id)) return '\0node-only-shim';
   },
   load(id) {
-    if (id === '\0node-only-shim') return 'module.exports = {};';
+    if (id === '\0node-only-shim') return 'export default {}; export {};';
   },
 };
 
@@ -85,7 +85,7 @@ export default defineConfig({
               namespace: 'node-shim',
             }));
             build.onLoad({ filter: /.*/, namespace: 'node-shim' }, () => ({
-              contents: 'module.exports = {};',
+              contents: 'export default {};',
               loader: 'js' as const,
             }));
           },
