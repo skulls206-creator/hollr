@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
@@ -6,7 +7,7 @@ import { cn, getInitials } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   MessageSquarePlus, MessageCircle, Menu, Search, X,
-  MessageSquare, PhoneCall, Video, User, Check, Copy,
+  MessageSquare, PhoneCall, Video, User, Check, Copy, RefreshCw,
 } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
@@ -26,6 +27,7 @@ export function MobileDmList() {
   } = useAppStore();
 
   const { show: showMenu } = useContextMenu();
+  const qc = useQueryClient();
 
   const { data: dmThreads = [] } = useListDmThreads({
     query: { queryKey: getListDmThreadsQueryKey(), refetchInterval: 5000, refetchIntervalInBackground: false },
@@ -36,6 +38,29 @@ export function MobileDmList() {
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
+  const blankPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openBlankAreaMenu = (x: number, y: number) => {
+    showMenu({
+      x,
+      y,
+      actions: [
+        {
+          id: 'refresh-dms',
+          label: 'Refresh DMs',
+          icon: <RefreshCw size={14} />,
+          onClick: () => qc.invalidateQueries({ queryKey: getListDmThreadsQueryKey() }),
+        },
+        {
+          id: 'new-dm',
+          label: 'New Direct Message',
+          icon: <MessageSquarePlus size={14} />,
+          onClick: () => useAppStore.getState().setNewDmModalOpen(true),
+          dividerBefore: true,
+        },
+      ],
+    });
+  };
 
   const filtered = searchQuery.trim()
     ? dmThreads.filter((thread: any) => {
@@ -189,7 +214,30 @@ export function MobileDmList() {
       </div>
 
       {/* DM thread list */}
-      <div className="flex-1 overflow-y-auto p-3 no-scrollbar flex flex-col gap-1">
+      <div
+        className="flex-1 overflow-y-auto p-3 no-scrollbar flex flex-col gap-1"
+        onContextMenu={e => {
+          if ((e.target as HTMLElement).closest('button,a,[role="button"],input')) return;
+          e.preventDefault();
+          openBlankAreaMenu(e.clientX, e.clientY);
+        }}
+        onTouchStart={e => {
+          if ((e.target as HTMLElement).closest('button,a,[role="button"],input')) return;
+          const touch = e.touches[0];
+          const x = touch.clientX;
+          const y = touch.clientY;
+          blankPressTimer.current = setTimeout(() => {
+            blankPressTimer.current = null;
+            openBlankAreaMenu(x, y);
+          }, 400);
+        }}
+        onTouchEnd={() => {
+          if (blankPressTimer.current) { clearTimeout(blankPressTimer.current); blankPressTimer.current = null; }
+        }}
+        onTouchMove={() => {
+          if (blankPressTimer.current) { clearTimeout(blankPressTimer.current); blankPressTimer.current = null; }
+        }}
+      >
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground py-16 gap-3">
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
