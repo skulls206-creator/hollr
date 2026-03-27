@@ -255,6 +255,8 @@ export const foldrFilesTable = pgTable("foldr_files", {
   cid: varchar("cid", { length: 256 }).notNull(),
   isEncrypted: boolean("is_encrypted").notNull().default(false),
   encryptedKey: text("encrypted_key"),
+  isClientEncrypted: boolean("is_client_encrypted").notNull().default(false),
+  iv: varchar("iv", { length: 64 }),
   isStarred: boolean("is_starred").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
@@ -266,6 +268,15 @@ export const foldrFilesTable = pgTable("foldr_files", {
 ]);
 
 export type FoldrFile = typeof foldrFilesTable.$inferSelect;
+
+export const foldrUserKeysTable = pgTable("foldr_user_keys", {
+  userId: varchar("user_id").primaryKey().notNull().references(() => userProfilesTable.userId, { onDelete: "cascade" }),
+  wrappedKey: text("wrapped_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type FoldrUserKey = typeof foldrUserKeysTable.$inferSelect;
 
 // ── Ballpoint (rich text notes) ────────────────────────────────────────────
 export const ballpointNotesTable = pgTable("ballpoint_notes", {

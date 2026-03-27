@@ -1,5 +1,5 @@
 /**
- * FoldrPanel — cloud file manager (Lighthouse IPFS + AES-256-GCM encryption)
+ * FoldrPanel — cloud file manager (AES-256-GCM · Cloudflare R2)
  * Themes: Midnight, Slate, Forest, Ocean, Sunset, Snow
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -15,6 +15,7 @@ import type { NativePanelProps } from '@/lib/khurk-apps';
 import { useAuth } from '@workspace/replit-auth-web';
 
 const API = import.meta.env.BASE_URL;
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
 
 /* ── Types ── */
 interface FoldrFile {
@@ -25,10 +26,11 @@ interface FoldrFile {
   mimeType: string;
   cid: string;
   isEncrypted: boolean;
+  isClientEncrypted: boolean;
+  iv: string | null;
   isStarred: boolean;
   sortOrder: number;
   url: string;
-  gatewayUrl: string;
   uploadedAt: string;
   deletedAt: string | null;
 }
@@ -105,6 +107,7 @@ const THEMES: Record<string, Theme> = {
 };
 
 type SectionId = 'browse' | 'starred' | 'trash';
+type UploadStatus = 'idle' | 'encrypting' | 'uploading';
 
 /* ── Helpers ── */
 function formatBytes(b: number) {
@@ -132,6 +135,39 @@ function FileTypeIcon({ mime, size = 18, folder = false, color }: { mime?: strin
   return <C size={size} style={{ color: colors[cat] }} />;
 }
 
+/* ── Client-side E2E Crypto ── */
+
+/** Import a raw 32-byte key (base64) as a CryptoKey */
+async function importAesKey(rawBase64: string): Promise<CryptoKey> {
+  const rawBytes = Uint8Array.from(atob(rawBase64), c => c.charCodeAt(0));
+  return window.crypto.subtle.importKey('raw', rawBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+/** Generate a new 256-bit AES-GCM CryptoKey */
+async function generateAesKey(): Promise<CryptoKey> {
+  return window.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+}
+
+/** Export a CryptoKey to base64 raw bytes */
+async function exportAesKey(key: CryptoKey): Promise<string> {
+  const raw = await window.crypto.subtle.exportKey('raw', key);
+  return btoa(String.fromCharCode(...new Uint8Array(raw)));
+}
+
+/** Encrypt a file's ArrayBuffer. Returns { ciphertext: Uint8Array, ivBase64: string } */
+async function encryptBuffer(key: CryptoKey, data: ArrayBuffer): Promise<{ ciphertext: Uint8Array; ivBase64: string }> {
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const ct = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+  const ivBase64 = btoa(String.fromCharCode(...iv));
+  return { ciphertext: new Uint8Array(ct), ivBase64 };
+}
+
+/** Decrypt a Uint8Array. IV is base64-encoded. */
+async function decryptBuffer(key: CryptoKey, ciphertext: Uint8Array, ivBase64: string): Promise<ArrayBuffer> {
+  const iv = Uint8Array.from(atob(ivBase64), c => c.charCodeAt(0));
+  return window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════ */
 export function FoldrPanel({ storagePrefix }: NativePanelProps) {
   const { user } = useAuth();
@@ -140,16 +176,22 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
   );
   const t = THEMES[themeId] ?? THEMES.midnight;
 
+  // Per-user AES key (held in memory only)
+  const cryptoKeyRef = useRef<CryptoKey | null>(null);
+  const [keyReady, setKeyReady] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
+
   // Data
   const [files, setFiles] = useState<FoldrFile[]>([]);
   const [folders, setFolders] = useState<FoldrFolder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [uploadName, setUploadName] = useState('');
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Navigation
   const [section, setSection] = useState<SectionId>('browse');
-  const [folderStack, setFolderStack] = useState<(FoldrFolder | null)[]>([null]); // null = root
+  const [folderStack, setFolderStack] = useState<(FoldrFolder | null)[]>([null]);
   const currentFolder = folderStack[folderStack.length - 1] ?? null;
 
   // UI state
@@ -179,11 +221,57 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Row hover state — must be declared before any early returns
+  // Row hover state
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const setView = (v: 'list' | 'grid') => { setViewMode(v); localStorage.setItem(`${storagePrefix}:view`, v); };
   const setTheme = (id: string) => { setThemeId(id); localStorage.setItem(`${storagePrefix}:theme`, id); };
+
+  /* ── Key management ── */
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    async function initKey() {
+      try {
+        // Try to fetch existing key from server
+        const res = await fetch(`${API}api/foldr/key`, { credentials: 'include' });
+        if (cancelled) return;
+
+        if (res.ok) {
+          const { key } = await res.json();
+          const cryptoKey = await importAesKey(key);
+          if (cancelled) return;
+          cryptoKeyRef.current = cryptoKey;
+          setKeyReady(true);
+        } else if (res.status === 404) {
+          // First time: generate a new key, upload wrapped to server
+          const newKey = await generateAesKey();
+          const rawBase64 = await exportAesKey(newKey);
+          const postRes = await fetch(`${API}api/foldr/key`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: rawBase64 }),
+          });
+          if (cancelled) return;
+          if (!postRes.ok) throw new Error('Failed to store encryption key');
+          cryptoKeyRef.current = newKey;
+          setKeyReady(true);
+        } else {
+          throw new Error(`Key fetch failed: ${res.status}`);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[Foldr] key init error:', err);
+          setKeyError('Encryption key unavailable. Files cannot be uploaded or decrypted.');
+        }
+      }
+    }
+
+    initKey();
+    return () => { cancelled = true; };
+  }, [user]);
 
   /* ── Fetch ── */
   const fetchAll = useCallback(async () => {
@@ -211,26 +299,123 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  /* ── Upload ── */
+  /* ── Upload (client-side E2E encrypt) ── */
   const handleUpload = useCallback(async (fileList: FileList | File[]) => {
     const arr = Array.from(fileList);
+    setUploadError(null);
+
     for (const file of arr) {
-      setUploading(true);
+      // 100 MB client-side check
+      if (file.size > MAX_FILE_SIZE) {
+        setUploadError(`"${file.name}" is too large. Maximum file size is 100 MB.`);
+        continue;
+      }
+
+      if (!cryptoKeyRef.current) {
+        setUploadError('Encryption key not ready. Please wait and try again.');
+        continue;
+      }
+
       setUploadName(file.name);
+
       try {
-        const form = new FormData();
-        form.append('file', file);
-        if (currentFolder?.id) form.append('folderId', currentFolder.id);
-        const res = await fetch(`${API}api/foldr/upload`, { method: 'POST', credentials: 'include', body: form });
-        if (res.ok) {
-          const f: FoldrFile = await res.json();
-          setFiles(prev => [f, ...prev]);
+        // Step 1: Encrypt in browser
+        setUploadStatus('encrypting');
+        const arrayBuf = await file.arrayBuffer();
+        const { ciphertext, ivBase64 } = await encryptBuffer(cryptoKeyRef.current, arrayBuf);
+
+        // Step 2: Request presigned upload URL
+        // Send plaintext size (what users see) to the server; server enforces 100MB on plaintext
+        const urlRes = await fetch(`${API}api/foldr/upload-url`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: file.name,
+            size: file.size,
+            mimeType: file.type || 'application/octet-stream',
+            folderId: currentFolder?.id ?? null,
+            iv: ivBase64,
+          }),
+        });
+
+        if (!urlRes.ok) {
+          const err = await urlRes.json().catch(() => ({ error: 'Upload failed' }));
+          setUploadError(err.error ?? 'Upload failed');
+          continue;
         }
-      } catch { /* non-fatal */ }
+
+        const { uploadUrl, file: newFile } = await urlRes.json();
+
+        // Step 3: PUT ciphertext directly to R2
+        setUploadStatus('uploading');
+        const putRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: ciphertext,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        });
+
+        if (!putRes.ok) {
+          setUploadError('Upload to storage failed. Please try again.');
+          continue;
+        }
+
+        setFiles(prev => [newFile, ...prev]);
+      } catch (err) {
+        console.error('[Foldr] upload error:', err);
+        setUploadError('Upload failed. Please try again.');
+      }
     }
-    setUploading(false);
+
+    setUploadStatus('idle');
     setUploadName('');
   }, [currentFolder]);
+
+  /* ── Download / Preview (client-side decrypt) ── */
+  const downloadOrPreview = useCallback(async (file: FoldrFile, forceDownload = false): Promise<string | null> => {
+    if (!file.isClientEncrypted) {
+      // Legacy file: use server-side content endpoint
+      return file.url + (forceDownload ? '?download=1' : '');
+    }
+
+    if (!cryptoKeyRef.current || !file.iv) {
+      setUploadError('Cannot decrypt file: encryption key not available.');
+      return null;
+    }
+
+    try {
+      // Get presigned download URL
+      const res = await fetch(`${API}api/foldr/files/${file.id}/download-url`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to get download URL');
+      const { downloadUrl, iv } = await res.json();
+
+      // Fetch ciphertext from R2 directly
+      const fetchRes = await fetch(downloadUrl);
+      if (!fetchRes.ok) throw new Error('Failed to fetch encrypted file');
+      const ciphertext = new Uint8Array(await fetchRes.arrayBuffer());
+
+      // Decrypt in browser
+      const plaintext = await decryptBuffer(cryptoKeyRef.current, ciphertext, iv);
+
+      // Create blob URL
+      const blob = new Blob([plaintext], { type: file.mimeType });
+      return URL.createObjectURL(blob);
+    } catch (err) {
+      console.error('[Foldr] decrypt error:', err);
+      setUploadError('Failed to decrypt file.');
+      return null;
+    }
+  }, []);
+
+  const triggerDownload = useCallback(async (file: FoldrFile) => {
+    const url = await downloadOrPreview(file, true);
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    if (file.isClientEncrypted) setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }, [downloadOrPreview]);
 
   /* ── New folder ── */
   const createFolder = async () => {
@@ -293,7 +478,6 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
     if (!dragItem.current || dragItem.current.id === targetId) return;
     const src = dragItem.current;
 
-    // Reorder: compute new sortOrder midpoint
     const isFile = src.type === 'file';
     if (isFile && targetType === 'file') {
       const targetFile = files.find(f => f.id === targetId);
@@ -365,6 +549,8 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
     index: i,
   }));
 
+  const uploading = uploadStatus !== 'idle';
+
   const s = { /* shorthand inline styles */
     panel: { background: t.bg, color: t.text, height: '100%', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', fontSize: '13px' },
     header: { background: t.surface, borderBottom: `1px solid ${t.border}`, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 },
@@ -403,7 +589,7 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
         <Lock size={14} style={{ color: t.accent }} />
         <span style={{ fontWeight: 700, fontSize: '13px' }}>Foldr</span>
         <span style={{ fontSize: '11px', color: t.muted, background: t.surface2, borderRadius: '4px', padding: '2px 6px', border: `1px solid ${t.border}` }}>
-          Encrypted · IPFS
+          AES-256-GCM · Cloudflare R2
         </span>
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: '11px', color: t.muted }}>{formatBytes(totalSize)}</span>
@@ -515,7 +701,7 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
             {section === 'browse' && (
               <>
-                <button onClick={() => fileInputRef.current?.click()} style={s.btn(true)} disabled={uploading}>
+                <button onClick={() => fileInputRef.current?.click()} style={s.btn(true)} disabled={uploading || !keyReady}>
                   {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
                   Upload
                 </button>
@@ -531,11 +717,27 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
             <button onClick={() => setView('grid')} style={{ ...s.btn(), padding: '4px 6px', outline: viewMode === 'grid' ? `2px solid ${t.accent}` : 'none' }}><LayoutGrid size={13} /></button>
           </div>
 
+          {/* Key error banner */}
+          {keyError && (
+            <div style={{ background: '#ef444420', color: '#ef4444', padding: '5px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: `1px solid ${t.border}` }}>
+              <Lock size={11} />
+              {keyError}
+            </div>
+          )}
+
+          {/* Upload error banner */}
+          {uploadError && (
+            <div style={{ background: '#ef444420', color: '#ef4444', padding: '5px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: `1px solid ${t.border}` }}>
+              <X size={11} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setUploadError(null)} />
+              {uploadError}
+            </div>
+          )}
+
           {/* Upload progress */}
           {uploading && (
             <div style={{ background: t.accent + '20', color: t.accent, padding: '5px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: `1px solid ${t.border}` }}>
               <Loader2 size={11} className="animate-spin" />
-              Encrypting &amp; uploading {uploadName}…
+              {uploadStatus === 'encrypting' ? `Encrypting ${uploadName}…` : `Uploading ${uploadName}…`}
             </div>
           )}
 
@@ -686,13 +888,9 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
                       onMouseLeave={() => setHoveredId(null)}
                       style={{ background: selected?.id === file.id ? t.rowSelected : hoveredId === file.id ? t.surface2 : t.surface, border: `1px solid ${selected?.id === file.id ? t.accent : t.border}`, borderRadius: '10px', padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'background 0.1s', position: 'relative' }}
                     >
-                      {fileCategory(file.mimeType) === 'image' ? (
-                        <img src={file.url} alt={file.name} style={{ width: '60px', height: '48px', objectFit: 'cover', borderRadius: '6px' }} loading="lazy" />
-                      ) : (
-                        <div style={{ width: '60px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.surface2, borderRadius: '6px' }}>
-                          <FileTypeIcon mime={file.mimeType} size={24} />
-                        </div>
-                      )}
+                      <div style={{ width: '60px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.surface2, borderRadius: '6px' }}>
+                        <FileTypeIcon mime={file.mimeType} size={24} />
+                      </div>
                       <span style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{file.name}</span>
                       {file.isEncrypted && <Lock size={9} style={{ position: 'absolute', top: '6px', right: '6px', color: t.accent }} />}
                     </div>
@@ -703,7 +901,20 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
             {/* Details drawer */}
             {drawerOpen && selected && (
-              <DetailsDrawer file={selected} t={t} onClose={() => { setDrawerOpen(false); setSelected(null); }} onStar={() => toggleStar(selected)} onDelete={() => { section === 'trash' ? hardDeleteFile(selected) : trashFile(selected); }} onRestore={() => restoreFile(selected)} onRename={() => { setRenamingId(selected.id); setRenameValue(selected.name); setDrawerOpen(false); }} inTrash={section === 'trash'} copied={copied} onCopy={copyText} />
+              <DetailsDrawer
+                file={selected}
+                t={t}
+                onClose={() => { setDrawerOpen(false); setSelected(null); }}
+                onStar={() => toggleStar(selected)}
+                onDelete={() => { section === 'trash' ? hardDeleteFile(selected) : trashFile(selected); }}
+                onRestore={() => restoreFile(selected)}
+                onRename={() => { setRenamingId(selected.id); setRenameValue(selected.name); setDrawerOpen(false); }}
+                onDownload={() => triggerDownload(selected)}
+                onGetPreviewUrl={() => downloadOrPreview(selected, false)}
+                inTrash={section === 'trash'}
+                copied={copied}
+                onCopy={copyText}
+              />
             )}
           </div>
 
@@ -711,7 +922,7 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
           <div style={{ background: t.surface, borderTop: `1px solid ${t.border}`, padding: '3px 12px', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '10px', color: t.muted, flexShrink: 0 }}>
             <span>{currentFolders.length} folder{currentFolders.length !== 1 ? 's' : ''}, {displayFiles.length} file{displayFiles.length !== 1 ? 's' : ''}</span>
             <span>{formatBytes(displayFiles.reduce((a, f) => a + f.size, 0))}</span>
-            <span style={{ marginLeft: 'auto' }}>🔒 AES-256-GCM · IPFS via Lighthouse</span>
+            <span style={{ marginLeft: 'auto' }}>🔒 AES-256-GCM · Cloudflare R2</span>
           </div>
         </div>
       </div>
@@ -772,12 +983,49 @@ function FolderTree({ folders, parentId, currentId, depth, t, onSelect }: {
   );
 }
 
-function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename, inTrash, copied, onCopy }: {
-  file: FoldrFile; t: Theme; onClose: () => void; onStar: () => void; onDelete: () => void; onRestore: () => void; onRename: () => void; inTrash: boolean; copied: string | null; onCopy: (text: string, key: string) => void;
+function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename, onDownload, onGetPreviewUrl, inTrash, copied, onCopy }: {
+  file: FoldrFile; t: Theme; onClose: () => void; onStar: () => void; onDelete: () => void; onRestore: () => void; onRename: () => void; onDownload: () => void; onGetPreviewUrl: () => Promise<string | null>; inTrash: boolean; copied: string | null; onCopy: (text: string, key: string) => void;
 }) {
   const isImg = file.mimeType.startsWith('image/');
   const isVideo = file.mimeType.startsWith('video/');
   const isAudio = file.mimeType.startsWith('audio/');
+  const isMedia = isImg || isVideo || isAudio;
+
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const prevBlobRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Revoke previous blob URL to free memory when file changes
+    if (prevBlobRef.current) {
+      URL.revokeObjectURL(prevBlobRef.current);
+      prevBlobRef.current = null;
+    }
+    setPreviewUrl(null);
+
+    if (!isMedia) return;
+
+    if (!file.isClientEncrypted) {
+      setPreviewUrl(file.url);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewLoading(true);
+    onGetPreviewUrl().then(url => {
+      if (cancelled) return;
+      if (url?.startsWith('blob:')) prevBlobRef.current = url;
+      setPreviewUrl(url);
+      setPreviewLoading(false);
+    }).catch(() => {
+      if (!cancelled) setPreviewLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file.id, file.isClientEncrypted]);
 
   const s = {
     drawer: { width: '220px', flexShrink: 0, borderLeft: `1px solid ${t.border}`, background: t.surface, display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' },
@@ -787,12 +1035,13 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
 
   return (
     <div style={s.drawer}>
-      {/* Preview */}
+      {/* Preview — decrypts client-encrypted files in-browser before display */}
       <div style={{ height: '130px', background: t.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative', borderBottom: `1px solid ${t.border}` }}>
-        {isImg && <img src={file.url} alt={file.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
-        {isVideo && <video src={file.url} controls style={{ maxWidth: '100%', maxHeight: '100%' }} />}
-        {isAudio && <audio src={file.url} controls style={{ width: '90%' }} />}
-        {!isImg && !isVideo && !isAudio && (
+        {previewLoading && <Loader2 size={20} className="animate-spin" style={{ color: t.muted }} />}
+        {!previewLoading && previewUrl && isImg && <img src={previewUrl} alt={file.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
+        {!previewLoading && previewUrl && isVideo && <video src={previewUrl} controls style={{ maxWidth: '100%', maxHeight: '100%' }} />}
+        {!previewLoading && previewUrl && isAudio && <audio src={previewUrl} controls style={{ width: '90%' }} />}
+        {!previewLoading && !previewUrl && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
             <FileTypeIcon mime={file.mimeType} size={36} />
             <span style={{ fontSize: '10px', color: t.muted }}>{file.mimeType}</span>
@@ -817,27 +1066,16 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
             <div style={s.label}>Encryption</div>
             <div style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               {file.isEncrypted ? (
-                <><Lock size={11} style={{ color: t.accent }} /> AES-256-GCM</>
+                <><Lock size={11} style={{ color: t.accent }} /> AES-256-GCM · Cloudflare R2</>
               ) : 'Not encrypted'}
             </div>
           </div>
           <div>
-            <div style={s.label}>IPFS CID</div>
+            <div style={s.label}>Storage Key</div>
             <div style={{ ...s.code, display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.cid}</span>
               <button onClick={() => onCopy(file.cid, 'cid')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, flexShrink: 0 }}>
                 {copied === 'cid' ? <CheckCheck size={11} style={{ color: '#22c55e' }} /> : <Copy size={11} />}
-              </button>
-            </div>
-          </div>
-          <div>
-            <div style={s.label}>Gateway URL</div>
-            <div style={{ ...s.code, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <a href={file.gatewayUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.accent }}>
-                Open <ExternalLink size={9} style={{ display: 'inline', verticalAlign: 'middle' }} />
-              </a>
-              <button onClick={() => onCopy(file.gatewayUrl, 'url')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, flexShrink: 0 }}>
-                {copied === 'url' ? <CheckCheck size={11} style={{ color: '#22c55e' }} /> : <Copy size={11} />}
               </button>
             </div>
           </div>
@@ -848,9 +1086,9 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
       <div style={{ padding: '8px 10px', borderTop: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
         {inTrash ? (
           <>
-            <a href={file.url} download={file.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: `1px solid ${t.border}`, color: t.text, fontSize: '11px', textDecoration: 'none', cursor: 'pointer' }}>
+            <button onClick={onDownload} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'none', color: t.text, fontSize: '11px', cursor: 'pointer' }}>
               <Download size={12} /> Download
-            </a>
+            </button>
             <button onClick={onRestore} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'none', color: t.text, fontSize: '11px', cursor: 'pointer' }}>
               <RotateCcw size={12} /> Restore
             </button>
@@ -860,9 +1098,9 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
           </>
         ) : (
           <>
-            <a href={file.url + '?download=1'} download={file.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', background: t.accent, color: t.accentText, fontSize: '11px', textDecoration: 'none', fontWeight: 600 }}>
+            <button onClick={onDownload} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', background: t.accent, color: t.accentText, fontSize: '11px', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
               <Download size={12} /> Download
-            </a>
+            </button>
             <button onClick={onStar} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'none', color: file.isStarred ? '#f59e0b' : t.text, fontSize: '11px', cursor: 'pointer' }}>
               <Star size={12} /> {file.isStarred ? 'Unstar' : 'Star'}
             </button>
@@ -870,7 +1108,7 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
               <button onClick={onRename} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'none', color: t.text, fontSize: '11px', cursor: 'pointer' }}>
                 <Edit2 size={11} /> Rename
               </button>
-              <button onClick={onDelete} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: 'none', background: '#ef444415', color: '#ef4444', fontSize: '11px', cursor: 'pointer' }}>
+              <button onClick={onDelete} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: 'none', background: '#ef444420', color: '#ef4444', fontSize: '11px', cursor: 'pointer' }}>
                 <Trash2 size={11} /> Trash
               </button>
             </div>
@@ -881,40 +1119,36 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
   );
 }
 
-function ContextMenu({ x, y, t, isFolder, inTrash, onRename, onDelete, onStar, onRestore, isStarred }: {
-  x: number; y: number; t: Theme; isFolder: boolean; inTrash: boolean; onRename: () => void; onDelete: () => void; onStar?: () => void; onRestore?: () => void; isStarred?: boolean;
-}) {
-  return (
-    <div style={{ position: 'fixed', left: x, top: y, zIndex: 9999, background: t.surface, border: `1px solid ${t.border}`, borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px', fontSize: '12px' }}>
-      {inTrash ? (
-        <>
-          {onRestore && <CtxItem onClick={onRestore} icon={<RotateCcw size={12} />} t={t}>Restore</CtxItem>}
-          <CtxItem onClick={onDelete} icon={<Trash2 size={12} />} t={t} danger>Delete Forever</CtxItem>
-        </>
-      ) : (
-        <>
-          <CtxItem onClick={onRename} icon={<Edit2 size={12} />} t={t}>Rename</CtxItem>
-          {onStar && <CtxItem onClick={onStar} icon={<Star size={12} />} t={t}>{isStarred ? 'Unstar' : 'Star'}</CtxItem>}
-          <div style={{ height: '1px', background: t.border, margin: '2px 0' }} />
-          <CtxItem onClick={onDelete} icon={isFolder ? <FolderIcon size={12} /> : <Trash2 size={12} />} t={t} danger>
-            {isFolder ? 'Delete Folder' : 'Move to Trash'}
-          </CtxItem>
-        </>
-      )}
-    </div>
-  );
+interface ContextMenuItem {
+  label: string;
+  action: () => void;
+  danger?: boolean;
 }
 
-function CtxItem({ children, onClick, icon, t, danger }: { children: React.ReactNode; onClick: () => void; icon: React.ReactNode; t: Theme; danger?: boolean }) {
-  const [hov, setHov] = useState(false);
+function ContextMenu({ x, y, t, isFolder, inTrash, onRename, onDelete, onStar, onRestore, isStarred }: {
+  x: number; y: number; t: Theme; isFolder: boolean; inTrash: boolean;
+  onRename: () => void; onDelete: () => void; onStar?: () => void; onRestore?: () => void; isStarred?: boolean;
+}) {
+  const items: ContextMenuItem[] = [
+    { label: 'Rename', action: onRename },
+    ...(!isFolder && onStar ? [{ label: isStarred ? 'Unstar' : 'Star', action: onStar }] : []),
+    ...(!isFolder && onRestore && inTrash ? [{ label: 'Restore', action: onRestore }] : []),
+    { label: inTrash ? 'Delete Forever' : 'Move to Trash', action: onDelete, danger: true },
+  ];
+
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '6px 12px', background: hov ? t.rowHover : 'none', border: 'none', cursor: 'pointer', color: danger ? '#ef4444' : t.text, textAlign: 'left', fontSize: '12px' }}
-    >
-      {icon}{children}
-    </button>
+    <div style={{ position: 'fixed', top: y, left: x, background: t.surface, border: `1px solid ${t.border}`, borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)', zIndex: 9999, minWidth: '140px', padding: '4px', fontSize: '12px' }}>
+      {items.map((item, i) => (
+        <button
+          key={i}
+          onClick={item.action}
+          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', color: item.danger ? '#ef4444' : t.text, borderRadius: '5px' }}
+          onMouseEnter={e => { (e.target as HTMLElement).style.background = t.surface2; }}
+          onMouseLeave={e => { (e.target as HTMLElement).style.background = 'none'; }}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
   );
 }

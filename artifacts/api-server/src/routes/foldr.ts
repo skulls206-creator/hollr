@@ -1,16 +1,39 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import multer from "multer";
 import { eq, and, isNull, isNotNull, desc, asc } from "drizzle-orm";
-import { db, foldrFilesTable, foldrFoldersTable } from "@workspace/db";
-import { encryptFile, decryptFile } from "../lib/foldr-crypto";
+import { db, foldrFilesTable, foldrFoldersTable, foldrUserKeysTable } from "@workspace/db";
+import { decryptFile } from "../lib/foldr-crypto";
 import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getR2Client, getR2BucketName } from "../lib/r2Client";
-import { randomUUID } from "crypto";
+import { randomUUID, createCipheriv, createDecipheriv, randomBytes } from "crypto";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 const PRIVATE_OBJECT_DIR = (process.env.PRIVATE_OBJECT_DIR ?? "").replace(/^\//, "");
+const MASTER_HEX = process.env.FOLDR_ENCRYPTION_KEY;
+const MASTER_KEY = MASTER_HEX ? Buffer.from(MASTER_HEX, "hex") : null;
+const ALGO = "aes-256-gcm";
+const IV_LEN = 12;
+const TAG_LEN = 16;
+
+function _encrypt(key: Buffer, plainBuf: Buffer): Buffer {
+  const iv = randomBytes(IV_LEN);
+  const cipher = createCipheriv(ALGO, key, iv);
+  const ct = Buffer.concat([cipher.update(plainBuf), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, ct]);
+}
+
+function _decrypt(key: Buffer, packed: Buffer): Buffer {
+  const iv = packed.subarray(0, IV_LEN);
+  const tag = packed.subarray(IV_LEN, IV_LEN + TAG_LEN);
+  const ct = packed.subarray(IV_LEN + TAG_LEN);
+  const decipher = createDecipheriv(ALGO, key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ct), decipher.final()]);
+}
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated() || !req.user?.id) {
@@ -31,6 +54,8 @@ function filePublic(f: typeof foldrFilesTable.$inferSelect, req: Request) {
     mimeType: f.mimeType,
     cid: f.cid,
     isEncrypted: f.isEncrypted,
+    isClientEncrypted: f.isClientEncrypted,
+    iv: f.iv,
     isStarred: f.isStarred,
     sortOrder: f.sortOrder,
     url: downloadUrl,
@@ -38,6 +63,223 @@ function filePublic(f: typeof foldrFilesTable.$inferSelect, req: Request) {
     deletedAt: f.deletedAt,
   };
 }
+
+/* ── Per-user Key Management ──────────────────────────────────────────── */
+
+/**
+ * GET /api/foldr/key — get the user's unwrapped AES key bytes (base64)
+ * The server wraps (encrypts) the user's key with the master key.
+ * This endpoint unwraps and returns the raw key bytes so the browser can import it.
+ */
+router.get("/foldr/key", async (req: Request, res: Response) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  if (!MASTER_KEY) {
+    res.status(500).json({ error: "Server encryption not configured" });
+    return;
+  }
+
+  try {
+    const [row] = await db
+      .select()
+      .from(foldrUserKeysTable)
+      .where(eq(foldrUserKeysTable.userId, userId));
+
+    if (!row) {
+      res.status(404).json({ error: "No key found" });
+      return;
+    }
+
+    const wrappedBuf = Buffer.from(row.wrappedKey, "base64");
+    const rawKeyBuf = _decrypt(MASTER_KEY, wrappedBuf);
+    res.json({ key: rawKeyBuf.toString("base64") });
+  } catch (err) {
+    console.error("[Foldr] key fetch error:", err);
+    res.status(500).json({ error: "Failed to retrieve key" });
+  }
+});
+
+/**
+ * POST /api/foldr/key — store a new user key (wrapped by the browser with a server-generated nonce)
+ * Body: { key: base64-encoded raw 32-byte AES key }
+ * Server wraps it with MASTER_KEY and stores it.
+ */
+router.post("/foldr/key", async (req: Request, res: Response) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  if (!MASTER_KEY) {
+    res.status(500).json({ error: "Server encryption not configured" });
+    return;
+  }
+
+  const { key } = req.body;
+  if (!key || typeof key !== "string") {
+    res.status(400).json({ error: "key (base64) required" });
+    return;
+  }
+
+  try {
+    const rawKeyBuf = Buffer.from(key, "base64");
+    if (rawKeyBuf.length !== 32) {
+      res.status(400).json({ error: "key must be 32 bytes" });
+      return;
+    }
+
+    const wrappedBuf = _encrypt(MASTER_KEY, rawKeyBuf);
+    const wrappedKey = wrappedBuf.toString("base64");
+
+    await db
+      .insert(foldrUserKeysTable)
+      .values({ userId, wrappedKey })
+      .onConflictDoUpdate({
+        target: foldrUserKeysTable.userId,
+        set: { wrappedKey },
+      });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[Foldr] key store error:", err);
+    res.status(500).json({ error: "Failed to store key" });
+  }
+});
+
+/* ── Presigned upload URL ─────────────────────────────────────────────── */
+
+/**
+ * POST /api/foldr/upload-url — request a presigned PUT URL for client-side encrypted upload
+ * Body: { name, size, mimeType, folderId?, iv }
+ * Returns: { uploadUrl, objectKey, fileId (pre-inserted DB row) }
+ */
+router.post("/foldr/upload-url", async (req: Request, res: Response) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const { name, size, mimeType, folderId, iv } = req.body;
+
+  if (!name || typeof name !== "string") {
+    res.status(400).json({ error: "name required" });
+    return;
+  }
+  if (typeof size !== "number" || size <= 0) {
+    res.status(400).json({ error: "size required" });
+    return;
+  }
+  if (size > 100 * 1024 * 1024) {
+    res.status(413).json({ error: "File too large. Maximum size is 100 MB." });
+    return;
+  }
+  if (!iv || typeof iv !== "string") {
+    res.status(400).json({ error: "iv (base64) required" });
+    return;
+  }
+
+  // Validate iv decodes to exactly 12 bytes (AES-GCM nonce)
+  try {
+    const ivBytes = Buffer.from(iv, "base64");
+    if (ivBytes.length !== 12) {
+      res.status(400).json({ error: "iv must be a 12-byte base64 value" });
+      return;
+    }
+  } catch {
+    res.status(400).json({ error: "iv must be valid base64" });
+    return;
+  }
+
+  try {
+    const objectId = randomUUID();
+    const objectKey = `${PRIVATE_OBJECT_DIR}/foldr/${userId}/${objectId}.enc`.replace(/^\//, "");
+
+    const r2 = getR2Client();
+    const bucket = getR2BucketName();
+
+    const cmd = new PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      ContentType: "application/octet-stream",
+    });
+    const uploadUrl = await getSignedUrl(r2, cmd, { expiresIn: 900 });
+
+    const [row] = await db.insert(foldrFilesTable).values({
+      userId,
+      folderId: folderId || null,
+      name: name.slice(0, 512),
+      size,
+      mimeType: mimeType || "application/octet-stream",
+      cid: objectKey,
+      isEncrypted: true,
+      isClientEncrypted: true,
+      iv,
+      encryptedKey: null,
+    }).returning();
+
+    res.json({ uploadUrl, objectKey, fileId: row.id, file: filePublic(row, req) });
+  } catch (err) {
+    console.error("[Foldr] upload-url error:", err);
+    res.status(500).json({ error: "Failed to generate upload URL" });
+  }
+});
+
+/**
+ * POST /api/foldr/upload-confirm/:id — confirm upload completed (no-op, file already inserted)
+ */
+router.post("/foldr/upload-confirm/:id", async (req: Request, res: Response) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  try {
+    const [row] = await db
+      .select()
+      .from(foldrFilesTable)
+      .where(and(eq(foldrFilesTable.id, req.params.id), eq(foldrFilesTable.userId, userId)));
+    if (!row) { res.status(404).json({ error: "File not found" }); return; }
+    res.json(filePublic(row, req));
+  } catch (err) {
+    console.error("[Foldr] upload-confirm error:", err);
+    res.status(500).json({ error: "Failed to confirm upload" });
+  }
+});
+
+/* ── Presigned download URL ───────────────────────────────────────────── */
+
+/**
+ * GET /api/foldr/files/:id/download-url — get a presigned GET URL for client-side decryption
+ * Returns: { downloadUrl, iv, mimeType, name }
+ */
+router.get("/foldr/files/:id/download-url", async (req: Request, res: Response) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  try {
+    const [file] = await db
+      .select()
+      .from(foldrFilesTable)
+      .where(and(eq(foldrFilesTable.id, req.params.id), eq(foldrFilesTable.userId, userId)));
+
+    if (!file) { res.status(404).json({ error: "File not found" }); return; }
+    if (!file.cid) { res.status(404).json({ error: "File storage key missing" }); return; }
+
+    if (!file.isClientEncrypted) {
+      res.status(400).json({ error: "File is not client-encrypted; use /content endpoint" });
+      return;
+    }
+
+    const r2 = getR2Client();
+    const bucket = getR2BucketName();
+    const cmd = new GetObjectCommand({ Bucket: bucket, Key: file.cid });
+    const downloadUrl = await getSignedUrl(r2, cmd, { expiresIn: 3600 });
+
+    res.json({
+      downloadUrl,
+      iv: file.iv,
+      mimeType: file.mimeType,
+      name: file.name,
+    });
+  } catch (err) {
+    console.error("[Foldr] download-url error:", err);
+    res.status(500).json({ error: "Failed to generate download URL" });
+  }
+});
 
 /* ── Folders ──────────────────────────────────────────────────────────── */
 
@@ -111,7 +353,6 @@ router.delete("/foldr/folders/:id", async (req: Request, res: Response) => {
       .where(and(eq(foldrFoldersTable.id, req.params.id), eq(foldrFoldersTable.userId, userId)));
     if (!folder) { res.status(404).json({ error: "Folder not found" }); return; }
 
-    // Move children to parent (or root)
     await db.update(foldrFoldersTable)
       .set({ parentId: folder.parentId })
       .where(and(eq(foldrFoldersTable.parentId, folder.id), eq(foldrFoldersTable.userId, userId)));
@@ -130,52 +371,6 @@ router.delete("/foldr/folders/:id", async (req: Request, res: Response) => {
 });
 
 /* ── Files ────────────────────────────────────────────────────────────── */
-
-/** POST /api/foldr/upload — encrypt then upload to R2 object storage */
-router.post("/foldr/upload", upload.single("file"), async (req: Request, res: Response) => {
-  const userId = requireAuth(req, res);
-  if (!userId) return;
-
-  const file = req.file;
-  if (!file) { res.status(400).json({ error: "No file provided" }); return; }
-
-  try {
-    const { folderId } = req.body;
-
-    // Encrypt file content (AES-256-GCM)
-    const { encryptedBuf, encryptedKey } = encryptFile(file.buffer);
-
-    // Upload encrypted bytes to R2 object storage
-    const objectId = randomUUID();
-    const objectKey = `${PRIVATE_OBJECT_DIR}/foldr/${userId}/${objectId}.enc`.replace(/^\//, "");
-
-    const r2 = getR2Client();
-    const bucket = getR2BucketName();
-
-    await r2.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: objectKey,
-      Body: Buffer.from(encryptedBuf),
-      ContentType: "application/octet-stream",
-    }));
-
-    const [row] = await db.insert(foldrFilesTable).values({
-      userId,
-      folderId: folderId || null,
-      name: file.originalname,
-      size: file.size,
-      mimeType: file.mimetype,
-      cid: objectKey,          // repurpose cid column to store the R2 object key
-      isEncrypted: true,
-      encryptedKey,
-    }).returning();
-
-    res.json(filePublic(row, req));
-  } catch (err) {
-    console.error("[Foldr] upload error:", err);
-    res.status(500).json({ error: "Upload failed" });
-  }
-});
 
 /** GET /api/foldr/files — list files (filter by folderId, starred, trash) */
 router.get("/foldr/files", async (req: Request, res: Response) => {
@@ -207,7 +402,6 @@ router.get("/foldr/files", async (req: Request, res: Response) => {
         isNull(foldrFilesTable.deletedAt),
       );
     } else {
-      // No folderId — root (null folderId)
       where = and(
         eq(foldrFilesTable.userId, userId),
         isNull(foldrFilesTable.folderId),
@@ -228,7 +422,7 @@ router.get("/foldr/files", async (req: Request, res: Response) => {
   }
 });
 
-/** GET /api/foldr/files/:id/content — decrypt and stream file content */
+/** GET /api/foldr/files/:id/content — legacy server-side decrypt path for old files */
 router.get("/foldr/files/:id/content", async (req: Request, res: Response) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
@@ -242,7 +436,11 @@ router.get("/foldr/files/:id/content", async (req: Request, res: Response) => {
     if (!file) { res.status(404).json({ error: "File not found" }); return; }
     if (!file.cid) { res.status(404).json({ error: "File storage key missing" }); return; }
 
-    // Fetch encrypted bytes from R2
+    if (file.isClientEncrypted) {
+      res.status(400).json({ error: "Client-encrypted files must be decrypted in the browser. Use /download-url endpoint." });
+      return;
+    }
+
     const r2 = getR2Client();
     const bucket = getR2BucketName();
     const r2Res = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: file.cid }));
@@ -306,7 +504,6 @@ router.delete("/foldr/files/:id", async (req: Request, res: Response) => {
         .where(and(eq(foldrFilesTable.id, req.params.id), eq(foldrFilesTable.userId, userId)))
         .returning();
       if (!row) { res.status(404).json({ error: "File not found" }); return; }
-      // Best-effort: remove the R2 object
       if (row.cid) {
         try {
           const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
