@@ -28,6 +28,8 @@ interface Track {
   fileHandle: FileSystemFileHandle;
   addedAt: number;
   artDataUrl?: string;
+  /** ID3/Vorbis track number (e.g. 5 or "5/12") — the integer part */
+  trackNumber?: number;
 }
 
 type LibraryView =
@@ -37,7 +39,7 @@ type LibraryView =
   | { type: 'genre'; name: string };
 
 type RepeatMode = 'none' | 'all' | 'one';
-type SortField = 'title' | 'artist' | 'album' | 'duration';
+type SortField = 'title' | 'artist' | 'album' | 'duration' | 'trackNumber';
 type SortDir = 'asc' | 'desc';
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
@@ -47,7 +49,7 @@ const ACCENT = '#f07020';
 const AUDIO_EXTS = /\.(mp3|flac|wav|ogg|aac|m4a|opus|wma|aiff)$/i;
 
 /* ─── jsmediatags wrapper (ID3v1/v2, FLAC, OGG Vorbis) ──────────────────── */
-type TagMeta = Partial<Pick<Track, 'title' | 'artist' | 'album' | 'genre' | 'artDataUrl'>>;
+type TagMeta = Partial<Pick<Track, 'title' | 'artist' | 'album' | 'genre' | 'artDataUrl' | 'trackNumber'>>;
 
 function readAudioMetadata(file: File): Promise<TagMeta> {
   return new Promise((resolve) => {
@@ -63,6 +65,12 @@ function readAudioMetadata(file: File): Promise<TagMeta> {
               artDataUrl = URL.createObjectURL(blob);
             } catch { /* ignore */ }
           }
+          // Track number may be "5", "5/12", or a number
+          let trackNumber: number | undefined;
+          if (t.track) {
+            const n = parseInt(String(t.track).split('/')[0], 10);
+            if (!isNaN(n) && n > 0) trackNumber = n;
+          }
           resolve({
             title: t.title || undefined,
             artist: t.artist || undefined,
@@ -71,6 +79,7 @@ function readAudioMetadata(file: File): Promise<TagMeta> {
               ? (t.genre.replace(/^\((\d+)\)$/, (_, n) => ID3_GENRES[parseInt(n, 10)] ?? '').trim() || t.genre)
               : undefined,
             artDataUrl,
+            trackNumber,
           });
         },
         onError: () => resolve({}),
@@ -504,6 +513,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
           fileHandle: handle,
           addedAt: Date.now() + i,
           artDataUrl: meta.artDataUrl,
+          trackNumber: meta.trackNumber,
         };
         newTracks.push(track);
         dispatch({ type: 'SCAN_PROGRESS', done: i + 1 });
@@ -596,6 +606,12 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
 
     if (libraryView !== 'recently-added') {
       list.sort((a, b) => {
+        // trackNumber may be undefined — push unknowns to the end
+        if (sortField === 'trackNumber') {
+          const an = a.trackNumber ?? Infinity;
+          const bn = b.trackNumber ?? Infinity;
+          return sortDir === 'asc' ? an - bn : bn - an;
+        }
         const av = a[sortField as keyof Track] as string | number;
         const bv = b[sortField as keyof Track] as string | number;
         if (typeof av === 'number' && typeof bv === 'number') {
@@ -922,7 +938,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
               <div
                 className="grid items-center px-2 h-7 text-[10px] font-semibold uppercase tracking-wide shrink-0 border-b"
                 style={{
-                  gridTemplateColumns: '24px 1fr 160px 160px 50px',
+                  gridTemplateColumns: '24px 1fr 160px 160px 40px 50px',
                   borderColor: 'var(--border)',
                   color: 'var(--muted-foreground)',
                   background: 'var(--surface-1, #1a1a1a)',
@@ -932,6 +948,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                 <SortHeader field="title" label="Title" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
                 <SortHeader field="artist" label="Artist" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
                 <SortHeader field="album" label="Album" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
+                <SortHeader field="trackNumber" label="Tr#" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
                 <SortHeader field="duration" label="Time" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
               </div>
 
@@ -953,7 +970,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                         onClick={() => dispatch({ type: 'SELECT_TRACK', id: track.id })}
                         className="grid items-center px-2 h-8 cursor-pointer transition-colors"
                         style={{
-                          gridTemplateColumns: '24px 1fr 160px 160px 50px',
+                          gridTemplateColumns: '24px 1fr 160px 160px 40px 50px',
                           background: isSelected ? 'rgba(240,112,32,0.12)' : isActive ? 'rgba(240,112,32,0.06)' : 'transparent',
                           borderLeft: isActive ? `2px solid ${ACCENT}` : '2px solid transparent',
                         }}
@@ -983,6 +1000,9 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                         </div>
                         <span className="text-xs truncate pr-2" style={{ color: 'var(--muted-foreground)' }}>{track.artist}</span>
                         <span className="text-xs truncate pr-2" style={{ color: 'var(--muted-foreground)' }}>{track.album}</span>
+                        <span className="text-xs text-center" style={{ color: 'var(--muted-foreground)' }}>
+                          {track.trackNumber ?? '—'}
+                        </span>
                         <span className="text-xs text-right" style={{ color: 'var(--muted-foreground)' }}>{formatDuration(track.duration)}</span>
                       </div>
                     );
