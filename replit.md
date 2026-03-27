@@ -135,6 +135,11 @@ pnpm --filter @workspace/db push
 - **Presence**: Online/idle/dnd/offline status indicators
 - **Dock Mode**: Toggleable layout in User Settings (Profile tab → Layout Style); macOS Dock-style server switcher at the bottom with framer-motion mouse-proximity magnification; DM FAB pinned bottom-left; `layoutMode` persisted to localStorage via Zustand
 - **Themes**: Three user-selectable themes in User Settings (Profile tab → Theme): Midnight (deep blue-black, default), Slate (warmer charcoal gray), Snow (light/white). Applied via `data-theme` on `<html>` element; no-flash via blocking inline script in index.html; all 85 hardcoded hex surface colors replaced with CSS-var-backed Tailwind `bg-surface-{0-3}` classes; `theme` persisted to localStorage via Zustand
+- **KHURK OS app dock**: Slide-out app dock with macOS-style icons; `AppWindow.tsx` renders apps as overlaid panels. Ballpoint Notes and Foldr run as native React panels (no iframe). All other KHURK apps continue to render in iframes.
+  - **Native panel API**: `KhurkApp.nativePanel` — lazy-loaded `ComponentType<NativePanelProps>` replaces iframe rendering. Props: `dirHandle: FileSystemDirectoryHandle | null`, `onPickFolder: () => void`, `storagePrefix: string`.
+  - **IndexedDB handle persistence**: `AppWindow` saves connected `FileSystemDirectoryHandle` to IndexedDB (db: `khurk-fs-handles`, store: `handles`, key: `app.id`) on every connect; on native app open it restores the handle via `requestPermission({ mode: 'readwrite' })` for seamless reconnect.
+  - **BallpointPanel** (`src/components/khurk/apps/BallpointPanel.tsx`): Full note editor — sections (All/Favorites/Archive/Trash), search across all sections, 800ms debounced autosave, unmount flush, CRUD + context menu, Markdown preview. localStorage keys namespaced by `${storagePrefix}:${folderName}:*`.
+  - **FoldrPanel** (`src/components/khurk/apps/FoldrPanel.tsx`): Full file browser — recursive collapsible folder tree, grid/list toggle, file-type icons (including PDF), image/text preview, drag-and-drop upload, CRUD (new file/folder, inline rename with collision guard, delete confirm). Single-click selects file or folder; double-click navigates into folders; toolbar Rename/Delete apply to the selected item.
 
 ## Key Design Decisions
 
