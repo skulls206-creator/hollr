@@ -8,7 +8,7 @@ import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
   Repeat, Repeat1, Shuffle, Music, Library, Disc, User,
   ListMusic, Search, FolderOpen, Sliders, ChevronRight,
-  ChevronDown, ChevronUp, Loader2, Music2, X, MoreHorizontal,
+  ChevronDown, ChevronUp, ChevronLeft, Loader2, Music2, X, MoreHorizontal,
   GalleryHorizontalEnd, Tag, Copy, Check, Info, ListPlus,
   ListEnd, Minus, Hash, FileAudio,
 } from 'lucide-react';
@@ -315,6 +315,18 @@ function SortHeader({
     </button>
   );
 }
+
+/* ─── Column ordering ────────────────────────────────────────────────────── */
+type ColId = 'title' | 'artist' | 'album' | 'trackNumber' | 'duration';
+interface ColDef { id: ColId; field: SortField; label: string; width: string; align?: 'center' | 'right'; }
+const COL_DEFS: ColDef[] = [
+  { id: 'title',       field: 'title',       label: 'Title',  width: '1fr'   },
+  { id: 'artist',      field: 'artist',      label: 'Artist', width: '130px' },
+  { id: 'album',       field: 'album',       label: 'Album',  width: '130px' },
+  { id: 'trackNumber', field: 'trackNumber', label: 'Tr#',    width: '40px', align: 'center' },
+  { id: 'duration',    field: 'duration',    label: 'Time',   width: '50px', align: 'right'  },
+];
+const DEFAULT_COL_ORDER: ColId[] = ['title', 'artist', 'album', 'trackNumber', 'duration'];
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePanelProps) {
@@ -713,6 +725,32 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
     setTimeout(() => setCtxCopied(null), 1500);
   }, []);
 
+  /* ── Column order ── */
+  const [colOrder, setColOrder] = useState<ColId[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${storagePrefix}:colOrder`);
+      if (saved) {
+        const p = JSON.parse(saved) as ColId[];
+        if (Array.isArray(p) && p.length === DEFAULT_COL_ORDER.length && p.every(id => DEFAULT_COL_ORDER.includes(id))) return p;
+      }
+    } catch {}
+    return DEFAULT_COL_ORDER;
+  });
+
+  const moveCol = useCallback((id: ColId, dir: -1 | 1) => {
+    setColOrder(prev => {
+      const i = prev.indexOf(id);
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      localStorage.setItem(`${storagePrefix}:colOrder`, JSON.stringify(next));
+      return next;
+    });
+  }, [storagePrefix]);
+
+  const gridCols = '24px ' + colOrder.map(id => COL_DEFS.find(c => c.id === id)!.width).join(' ');
+
   /* ── Nav label ── */
   function viewLabel(v: LibraryView) {
     if (typeof v === 'string') {
@@ -980,20 +1018,47 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Column headers */}
               <div
-                className="grid items-center px-2 h-7 text-[10px] font-semibold uppercase tracking-wide shrink-0 border-b"
+                className="grid items-center px-2 h-7 text-[10px] font-semibold uppercase tracking-wide shrink-0 border-b select-none"
                 style={{
-                  gridTemplateColumns: '24px 1fr 160px 160px 40px 50px',
+                  gridTemplateColumns: gridCols,
                   borderColor: 'var(--border)',
                   color: 'var(--muted-foreground)',
                   background: 'var(--surface-1, #1a1a1a)',
                 }}
               >
                 <span className="text-center">#</span>
-                <SortHeader field="title" label="Title" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
-                <SortHeader field="artist" label="Artist" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
-                <SortHeader field="album" label="Album" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
-                <SortHeader field="trackNumber" label="Tr#" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
-                <SortHeader field="duration" label="Time" currentField={sortField} currentDir={sortDir} onSort={handleSort} />
+                {colOrder.map((colId, ci) => {
+                  const col = COL_DEFS.find(c => c.id === colId)!;
+                  const isFirst = ci === 0;
+                  const isLast = ci === colOrder.length - 1;
+                  return (
+                    <div
+                      key={colId}
+                      className="flex items-center gap-0.5 group min-w-0"
+                      style={{ justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start' }}
+                    >
+                      {/* ◀ shift left */}
+                      <button
+                        onClick={e => { e.stopPropagation(); moveCol(colId, -1); }}
+                        className={cn('rounded transition-all p-0.5 shrink-0', isFirst ? 'invisible pointer-events-none' : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-white')}
+                        title="Move column left"
+                      >
+                        <ChevronLeft size={9} />
+                      </button>
+
+                      <SortHeader field={col.field} label={col.label} currentField={sortField} currentDir={sortDir} onSort={handleSort} />
+
+                      {/* ▶ shift right */}
+                      <button
+                        onClick={e => { e.stopPropagation(); moveCol(colId, 1); }}
+                        className={cn('rounded transition-all p-0.5 shrink-0', isLast ? 'invisible pointer-events-none' : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-white')}
+                        title="Move column right"
+                      >
+                        <ChevronRight size={9} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Rows */}
@@ -1015,7 +1080,7 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTrackCtxMenu({ x: e.clientX, y: e.clientY, track }); }}
                         className="grid items-center px-2 h-8 cursor-pointer transition-colors"
                         style={{
-                          gridTemplateColumns: '24px 1fr 160px 160px 40px 50px',
+                          gridTemplateColumns: gridCols,
                           background: isSelected ? 'rgba(240,112,32,0.12)' : isActive ? 'rgba(240,112,32,0.06)' : 'transparent',
                           borderLeft: isActive ? `2px solid ${ACCENT}` : '2px solid transparent',
                         }}
@@ -1025,30 +1090,27 @@ export function PlaydPanel({ storagePrefix, dirHandle, onPickFolder }: NativePan
                         <span className="text-center text-[10px]" style={{ color: isActive ? ACCENT : 'var(--muted-foreground)' }}>
                           {isActive && isPlaying ? '▶' : idx + 1}
                         </span>
-                        <div className="flex items-center gap-2 min-w-0 pr-2">
-                          {track.artDataUrl ? (
-                            <img src={track.artDataUrl} alt="" className="w-5 h-5 rounded shrink-0 object-cover" />
-                          ) : (
-                            <div
-                              className="w-5 h-5 rounded shrink-0 flex items-center justify-center"
-                              style={{ background: artistColor(track.artist) }}
-                            >
-                              <Music2 size={10} color="white" />
+                        {colOrder.map(colId => {
+                          if (colId === 'title') return (
+                            <div key="title" className="flex items-center gap-2 min-w-0 pr-2">
+                              {track.artDataUrl ? (
+                                <img src={track.artDataUrl} alt="" className="w-5 h-5 rounded shrink-0 object-cover" />
+                              ) : (
+                                <div className="w-5 h-5 rounded shrink-0 flex items-center justify-center" style={{ background: artistColor(track.artist) }}>
+                                  <Music2 size={10} color="white" />
+                                </div>
+                              )}
+                              <span className="truncate text-xs" style={{ color: isActive ? ACCENT : 'var(--foreground)', fontWeight: isActive ? 600 : 400 }}>
+                                {track.title}
+                              </span>
                             </div>
-                          )}
-                          <span
-                            className="truncate text-xs"
-                            style={{ color: isActive ? ACCENT : 'var(--foreground)', fontWeight: isActive ? 600 : 400 }}
-                          >
-                            {track.title}
-                          </span>
-                        </div>
-                        <span className="text-xs truncate pr-2" style={{ color: 'var(--muted-foreground)' }}>{track.artist}</span>
-                        <span className="text-xs truncate pr-2" style={{ color: 'var(--muted-foreground)' }}>{track.album}</span>
-                        <span className="text-xs text-center" style={{ color: 'var(--muted-foreground)' }}>
-                          {track.trackNumber ?? '—'}
-                        </span>
-                        <span className="text-xs text-right" style={{ color: 'var(--muted-foreground)' }}>{formatDuration(track.duration)}</span>
+                          );
+                          if (colId === 'artist') return <span key="artist" className="text-xs truncate pr-2" style={{ color: 'var(--muted-foreground)' }}>{track.artist}</span>;
+                          if (colId === 'album') return <span key="album" className="text-xs truncate pr-2" style={{ color: 'var(--muted-foreground)' }}>{track.album}</span>;
+                          if (colId === 'trackNumber') return <span key="trackNumber" className="text-xs text-center" style={{ color: 'var(--muted-foreground)' }}>{track.trackNumber ?? '—'}</span>;
+                          if (colId === 'duration') return <span key="duration" className="text-xs text-right" style={{ color: 'var(--muted-foreground)' }}>{formatDuration(track.duration)}</span>;
+                          return null;
+                        })}
                       </div>
                     );
                   })
