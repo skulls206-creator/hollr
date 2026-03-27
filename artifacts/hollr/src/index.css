@@ -517,6 +517,14 @@
     background: hsl(var(--muted-foreground));
   }
 
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Elevate system from references */
   .toggle-elevate::before,
   .toggle-elevate-2::before {

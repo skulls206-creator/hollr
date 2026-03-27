@@ -551,67 +551,54 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
   const uploading = uploadStatus !== 'idle';
 
-  const s = { /* shorthand inline styles */
-    panel: { background: t.bg, color: t.text, height: '100%', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', fontSize: '13px' },
-    header: { background: t.surface, borderBottom: `1px solid ${t.border}`, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 },
-    sidebar: { background: t.sidebar, borderRight: `1px solid ${t.border}`, width: '168px', flexShrink: 0, display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' },
-    main: { flex: 1, display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' },
-    toolbar: { background: t.surface, borderBottom: `1px solid ${t.border}`, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 },
-    row: (isSelected: boolean, isHovered: boolean) => ({
-      background: isSelected ? t.rowSelected : isHovered ? t.rowHover : 'transparent',
-      display: 'flex', alignItems: 'center', cursor: 'pointer',
-      borderBottom: `1px solid ${t.border}`, padding: '5px 8px', gap: '8px',
-      transition: 'background 0.1s',
+  const s = {
+    panel: { background: t.bg, color: t.text, height: '100%', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', fontSize: '13px', position: 'relative' as const },
+    input: { background: t.surface2, border: `1px solid ${t.border}`, color: t.text, borderRadius: '10px', padding: '8px 12px', fontSize: '13px', outline: 'none', width: '100%' },
+    iconBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.surface2, border: `1px solid ${t.border}`, borderRadius: '10px', padding: '8px', cursor: 'pointer', color: t.text },
+    accentBtn: { display: 'flex', alignItems: 'center', gap: '6px', background: t.accent, color: t.accentText, border: 'none', borderRadius: '12px', padding: '9px 16px', fontSize: '13px', fontWeight: 600 as const, cursor: 'pointer' },
+    fileCard: (isSelected: boolean) => ({
+      background: isSelected ? t.rowSelected : t.surface,
+      border: `1px solid ${isSelected ? t.accent : t.border}`,
+      borderRadius: '14px', padding: '12px 14px',
+      display: 'flex', alignItems: 'center', gap: '12px',
+      cursor: 'pointer', transition: 'background 0.12s',
+      marginBottom: '8px',
     }),
-    sectionBtn: (active: boolean) => ({
-      display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 10px', cursor: 'pointer',
-      borderRadius: '6px', color: active ? t.text : t.muted,
-      background: active ? t.surface2 : 'transparent', fontWeight: active ? '600' : '400',
-      fontSize: '12px', border: 'none', width: '100%', textAlign: 'left' as const,
+    folderCard: (isHovered: boolean) => ({
+      background: isHovered ? t.surface2 : t.surface,
+      border: `1px solid ${t.border}`,
+      borderRadius: '14px', padding: '12px 14px',
+      display: 'flex', alignItems: 'center', gap: '12px',
+      cursor: 'pointer', transition: 'background 0.12s',
+      marginBottom: '8px',
     }),
-    btn: (primary = false) => ({
-      display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
-      borderRadius: '6px', border: primary ? 'none' : `1px solid ${t.border}`,
-      background: primary ? t.accent : t.surface2, color: primary ? t.accentText : t.text,
-      cursor: 'pointer', fontSize: '12px', fontWeight: primary ? '600' : '400',
-    }),
-    input: {
-      background: t.surface2, border: `1px solid ${t.border}`, color: t.text,
-      borderRadius: '6px', padding: '4px 8px', fontSize: '12px', outline: 'none', width: '100%',
-    },
   };
 
   return (
     <div style={s.panel}>
 
       {/* ── Header ── */}
-      <div style={s.header}>
-        <Lock size={14} style={{ color: t.accent }} />
-        <span style={{ fontWeight: 700, fontSize: '13px' }}>Foldr</span>
-        <span style={{ fontSize: '11px', color: t.muted, background: t.surface2, borderRadius: '4px', padding: '2px 6px', border: `1px solid ${t.border}` }}>
-          AES-256-GCM · Cloudflare R2
-        </span>
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: '11px', color: t.muted }}>{formatBytes(totalSize)}</span>
-        <button onClick={fetchAll} style={{ ...s.btn(), padding: '3px 6px' }} title="Refresh"><RefreshCw size={12} /></button>
-
+      <div style={{ background: t.surface, borderBottom: `1px solid ${t.border}`, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
+          <Lock size={15} style={{ color: t.accent, flexShrink: 0 }} />
+          <span style={{ fontWeight: 700, fontSize: '14px' }}>Foldr</span>
+          <span style={{ fontSize: '10px', color: t.muted, background: t.surface2, borderRadius: '6px', padding: '2px 7px', border: `1px solid ${t.border}`, flexShrink: 0 }}>AES-256-GCM</span>
+        </div>
+        <span style={{ fontSize: '11px', color: t.muted, flexShrink: 0 }}>{formatBytes(totalSize)}</span>
+        <button onClick={fetchAll} style={{ ...s.iconBtn, padding: '6px' }} title="Refresh"><RefreshCw size={14} /></button>
         {/* Theme picker */}
         <div style={{ position: 'relative' }} ref={themePickerRef}>
-          <button onClick={() => setShowThemePicker(v => !v)} style={{ ...s.btn(), padding: '3px 6px' }} title="Theme">
-            <Palette size={12} />
+          <button onClick={() => setShowThemePicker(v => !v)} style={{ ...s.iconBtn, padding: '6px' }} title="Theme">
+            <Palette size={14} />
           </button>
           {showThemePicker && (
-            <div style={{ position: 'absolute', right: 0, top: '110%', background: t.surface, border: `1px solid ${t.border}`, borderRadius: '10px', padding: '10px 12px', zIndex: 100, minWidth: '160px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
-              <div style={{ fontSize: '11px', color: t.muted, marginBottom: '8px', fontWeight: 600 }}>THEME</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            <div style={{ position: 'absolute', right: 0, top: '110%', background: t.surface, border: `1px solid ${t.border}`, borderRadius: '14px', padding: '12px 14px', zIndex: 200, minWidth: '168px', boxShadow: '0 12px 40px rgba(0,0,0,0.4)' }}>
+              <div style={{ fontSize: '10px', color: t.muted, marginBottom: '10px', fontWeight: 700, letterSpacing: '0.05em' }}>THEME</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {Object.entries(THEMES).map(([id, th]) => (
-                  <button
-                    key={id}
-                    onClick={() => { setTheme(id); setShowThemePicker(false); }}
-                    title={th.label}
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '6px', outline: themeId === id ? `2px solid ${t.accent}` : 'none' }}
-                  >
-                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: th.bg, border: `2px solid ${th.dot}` }} />
+                  <button key={id} onClick={() => { setTheme(id); setShowThemePicker(false); }} title={th.label}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', background: 'none', border: 'none', cursor: 'pointer', padding: '5px', borderRadius: '8px', outline: themeId === id ? `2px solid ${t.accent}` : 'none' }}>
+                    <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: th.bg, border: `2px solid ${th.dot}` }} />
                     <span style={{ fontSize: '9px', color: t.muted }}>{th.label}</span>
                   </button>
                 ))}
@@ -621,311 +608,244 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
         </div>
       </div>
 
-      {/* ── Body: sidebar + main ── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-        {/* Sidebar */}
-        <div style={s.sidebar}>
-          <div style={{ padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {([
-              ['browse', FolderOpen, 'My Files'],
-              ['starred', Star, 'Starred'],
-              ['trash', Trash2, 'Trash'],
-            ] as const).map(([id, Icon, label]) => (
-              <button key={id} onClick={() => { setSection(id as SectionId); setFolderStack([null]); }} style={s.sectionBtn(section === id)}>
-                <Icon size={13} style={{ color: section === id ? t.accent : t.muted }} />
-                {label}
+      {/* ── Toolbar: breadcrumbs + search + actions ── */}
+      <div style={{ background: t.surface, borderBottom: `1px solid ${t.border}`, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        {folderStack.length > 1 && (
+          <button onClick={() => setFolderStack(st => st.slice(0, -1))} style={{ ...s.iconBtn, padding: '6px', flexShrink: 0 }}>
+            <ArrowLeft size={16} />
+          </button>
+        )}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', minWidth: 0 }}>
+          {breadcrumbs.map((b, i) => (
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: i < breadcrumbs.length - 1 ? 0 : 1, minWidth: 0 }}>
+              {i > 0 && <ChevronRight size={12} style={{ color: t.muted, flexShrink: 0 }} />}
+              <button onClick={() => setFolderStack(st => st.slice(0, b.index + 1))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: i === breadcrumbs.length - 1 ? t.text : t.muted, fontWeight: i === breadcrumbs.length - 1 ? 700 : 400, fontSize: '13px', padding: '2px 4px', borderRadius: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                {b.label}
               </button>
+            </span>
+          ))}
+        </div>
+        {/* Search */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: t.muted }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+            style={{ ...s.input, paddingLeft: '30px', width: '130px', fontSize: '12px', padding: '6px 10px 6px 30px' }} />
+        </div>
+        {section === 'browse' && (
+          <button onClick={() => fileInputRef.current?.click()} style={{ ...s.iconBtn, padding: '6px', flexShrink: 0, background: t.accent, border: 'none', color: t.accentText }} disabled={uploading || !keyReady}>
+            {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+          </button>
+        )}
+        <button onClick={() => setView(viewMode === 'list' ? 'grid' : 'list')} style={{ ...s.iconBtn, padding: '6px', flexShrink: 0 }}>
+          {viewMode === 'list' ? <LayoutGrid size={15} /> : <List size={15} />}
+        </button>
+      </div>
+      <input ref={fileInputRef} type="file" multiple hidden onChange={e => e.target.files && handleUpload(e.target.files)} />
+
+      {/* Banners */}
+      {keyError && (
+        <div style={{ background: '#ef444420', color: '#ef4444', padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+          <Lock size={12} />{keyError}
+        </div>
+      )}
+      {uploadError && (
+        <div style={{ background: '#ef444420', color: '#ef4444', padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+          <X size={12} style={{ cursor: 'pointer' }} onClick={() => setUploadError(null)} />{uploadError}
+        </div>
+      )}
+      {uploading && (
+        <div style={{ background: t.accent + '20', color: t.accent, padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+          <Loader2 size={12} className="animate-spin" />
+          {uploadStatus === 'encrypting' ? `Encrypting ${uploadName}…` : `Uploading ${uploadName}…`}
+        </div>
+      )}
+
+      {/* ── Content area (full width) ── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}
+        onDragOver={e => e.preventDefault()}
+        onDrop={e => { e.preventDefault(); if (e.dataTransfer.files.length && section === 'browse') handleUpload(e.dataTransfer.files); }}
+      >
+        {/* New folder row */}
+        {creatingFolder && (
+          <div style={{ ...s.folderCard(false), background: t.surface2 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '10px', background: t.accent + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <FolderIcon size={22} style={{ color: t.folderColor }} />
+            </div>
+            <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') setCreatingFolder(false); }}
+              onBlur={createFolder} placeholder="Folder name" style={{ ...s.input, fontSize: '13px', flex: 1 }} />
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '140px', color: t.muted }}>
+            <Loader2 size={24} className="animate-spin" />
+          </div>
+        ) : currentFolders.length === 0 && displayFiles.length === 0 && !creatingFolder ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '180px', color: t.muted, gap: '14px' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '18px', background: t.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FolderIcon size={32} style={{ color: t.folderColor, opacity: 0.5 }} />
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontWeight: 600, marginBottom: '4px' }}>{section === 'trash' ? 'Trash is empty' : 'No files yet'}</div>
+              <div style={{ fontSize: '12px' }}>{section === 'browse' ? 'Tap the upload button to add files' : ''}</div>
+            </div>
+            {section === 'browse' && (
+              <button onClick={() => fileInputRef.current?.click()} style={s.accentBtn} disabled={uploading || !keyReady}>
+                <Upload size={14} /> Upload Files
+              </button>
+            )}
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '10px' }}>
+            {currentFolders.map(folder => (
+              <div key={folder.id}
+                onDoubleClick={() => setFolderStack(st => [...st, folder])}
+                onClick={() => setFolderStack(st => [...st, folder])}
+                onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: folder, isFolder: true }); }}
+                onMouseEnter={() => setHoveredId(folder.id)} onMouseLeave={() => setHoveredId(null)}
+                style={{ background: hoveredId === folder.id ? t.surface2 : t.surface, border: `1px solid ${t.border}`, borderRadius: '14px', padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'background 0.1s' }}>
+                <FolderIcon size={34} style={{ color: t.folderColor }} />
+                <span style={{ fontSize: '11px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', color: t.text }}>{folder.name}</span>
+              </div>
+            ))}
+            {displayFiles.map(file => (
+              <div key={file.id}
+                onClick={() => { setSelected(file); setDrawerOpen(true); }}
+                onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: file, isFolder: false }); }}
+                onMouseEnter={() => setHoveredId(file.id)} onMouseLeave={() => setHoveredId(null)}
+                style={{ background: selected?.id === file.id ? t.rowSelected : hoveredId === file.id ? t.surface2 : t.surface, border: `1px solid ${selected?.id === file.id ? t.accent : t.border}`, borderRadius: '14px', padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'background 0.1s', position: 'relative' }}>
+                <div style={{ width: '56px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.surface2, borderRadius: '10px' }}>
+                  <FileTypeIcon mime={file.mimeType} size={26} />
+                </div>
+                <span style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', color: t.text }}>{file.name}</span>
+                {file.isEncrypted && <Lock size={9} style={{ position: 'absolute', top: '7px', right: '7px', color: t.accent }} />}
+              </div>
             ))}
           </div>
-
-          {/* Folder tree (browse only) */}
-          {section === 'browse' && (
-            <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 8px' }}>
-              <div style={{ fontSize: '10px', color: t.muted, padding: '8px 4px 4px', fontWeight: 600, letterSpacing: '0.04em' }}>FOLDERS</div>
-              <FolderTree
-                folders={folders}
-                parentId={null}
-                currentId={currentFolder?.id ?? null}
-                depth={0}
-                t={t}
-                onSelect={(folder) => { setFolderStack([null, folder]); setSection('browse'); }}
-              />
-            </div>
-          )}
-
-          {/* Storage summary */}
-          <div style={{ padding: '8px 10px', borderTop: `1px solid ${t.border}`, fontSize: '10px', color: t.muted, display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <HardDrive size={11} />
-            <span>{files.length} file{files.length !== 1 ? 's' : ''}</span>
-          </div>
-        </div>
-
-        {/* Main area */}
-        <div style={s.main}>
-
-          {/* Toolbar */}
-          <div style={s.toolbar}>
-            {/* Back button */}
-            {folderStack.length > 1 && (
-              <button onClick={() => setFolderStack(s => s.slice(0, -1))} style={{ ...s.btn(), padding: '3px 6px' }}>
-                <ArrowLeft size={13} />
-              </button>
-            )}
-
-            {/* Breadcrumbs */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
-              {breadcrumbs.map((b, i) => (
-                <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {i > 0 && <ChevronRight size={12} style={{ color: t.muted }} />}
-                  <button
-                    onClick={() => setFolderStack(s => s.slice(0, b.index + 1))}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: i === breadcrumbs.length - 1 ? t.text : t.muted, fontWeight: i === breadcrumbs.length - 1 ? 600 : 400, fontSize: '12px', padding: '2px 4px', borderRadius: '4px' }}
-                  >
-                    {b.label}
-                  </button>
-                </span>
-              ))}
-            </div>
-
-            {/* Search */}
-            <div style={{ position: 'relative' }}>
-              <Search size={11} style={{ position: 'absolute', left: '7px', top: '50%', transform: 'translateY(-50%)', color: t.muted }} />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search…"
-                style={{ ...s.input, paddingLeft: '24px', width: '150px' }}
-              />
-            </div>
-
-            {section === 'browse' && (
-              <>
-                <button onClick={() => fileInputRef.current?.click()} style={s.btn(true)} disabled={uploading || !keyReady}>
-                  {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-                  Upload
-                </button>
-                <button onClick={() => { setCreatingFolder(true); setNewFolderName(''); }} style={s.btn()}>
-                  <FolderPlus size={12} /> New Folder
-                </button>
-              </>
-            )}
-            <input ref={fileInputRef} type="file" multiple hidden onChange={e => e.target.files && handleUpload(e.target.files)} />
-
-            {/* View toggle */}
-            <button onClick={() => setView('list')} style={{ ...s.btn(), padding: '4px 6px', outline: viewMode === 'list' ? `2px solid ${t.accent}` : 'none' }}><List size={13} /></button>
-            <button onClick={() => setView('grid')} style={{ ...s.btn(), padding: '4px 6px', outline: viewMode === 'grid' ? `2px solid ${t.accent}` : 'none' }}><LayoutGrid size={13} /></button>
-          </div>
-
-          {/* Key error banner */}
-          {keyError && (
-            <div style={{ background: '#ef444420', color: '#ef4444', padding: '5px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: `1px solid ${t.border}` }}>
-              <Lock size={11} />
-              {keyError}
-            </div>
-          )}
-
-          {/* Upload error banner */}
-          {uploadError && (
-            <div style={{ background: '#ef444420', color: '#ef4444', padding: '5px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: `1px solid ${t.border}` }}>
-              <X size={11} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setUploadError(null)} />
-              {uploadError}
-            </div>
-          )}
-
-          {/* Upload progress */}
-          {uploading && (
-            <div style={{ background: t.accent + '20', color: t.accent, padding: '5px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: `1px solid ${t.border}` }}>
-              <Loader2 size={11} className="animate-spin" />
-              {uploadStatus === 'encrypting' ? `Encrypting ${uploadName}…` : `Uploading ${uploadName}…`}
-            </div>
-          )}
-
-          {/* Content + drawer */}
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-            {/* File/folder list */}
-            <div
-              style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '10px' : '0' }}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => {
-                e.preventDefault();
-                if (e.dataTransfer.files.length && section === 'browse') handleUpload(e.dataTransfer.files);
-              }}
-            >
-              {loading ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '120px', color: t.muted }}>
-                  <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+        ) : (
+          /* ── List view: beautiful cards ── */
+          <div>
+            {/* Folders */}
+            {currentFolders.map(folder => (
+              <div key={folder.id}
+                draggable onDragStart={() => onDragStart('folder', folder.id)}
+                onDragOver={e => onDragOver(e, folder.id)} onDrop={e => onDrop(e, folder.id, 'folder')}
+                onMouseEnter={() => setHoveredId(folder.id)} onMouseLeave={() => setHoveredId(null)}
+                onClick={() => setFolderStack(st => [...st, folder])}
+                onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: folder, isFolder: true }); }}
+                style={s.folderCard(hoveredId === folder.id)}
+              >
+                <div style={{ width: 42, height: 42, borderRadius: '11px', background: t.accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <FolderIcon size={22} style={{ color: t.folderColor }} />
                 </div>
-              ) : currentFolders.length === 0 && displayFiles.length === 0 && !creatingFolder ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '160px', color: t.muted, gap: '10px' }}>
-                  <FolderIcon size={36} style={{ opacity: 0.3, color: t.folderColor }} />
-                  <div style={{ fontSize: '12px' }}>
-                    {section === 'trash' ? 'Trash is empty' : 'Drop files here or click Upload'}
-                  </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {renamingId === folder.id ? (
+                    <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') submitRename(folder.id, true); if (e.key === 'Escape') setRenamingId(null); }}
+                      onBlur={() => submitRename(folder.id, true)} style={{ ...s.input, fontSize: '13px' }} onClick={e => e.stopPropagation()} />
+                  ) : (
+                    <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.text }}>{folder.name}</div>
+                  )}
+                  <div style={{ fontSize: '11px', color: t.muted, marginTop: '2px' }}>{formatDate(folder.createdAt)}</div>
                 </div>
-              ) : viewMode === 'list' ? (
-                <div>
-                  {/* Column header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 110px 24px 24px', gap: '6px', padding: '4px 8px', borderBottom: `1px solid ${t.border}`, fontSize: '10px', color: t.muted, fontWeight: 600, letterSpacing: '0.03em', position: 'sticky', top: 0, background: t.surface }}>
-                    <span>NAME</span><span>SIZE</span><span>UPLOADED</span><span></span><span></span>
-                  </div>
+                <button onClick={e => { e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, item: folder, isFolder: true }); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, padding: '4px' }}>
+                  <MoreHorizontal size={16} />
+                </button>
+                <ChevronRight size={16} style={{ color: t.muted, flexShrink: 0 }} />
+              </div>
+            ))}
 
-                  {/* New folder row */}
-                  {creatingFolder && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 110px 24px 24px', gap: '6px', padding: '5px 8px', alignItems: 'center', borderBottom: `1px solid ${t.border}` }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <FolderIcon size={16} style={{ color: t.folderColor }} />
-                        <input
-                          autoFocus
-                          value={newFolderName}
-                          onChange={e => setNewFolderName(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') setCreatingFolder(false); }}
-                          onBlur={createFolder}
-                          placeholder="Folder name"
-                          style={{ ...s.input, width: '140px' }}
-                        />
-                      </div>
+            {/* Files (list view) */}
+            {displayFiles.map(file => (
+              <div key={file.id}
+                draggable onDragStart={() => onDragStart('file', file.id)}
+                onDragOver={e => onDragOver(e, file.id)} onDrop={e => onDrop(e, file.id, 'file')}
+                onMouseEnter={() => setHoveredId(file.id)} onMouseLeave={() => setHoveredId(null)}
+                onClick={() => { setSelected(file); setDrawerOpen(true); }}
+                onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: file, isFolder: false }); }}
+                style={s.fileCard(selected?.id === file.id)}
+              >
+                <div style={{ width: 42, height: 42, borderRadius: '11px', background: t.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
+                  <FileTypeIcon mime={file.mimeType} size={22} />
+                  {file.isEncrypted && (
+                    <div style={{ position: 'absolute', bottom: -3, right: -3, background: t.accent, borderRadius: '50%', padding: '2px', lineHeight: 0 }}>
+                      <Lock size={8} style={{ color: t.accentText }} />
                     </div>
                   )}
-
-                  {/* Folders */}
-                  {currentFolders.map(folder => (
-                    <div
-                      key={folder.id}
-                      draggable
-                      onDragStart={() => onDragStart('folder', folder.id)}
-                      onDragOver={e => onDragOver(e, folder.id)}
-                      onDrop={e => onDrop(e, folder.id, 'folder')}
-                      onMouseEnter={() => setHoveredId(folder.id)}
-                      onMouseLeave={() => setHoveredId(null)}
-                      onDoubleClick={() => setFolderStack(s => [...s, folder])}
-                      onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: folder, isFolder: true }); }}
-                      style={{ ...s.row(false, hoveredId === folder.id), display: 'grid', gridTemplateColumns: '1fr 80px 110px 24px 24px' }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                        <FolderIcon size={15} style={{ color: t.folderColor, flexShrink: 0 }} />
-                        {renamingId === folder.id ? (
-                          <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitRename(folder.id, true); if (e.key === 'Escape') setRenamingId(null); }} onBlur={() => submitRename(folder.id, true)} style={{ ...s.input, width: '120px' }} />
-                        ) : (
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</span>
-                        )}
-                      </div>
-                      <span style={{ color: t.muted, fontSize: '11px' }}>—</span>
-                      <span style={{ color: t.muted, fontSize: '11px' }}>{formatDate(folder.createdAt)}</span>
-                      <span />
-                      <ChevronRight size={13} style={{ color: t.muted }} />
-                    </div>
-                  ))}
-
-                  {/* Files */}
-                  {displayFiles.map(file => (
-                    <div
-                      key={file.id}
-                      draggable
-                      onDragStart={() => onDragStart('file', file.id)}
-                      onDragOver={e => onDragOver(e, file.id)}
-                      onDrop={e => onDrop(e, file.id, 'file')}
-                      onMouseEnter={() => setHoveredId(file.id)}
-                      onMouseLeave={() => setHoveredId(null)}
-                      onClick={() => { setSelected(file); setDrawerOpen(true); }}
-                      onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: file, isFolder: false }); }}
-                      style={{ ...s.row(selected?.id === file.id, hoveredId === file.id), display: 'grid', gridTemplateColumns: '1fr 80px 110px 24px 24px', cursor: 'pointer' }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                        <FileTypeIcon mime={file.mimeType} size={15} />
-                        {renamingId === file.id ? (
-                          <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitRename(file.id, false); if (e.key === 'Escape') setRenamingId(null); }} onBlur={() => submitRename(file.id, false)} style={{ ...s.input, width: '120px' }} />
-                        ) : (
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                        )}
-                        {file.isEncrypted && <Lock size={10} style={{ color: t.accent, flexShrink: 0 }} />}
-                        {file.isStarred && <Star size={10} style={{ color: '#f59e0b', flexShrink: 0 }} />}
-                      </div>
-                      <span style={{ color: t.muted, fontSize: '11px' }}>{formatBytes(file.size)}</span>
-                      <span style={{ color: t.muted, fontSize: '11px' }}>{formatDate(file.uploadedAt)}</span>
-                      <button onClick={e => { e.stopPropagation(); toggleStar(file); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: file.isStarred ? '#f59e0b' : t.muted }}>
-                        <Star size={12} />
-                      </button>
-                      <button onClick={e => { e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, item: file, isFolder: false }); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: t.muted }}>
-                        <MoreHorizontal size={12} />
-                      </button>
-                    </div>
-                  ))}
                 </div>
-              ) : (
-                /* Grid view */
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '8px' }}>
-                  {creatingFolder && (
-                    <div style={{ background: t.surface, border: `2px solid ${t.accent}`, borderRadius: '10px', padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                      <FolderIcon size={32} style={{ color: t.folderColor }} />
-                      <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') setCreatingFolder(false); }} onBlur={createFolder} placeholder="Name" style={{ ...s.input, width: '80px', textAlign: 'center', fontSize: '11px' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {renamingId === file.id ? (
+                    <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') submitRename(file.id, false); if (e.key === 'Escape') setRenamingId(null); }}
+                      onBlur={() => submitRename(file.id, false)} style={{ ...s.input, fontSize: '13px' }} onClick={e => e.stopPropagation()} />
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.text }}>{file.name}</div>
+                      {file.isStarred && <Star size={11} style={{ color: '#f59e0b', flexShrink: 0 }} fill="currentColor" />}
                     </div>
                   )}
-                  {currentFolders.map(folder => (
-                    <div
-                      key={folder.id}
-                      draggable
-                      onDragStart={() => onDragStart('folder', folder.id)}
-                      onDoubleClick={() => setFolderStack(s => [...s, folder])}
-                      onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: folder, isFolder: true }); }}
-                      onMouseEnter={() => setHoveredId(folder.id)}
-                      onMouseLeave={() => setHoveredId(null)}
-                      style={{ background: hoveredId === folder.id ? t.surface2 : t.surface, border: `1px solid ${t.border}`, borderRadius: '10px', padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'background 0.1s' }}
-                    >
-                      <FolderIcon size={32} style={{ color: t.folderColor }} />
-                      <span style={{ fontSize: '11px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{folder.name}</span>
-                    </div>
-                  ))}
-                  {displayFiles.map(file => (
-                    <div
-                      key={file.id}
-                      draggable
-                      onDragStart={() => onDragStart('file', file.id)}
-                      onClick={() => { setSelected(file); setDrawerOpen(true); }}
-                      onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, item: file, isFolder: false }); }}
-                      onMouseEnter={() => setHoveredId(file.id)}
-                      onMouseLeave={() => setHoveredId(null)}
-                      style={{ background: selected?.id === file.id ? t.rowSelected : hoveredId === file.id ? t.surface2 : t.surface, border: `1px solid ${selected?.id === file.id ? t.accent : t.border}`, borderRadius: '10px', padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'background 0.1s', position: 'relative' }}
-                    >
-                      <div style={{ width: '60px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.surface2, borderRadius: '6px' }}>
-                        <FileTypeIcon mime={file.mimeType} size={24} />
-                      </div>
-                      <span style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{file.name}</span>
-                      {file.isEncrypted && <Lock size={9} style={{ position: 'absolute', top: '6px', right: '6px', color: t.accent }} />}
-                    </div>
-                  ))}
+                  <div style={{ fontSize: '11px', color: t.muted, marginTop: '2px' }}>{formatBytes(file.size)} · {formatDate(file.uploadedAt)}</div>
                 </div>
-              )}
-            </div>
-
-            {/* Details drawer */}
-            {drawerOpen && selected && (
-              <DetailsDrawer
-                file={selected}
-                t={t}
-                onClose={() => { setDrawerOpen(false); setSelected(null); }}
-                onStar={() => toggleStar(selected)}
-                onDelete={() => { section === 'trash' ? hardDeleteFile(selected) : trashFile(selected); }}
-                onRestore={() => restoreFile(selected)}
-                onRename={() => { setRenamingId(selected.id); setRenameValue(selected.name); setDrawerOpen(false); }}
-                onDownload={() => triggerDownload(selected)}
-                onGetPreviewUrl={() => downloadOrPreview(selected, false)}
-                inTrash={section === 'trash'}
-                copied={copied}
-                onCopy={copyText}
-              />
-            )}
+                <button onClick={e => { e.stopPropagation(); toggleStar(file); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: file.isStarred ? '#f59e0b' : t.muted, padding: '6px', flexShrink: 0 }}>
+                  <Star size={14} />
+                </button>
+                <button onClick={e => { e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, item: file, isFolder: false }); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, padding: '6px', flexShrink: 0 }}>
+                  <MoreHorizontal size={15} />
+                </button>
+              </div>
+            ))}
           </div>
-
-          {/* Status bar */}
-          <div style={{ background: t.surface, borderTop: `1px solid ${t.border}`, padding: '3px 12px', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '10px', color: t.muted, flexShrink: 0 }}>
-            <span>{currentFolders.length} folder{currentFolders.length !== 1 ? 's' : ''}, {displayFiles.length} file{displayFiles.length !== 1 ? 's' : ''}</span>
-            <span>{formatBytes(displayFiles.reduce((a, f) => a + f.size, 0))}</span>
-            <span style={{ marginLeft: 'auto' }}>🔒 AES-256-GCM · Cloudflare R2</span>
-          </div>
-        </div>
+        )}
       </div>
+
+      {/* ── New folder FAB (browse only) ── */}
+      {section === 'browse' && (
+        <button
+          onClick={() => { setCreatingFolder(true); setNewFolderName(''); }}
+          style={{ position: 'absolute', bottom: 72, right: 16, width: 44, height: 44, borderRadius: '13px', background: t.surface, border: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', zIndex: 10 }}
+          title="New Folder"
+        >
+          <FolderPlus size={18} style={{ color: t.text }} />
+        </button>
+      )}
+
+      {/* ── Bottom tab bar ── */}
+      <div style={{ display: 'flex', borderTop: `1px solid ${t.border}`, background: t.surface, flexShrink: 0 }}>
+        {([
+          ['browse', FolderOpen, 'My Files'],
+          ['starred', Star, 'Starred'],
+          ['trash', Trash2, 'Trash'],
+        ] as const).map(([id, Icon, label]) => (
+          <button key={id}
+            onClick={() => { setSection(id as SectionId); setFolderStack([null]); }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px 0 8px', background: 'none', border: 'none', cursor: 'pointer', color: section === id ? t.accent : t.muted, gap: '3px' }}>
+            <Icon size={18} />
+            <span style={{ fontSize: '10px', fontWeight: section === id ? 700 : 400 }}>{label}</span>
+            {section === id && <div style={{ width: '18px', height: '2px', borderRadius: '9px', background: t.accent, marginTop: '1px' }} />}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Details bottom sheet ── */}
+      {drawerOpen && selected && (
+        <DetailsDrawer
+          file={selected}
+          t={t}
+          onClose={() => { setDrawerOpen(false); setSelected(null); }}
+          onStar={() => toggleStar(selected)}
+          onDelete={() => { section === 'trash' ? hardDeleteFile(selected) : trashFile(selected); }}
+          onRestore={() => restoreFile(selected)}
+          onRename={() => { setRenamingId(selected.id); setRenameValue(selected.name); setDrawerOpen(false); }}
+          onDownload={() => triggerDownload(selected)}
+          onGetPreviewUrl={() => downloadOrPreview(selected, false)}
+          inTrash={section === 'trash'}
+          copied={copied}
+          onCopy={copyText}
+        />
+      )}
 
       {/* Context menu */}
       {ctxMenu && (
@@ -996,126 +916,104 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
   const prevBlobRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Revoke previous blob URL to free memory when file changes
-    if (prevBlobRef.current) {
-      URL.revokeObjectURL(prevBlobRef.current);
-      prevBlobRef.current = null;
-    }
+    if (prevBlobRef.current) { URL.revokeObjectURL(prevBlobRef.current); prevBlobRef.current = null; }
     setPreviewUrl(null);
-
     if (!isMedia) return;
-
-    if (!file.isClientEncrypted) {
-      setPreviewUrl(file.url);
-      return;
-    }
-
+    if (!file.isClientEncrypted) { setPreviewUrl(file.url); return; }
     let cancelled = false;
     setPreviewLoading(true);
     onGetPreviewUrl().then(url => {
       if (cancelled) return;
       if (url?.startsWith('blob:')) prevBlobRef.current = url;
-      setPreviewUrl(url);
-      setPreviewLoading(false);
-    }).catch(() => {
-      if (!cancelled) setPreviewLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
+      setPreviewUrl(url); setPreviewLoading(false);
+    }).catch(() => { if (!cancelled) setPreviewLoading(false); });
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file.id, file.isClientEncrypted]);
 
-  const s = {
-    drawer: { width: '220px', flexShrink: 0, borderLeft: `1px solid ${t.border}`, background: t.surface, display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' },
-    label: { fontSize: '9px', color: t.muted, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '3px' },
-    code: { background: t.surface2, border: `1px solid ${t.border}`, borderRadius: '5px', padding: '4px 6px', fontSize: '9px', fontFamily: 'monospace', wordBreak: 'break-all' as const, color: t.text },
-  };
+  const rowStyle = { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', fontSize: '13px', color: t.text, background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' as const };
+  const labelStyle = { fontSize: '10px', color: t.muted, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, marginBottom: '4px' };
 
   return (
-    <div style={s.drawer}>
-      {/* Preview — decrypts client-encrypted files in-browser before display */}
-      <div style={{ height: '130px', background: t.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative', borderBottom: `1px solid ${t.border}` }}>
-        {previewLoading && <Loader2 size={20} className="animate-spin" style={{ color: t.muted }} />}
-        {!previewLoading && previewUrl && isImg && <img src={previewUrl} alt={file.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
-        {!previewLoading && previewUrl && isVideo && <video src={previewUrl} controls style={{ maxWidth: '100%', maxHeight: '100%' }} />}
-        {!previewLoading && previewUrl && isAudio && <audio src={previewUrl} controls style={{ width: '90%' }} />}
-        {!previewLoading && !previewUrl && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-            <FileTypeIcon mime={file.mimeType} size={36} />
-            <span style={{ fontSize: '10px', color: t.muted }}>{file.mimeType}</span>
-          </div>
-        )}
-        <button onClick={onClose} style={{ position: 'absolute', top: '6px', right: '6px', background: t.surface + 'cc', border: 'none', borderRadius: '50%', padding: '4px', cursor: 'pointer', color: t.text, display: 'flex' }}>
-          <X size={12} />
-        </button>
-      </div>
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
 
-      {/* Info */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px' }}>
-        <div style={{ fontWeight: 600, fontSize: '12px', marginBottom: '2px', wordBreak: 'break-word' }}>{file.name}</div>
-        <div style={{ fontSize: '10px', color: t.muted, marginBottom: '10px' }}>{formatBytes(file.size)}</div>
+      {/* Bottom sheet */}
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: t.surface, borderRadius: '20px 20px 0 0', zIndex: 50, maxHeight: '80%', display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div>
-            <div style={s.label}>Uploaded</div>
-            <div style={{ fontSize: '11px' }}>{new Date(file.uploadedAt).toLocaleString()}</div>
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: t.border }} />
+        </div>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '6px 16px 12px', gap: '12px' }}>
+          <div style={{ width: 48, height: 48, borderRadius: '13px', background: t.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {isMedia && previewUrl && isImg ? (
+              <img src={previewUrl} alt={file.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '13px' }} />
+            ) : previewLoading ? (
+              <Loader2 size={20} className="animate-spin" style={{ color: t.muted }} />
+            ) : (
+              <FileTypeIcon mime={file.mimeType} size={24} />
+            )}
           </div>
-          <div>
-            <div style={s.label}>Encryption</div>
-            <div style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {file.isEncrypted ? (
-                <><Lock size={11} style={{ color: t.accent }} /> AES-256-GCM · Cloudflare R2</>
-              ) : 'Not encrypted'}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.text }}>{file.name}</div>
+            <div style={{ fontSize: '12px', color: t.muted, marginTop: '2px' }}>
+              {formatBytes(file.size)} · {formatDate(file.uploadedAt)}
+              {file.isEncrypted && <span style={{ marginLeft: '6px', color: t.accent }}>🔒 Encrypted</span>}
             </div>
           </div>
-          <div>
-            <div style={s.label}>Storage Key</div>
-            <div style={{ ...s.code, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.cid}</span>
-              <button onClick={() => onCopy(file.cid, 'cid')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, flexShrink: 0 }}>
-                {copied === 'cid' ? <CheckCheck size={11} style={{ color: '#22c55e' }} /> : <Copy size={11} />}
+          <button onClick={onClose} style={{ background: t.surface2, border: 'none', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: t.text, flexShrink: 0 }}>
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Media preview */}
+        {isMedia && previewUrl && (isVideo || isAudio) && (
+          <div style={{ padding: '0 16px 10px' }}>
+            {isVideo && <video src={previewUrl} controls style={{ width: '100%', borderRadius: '10px', background: t.surface2 }} />}
+            {isAudio && <audio src={previewUrl} controls style={{ width: '100%' }} />}
+          </div>
+        )}
+
+        <div style={{ height: 1, background: t.border }} />
+
+        {/* Actions */}
+        <div style={{ overflowY: 'auto' }}>
+          {inTrash ? (
+            <>
+              <button onClick={onDownload} style={rowStyle}><Download size={16} style={{ color: t.muted }} /> Download</button>
+              <button onClick={onRestore} style={rowStyle}><RotateCcw size={16} style={{ color: t.accent }} /> Restore</button>
+              <button onClick={onDelete} style={{ ...rowStyle, color: '#ef4444' }}><Trash2 size={16} /> Delete Forever</button>
+            </>
+          ) : (
+            <>
+              <button onClick={onDownload} style={rowStyle}><Download size={16} style={{ color: t.accent }} /> Download</button>
+              <button onClick={onStar} style={rowStyle}><Star size={16} style={{ color: file.isStarred ? '#f59e0b' : t.muted }} /> {file.isStarred ? 'Unstar' : 'Star'}</button>
+              <button onClick={onRename} style={rowStyle}><Edit2 size={16} style={{ color: t.muted }} /> Rename</button>
+              <button onClick={onDelete} style={{ ...rowStyle, color: '#ef4444' }}><Trash2 size={16} /> Move to Trash</button>
+            </>
+          )}
+
+          <div style={{ height: 1, background: t.border, margin: '4px 0' }} />
+
+          {/* Storage info */}
+          <div style={{ padding: '10px 16px 6px' }}>
+            <div style={labelStyle}>Storage Key</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: t.surface2, borderRadius: '8px', padding: '8px 10px' }}>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', fontFamily: 'monospace', color: t.muted }}>{file.cid}</span>
+              <button onClick={() => onCopy(file.cid, 'cid')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.muted, flexShrink: 0, padding: '2px' }}>
+                {copied === 'cid' ? <CheckCheck size={13} style={{ color: '#22c55e' }} /> : <Copy size={13} />}
               </button>
             </div>
           </div>
+
+          <div style={{ height: 'env(safe-area-inset-bottom, 10px)', minHeight: '10px' }} />
         </div>
       </div>
-
-      {/* Actions */}
-      <div style={{ padding: '8px 10px', borderTop: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
-        {inTrash ? (
-          <>
-            <button onClick={onDownload} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'none', color: t.text, fontSize: '11px', cursor: 'pointer' }}>
-              <Download size={12} /> Download
-            </button>
-            <button onClick={onRestore} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'none', color: t.text, fontSize: '11px', cursor: 'pointer' }}>
-              <RotateCcw size={12} /> Restore
-            </button>
-            <button onClick={onDelete} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: 'none', background: '#ef444420', color: '#ef4444', fontSize: '11px', cursor: 'pointer' }}>
-              <Trash2 size={12} /> Delete Forever
-            </button>
-          </>
-        ) : (
-          <>
-            <button onClick={onDownload} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', background: t.accent, color: t.accentText, fontSize: '11px', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
-              <Download size={12} /> Download
-            </button>
-            <button onClick={onStar} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'none', color: file.isStarred ? '#f59e0b' : t.text, fontSize: '11px', cursor: 'pointer' }}>
-              <Star size={12} /> {file.isStarred ? 'Unstar' : 'Star'}
-            </button>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <button onClick={onRename} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: `1px solid ${t.border}`, background: 'none', color: t.text, fontSize: '11px', cursor: 'pointer' }}>
-                <Edit2 size={11} /> Rename
-              </button>
-              <button onClick={onDelete} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '5px', borderRadius: '6px', border: 'none', background: '#ef444420', color: '#ef4444', fontSize: '11px', cursor: 'pointer' }}>
-                <Trash2 size={11} /> Trash
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    </>
   );
 }
 

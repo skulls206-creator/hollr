@@ -1,6 +1,6 @@
 /**
  * BallpointPanel — account-backed rich text editor (Tiptap + DB storage)
- * Layout: collapsible sidebar note list | editor with tab bar + formatting toolbar
+ * Mobile-first: full-screen list → full-screen editor navigation
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -16,15 +16,24 @@ import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import {
-  Bold, Italic, Underline as UnderlineIcon, Plus, Minus, Link2, ImageIcon,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered,
-  CheckSquare, Undo2, Redo2, Search, ChevronLeft, ChevronRight, X, Pin,
-  Archive, Trash2, RotateCcw, PanelLeft, Cloud,
+  Bold, Italic, Underline as UnderlineIcon, Plus, Link2,
+  AlignLeft, AlignCenter, AlignRight, List, ListOrdered,
+  CheckSquare, Undo2, Redo2, Search, ChevronLeft, X, Pin,
+  Archive, Trash2, RotateCcw, Cloud, ChevronDown, MoreVertical,
+  FileText, Star, Clock,
 } from 'lucide-react';
 import type { NativePanelProps } from '@/lib/khurk-apps';
 import { useAuth } from '@workspace/replit-auth-web';
 
 const API = import.meta.env.BASE_URL;
+
+const ACCENT = '#7c3aed';
+const ACCENT2 = '#a855f7';
+const BG = 'var(--background)';
+const SURFACE = 'var(--surface-1, #18181b)';
+const BORDER = 'var(--border)';
+const FG = 'var(--foreground)';
+const MUTED = 'var(--muted-foreground)';
 
 interface BpNote {
   id: string;
@@ -39,6 +48,7 @@ interface BpNote {
 }
 
 type Section = 'all' | 'pinned' | 'archived' | 'trash';
+type View = 'list' | 'editor';
 
 interface OpenTab { noteId: string }
 
@@ -53,8 +63,12 @@ const FONT_FAMILY_MAP: Record<string, string> = {
 function formatDate(iso: string) {
   const d = new Date(iso);
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const diff = now.getTime() - d.getTime();
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (diff < 7 * 86400000) {
+    return d.toLocaleDateString([], { weekday: 'short' });
   }
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
@@ -65,6 +79,21 @@ function getPlainText(html: string) {
   return tmp.textContent ?? '';
 }
 
+const NOTE_COLORS = [
+  'linear-gradient(135deg,#7c3aed,#a855f7)',
+  'linear-gradient(135deg,#2563eb,#7c3aed)',
+  'linear-gradient(135deg,#0891b2,#2563eb)',
+  'linear-gradient(135deg,#059669,#0891b2)',
+  'linear-gradient(135deg,#d97706,#dc2626)',
+  'linear-gradient(135deg,#dc2626,#7c3aed)',
+];
+
+function noteColor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
+  return NOTE_COLORS[Math.abs(h) % NOTE_COLORS.length];
+}
+
 export function BallpointPanel({ storagePrefix }: NativePanelProps) {
   const { user } = useAuth();
   const [notes, setNotes] = useState<BpNote[]>([]);
@@ -73,21 +102,17 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
   const [search, setSearch] = useState('');
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [view, setView] = useState<View>('list');
   const [showSearch, setShowSearch] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [fontSize, setFontSize] = useState(14);
   const [fontFamily, setFontFamily] = useState('Sans-serif');
+  const [showNoteMenu, setShowNoteMenu] = useState(false);
+  const [showFontMenu, setShowFontMenu] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const notesRef = useRef<BpNote[]>([]);
+  const noteMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { notesRef.current = notes; }, [notes]);
-
-  const lsKey = `${storagePrefix}:sidebar`;
-  useEffect(() => {
-    const stored = localStorage.getItem(lsKey);
-    if (stored !== null) setSidebarOpen(stored === '1');
-  }, [lsKey]);
 
   const activeNote = notes.find(n => n.id === activeTab) ?? null;
 
@@ -126,6 +151,7 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     setTabs(prev => [...prev, { noteId: note.id }]);
     setActiveTab(note.id);
     setSection('all');
+    setView('editor');
   }, []);
 
   const patchNote = useCallback(async (id: string, patch: Partial<BpNote>) => {
@@ -145,7 +171,7 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     await fetch(`${API}api/ballpoint/notes/${id}`, { method: 'DELETE', credentials: 'include' });
     setNotes(prev => prev.filter(n => n.id !== id));
     setTabs(prev => prev.filter(t => t.noteId !== id));
-    if (activeTab === id) setActiveTab(null);
+    if (activeTab === id) { setActiveTab(null); setView('list'); }
   }, [activeTab]);
 
   /* ── Auto-save ── */
@@ -189,7 +215,6 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     },
   });
 
-  /* Sync editor when active note changes */
   const lastLoadedId = useRef<string | null>(null);
   useEffect(() => {
     if (!editor) return;
@@ -202,20 +227,12 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     }
   }, [editor, activeNote]);
 
-  /* Sync font family to editor */
   const prevFamily = useRef('');
   useEffect(() => {
     if (!editor || prevFamily.current === fontFamily) return;
     prevFamily.current = fontFamily;
     editor.chain().setFontFamily(FONT_FAMILY_MAP[fontFamily]).run();
   }, [fontFamily, editor]);
-
-  /* ── Toolbar helpers ── */
-  const setFontSizeNum = (size: number) => {
-    const clamped = Math.min(Math.max(size, 8), 96);
-    setFontSize(clamped);
-    editor?.chain().focus().setMark('textStyle', { fontSize: `${clamped}px` }).run();
-  };
 
   const setLink = () => {
     const prev = editor?.getAttributes('link').href ?? '';
@@ -225,26 +242,15 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     editor?.chain().focus().setLink({ href: url }).run();
   };
 
-  const addImage = () => {
-    const url = window.prompt('Image URL');
-    if (url) editor?.chain().focus().setImage({ src: url }).run();
-  };
-
-  /* ── Heading type selector ── */
-  const headingType = (() => {
-    if (!editor) return 'Paragraph';
-    for (let i = 1; i <= 6; i++) {
-      if (editor.isActive('heading', { level: i })) return `Heading ${i}`;
-    }
-    return 'Paragraph';
-  })();
-
-  const setHeading = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    if (val === 'Paragraph') { editor?.chain().focus().setParagraph().run(); return; }
-    const lvl = parseInt(val.split(' ')[1]) as 1 | 2 | 3 | 4 | 5 | 6;
-    editor?.chain().focus().toggleHeading({ level: lvl }).run();
-  };
+  /* ── Close note menu on outside click ── */
+  useEffect(() => {
+    if (!showNoteMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (!noteMenuRef.current?.contains(e.target as Node)) setShowNoteMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showNoteMenu]);
 
   /* ── Filtered note list ── */
   const visibleNotes = notes.filter(n => {
@@ -265,342 +271,473 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
       setTabs(prev => [...prev, { noteId: note.id }]);
     }
     setActiveTab(note.id);
+    setView('editor');
   };
 
-  const closeTab = (noteId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setTabs(prev => {
-      const next = prev.filter(t => t.noteId !== noteId);
-      if (activeTab === noteId) {
-        const idx = prev.findIndex(t => t.noteId === noteId);
-        const fallback = next[idx] ?? next[idx - 1] ?? null;
-        setActiveTab(fallback?.noteId ?? null);
-      }
-      return next;
-    });
-  };
-
-  const tabBarRef = useRef<HTMLDivElement>(null);
-  const scrollTabs = (dir: 'left' | 'right') => {
-    tabBarRef.current?.scrollBy({ left: dir === 'left' ? -120 : 120, behavior: 'smooth' });
+  const goBack = () => {
+    setView('list');
+    setShowNoteMenu(false);
   };
 
   if (!user) {
     return (
-      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-        Sign in to use Ballpoint
+      <div className="h-full flex items-center justify-center" style={{ background: BG, color: MUTED }}>
+        <div className="text-center">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})` }}>
+            <FileText size={26} color="white" />
+          </div>
+          <p className="text-sm font-semibold" style={{ color: FG }}>Sign in to use Ballpoint</p>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="h-full flex flex-col bg-background text-foreground overflow-hidden select-none font-sans">
+  /* ══════════════════════════════════════════════
+     EDITOR VIEW
+  ══════════════════════════════════════════════ */
+  if (view === 'editor') {
+    return (
+      <div className="h-full flex flex-col overflow-hidden select-none" style={{ background: BG, color: FG }}>
 
-      {/* ── Top bar ── */}
-      <div className="flex items-center gap-1 border-b border-border px-2 h-10 shrink-0 bg-background/90 backdrop-blur">
-        <button
-          onClick={createNote}
-          className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-          title="New note"
-        ><Plus size={15} /></button>
-        <button onClick={() => scrollTabs('left')} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
-          <ChevronLeft size={14} />
-        </button>
+        {/* Editor header */}
+        <div
+          className="flex items-center gap-2 px-3 shrink-0"
+          style={{ height: 52, background: SURFACE, borderBottom: `1px solid ${BORDER}` }}
+        >
+          <button
+            onClick={goBack}
+            className="p-2 rounded-xl transition-colors hover:bg-white/10 active:scale-95"
+            style={{ color: ACCENT2 }}
+          >
+            <ChevronLeft size={20} />
+          </button>
 
-        {/* Tabs */}
-        <div ref={tabBarRef} className="flex-1 flex items-center gap-0.5 overflow-x-auto scrollbar-none">
-          {tabs.map(t => {
-            const note = notes.find(n => n.id === t.noteId);
-            const isActive = t.noteId === activeTab;
-            return (
-              <button
-                key={t.noteId}
-                onClick={() => setActiveTab(t.noteId)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs whitespace-nowrap max-w-[160px] transition-colors shrink-0 ${
-                  isActive ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent/50'
-                }`}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate" style={{ color: FG }}>
+              {activeNote?.title || 'Untitled'}
+            </p>
+            <p className="text-[10px]" style={{ color: MUTED }}>
+              {activeNote ? `Edited ${formatDate(activeNote.updatedAt)}` : ''}
+              {saving && <span style={{ color: ACCENT2 }}> · Saving…</span>}
+            </p>
+          </div>
+
+          {/* Note actions */}
+          <div className="flex items-center gap-0.5 relative" ref={noteMenuRef}>
+            {saving && <Cloud size={13} style={{ color: ACCENT2 }} className="animate-pulse mr-1" />}
+            <button
+              onClick={() => editor?.chain().focus().undo().run()}
+              className="p-2 rounded-xl hover:bg-white/10 transition-colors"
+              style={{ color: MUTED }}
+            ><Undo2 size={15} /></button>
+            <button
+              onClick={() => editor?.chain().focus().redo().run()}
+              className="p-2 rounded-xl hover:bg-white/10 transition-colors"
+              style={{ color: MUTED }}
+            ><Redo2 size={15} /></button>
+            <button
+              onClick={() => setShowNoteMenu(v => !v)}
+              className="p-2 rounded-xl hover:bg-white/10 transition-colors"
+              style={{ color: MUTED }}
+            ><MoreVertical size={15} /></button>
+
+            {showNoteMenu && activeNote && (
+              <div
+                className="absolute right-0 top-10 z-50 rounded-2xl overflow-hidden shadow-2xl border"
+                style={{ background: SURFACE, borderColor: BORDER, minWidth: 180 }}
               >
-                <span className="truncate">{note?.title || 'Untitled'}</span>
-                <X size={11} className="shrink-0 opacity-60 hover:opacity-100" onClick={e => closeTab(t.noteId, e)} />
-              </button>
-            );
-          })}
+                <button
+                  onClick={() => { patchNote(activeNote.id, { isPinned: !activeNote.isPinned }); setShowNoteMenu(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/5 transition-colors"
+                  style={{ color: FG }}
+                >
+                  <Pin size={14} style={{ color: activeNote.isPinned ? ACCENT2 : MUTED }} />
+                  {activeNote.isPinned ? 'Unpin note' : 'Pin note'}
+                </button>
+                <button
+                  onClick={() => { patchNote(activeNote.id, { isArchived: !activeNote.isArchived }); setShowNoteMenu(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/5 transition-colors"
+                  style={{ color: FG }}
+                >
+                  <Archive size={14} style={{ color: MUTED }} />
+                  {activeNote.isArchived ? 'Unarchive' : 'Archive'}
+                </button>
+                <div style={{ height: 1, background: BORDER }} />
+                {activeNote.isTrashed ? (
+                  <>
+                    <button
+                      onClick={() => { patchNote(activeNote.id, { isTrashed: false }); setShowNoteMenu(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/5 transition-colors"
+                      style={{ color: FG }}
+                    >
+                      <RotateCcw size={14} style={{ color: MUTED }} /> Restore
+                    </button>
+                    <button
+                      onClick={() => { deleteNote(activeNote.id); setShowNoteMenu(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-red-500/10 transition-colors"
+                      style={{ color: '#ef4444' }}
+                    >
+                      <Trash2 size={14} /> Delete forever
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => { patchNote(activeNote.id, { isTrashed: true }); goBack(); setShowNoteMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-red-500/10 transition-colors"
+                    style={{ color: '#ef4444' }}
+                  >
+                    <Trash2 size={14} /> Move to Trash
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        <button onClick={() => scrollTabs('right')} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
-          <ChevronRight size={14} />
-        </button>
+        {/* Editor content */}
+        <div className="flex-1 overflow-y-auto" style={{ background: BG }}>
+          <EditorContent
+            editor={editor}
+            className="ballpoint-editor min-h-full px-5 py-5"
+          />
+        </div>
 
-        <div className="flex items-center gap-0.5 ml-1 shrink-0">
-          {saving && <Cloud size={13} className="text-muted-foreground animate-pulse" />}
-          <button onClick={() => editor?.chain().focus().undo().run()} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground" title="Undo"><Undo2 size={14} /></button>
-          <button onClick={() => editor?.chain().focus().redo().run()} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground" title="Redo"><Redo2 size={14} /></button>
-          <button
-            onClick={() => setSidebarOpen(v => { localStorage.setItem(lsKey, !v ? '1' : '0'); return !v; })}
-            className={`p-1 rounded hover:bg-accent transition-colors ${sidebarOpen ? 'text-foreground' : 'text-muted-foreground'}`}
-            title="Toggle sidebar"
-          ><PanelLeft size={14} /></button>
-          <button
-            onClick={() => setShowSearch(v => !v)}
-            className={`p-1 rounded hover:bg-accent transition-colors ${showSearch ? 'text-foreground' : 'text-muted-foreground'}`}
-            title="Search"
-          ><Search size={14} /></button>
+        {/* Formatting toolbar — bottom */}
+        <div
+          className="shrink-0 flex items-center gap-0.5 px-2 overflow-x-auto scrollbar-none"
+          style={{ height: 48, background: SURFACE, borderTop: `1px solid ${BORDER}` }}
+        >
+          <FmtBtn active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold">
+            <Bold size={14} />
+          </FmtBtn>
+          <FmtBtn active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} title="Italic">
+            <Italic size={14} />
+          </FmtBtn>
+          <FmtBtn active={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleUnderline().run()} title="Underline">
+            <UnderlineIcon size={14} />
+          </FmtBtn>
+
+          <div className="w-px h-5 shrink-0 mx-1" style={{ background: BORDER }} />
+
+          <FmtBtn active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="List">
+            <List size={14} />
+          </FmtBtn>
+          <FmtBtn active={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="Numbered">
+            <ListOrdered size={14} />
+          </FmtBtn>
+          <FmtBtn active={editor?.isActive('taskList')} onClick={() => editor?.chain().focus().toggleTaskList().run()} title="Tasks">
+            <CheckSquare size={14} />
+          </FmtBtn>
+
+          <div className="w-px h-5 shrink-0 mx-1" style={{ background: BORDER }} />
+
+          <FmtBtn active={editor?.isActive({ textAlign: 'left' })} onClick={() => editor?.chain().focus().setTextAlign('left').run()} title="Left">
+            <AlignLeft size={14} />
+          </FmtBtn>
+          <FmtBtn active={editor?.isActive({ textAlign: 'center' })} onClick={() => editor?.chain().focus().setTextAlign('center').run()} title="Center">
+            <AlignCenter size={14} />
+          </FmtBtn>
+          <FmtBtn active={editor?.isActive({ textAlign: 'right' })} onClick={() => editor?.chain().focus().setTextAlign('right').run()} title="Right">
+            <AlignRight size={14} />
+          </FmtBtn>
+
+          <div className="w-px h-5 shrink-0 mx-1" style={{ background: BORDER }} />
+
+          <FmtBtn active={editor?.isActive('link')} onClick={setLink} title="Link">
+            <Link2 size={14} />
+          </FmtBtn>
+
+          <div className="w-px h-5 shrink-0 mx-1" style={{ background: BORDER }} />
+
+          {/* Font family picker */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setShowFontMenu(v => !v)}
+              className="flex items-center gap-1 px-2 h-8 rounded-lg text-xs transition-colors hover:bg-white/10"
+              style={{ color: MUTED }}
+            >
+              {fontFamily.slice(0, 5)} <ChevronDown size={11} />
+            </button>
+            {showFontMenu && (
+              <div
+                className="absolute bottom-10 left-0 rounded-xl overflow-hidden shadow-2xl border z-50"
+                style={{ background: SURFACE, borderColor: BORDER, minWidth: 130 }}
+              >
+                {FONTS.map(f => (
+                  <button
+                    key={f}
+                    onClick={() => { setFontFamily(f); setShowFontMenu(false); }}
+                    className="w-full px-4 py-2.5 text-left text-xs hover:bg-white/5 transition-colors"
+                    style={{ color: fontFamily === f ? ACCENT2 : FG }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+    );
+  }
 
-      {/* ── Formatting toolbar ── */}
-      {activeNote && (
-        <div className="flex items-center gap-0.5 border-b border-border px-2 h-9 shrink-0 bg-background/70 overflow-x-auto scrollbar-none">
-          <ToolBtn active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold">
-            <Bold size={13} />
-          </ToolBtn>
-          <ToolBtn active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} title="Italic">
-            <Italic size={13} />
-          </ToolBtn>
-          <ToolBtn active={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleUnderline().run()} title="Underline">
-            <UnderlineIcon size={13} />
-          </ToolBtn>
+  /* ══════════════════════════════════════════════
+     LIST VIEW
+  ══════════════════════════════════════════════ */
+  return (
+    <div className="h-full flex flex-col overflow-hidden select-none" style={{ background: BG, color: FG }}>
 
-          <div className="w-px h-5 bg-border mx-1 shrink-0" />
+      {/* Top header */}
+      <div
+        className="flex items-center gap-2 px-4 shrink-0"
+        style={{ height: 52, background: SURFACE, borderBottom: `1px solid ${BORDER}` }}
+      >
+        <h1 className="text-base font-bold flex-1 tracking-tight" style={{ color: FG }}>
+          {section === 'all' ? 'All Notes' : section === 'pinned' ? 'Pinned' : section === 'archived' ? 'Archived' : 'Trash'}
+        </h1>
+        <button
+          onClick={() => setShowSearch(v => !v)}
+          className="p-2 rounded-xl hover:bg-white/10 transition-colors"
+          style={{ color: showSearch ? ACCENT2 : MUTED }}
+        ><Search size={17} /></button>
+        <button
+          onClick={createNote}
+          className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg transition-all hover:brightness-110 active:scale-95"
+          style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})` }}
+        ><Plus size={18} color="white" /></button>
+      </div>
 
-          <button onMouseDown={e => { e.preventDefault(); setFontSizeNum(fontSize - 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Minus size={11} /></button>
-          <span className="text-xs w-8 text-center text-muted-foreground">{fontSize}px</span>
-          <button onMouseDown={e => { e.preventDefault(); setFontSizeNum(fontSize + 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Plus size={11} /></button>
-
-          <div className="w-px h-5 bg-border mx-1 shrink-0" />
-
-          <select
-            value={headingType}
-            onChange={setHeading}
-            className="text-xs h-6 rounded border border-border bg-background text-foreground px-1 cursor-pointer focus:outline-none"
-          >
-            <option>Paragraph</option>
-            {[1,2,3,4,5,6].map(i => <option key={i} value={`Heading ${i}`}>Heading {i}</option>)}
-          </select>
-
-          <div className="w-px h-5 bg-border mx-1 shrink-0" />
-
-          <select
-            value={fontFamily}
-            onChange={e => setFontFamily(e.target.value)}
-            className="text-xs h-6 rounded border border-border bg-background text-foreground px-1 cursor-pointer focus:outline-none"
-          >
-            {FONTS.map(f => <option key={f}>{f}</option>)}
-          </select>
-
-          <div className="w-px h-5 bg-border mx-1 shrink-0" />
-
-          <ToolBtn active={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="Numbered list">
-            <ListOrdered size={13} />
-          </ToolBtn>
-          <ToolBtn active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="Bullet list">
-            <List size={13} />
-          </ToolBtn>
-          <ToolBtn active={editor?.isActive('taskList')} onClick={() => editor?.chain().focus().toggleTaskList().run()} title="Task list">
-            <CheckSquare size={13} />
-          </ToolBtn>
-
-          <div className="w-px h-5 bg-border mx-1 shrink-0" />
-
-          <ToolBtn active={editor?.isActive('link')} onClick={setLink} title="Link">
-            <Link2 size={13} />
-          </ToolBtn>
-          <ToolBtn onClick={addImage} title="Image">
-            <ImageIcon size={13} />
-          </ToolBtn>
-
-          <div className="w-px h-5 bg-border mx-1 shrink-0" />
-
-          <ToolBtn active={editor?.isActive({ textAlign: 'left' })} onClick={() => editor?.chain().focus().setTextAlign('left').run()} title="Left"><AlignLeft size={13} /></ToolBtn>
-          <ToolBtn active={editor?.isActive({ textAlign: 'center' })} onClick={() => editor?.chain().focus().setTextAlign('center').run()} title="Center"><AlignCenter size={13} /></ToolBtn>
-          <ToolBtn active={editor?.isActive({ textAlign: 'right' })} onClick={() => editor?.chain().focus().setTextAlign('right').run()} title="Right"><AlignRight size={13} /></ToolBtn>
-          <ToolBtn active={editor?.isActive({ textAlign: 'justify' })} onClick={() => editor?.chain().focus().setTextAlign('justify').run()} title="Justify"><AlignJustify size={13} /></ToolBtn>
+      {/* Search bar (expanded) */}
+      {showSearch && (
+        <div className="px-4 py-2 shrink-0" style={{ borderBottom: `1px solid ${BORDER}`, background: SURFACE }}>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: MUTED }} />
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search notes…"
+              className="w-full rounded-xl pl-9 pr-8 py-2 text-sm outline-none border"
+              style={{ background: 'var(--background)', color: FG, borderColor: BORDER }}
+            />
+            {search && (
+              <button className="absolute right-3 top-1/2 -translate-y-1/2" onClick={() => setSearch('')}>
+                <X size={13} style={{ color: MUTED }} />
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ── Body ── */}
-      <div className="flex-1 flex overflow-hidden">
-
-        {/* Sidebar */}
-        {sidebarOpen && (
-          <div className="w-56 shrink-0 border-r border-border flex flex-col overflow-hidden bg-background">
-            {/* Section nav */}
-            <div className="flex flex-col gap-0.5 p-2 border-b border-border shrink-0">
-              {(['all', 'pinned', 'archived', 'trash'] as Section[]).map(s => (
-                <button
-                  key={s}
-                  onClick={() => setSection(s)}
-                  className={`flex items-center gap-2 px-2 py-1 rounded text-xs capitalize transition-colors ${section === s ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent/50'}`}
-                >
-                  {s === 'pinned' && <Pin size={11} />}
-                  {s === 'archived' && <Archive size={11} />}
-                  {s === 'trash' && <Trash2 size={11} />}
-                  {s === 'all' && <span className="w-[11px]" />}
-                  {s === 'all' ? 'All Notes' : s.charAt(0).toUpperCase() + s.slice(1)}
-                </button>
-              ))}
-            </div>
-
-            {/* Search */}
-            {showSearch && (
-              <div className="px-2 py-1.5 border-b border-border shrink-0">
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search notes…"
-                  className="w-full text-xs px-2 py-1 rounded bg-accent/50 border border-border focus:outline-none placeholder:text-muted-foreground"
-                />
-              </div>
-            )}
-
-            {/* Note list */}
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="p-4 text-xs text-muted-foreground">Loading…</div>
-              ) : visibleNotes.length === 0 ? (
-                <div className="p-4 text-xs text-muted-foreground">No notes</div>
-              ) : (
-                visibleNotes.map(note => (
-                  <NoteListItem
-                    key={note.id}
-                    note={note}
-                    isActive={activeTab === note.id}
-                    onClick={() => openNote(note)}
-                    onPin={() => patchNote(note.id, { isPinned: !note.isPinned })}
-                    onArchive={() => patchNote(note.id, { isArchived: !note.isArchived })}
-                    onTrash={() => patchNote(note.id, { isTrashed: !note.isTrashed })}
-                    onRestore={() => patchNote(note.id, { isTrashed: false })}
-                    onDelete={() => deleteNote(note.id)}
-                    inTrash={section === 'trash'}
-                  />
-                ))
-              )}
+      {/* Note list */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2.5">
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center py-16" style={{ color: MUTED }}>
+            <div className="text-center">
+              <div className="w-10 h-10 rounded-2xl mx-auto mb-3 animate-pulse" style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})` }} />
+              <p className="text-xs">Loading notes…</p>
             </div>
           </div>
-        )}
-
-        {/* Editor pane */}
-        <div className="flex-1 overflow-hidden flex flex-col">
-          {activeNote ? (
-            <>
-              <div className="flex-1 overflow-y-auto">
-                <EditorContent
-                  editor={editor}
-                  className="ballpoint-editor h-full max-w-3xl mx-auto px-8 py-8"
-                />
-              </div>
-              <div className="h-6 border-t border-border flex items-center px-4 gap-4 text-[10px] text-muted-foreground shrink-0">
-                <span>{editor?.getText().length ?? 0} chars</span>
-                <span>Saved {formatDate(activeNote.updatedAt)}</span>
-                {saving && <span className="text-primary animate-pulse">Saving…</span>}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-              <p className="text-sm">Select a note or create a new one</p>
+        ) : visibleNotes.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-16 gap-4" style={{ color: MUTED }}>
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center opacity-40"
+              style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})` }}
+            >
+              <FileText size={24} color="white" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium mb-1" style={{ color: FG }}>No notes here</p>
+              <p className="text-xs">
+                {section === 'all' ? 'Tap + to create your first note' :
+                  section === 'pinned' ? 'Pin a note to find it here' :
+                  section === 'archived' ? 'Archived notes appear here' :
+                  'Deleted notes appear here'}
+              </p>
+            </div>
+            {section === 'all' && (
               <button
                 onClick={createNote}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90 transition-opacity"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:brightness-110 active:scale-95"
+                style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`, color: 'white' }}
               >
-                <Plus size={14} /> New Note
+                <Plus size={15} /> New Note
               </button>
+            )}
+          </div>
+        ) : (
+          visibleNotes.map(note => (
+            <NoteCard
+              key={note.id}
+              note={note}
+              isActive={activeTab === note.id}
+              color={noteColor(note.id)}
+              onOpen={() => openNote(note)}
+              onPin={() => patchNote(note.id, { isPinned: !note.isPinned })}
+              onArchive={() => patchNote(note.id, { isArchived: !note.isArchived })}
+              onTrash={() => patchNote(note.id, { isTrashed: !note.isTrashed })}
+              onRestore={() => patchNote(note.id, { isTrashed: false })}
+              onDelete={() => deleteNote(note.id)}
+              inTrash={section === 'trash'}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Bottom tab bar */}
+      <div
+        className="flex shrink-0"
+        style={{ borderTop: `1px solid ${BORDER}`, background: SURFACE, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        {([
+          ['all', FileText, 'All'],
+          ['pinned', Pin, 'Pinned'],
+          ['archived', Archive, 'Archive'],
+          ['trash', Trash2, 'Trash'],
+        ] as const).map(([id, Icon, label]) => (
+          <button
+            key={id}
+            onClick={() => setSection(id)}
+            className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors"
+            style={{ color: section === id ? ACCENT2 : MUTED }}
+          >
+            <Icon size={18} />
+            <span className="text-[10px] font-medium">{label}</span>
+            {section === id && (
+              <div className="w-4 h-0.5 rounded-full mt-0.5" style={{ background: ACCENT2 }} />
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Note Card ── */
+function NoteCard({
+  note, isActive, color, onOpen, onPin, onArchive, onTrash, onRestore, onDelete, inTrash,
+}: {
+  note: BpNote; isActive: boolean; color: string;
+  onOpen: () => void; onPin: () => void; onArchive: () => void;
+  onTrash: () => void; onRestore: () => void; onDelete: () => void;
+  inTrash: boolean;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const preview = getPlainText(note.content).slice(0, 100);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden border cursor-pointer transition-all active:scale-[0.98]"
+      style={{
+        background: SURFACE,
+        borderColor: isActive ? ACCENT : BORDER,
+        boxShadow: isActive ? `0 0 0 1px ${ACCENT}40` : '0 1px 3px rgba(0,0,0,0.2)',
+      }}
+      onClick={onOpen}
+    >
+      {/* Color accent bar */}
+      <div className="h-1" style={{ background: color }} />
+
+      <div className="px-4 py-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-1">
+              {note.isPinned && <Star size={11} style={{ color: ACCENT2 }} fill="currentColor" className="shrink-0" />}
+              <p className="text-sm font-semibold truncate" style={{ color: FG }}>
+                {note.title || 'Untitled'}
+              </p>
             </div>
-          )}
+            <p className="text-xs leading-relaxed line-clamp-2" style={{ color: MUTED }}>
+              {preview || 'No content'}
+            </p>
+          </div>
+
+          {/* Context menu button */}
+          <div className="relative shrink-0" ref={menuRef}>
+            <button
+              onClick={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
+              className="p-1.5 rounded-xl hover:bg-white/10 transition-colors"
+              style={{ color: MUTED }}
+            >
+              <MoreVertical size={14} />
+            </button>
+
+            {menuOpen && (
+              <div
+                className="absolute right-0 top-8 z-50 rounded-2xl overflow-hidden shadow-2xl border"
+                style={{ background: SURFACE, borderColor: BORDER, minWidth: 170 }}
+                onClick={e => e.stopPropagation()}
+              >
+                {inTrash ? (
+                  <>
+                    <CtxItem onClick={() => { onRestore(); setMenuOpen(false); }} icon={<RotateCcw size={13} />}>Restore</CtxItem>
+                    <CtxItem onClick={() => { onDelete(); setMenuOpen(false); }} icon={<Trash2 size={13} />} danger>Delete Forever</CtxItem>
+                  </>
+                ) : (
+                  <>
+                    <CtxItem onClick={() => { onPin(); setMenuOpen(false); }} icon={<Pin size={13} />}>
+                      {note.isPinned ? 'Unpin' : 'Pin'}
+                    </CtxItem>
+                    <CtxItem onClick={() => { onArchive(); setMenuOpen(false); }} icon={<Archive size={13} />}>
+                      {note.isArchived ? 'Unarchive' : 'Archive'}
+                    </CtxItem>
+                    <div style={{ height: 1, background: BORDER }} />
+                    <CtxItem onClick={() => { onTrash(); setMenuOpen(false); }} icon={<Trash2 size={13} />} danger>Move to Trash</CtxItem>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 mt-2">
+          <Clock size={10} style={{ color: MUTED }} />
+          <span className="text-[10px]" style={{ color: MUTED }}>{formatDate(note.updatedAt)}</span>
         </div>
       </div>
     </div>
   );
 }
 
-/* ── Sub-components ── */
-
-function ToolBtn({
-  children,
-  active,
-  onClick,
-  title,
-}: {
-  children: React.ReactNode;
-  active?: boolean | null;
-  onClick?: () => void;
-  title?: string;
+/* ── Format Button ── */
+function FmtBtn({ children, active, onClick, title }: {
+  children: React.ReactNode; active?: boolean | null;
+  onClick?: () => void; title?: string;
 }) {
   return (
     <button
       onMouseDown={e => { e.preventDefault(); onClick?.(); }}
       title={title}
-      className={`p-1.5 rounded transition-colors ${active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}`}
+      className="p-2 rounded-xl transition-colors shrink-0"
+      style={{
+        color: active ? ACCENT2 : MUTED,
+        background: active ? `${ACCENT}22` : 'transparent',
+      }}
     >
       {children}
     </button>
   );
 }
 
-function NoteListItem({
-  note, isActive, onClick, onPin, onArchive, onTrash, onRestore, onDelete, inTrash,
-}: {
-  note: BpNote;
-  isActive: boolean;
-  onClick: () => void;
-  onPin: () => void;
-  onArchive: () => void;
-  onTrash: () => void;
-  onRestore: () => void;
-  onDelete: () => void;
-  inTrash: boolean;
+/* ── Context Menu Item ── */
+function CtxItem({ children, onClick, icon, danger }: {
+  children: React.ReactNode; onClick: () => void; icon?: React.ReactNode; danger?: boolean;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [menuOpen]);
-
-  return (
-    <div
-      onClick={onClick}
-      onContextMenu={e => { e.preventDefault(); setMenuOpen(true); }}
-      className={`relative group px-3 py-2.5 cursor-pointer border-b border-border/50 transition-colors ${isActive ? 'bg-accent' : 'hover:bg-accent/40'}`}
-    >
-      <div className="flex items-center justify-between gap-1">
-        <span className="text-xs font-medium truncate">{note.title || 'Untitled'}</span>
-        {note.isPinned && <Pin size={10} className="shrink-0 text-muted-foreground" />}
-      </div>
-      <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-        {getPlainText(note.content).slice(0, 60) || '—'}
-      </p>
-      <span className="text-[9px] text-muted-foreground/70 mt-0.5 block">{formatDate(note.updatedAt)}</span>
-
-      {menuOpen && (
-        <div ref={menuRef} className="absolute right-2 top-8 z-50 w-40 rounded-md border border-border bg-popover shadow-lg text-xs overflow-hidden">
-          {inTrash ? (
-            <>
-              <CtxItem onClick={() => { onRestore(); setMenuOpen(false); }} icon={<RotateCcw size={12} />}>Restore</CtxItem>
-              <CtxItem onClick={() => { onDelete(); setMenuOpen(false); }} icon={<Trash2 size={12} />} danger>Delete Forever</CtxItem>
-            </>
-          ) : (
-            <>
-              <CtxItem onClick={() => { onPin(); setMenuOpen(false); }} icon={<Pin size={12} />}>{note.isPinned ? 'Unpin' : 'Pin'}</CtxItem>
-              <CtxItem onClick={() => { onArchive(); setMenuOpen(false); }} icon={<Archive size={12} />}>{note.isArchived ? 'Unarchive' : 'Archive'}</CtxItem>
-              <CtxItem onClick={() => { onTrash(); setMenuOpen(false); }} icon={<Trash2 size={12} />} danger>Move to Trash</CtxItem>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CtxItem({ children, onClick, icon, danger }: { children: React.ReactNode; onClick: () => void; icon?: React.ReactNode; danger?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-1.5 hover:bg-accent text-left transition-colors ${danger ? 'text-destructive' : ''}`}
+      className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/5 transition-colors text-left"
+      style={{ color: danger ? '#ef4444' : FG }}
     >
       {icon}{children}
     </button>
