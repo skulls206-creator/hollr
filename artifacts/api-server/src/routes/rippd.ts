@@ -1,90 +1,86 @@
 import { Router } from 'express';
-import playdl from 'play-dl';
-import { ensurePlaydl } from '../lib/music-bot';
+import { spawn } from 'child_process';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import crypto from 'crypto';
 
 const router = Router();
 
-interface TrackInfo {
+const TEMP_DIR = join(tmpdir(), 'rippd-downloads');
+const FILE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+interface DownloadEntry {
+  filePath: string;
+  filename: string;
   title: string;
-  artist: string;
-  duration: number;
-  thumbnail: string | null;
-  source: 'youtube' | 'soundcloud' | 'unknown';
+  createdAt: number;
 }
 
-/**
- * Extract a YouTube video ID from any YouTube URL variant:
- *   youtube.com/watch?v=ID, m.youtube.com/watch?v=ID, youtu.be/ID,
- *   youtube.com/shorts/ID, youtube.com/embed/ID, music.youtube.com/watch?v=ID
- * Returns null if not a YouTube URL or no ID found.
- */
-function extractYouTubeId(url: string): string | null {
+const downloadTokens = new Map<string, DownloadEntry>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, info] of downloadTokens.entries()) {
+    if (now - info.createdAt > FILE_TTL_MS) {
+      fs.unlink(info.filePath).catch(() => {});
+      downloadTokens.delete(token);
+    }
+  }
+}, FILE_TTL_MS);
+
+const ALLOWED_HOSTS = new Set([
+  'youtube.com', 'www.youtube.com', 'm.youtube.com',
+  'youtu.be', 'music.youtube.com',
+  'soundcloud.com', 'on.soundcloud.com', 'm.soundcloud.com',
+]);
+
+function validateUrl(raw: string): URL {
+  let parsed: URL;
+  try { parsed = new URL(raw); } catch { throw new Error('Invalid URL format.'); }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('Only http/https URLs are supported.');
+  const host = parsed.hostname.toLowerCase();
+  if (!ALLOWED_HOSTS.has(host)) throw new Error('Unsupported site. Paste a YouTube or SoundCloud link.');
+  return parsed;
+}
+
+async function ensureTempDir() {
+  await fs.mkdir(TEMP_DIR, { recursive: true });
+}
+
+function runYtDlp(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('yt-dlp', args, {
+      env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    });
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+    proc.on('close', (code) => {
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(stderr || stdout || `yt-dlp exited with code ${code}`));
+    });
+    proc.on('error', (err) => reject(new Error(`Failed to spawn yt-dlp: ${err.message}`)));
+  });
+}
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[^\w\s\-().]/g, '').replace(/\s+/g, '_').slice(0, 100);
+}
+
+function parseTitle(raw: string): string {
+  const first = raw.trim().split('\n')[0].trim();
+  return first.replace(/^after_move:/i, '').trim() || 'audio';
+}
+
+async function findOutputFile(fileId: string): Promise<string | null> {
   try {
-    const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, '').replace(/^m\./, '');
-
-    if (host === 'youtu.be') {
-      const id = u.pathname.slice(1).split('/')[0];
-      return id || null;
-    }
-
-    if (host === 'youtube.com' || host === 'music.youtube.com') {
-      // /watch?v=
-      const v = u.searchParams.get('v');
-      if (v) return v;
-      // /shorts/ID or /embed/ID
-      const m = u.pathname.match(/\/(?:shorts|embed|v)\/([a-zA-Z0-9_-]{11})/);
-      if (m) return m[1];
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Normalize any YouTube URL to a clean watch URL that play-dl accepts.
- * Returns the original URL unchanged if it's not YouTube.
- */
-function normalizeUrl(raw: string): string {
-  const ytId = extractYouTubeId(raw);
-  if (ytId) return `https://www.youtube.com/watch?v=${ytId}`;
-  return raw;
-}
-
-function isYouTubeUrl(raw: string): boolean {
-  return extractYouTubeId(raw) !== null;
-}
-
-async function resolveTrack(rawUrl: string): Promise<TrackInfo> {
-  await ensurePlaydl();
-  const url = normalizeUrl(rawUrl);
-
-  if (isYouTubeUrl(rawUrl)) {
-    const info = await playdl.video_info(url);
-    const details = info.video_details;
-    return {
-      title: details.title ?? 'Unknown Title',
-      artist: details.channel?.name ?? 'Unknown Artist',
-      duration: details.durationInSec ?? 0,
-      thumbnail: details.thumbnails?.[details.thumbnails.length - 1]?.url ?? null,
-      source: 'youtube',
-    };
-  }
-
-  if (rawUrl.includes('soundcloud.com')) {
-    const info = await playdl.soundcloud(rawUrl) as any;
-    return {
-      title: info.name ?? 'Unknown Title',
-      artist: info.user?.name ?? 'Unknown Artist',
-      duration: Math.floor((info.durationInMs ?? 0) / 1000),
-      thumbnail: info.thumbnail ?? null,
-      source: 'soundcloud',
-    };
-  }
-
-  throw new Error('Unsupported URL. Paste a YouTube or SoundCloud link.');
+    const files = await fs.readdir(TEMP_DIR);
+    const match = files.find((f) => f.startsWith(fileId));
+    if (match) return join(TEMP_DIR, match);
+  } catch {}
+  return null;
 }
 
 // GET /rippd/info?url=...
@@ -92,57 +88,98 @@ router.get('/rippd/info', async (req, res) => {
   const { url } = req.query as { url?: string };
   if (!url) return res.status(400).json({ error: 'url is required' });
 
-  const normalized = normalizeUrl(url);
-  const isYt = isYouTubeUrl(url);
-  console.log(`[rippd] info raw=${url} normalized=${normalized} isYt=${isYt}`);
+  try {
+    validateUrl(url);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
 
   try {
-    const info = await resolveTrack(url);
-    res.json(info);
+    console.log(`[rippd] info url=${url}`);
+    const { stdout } = await runYtDlp(['--dump-json', '--no-playlist', url]);
+    const info = JSON.parse(stdout.trim().split('\n')[0]);
+    res.json({
+      title: info.title || 'Unknown Title',
+      artist: info.uploader || info.channel || 'Unknown Artist',
+      duration: info.duration ?? 0,
+      thumbnail: info.thumbnail ?? null,
+      source: (info.extractor_key || info.extractor || '').toLowerCase().includes('soundcloud') ? 'soundcloud' : 'youtube',
+    });
   } catch (err: any) {
-    console.error('[rippd] info error:', err?.message, err?.stack?.split('\n')[1]);
-    res.status(400).json({ error: err.message ?? 'Failed to resolve track' });
+    console.error('[rippd] info error:', err.message);
+    res.status(500).json({ error: err.message.split('\n')[0].slice(0, 300) });
   }
 });
 
-// GET /rippd/download?url=... — streams audio with download headers
-router.get('/rippd/download', async (req, res) => {
-  const { url: rawUrl } = req.query as { url?: string };
-  if (!rawUrl) return res.status(400).json({ error: 'url is required' });
+// POST /rippd/audio — downloads audio and returns a one-time token
+router.post('/rippd/audio', async (req, res) => {
+  const { url } = req.body as { url?: string };
+  if (!url) return res.status(400).json({ error: 'url is required' });
 
   try {
-    await ensurePlaydl();
-    const url = normalizeUrl(rawUrl);
-
-    let streamResult: any;
-    let filename = 'rippd-audio.mp3';
-
-    if (isYouTubeUrl(rawUrl)) {
-      const info = await playdl.video_info(url);
-      const title = info.video_details.title ?? 'audio';
-      filename = `${title.replace(/[^a-zA-Z0-9 _-]/g, '').trim().slice(0, 80)}.mp3`;
-      streamResult = await playdl.stream_from_info(info, { quality: 2 });
-    } else if (rawUrl.includes('soundcloud.com')) {
-      const info = await playdl.soundcloud(rawUrl) as any;
-      filename = `${(info.name ?? 'audio').replace(/[^a-zA-Z0-9 _-]/g, '').trim().slice(0, 80)}.mp3`;
-      streamResult = await playdl.stream(rawUrl, { quality: 2 });
-    } else {
-      return res.status(400).json({ error: 'Unsupported URL. Paste a YouTube or SoundCloud link.' });
-    }
-
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Transfer-Encoding', 'chunked');
-    res.setHeader('Cache-Control', 'no-cache');
-
-    const nodeStream = streamResult.stream;
-    nodeStream.pipe(res);
-    nodeStream.on('error', () => res.end());
-    req.on('close', () => { try { nodeStream.destroy(); } catch {} });
+    validateUrl(url);
   } catch (err: any) {
-    if (!res.headersSent) {
-      res.status(400).json({ error: err.message ?? 'Failed to stream audio' });
-    }
+    return res.status(400).json({ error: err.message });
+  }
+
+  try {
+    console.log(`[rippd] download url=${url}`);
+    await ensureTempDir();
+
+    const fileId = crypto.randomBytes(16).toString('hex');
+    const outputTemplate = join(TEMP_DIR, `${fileId}.%(ext)s`);
+
+    const { stdout } = await runYtDlp([
+      '--no-playlist',
+      '--extract-audio',
+      '--audio-format', 'mp3',
+      '--audio-quality', '0',
+      '--output', outputTemplate,
+      '--print', 'after_move:%(title)s',
+      url,
+    ]);
+
+    const title = parseTitle(stdout);
+    const outputPath = await findOutputFile(fileId);
+
+    if (!outputPath) throw new Error('Audio file not found after download.');
+
+    const token = crypto.randomBytes(24).toString('hex');
+    const filename = `${sanitizeFilename(title)}.mp3`;
+
+    downloadTokens.set(token, { filePath: outputPath, filename, title, createdAt: Date.now() });
+
+    res.json({ token, filename, title });
+  } catch (err: any) {
+    console.error('[rippd] download error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message.split('\n')[0].slice(0, 300) });
+  }
+});
+
+// GET /rippd/file/:token — serve the downloaded file
+router.get('/rippd/file/:token', async (req, res) => {
+  const info = downloadTokens.get(req.params.token);
+  if (!info) return res.status(404).json({ error: 'File not found or expired. Please rip again.' });
+
+  if (Date.now() - info.createdAt > FILE_TTL_MS) {
+    downloadTokens.delete(req.params.token);
+    fs.unlink(info.filePath).catch(() => {});
+    return res.status(404).json({ error: 'Download link expired. Please rip again.' });
+  }
+
+  try {
+    await fs.access(info.filePath);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="${info.filename}"`);
+    res.sendFile(info.filePath, (err) => {
+      if (!err) {
+        fs.unlink(info.filePath).catch(() => {});
+        downloadTokens.delete(req.params.token);
+      }
+    });
+  } catch {
+    downloadTokens.delete(req.params.token);
+    res.status(404).json({ error: 'File no longer available. Please rip again.' });
   }
 });
 
