@@ -569,7 +569,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
       </div>
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto flex flex-col px-3 py-2 gap-0 no-scrollbar">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto flex flex-col px-3 pt-2 pb-6 gap-0 no-scrollbar">
         <div className="mt-auto" />
 
         {messages.length === 0 && !isLoading && (

@@ -37,9 +37,9 @@ import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 const BASE = import.meta.env.BASE_URL;
 
 const ICON_BASE = 40;
-const MAX_SCALE = 1.7;
+const MAX_SCALE = 1.0;
 const SCALE_RANGE: [number, number, number] = [0, 80, 160];
-const SCALE_OUTPUT: [number, number, number] = [MAX_SCALE, 1.3, 1.0];
+const SCALE_OUTPUT: [number, number, number] = [MAX_SCALE, 1.0, 1.0];
 
 // ─── Types for the flat sortable list ───────────────────────────────────────
 
