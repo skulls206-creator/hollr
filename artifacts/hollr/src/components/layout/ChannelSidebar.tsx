@@ -990,10 +990,10 @@ export function ChannelSidebar() {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'online',  label: 'Online',          color: 'bg-emerald-500' },
-  { value: 'idle',    label: 'Away',             color: 'bg-yellow-400' },
-  { value: 'dnd',     label: 'Do Not Disturb',   color: 'bg-red-500' },
-  { value: 'offline', label: 'Invisible',        color: 'bg-zinc-500' },
+  { value: 'online',  label: 'Online',    color: 'bg-emerald-500' },
+  { value: 'idle',    label: 'Away',      color: 'bg-yellow-400' },
+  { value: 'dnd',     label: 'Busy',      color: 'bg-red-500' },
+  { value: 'offline', label: 'Invisible', color: 'bg-zinc-500' },
 ] as const;
 
 function statusColor(status: string | undefined) {
@@ -1100,6 +1100,17 @@ function UserProfilePanel({
     );
     setStatusOpen(false);
   };
+
+  const cycleStatus = () => {
+    const idx = STATUS_OPTIONS.findIndex(o => o.value === currentStatus);
+    const next = STATUS_OPTIONS[(idx + 1) % STATUS_OPTIONS.length];
+    updateProfile.mutate(
+      { data: { status: next.value as any } },
+      { onSuccess: () => qcPanel.invalidateQueries({ queryKey: ['/api/users/me'] }) },
+    );
+  };
+
+  const currentStatusOpt = STATUS_OPTIONS.find(o => o.value === currentStatus) ?? STATUS_OPTIONS[0];
 
   const handleSaveCustomStatus = () => {
     updateProfile.mutate(
@@ -1285,7 +1296,7 @@ function UserProfilePanel({
             </button>
           </PopoverTrigger>
           <PopoverContent side="top" align="start" alignOffset={-20} className="w-64 p-2 bg-popover border-border/50" sideOffset={8}>
-            <div className="flex items-center gap-3 px-2 py-1 mb-1">
+            <div className="flex items-center gap-2.5 px-2 py-1 mb-1">
               <button
                 onClick={() => { setUserSettingsModalOpen(true); setQuickOpen(false); }}
                 className="relative shrink-0 group/avtedit"
@@ -1301,13 +1312,24 @@ function UserProfilePanel({
                   <Camera size={14} className="text-white" />
                 </div>
               </button>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
                   <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
                   {(profile as any)?.isSupporter && <KhurkDiamondBadge size="sm" />}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
               </div>
+              <button
+                onClick={cycleStatus}
+                title="Click to cycle status"
+                className={cn(
+                  'shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all active:scale-95',
+                  'bg-accent hover:bg-accent/70 border border-border/40',
+                )}
+              >
+                <span className={cn('w-2 h-2 rounded-full shrink-0', currentStatusOpt.color)} />
+                <span className="text-foreground">{currentStatusOpt.label}</span>
+              </button>
             </div>
             <div className="h-px bg-border/40 mb-1" />
             {permission !== 'unsupported' && (
