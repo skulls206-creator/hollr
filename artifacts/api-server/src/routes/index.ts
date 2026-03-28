@@ -16,6 +16,7 @@ import activityRouter from "./activity";
 import supporterRouter from "./supporter";
 import foldrRouter from "./foldr";
 import ballpointRouter from "./ballpoint";
+import rippdRouter from "./rippd";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(activityRouter);
 router.use(supporterRouter);
 router.use(foldrRouter);
 router.use(ballpointRouter);
+router.use(rippdRouter);
 
 export default router;

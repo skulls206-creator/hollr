@@ -9,6 +9,7 @@ import gaslessImg from '@assets/5963_1774286181380.png';
 import ballpointImg from '@assets/5955_1774286181397.png';
 import onlyGamesImg from '@assets/5961_1774286181406.png';
 import onlyXmrImg from '@assets/5959_1774286181386.png';
+import rippdImg from '@assets/Screenshot_2026-03-28_002535_1774671950475.png';
 
 import uStreamBanner from '@assets/generated_images/banner_ustream.png';
 import playdBanner from '@assets/generated_images/banner_playd.png';
@@ -70,6 +71,9 @@ const FoldrPanel = lazy(() =>
 const PlaydPanel = lazy(() =>
   import('@/components/khurk/apps/PlaydPanel').then(m => ({ default: m.PlaydPanel }))
 );
+const RippdPanel = lazy(() =>
+  import('@/components/khurk/apps/RippdPanel').then(m => ({ default: m.RippdPanel }))
+);
 
 export function HollrIcon({ size = 26 }: { size?: number }) {
   return (
@@ -121,6 +125,16 @@ export const KHURK_APPS: KhurkApp[] = [
     bannerSrc: foldrBanner,
     gradient: ['#0a5a9c', '#2ea8e0'],
     nativePanel: FoldrPanel,
+  },
+  {
+    id: 'rippd',
+    name: 'RIPPD',
+    tagline: 'MP3 Ripper',
+    description: 'Rip MP3s from YouTube and SoundCloud links instantly.',
+    url: 'https://rippd.khurk.services',
+    imageSrc: rippdImg,
+    gradient: ['#7e1d8f', '#0891b2'],
+    nativePanel: RippdPanel,
   },
   {
     id: 'instaghost',

@@ -14,7 +14,7 @@ const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 
 let playdlReady = false;
 
-async function ensurePlaydl() {
+export async function ensurePlaydl() {
   if (playdlReady) return;
   try {
     const clientId = await playdl.getFreeClientID();
