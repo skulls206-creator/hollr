@@ -228,7 +228,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
       if (isKnown) {
         await executeSlashCommand(trimmed);
         setContent('');
-        if (textareaRef.current) textareaRef.current.style.height = '34px';
+        if (textareaRef.current) textareaRef.current.style.height = '46px';
         return;
       }
     }
@@ -236,7 +236,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     sendMessage({ channelId, data: { content: trimmed } }, {
       onSuccess: (newMsg) => {
         setContent('');
-        if (textareaRef.current) textareaRef.current.style.height = '34px';
+        if (textareaRef.current) textareaRef.current.style.height = '46px';
         qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), (old = []) => {
           if (old.some((m: any) => m.id === newMsg.id)) return old;
           return [...old, newMsg];
@@ -433,9 +433,9 @@ export function MessageComposer({ channelId }: { channelId: string }) {
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder="Holler…"
-            className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground/60 py-2.5 min-h-[34px] max-h-[160px] overflow-y-auto leading-normal text-[15px]"
+            className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground/60 py-2.5 min-h-[46px] max-h-[160px] overflow-y-auto leading-normal text-[15px]"
             rows={1}
-            style={{ height: '34px' }}
+            style={{ height: '46px' }}
             data-ctx-suppress
           />
 

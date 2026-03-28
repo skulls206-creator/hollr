@@ -386,7 +386,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
     sendMessage({ threadId, data: { content: content.trim() } }, {
       onSuccess: (newMsg) => {
         setContent('');
-        if (textareaRef.current) textareaRef.current.style.height = '44px';
+        if (textareaRef.current) textareaRef.current.style.height = '46px';
         qc.setQueryData<any[]>(getListDmMessagesQueryKey(threadId), (old = []) => {
           if (old.some((m: any) => m.id === newMsg.id)) return old;
           return [...old, newMsg];
@@ -439,7 +439,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
       }, {
         onSuccess: (newMsg) => {
           setContent('');
-          if (textareaRef.current) textareaRef.current.style.height = '44px';
+          if (textareaRef.current) textareaRef.current.style.height = '46px';
           toast({ title: 'File uploaded' });
           qc.setQueryData<any[]>(getListDmMessagesQueryKey(threadId), (old = []) => {
             if (old.some((m: any) => m.id === newMsg.id)) return old;
@@ -844,9 +844,9 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
               onChange={(e) => { setContent(e.target.value); resizeTextarea(e.target); }}
               onKeyDown={handleKeyDown}
               placeholder={`Message ${recipientName}`}
-              className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground/60 py-2.5 min-h-[34px] max-h-[160px] overflow-y-auto leading-normal text-[15px]"
+              className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground/60 py-2.5 min-h-[46px] max-h-[160px] overflow-y-auto leading-normal text-[15px]"
               rows={1}
-              style={{ height: '34px' }}
+              style={{ height: '46px' }}
             />
             <div className="relative flex items-center shrink-0">
               <button
