@@ -28,7 +28,7 @@ import type { VoiceChannelUser } from '@/store/use-app-store';
 import { cn, getInitials } from '@/lib/utils';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1274,9 +1274,6 @@ function UserProfilePanel({
       <div className="mx-2 mb-2 mt-1 relative flex items-center px-3 py-2 gap-2 group/profile bg-background/80 backdrop-blur-xl border border-border/30 shadow-xl shadow-black/30 rounded-2xl">
         {/* Avatar — click to open quick actions (sign out, KHURK OS toggle) */}
         <Popover open={quickOpen} onOpenChange={setQuickOpen}>
-          <PopoverAnchor asChild>
-            <div className="absolute inset-0 pointer-events-none" />
-          </PopoverAnchor>
           <PopoverTrigger asChild>
             <button className="flex-1 min-w-0 flex items-center gap-2 hover:bg-accent/50 rounded-xl px-1.5 py-1 transition-colors text-left">
               <div className="relative shrink-0">
