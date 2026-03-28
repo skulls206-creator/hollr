@@ -330,7 +330,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   const hasContent = !!content.trim();
 
   return (
-    <div className="px-3 pb-3 pt-1 w-full bg-surface-3 relative">
+    <div className="px-3 pb-3 pt-1 w-full relative">
 
       {/* Slash command palette */}
       {slashQuery !== null && slashMatches.length > 0 && (

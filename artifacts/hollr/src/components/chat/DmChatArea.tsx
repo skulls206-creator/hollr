@@ -814,7 +814,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
       </div>
 
       {/* Composer */}
-      <div className="px-3 pb-3 pt-1 bg-surface-0 relative">
+      <div className="px-3 pb-3 pt-1 relative">
         <div className="relative flex items-center gap-2">
           {/* Attach button */}
           <button
