@@ -28,7 +28,7 @@ import type { VoiceChannelUser } from '@/store/use-app-store';
 import { cn, getInitials } from '@/lib/utils';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1278,9 +1278,12 @@ function UserProfilePanel({
         </div>
       )}
 
-      <div className="mx-2 mb-2 mt-1 flex items-center px-3 py-2 gap-2 group/profile bg-background/80 backdrop-blur-xl border border-border/30 shadow-xl shadow-black/30 rounded-2xl">
+      <div className="mx-2 mb-2 mt-1 relative flex items-center px-3 py-2 gap-2 group/profile bg-background/80 backdrop-blur-xl border border-border/30 shadow-xl shadow-black/30 rounded-2xl">
         {/* Avatar — click to open quick actions (sign out, KHURK OS toggle) */}
         <Popover open={quickOpen} onOpenChange={setQuickOpen}>
+          <PopoverAnchor asChild>
+            <div className="absolute inset-0 pointer-events-none" />
+          </PopoverAnchor>
           <PopoverTrigger asChild>
             <button className="relative shrink-0 rounded-full hover:opacity-90 transition-opacity">
               <Avatar className="h-8 w-8 rounded-full border border-border/50">
@@ -1295,7 +1298,7 @@ function UserProfilePanel({
               )} />
             </button>
           </PopoverTrigger>
-          <PopoverContent side="top" align="start" alignOffset={-20} className="w-64 p-2 bg-popover border-border/50" sideOffset={8}>
+          <PopoverContent side="top" align="center" className="w-64 p-2 bg-popover border-border/50" sideOffset={8}>
             <div className="flex items-center gap-2.5 px-2 py-1 mb-1">
               <button
                 onClick={() => { setUserSettingsModalOpen(true); setQuickOpen(false); }}
