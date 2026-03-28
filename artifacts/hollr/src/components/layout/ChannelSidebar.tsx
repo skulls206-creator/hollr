@@ -30,6 +30,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
+import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import type { Channel } from '@workspace/api-client-react';
@@ -1301,7 +1302,10 @@ function UserProfilePanel({
                 </div>
               </button>
               <div className="min-w-0">
-                <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
+                  {(profile as any)?.isSupporter && <KhurkDiamondBadge size="sm" />}
+                </div>
                 <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
               </div>
             </div>
