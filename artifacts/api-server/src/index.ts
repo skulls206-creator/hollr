@@ -6,6 +6,8 @@ import { sessionsTable, usersTable } from "@workspace/db/schema";
 import { and, inArray, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { runMigrations } from "stripe-replit-sync";
+import { PutBucketCorsCommand } from "@aws-sdk/client-s3";
+import { getR2Client, getR2BucketName } from "./lib/r2Client";
 
 const rawPort = process.env["PORT"];
 
@@ -23,6 +25,36 @@ if (Number.isNaN(port) || port <= 0) {
 
 const server = createServer(app);
 initWebSocket(server);
+
+// Auto-configure R2 CORS on every startup so the bucket never needs manual setup
+(async () => {
+  try {
+    const client = getR2Client();
+    const bucket = getR2BucketName();
+    await client.send(new PutBucketCorsCommand({
+      Bucket: bucket,
+      CORSConfiguration: {
+        CORSRules: [
+          {
+            AllowedOrigins: [
+              "https://hollrchat.replit.app",
+              "https://foldrstorage.replit.app",
+              "https://playdmusic.replit.app",
+              "https://*.replit.dev",
+              "https://*.repl.co",
+            ],
+            AllowedMethods: ["GET", "PUT", "HEAD"],
+            AllowedHeaders: ["*"],
+            MaxAgeSeconds: 3600,
+          },
+        ],
+      },
+    }));
+    console.log("[r2] CORS policy applied");
+  } catch (err) {
+    console.warn("[r2] CORS setup failed (non-fatal):", err);
+  }
+})();
 
 // Initialize Stripe via Replit integration (non-fatal if not connected)
 if (process.env.REPLIT_CONNECTORS_HOSTNAME) {
