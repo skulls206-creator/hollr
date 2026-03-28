@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
-  SendHorizonal, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video, User, EyeOff, Eye,
+  ArrowUp, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video, User, EyeOff, Eye,
 } from 'lucide-react';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { initiateVideoCall } from '@/hooks/use-video-call';
@@ -38,11 +38,11 @@ async function deleteDmMessage(threadId: string, messageId: string) {
   return res.json();
 }
 
-function formatContent(content: string) {
+function formatContent(content: string, onDark = false) {
   const parts = content.split(/(@\S+)/g);
   return parts.map((part, i) =>
     part.startsWith('@') ? (
-      <span key={i} className="bg-primary/20 text-primary font-semibold px-1 rounded text-[13px]">
+      <span key={i} className={cn('font-semibold px-1 rounded text-[13px]', onDark ? 'bg-white/20 text-white' : 'bg-primary/20 text-primary')}>
         {part}
       </span>
     ) : (
@@ -569,7 +569,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
       </div>
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto flex flex-col px-3 py-2 gap-0 no-scrollbar">
         <div className="mt-auto" />
 
         {messages.length === 0 && !isLoading && (
@@ -585,187 +585,228 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
 
         {messages.map((msg: any, index: number) => {
           const prev = messages[index - 1] as any;
+          const next = messages[index + 1] as any;
           const msgDate = new Date(msg.createdAt);
           const prevDate = prev ? new Date(prev.createdAt) : null;
           const showDateSeparator = !prevDate || !isSameDay(msgDate, prevDate);
 
-          const showHeader = index === 0
+          const isFirst = index === 0
             || showDateSeparator
             || prev.authorId !== msg.authorId
-            || (new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60000);
+            || (msgDate.getTime() - new Date(prev.createdAt).getTime() > 5 * 60000);
+
+          const isLast = !next
+            || !isSameDay(new Date(next.createdAt), msgDate)
+            || next.authorId !== msg.authorId
+            || (new Date(next.createdAt).getTime() - msgDate.getTime() > 5 * 60000);
 
           const isOwner = user?.id === msg.authorId;
+          const isSupporter = !isOwner && !!(msg.author as any).isSupporter;
           const isEditing = editingId === msg.id;
           const isDeleted = !!(msg as any).deleted;
           const isHidden = hiddenMsgIds.has(msg.id);
           const reactions = (msg as any).reactions || [];
           const lp = handleLongPress(msg);
+          const onDark = isOwner || isSupporter;
+
+          const bubbleBg = isOwner
+            ? 'bg-primary text-primary-foreground'
+            : isSupporter
+              ? 'bg-[#007AFF] text-white'
+              : 'bg-muted text-foreground';
+
+          let radius: string;
+          if (isFirst && isLast) radius = 'rounded-[20px]';
+          else if (isOwner) {
+            if (isFirst) radius = 'rounded-[20px] rounded-br-[5px]';
+            else if (isLast) radius = 'rounded-[20px] rounded-tr-[5px]';
+            else radius = 'rounded-2xl rounded-r-[5px]';
+          } else {
+            if (isFirst) radius = 'rounded-[20px] rounded-bl-[5px]';
+            else if (isLast) radius = 'rounded-[20px] rounded-tl-[5px]';
+            else radius = 'rounded-2xl rounded-l-[5px]';
+          }
 
           return (
             <Fragment key={msg.id}>
-            {showDateSeparator && <DateSeparator date={msgDate} />}
-            <div
-              className={cn(
-                'group relative flex py-0.5 px-4 -mx-4 rounded-sm transition-colors',
-                showHeader ? 'mt-4' : 'mt-0',
-                'hover:bg-black/5',
-              )}
-              onMouseLeave={() => setEmojiHoverMsg(null)}
-              onContextMenu={e => handleMessageContextMenu(e, msg)}
-              onTouchStart={lp.onTouchStart}
-              onTouchEnd={lp.onTouchEnd}
-              onTouchMove={lp.onTouchMove}
-            >
-              {showHeader ? (
-                <Avatar
-                  className="h-10 w-10 mr-4 shrink-0 cursor-pointer"
-                  onClick={e => handleAuthorContextMenu(e, msg)}
-                  onContextMenu={e => handleAuthorContextMenu(e, msg)}
-                >
-                  <AvatarImage src={msg.author.avatarUrl || undefined} />
-                  <AvatarFallback className="bg-primary text-white">
-                    {getInitials(msg.author.displayName || msg.author.username)}
-                  </AvatarFallback>
-                </Avatar>
-              ) : (
-                <div className="w-14 shrink-0 text-right pr-4 text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 flex items-center justify-end">
-                  {format(new Date(msg.createdAt), 'h:mm a')}
-                </div>
-              )}
-
-              <div className="flex flex-col min-w-0 flex-1 py-0.5">
-                {showHeader && (
-                  <div className="flex items-baseline gap-2 mb-0.5">
-                    <span
-                      className="font-medium text-base text-indigo-400 cursor-pointer hover:underline inline-flex items-center gap-1"
+              {showDateSeparator && <DateSeparator date={msgDate} />}
+              <div
+                className={cn(
+                  'group relative flex items-end gap-2',
+                  isOwner ? 'flex-row-reverse' : 'flex-row',
+                  isFirst ? 'mt-3' : 'mt-0.5',
+                )}
+                onMouseLeave={() => setEmojiHoverMsg(null)}
+                onContextMenu={e => handleMessageContextMenu(e, msg)}
+                onTouchStart={lp.onTouchStart}
+                onTouchEnd={lp.onTouchEnd}
+                onTouchMove={lp.onTouchMove}
+              >
+                {/* Avatar — others only, on last bubble in group */}
+                {!isOwner && (
+                  isLast ? (
+                    <button
+                      className="shrink-0 self-end mb-0.5"
                       onClick={e => handleAuthorContextMenu(e, msg)}
                       onContextMenu={e => handleAuthorContextMenu(e, msg)}
                     >
-                      {msg.author.displayName || msg.author.username}
-                      {msg.author.isSupporter && <KhurkDiamondBadge size="sm" />}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(msg.createdAt), 'h:mm a')}
-                    </span>
-                  </div>
+                      <Avatar className="h-7 w-7 hover:opacity-80 transition-opacity">
+                        <AvatarImage src={msg.author.avatarUrl || undefined} />
+                        <AvatarFallback className={cn('text-[11px] text-white', isSupporter ? 'bg-[#007AFF]' : 'bg-primary')}>
+                          {getInitials(msg.author.displayName || msg.author.username)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
+                  ) : (
+                    <div className="w-7 shrink-0" />
+                  )
                 )}
 
-                {isDeleted ? (
-                  <div className="text-[14px] italic text-red-400/80 select-none">
-                    Message deleted
-                  </div>
-                ) : isHidden ? (
-                  <button
-                    onClick={() => toggleHide(msg.id)}
-                    className="flex items-center gap-1.5 text-[13px] italic text-muted-foreground/50 hover:text-muted-foreground transition-colors select-none"
-                  >
-                    <EyeOff size={12} />
-                    Message hidden — tap to show
-                  </button>
-                ) : isEditing ? (
-                  <div className="flex flex-col gap-1">
-                    <textarea
-                      ref={editRef}
-                      value={editDraft}
-                      onChange={e => setEditDraft(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg.id); }
-                        if (e.key === 'Escape') cancelEdit();
-                      }}
-                      className="bg-[#383A40] rounded-md px-3 py-2 text-foreground text-[15px] leading-relaxed resize-none w-full outline-none focus:ring-1 focus:ring-primary"
-                      rows={1}
-                    />
-                    <div className="flex gap-2 text-xs text-muted-foreground">
-                      <button onClick={() => saveEdit(msg.id)} className="flex items-center gap-1 text-primary hover:text-primary/80">
-                        <Check size={12} /> Save
+                {/* Bubble column */}
+                <div className={cn('flex flex-col max-w-[72%]', isOwner ? 'items-end' : 'items-start')}>
+
+                  {/* Author name + timestamp — others, first in group */}
+                  {!isOwner && isFirst && !isDeleted && !isHidden && (
+                    <div className="flex items-center gap-1.5 mb-1 ml-1">
+                      <button
+                        className="text-[12px] font-semibold text-foreground hover:underline"
+                        onClick={e => handleAuthorContextMenu(e, msg)}
+                        onContextMenu={e => handleAuthorContextMenu(e, msg)}
+                      >
+                        {msg.author.displayName || msg.author.username}
                       </button>
-                      <span>•</span>
-                      <button onClick={cancelEdit} className="flex items-center gap-1 hover:text-foreground">
-                        <X size={12} /> Cancel
-                      </button>
+                      {(msg.author as any).isSupporter && <KhurkDiamondBadge size="sm" />}
+                      <span className="text-[10px] text-muted-foreground">{format(msgDate, 'h:mm a')}</span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-foreground text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-                    {formatContent(msg.content)}
-                    {msg.edited && (
-                      <span className="text-[11px] text-muted-foreground ml-1.5 italic">(edited)</span>
-                    )}
-                  </div>
-                )}
+                  )}
 
-                {/* Attachments */}
-                {!isEditing && !isDeleted && !isHidden && msg.attachments && msg.attachments.length > 0 && (
-                  <div className="flex flex-col gap-2 mt-2">
-                    {msg.attachments.map((att: any) => {
-                      const isImage = att.contentType.startsWith('image/');
-                      const url = `/api/storage${att.objectPath}`;
-                      if (isImage) {
-                        return (
-                          <a key={att.id} href={url} target="_blank" rel="noopener noreferrer"
-                            className="inline-block max-w-[400px] rounded-xl overflow-hidden border border-border/50 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity"
-                            onContextMenu={e => handleImageContextMenu(e, url, att.name)}>
-                            <img src={url} alt={att.name} className="block max-w-full max-h-[350px] object-contain" loading="lazy" />
-                          </a>
-                        );
-                      }
-                      return (
-                        <a key={att.id} href={url} download target="_blank" rel="noreferrer"
-                          className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-lg hover:bg-secondary/80 transition-colors w-72">
-                          <div className="bg-primary/20 p-2 rounded-md"><FileText className="text-primary" size={24} /></div>
-                          <div className="flex flex-col overflow-hidden">
-                            <span className="text-sm font-medium text-primary hover:underline truncate">{att.name}</span>
-                            <span className="text-xs text-muted-foreground">{formatBytes(att.size)}</span>
-                          </div>
-                          <Download className="ml-auto text-muted-foreground hover:text-foreground" size={18} />
-                        </a>
-                      );
-                    })}
-                  </div>
-                )}
+                  {/* Own timestamp — hover above first bubble */}
+                  {isOwner && isFirst && !isDeleted && !isHidden && (
+                    <div className="text-[10px] text-muted-foreground mb-0.5 mr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {format(msgDate, 'h:mm a')}
+                    </div>
+                  )}
 
-                {/* Reactions */}
-                {!isEditing && !isDeleted && !isHidden && (
-                  <DmReactionPills
-                    reactions={reactions}
-                    threadId={threadId}
-                    messageId={msg.id}
-                    showAddButton={emojiHoverMsg === msg.id}
-                  />
-                )}
-              </div>
-
-              {/* Hover action bar */}
-              {!isEditing && !isDeleted && !isHidden && (
-                <div className="absolute right-4 top-0 -translate-y-1/2 bg-surface-1 border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <button
-                    onClick={() => setEmojiHoverMsg(v => v === msg.id ? null : msg.id)}
-                    title="Add reaction"
-                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-                  >
-                    <Smile size={14} />
-                  </button>
-                  {isOwner && (
+                  {/* Message content */}
+                  {isDeleted ? (
+                    <div className="text-[13px] italic text-muted-foreground/50 px-4 py-2 bg-muted/40 rounded-[20px]">
+                      Message deleted
+                    </div>
+                  ) : isHidden ? (
+                    <button
+                      onClick={() => toggleHide(msg.id)}
+                      className="flex items-center gap-1.5 text-[13px] italic text-muted-foreground/50 hover:text-muted-foreground transition-colors select-none px-3 py-1.5 bg-muted/30 rounded-[20px]"
+                    >
+                      <EyeOff size={12} />
+                      Hidden — tap to show
+                    </button>
+                  ) : isEditing ? (
+                    <div className="flex flex-col gap-1 w-full min-w-[220px]">
+                      <textarea
+                        ref={editRef}
+                        value={editDraft}
+                        onChange={e => setEditDraft(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg.id); }
+                          if (e.key === 'Escape') cancelEdit();
+                        }}
+                        className="bg-[#383A40] rounded-xl px-3 py-2 text-foreground text-[14px] leading-relaxed resize-none w-full outline-none focus:ring-1 focus:ring-primary"
+                        rows={1}
+                      />
+                      <div className="flex gap-2 text-xs text-muted-foreground px-1">
+                        <button onClick={() => saveEdit(msg.id)} className="flex items-center gap-1 text-primary hover:text-primary/80">
+                          <Check size={12} /> Save
+                        </button>
+                        <span>•</span>
+                        <button onClick={cancelEdit} className="flex items-center gap-1 hover:text-foreground">
+                          <X size={12} /> Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                     <>
-                      <button
-                        onClick={() => startEdit(msg.id, msg.content)}
-                        title="Edit"
-                        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => doDelete(msg.id)}
-                        title="Delete"
-                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {msg.content && (
+                        <div className={cn('px-4 py-2 leading-relaxed break-words whitespace-pre-wrap text-[15px]', bubbleBg, radius)}>
+                          {formatContent(msg.content, onDark)}
+                          {msg.edited && <span className="text-[11px] opacity-60 ml-1.5 italic">(edited)</span>}
+                        </div>
+                      )}
+
+                      {/* Attachments */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className={cn('flex flex-col gap-2 mt-1', isOwner ? 'items-end' : 'items-start')}>
+                          {msg.attachments.map((att: any) => {
+                            const isImage = att.contentType.startsWith('image/');
+                            const url = `/api/storage${att.objectPath}`;
+                            if (isImage) {
+                              return (
+                                <a key={att.id} href={url} target="_blank" rel="noopener noreferrer"
+                                  className="inline-block max-w-[280px] rounded-2xl overflow-hidden border border-border/30 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity"
+                                  onContextMenu={e => handleImageContextMenu(e, url, att.name)}>
+                                  <img src={url} alt={att.name} className="block max-w-full max-h-[300px] object-contain" loading="lazy" />
+                                </a>
+                              );
+                            }
+                            return (
+                              <a key={att.id} href={url} download target="_blank" rel="noreferrer"
+                                className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-2xl hover:bg-secondary/80 transition-colors w-64">
+                                <div className="bg-primary/20 p-2 rounded-lg"><FileText className="text-primary" size={20} /></div>
+                                <div className="flex flex-col overflow-hidden">
+                                  <span className="text-sm font-medium text-primary hover:underline truncate">{att.name}</span>
+                                  <span className="text-xs text-muted-foreground">{formatBytes(att.size)}</span>
+                                </div>
+                                <Download className="ml-auto text-muted-foreground hover:text-foreground shrink-0" size={16} />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Reactions */}
+                      <DmReactionPills
+                        reactions={reactions}
+                        threadId={threadId}
+                        messageId={msg.id}
+                        showAddButton={emojiHoverMsg === msg.id}
+                      />
                     </>
                   )}
                 </div>
-              )}
-            </div>
+
+                {/* Hover action bar */}
+                {!isEditing && !isDeleted && !isHidden && (
+                  <div className={cn(
+                    'absolute top-0 -translate-y-1/2 bg-surface-1 border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10',
+                    isOwner ? 'left-2' : 'right-2'
+                  )}>
+                    <button
+                      onClick={() => setEmojiHoverMsg(v => v === msg.id ? null : msg.id)}
+                      title="Add reaction"
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                    >
+                      <Smile size={14} />
+                    </button>
+                    {isOwner && (
+                      <>
+                        <button
+                          onClick={() => startEdit(msg.id, msg.content)}
+                          title="Edit"
+                          className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => doDelete(msg.id)}
+                          title="Delete"
+                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </Fragment>
           );
         })}
@@ -773,73 +814,75 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
       </div>
 
       {/* Composer */}
-      <div className="px-4 pb-2 pt-2 bg-surface-0">
-        <div className="bg-[#383A40] rounded-lg flex items-center px-4 py-2 shadow-sm focus-within:ring-1 focus-within:ring-primary/50 relative overflow-visible">
-          {isUploading && (
-            <div
-              className="absolute top-0 left-0 h-1 bg-primary transition-all duration-300 ease-out rounded-t-lg"
-              style={{ width: `${uploadProgress}%` }}
-            />
-          )}
-
+      <div className="px-3 pb-3 pt-1 bg-surface-0 relative">
+        <div className="relative flex items-end gap-2">
+          {/* Attach button */}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="p-1 mr-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0 disabled:opacity-50"
+            className="shrink-0 mb-1 p-1.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
             title="Attach file"
           >
-            <PlusCircle size={22} className="fill-muted-foreground/20" />
+            <PlusCircle size={20} className="fill-muted-foreground/10" />
           </button>
-          <input
-            type="file"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-          />
+          <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
 
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => {
-              setContent(e.target.value);
-              resizeTextarea(e.target);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={`Message ${recipientName}`}
-            className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-2 min-h-[44px] max-h-[200px] overflow-y-auto leading-normal"
-            rows={1}
-            style={{ height: '44px' }}
-          />
-          <div className="flex items-center gap-1 ml-2 shrink-0 relative">
-            <button
-              ref={composerEmojiRef}
-              onClick={() => setComposerEmojiOpen(v => !v)}
-              className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-              title="Add emoji"
-            >
-              <Smile size={22} />
-            </button>
-            {composerEmojiOpen && (
-              <EmojiPickerPopover
-                onEmojiClick={(emoji) => {
-                  setContent(c => c + emoji);
-                  setComposerEmojiOpen(false);
-                  textareaRef.current?.focus();
-                }}
-                onClose={() => setComposerEmojiOpen(false)}
-                anchorRef={composerEmojiRef as any}
-                align="right"
+          {/* Input pill */}
+          <div className="relative flex-1 flex items-end bg-[#2b2d31] rounded-[22px] px-4 py-0 shadow-sm focus-within:ring-1 focus-within:ring-primary/40">
+            {isUploading && (
+              <div
+                className="absolute top-0 left-0 h-0.5 bg-primary transition-all duration-300 rounded-t-full"
+                style={{ width: `${uploadProgress}%` }}
               />
             )}
-            <button
-              onClick={handleSend}
-              disabled={!content.trim() || isUploading}
-              className={`p-1.5 rounded-md transition-colors ${content.trim() && !isUploading ? 'text-primary hover:bg-primary/20' : 'text-muted-foreground/40 cursor-not-allowed'}`}
-              title="Send message"
-            >
-              <SendHorizonal size={20} />
-            </button>
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={(e) => { setContent(e.target.value); resizeTextarea(e.target); }}
+              onKeyDown={handleKeyDown}
+              placeholder={`Message ${recipientName}`}
+              className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground/60 py-2.5 min-h-[34px] max-h-[160px] overflow-y-auto leading-normal text-[15px]"
+              rows={1}
+              style={{ height: '34px' }}
+            />
+            <div className="relative flex items-center shrink-0 mb-1">
+              <button
+                ref={composerEmojiRef}
+                onClick={() => setComposerEmojiOpen(v => !v)}
+                className="p-1 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                title="Add emoji"
+              >
+                <Smile size={19} />
+              </button>
+              {composerEmojiOpen && (
+                <EmojiPickerPopover
+                  onEmojiClick={(emoji) => {
+                    setContent(c => c + emoji);
+                    setComposerEmojiOpen(false);
+                    textareaRef.current?.focus();
+                  }}
+                  onClose={() => setComposerEmojiOpen(false)}
+                  anchorRef={composerEmojiRef as any}
+                  align="right"
+                />
+              )}
+            </div>
           </div>
+
+          {/* Send button — filled circle */}
+          <button
+            onClick={handleSend}
+            disabled={!content.trim() || isUploading}
+            title="Send message"
+            className={cn(
+              'shrink-0 mb-1 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
+              content.trim() && !isUploading
+                ? 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95'
+                : 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
+            )}
+          >
+            <ArrowUp size={18} strokeWidth={2.5} />
+          </button>
         </div>
       </div>
 

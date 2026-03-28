@@ -72,18 +72,16 @@ function DateSeparator({ date }: { date: Date }) {
   );
 }
 
-function getBubbleRadius(isOwner: boolean, isFirst: boolean, isLast: boolean) {
-  const base = 20;
-  const tight = 5;
-  if (isFirst && isLast) return `rounded-[${base}px]`;
+function getBubbleRadius(isOwner: boolean, isFirst: boolean, isLast: boolean): string {
+  if (isFirst && isLast) return 'rounded-[20px]';
   if (isOwner) {
-    if (isFirst) return `rounded-[${base}px] rounded-br-[${tight}px]`;
-    if (isLast)  return `rounded-[${base}px] rounded-tr-[${tight}px]`;
-    return `rounded-2xl rounded-r-[${tight}px]`;
+    if (isFirst) return 'rounded-[20px] rounded-br-[5px]';
+    if (isLast)  return 'rounded-[20px] rounded-tr-[5px]';
+    return 'rounded-2xl rounded-r-[5px]';
   } else {
-    if (isFirst) return `rounded-[${base}px] rounded-bl-[${tight}px]`;
-    if (isLast)  return `rounded-[${base}px] rounded-tl-[${tight}px]`;
-    return `rounded-2xl rounded-l-[${tight}px]`;
+    if (isFirst) return 'rounded-[20px] rounded-bl-[5px]';
+    if (isLast)  return 'rounded-[20px] rounded-tl-[5px]';
+    return 'rounded-2xl rounded-l-[5px]';
   }
 }
 
