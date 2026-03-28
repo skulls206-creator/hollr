@@ -413,10 +413,13 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
 
         {/* Input pill */}
-        <div className={cn(
-          'relative flex-1 flex items-end bg-[#2b2d31] rounded-[22px] px-4 py-0 shadow-sm transition-shadow',
-          'focus-within:ring-1 focus-within:ring-primary/40',
-        )}>
+        <div
+          className={cn(
+            'relative flex-1 flex items-center bg-[#2b2d31] rounded-[22px] px-4 py-0 shadow-sm transition-shadow cursor-text',
+            'focus-within:ring-1 focus-within:ring-primary/40',
+          )}
+          onClick={() => textareaRef.current?.focus()}
+        >
           {isUploading && (
             <div
               className="absolute top-0 left-0 h-0.5 bg-primary transition-all duration-300 rounded-t-full"
