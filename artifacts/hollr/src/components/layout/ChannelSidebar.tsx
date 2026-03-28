@@ -28,7 +28,6 @@ import type { VoiceChannelUser } from '@/store/use-app-store';
 import { cn, getInitials } from '@/lib/utils';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1272,180 +1271,189 @@ function UserProfilePanel({
       )}
 
       <div className="mx-2 mb-2 mt-1 relative flex items-center px-3 py-2 gap-2 group/profile bg-background/80 backdrop-blur-xl border border-border/30 shadow-xl shadow-black/30 rounded-2xl">
-        {/* Avatar — click to open quick actions (sign out, KHURK OS toggle) */}
-        <Popover open={quickOpen} onOpenChange={setQuickOpen}>
-          <PopoverTrigger asChild>
-            <button className="flex-1 min-w-0 flex items-center gap-2 hover:bg-accent/50 rounded-xl px-1.5 py-1 transition-colors text-left">
-              <div className="relative shrink-0">
-                <Avatar className="h-8 w-8 rounded-full border border-border/50">
-                  <AvatarImage src={profile?.avatarUrl || undefined} />
-                  <AvatarFallback className="bg-primary text-white text-xs">
-                    {getInitials(displayName)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className={cn(
-                  "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-[2.5px] border-card rounded-full",
-                  statusColor(inVoice ? 'online' : currentStatus)
-                )} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-foreground truncate leading-tight">{displayName}</p>
-                <p className="text-xs text-muted-foreground truncate leading-tight">
-                  {inVoice ? 'In Voice' : profile?.customStatus || statusLabel(currentStatus)}
-                </p>
-              </div>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent side="top" align="center" className="w-64 p-2 bg-popover border-border/50" sideOffset={8}>
-            <div className="flex items-center gap-2.5 px-2 py-1 mb-1">
-              <button
-                onClick={() => { setUserSettingsModalOpen(true); setQuickOpen(false); }}
-                className="relative shrink-0 group/avtedit"
-                title="Edit profile"
-              >
-                <Avatar className="h-10 w-10 rounded-full border border-border/50">
-                  <AvatarImage src={profile?.avatarUrl || undefined} />
-                  <AvatarFallback className="bg-primary text-white text-sm">
-                    {getInitials(displayName)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover/avtedit:opacity-100 transition-opacity flex items-center justify-center">
-                  <Camera size={14} className="text-white" />
-                </div>
-              </button>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1">
-                  <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
-                  {(profile as any)?.isSupporter && <KhurkDiamondBadge size="sm" />}
-                </div>
-                <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
-              </div>
-              <button
-                onClick={cycleStatus}
-                title="Click to cycle status"
-                className={cn(
-                  'shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all active:scale-95',
-                  'bg-accent hover:bg-accent/70 border border-border/40',
-                )}
-              >
-                <span className={cn('w-2 h-2 rounded-full shrink-0', currentStatusOpt.color)} />
-                <span className="text-foreground">{currentStatusOpt.label}</span>
-              </button>
-            </div>
-            <div className="h-px bg-border/40 mb-1" />
-            {permission !== 'unsupported' && (
-              <button
-                onClick={() => notifOn ? unsubscribe() : subscribe()}
-                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
-              >
-                {notifOn
-                  ? <Bell size={14} className="shrink-0 text-muted-foreground" />
-                  : <BellOff size={14} className="shrink-0 text-muted-foreground" />
-                }
-                <span className="flex-1 text-left">NOTIFICATIONS</span>
-                <div className={cn(
-                  "w-8 h-4 rounded-full transition-colors relative shrink-0",
-                  notifOn ? "bg-primary" : "bg-muted"
-                )}>
-                  <div className={cn(
-                    "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
-                    notifOn ? "translate-x-4" : "translate-x-0.5"
-                  )} />
-                </div>
-              </button>
-            )}
-            <button
-              onClick={toggleKhurkOs}
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
-            >
-              <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
-              <span className="flex-1 text-left">KHURK OS</span>
+        {/* Profile pill + inline quick-settings panel */}
+        <div className="relative flex-1 min-w-0">
+          <button
+            onClick={() => setQuickOpen(v => !v)}
+            onKeyDown={(e) => e.key === 'Escape' && setQuickOpen(false)}
+            className="w-full flex items-center gap-2 hover:bg-accent/50 rounded-xl px-1.5 py-1 transition-colors text-left"
+          >
+            <div className="relative shrink-0">
+              <Avatar className="h-8 w-8 rounded-full border border-border/50">
+                <AvatarImage src={profile?.avatarUrl || undefined} />
+                <AvatarFallback className="bg-primary text-white text-xs">
+                  {getInitials(displayName)}
+                </AvatarFallback>
+              </Avatar>
               <div className={cn(
-                "w-8 h-4 rounded-full transition-colors relative shrink-0",
-                khurkOsEnabled ? "bg-primary" : "bg-muted"
-              )}>
-                <div className={cn(
-                  "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
-                  khurkOsEnabled ? "translate-x-4" : "translate-x-0.5"
-                )} />
-              </div>
-            </button>
-            <button
-              onClick={() => {
-                if (khurkAppsMode === 'all') { setKhurkAppsExplicitNeutral(false); dismissAllApps(); }
-                else if (khurkAppsMode === 'none') { setKhurkAppsExplicitNeutral(false); restoreAllApps(); }
-                // neutral: do nothing
-              }}
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
-            >
-              <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
-              <span className="flex-1 text-left">KHURK APPS</span>
-              <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
-                <span
-                  onClick={(e) => { e.stopPropagation(); setKhurkAppsExplicitNeutral(false); restoreAllApps(); }}
-                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'all' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-                >All</span>
-                <span
-                  onClick={(e) => { e.stopPropagation(); setKhurkAppsExplicitNeutral(true); }}
-                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'neutral' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-                >Ø</span>
-                <span
-                  onClick={(e) => { e.stopPropagation(); setKhurkAppsExplicitNeutral(false); dismissAllApps(); }}
-                  className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'none' ? "bg-destructive text-white" : "text-muted-foreground hover:text-foreground")}
-                >None</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setLayoutMode(layoutMode === 'classic' ? 'dock' : 'classic')}
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
-            >
-              <PanelLeft size={14} className="shrink-0 text-muted-foreground" />
-              <span className="flex-1 text-left">LAYOUT</span>
-              <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
-                <span className={cn(
-                  "px-1.5 py-0.5 transition-colors",
-                  layoutMode === 'classic' ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                )}>Side</span>
-                <span className={cn(
-                  "px-1.5 py-0.5 transition-colors",
-                  layoutMode === 'dock' ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                )}>Dock</span>
-              </div>
-            </button>
-            <div className="h-px bg-border/40 my-1" />
-            <button
-              onClick={() => { logout(); setQuickOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-destructive/10 text-destructive"
-            >
-              <LogOut size={14} className="shrink-0" />
-              Sign Out
-            </button>
-            <div className="h-px bg-border/40 mt-1.5 mb-1" />
-            <div className="flex items-center gap-1.5 px-2 py-1" onClick={(e) => e.stopPropagation()}>
-              <Smile size={13} className="shrink-0 text-muted-foreground/60" />
-              <input
-                value={customStatusInput}
-                onChange={(e) => setCustomStatusInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveCustomStatus();
-                  if (e.key === 'Escape') setCustomStatusInput(profile?.customStatus ?? '');
-                }}
-                onBlur={() => setCustomStatusInput(profile?.customStatus ?? '')}
-                maxLength={128}
-                placeholder="Set a custom status…"
-                className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none py-0.5"
-              />
-              {profile?.customStatus && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleClearCustomStatus(); }}
-                  className="text-muted-foreground/50 hover:text-destructive transition-colors"
-                >
-                  <X size={11} />
-                </button>
-              )}
+                "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-[2.5px] border-card rounded-full",
+                statusColor(inVoice ? 'online' : currentStatus)
+              )} />
             </div>
-          </PopoverContent>
-        </Popover>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-foreground truncate leading-tight">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate leading-tight">
+                {inVoice ? 'In Voice' : profile?.customStatus || statusLabel(currentStatus)}
+              </p>
+            </div>
+          </button>
+
+          {quickOpen && (
+            <>
+              {/* Backdrop to close on outside click */}
+              <div className="fixed inset-0 z-[199]" onClick={() => setQuickOpen(false)} />
+              {/* Panel anchored directly above the pill */}
+              <div className="absolute bottom-full left-0 mb-2 z-[200] w-64 rounded-xl bg-popover border border-border/50 p-2 shadow-2xl shadow-black/50">
+                <div className="flex items-center gap-2.5 px-2 py-1 mb-1">
+                  <button
+                    onClick={() => { setUserSettingsModalOpen(true); setQuickOpen(false); }}
+                    className="relative shrink-0 group/avtedit"
+                    title="Edit profile"
+                  >
+                    <Avatar className="h-10 w-10 rounded-full border border-border/50">
+                      <AvatarImage src={profile?.avatarUrl || undefined} />
+                      <AvatarFallback className="bg-primary text-white text-sm">
+                        {getInitials(displayName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover/avtedit:opacity-100 transition-opacity flex items-center justify-center">
+                      <Camera size={14} className="text-white" />
+                    </div>
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1">
+                      <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
+                      {(profile as any)?.isSupporter && <KhurkDiamondBadge size="sm" />}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
+                  </div>
+                  <button
+                    onClick={cycleStatus}
+                    title="Click to cycle status"
+                    className={cn(
+                      'shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all active:scale-95',
+                      'bg-accent hover:bg-accent/70 border border-border/40',
+                    )}
+                  >
+                    <span className={cn('w-2 h-2 rounded-full shrink-0', currentStatusOpt.color)} />
+                    <span className="text-foreground">{currentStatusOpt.label}</span>
+                  </button>
+                </div>
+                <div className="h-px bg-border/40 mb-1" />
+                {permission !== 'unsupported' && (
+                  <button
+                    onClick={() => notifOn ? unsubscribe() : subscribe()}
+                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
+                  >
+                    {notifOn
+                      ? <Bell size={14} className="shrink-0 text-muted-foreground" />
+                      : <BellOff size={14} className="shrink-0 text-muted-foreground" />
+                    }
+                    <span className="flex-1 text-left">NOTIFICATIONS</span>
+                    <div className={cn(
+                      "w-8 h-4 rounded-full transition-colors relative shrink-0",
+                      notifOn ? "bg-primary" : "bg-muted"
+                    )}>
+                      <div className={cn(
+                        "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
+                        notifOn ? "translate-x-4" : "translate-x-0.5"
+                      )} />
+                    </div>
+                  </button>
+                )}
+                <button
+                  onClick={toggleKhurkOs}
+                  className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
+                >
+                  <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
+                  <span className="flex-1 text-left">KHURK OS</span>
+                  <div className={cn(
+                    "w-8 h-4 rounded-full transition-colors relative shrink-0",
+                    khurkOsEnabled ? "bg-primary" : "bg-muted"
+                  )}>
+                    <div className={cn(
+                      "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200",
+                      khurkOsEnabled ? "translate-x-4" : "translate-x-0.5"
+                    )} />
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    if (khurkAppsMode === 'all') { setKhurkAppsExplicitNeutral(false); dismissAllApps(); }
+                    else if (khurkAppsMode === 'none') { setKhurkAppsExplicitNeutral(false); restoreAllApps(); }
+                  }}
+                  className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
+                >
+                  <LayoutGrid size={14} className="shrink-0 text-muted-foreground" />
+                  <span className="flex-1 text-left">KHURK APPS</span>
+                  <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
+                    <span
+                      onClick={(e) => { e.stopPropagation(); setKhurkAppsExplicitNeutral(false); restoreAllApps(); }}
+                      className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'all' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+                    >All</span>
+                    <span
+                      onClick={(e) => { e.stopPropagation(); setKhurkAppsExplicitNeutral(true); }}
+                      className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'neutral' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+                    >Ø</span>
+                    <span
+                      onClick={(e) => { e.stopPropagation(); setKhurkAppsExplicitNeutral(false); dismissAllApps(); }}
+                      className={cn("px-1.5 py-0.5 transition-colors cursor-pointer", khurkAppsMode === 'none' ? "bg-destructive text-white" : "text-muted-foreground hover:text-foreground")}
+                    >None</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setLayoutMode(layoutMode === 'classic' ? 'dock' : 'classic')}
+                  className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent"
+                >
+                  <PanelLeft size={14} className="shrink-0 text-muted-foreground" />
+                  <span className="flex-1 text-left">LAYOUT</span>
+                  <div className="flex items-center rounded-md overflow-hidden border border-border/40 text-[10px] font-semibold shrink-0">
+                    <span className={cn(
+                      "px-1.5 py-0.5 transition-colors",
+                      layoutMode === 'classic' ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                    )}>Side</span>
+                    <span className={cn(
+                      "px-1.5 py-0.5 transition-colors",
+                      layoutMode === 'dock' ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                    )}>Dock</span>
+                  </div>
+                </button>
+                <div className="h-px bg-border/40 my-1" />
+                <button
+                  onClick={() => { logout(); setQuickOpen(false); }}
+                  className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-destructive/10 text-destructive"
+                >
+                  <LogOut size={14} className="shrink-0" />
+                  Sign Out
+                </button>
+                <div className="h-px bg-border/40 mt-1.5 mb-1" />
+                <div className="flex items-center gap-1.5 px-2 py-1" onClick={(e) => e.stopPropagation()}>
+                  <Smile size={13} className="shrink-0 text-muted-foreground/60" />
+                  <input
+                    value={customStatusInput}
+                    onChange={(e) => setCustomStatusInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveCustomStatus();
+                      if (e.key === 'Escape') setCustomStatusInput(profile?.customStatus ?? '');
+                    }}
+                    onBlur={() => setCustomStatusInput(profile?.customStatus ?? '')}
+                    maxLength={128}
+                    placeholder="Set a custom status…"
+                    className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none py-0.5"
+                  />
+                  {profile?.customStatus && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleClearCustomStatus(); }}
+                      className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
 
 
         {/* Action buttons */}
