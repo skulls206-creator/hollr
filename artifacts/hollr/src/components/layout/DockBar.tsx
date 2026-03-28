@@ -756,8 +756,8 @@ export function DockBar() {
               overflowX: 'auto',
               overflowY: 'clip',
               pointerEvents: 'auto',
-              paddingTop: '56px',
-              marginTop: '-56px',
+              paddingTop: '0px',
+              marginTop: '0px',
               paddingBottom: '8px',
               marginBottom: '-8px',
               paddingLeft: '12px',
@@ -770,22 +770,6 @@ export function DockBar() {
               touchAction: 'pan-x',
             }}
           >
-            {/* Invisible overlay that blocks pointer events only in the headroom
-                zone (above the dock's visible row) — keeps the 56px zone from
-                intercepting taps on content above the dock pill.
-                The scroll area itself needs pointer-events:auto for touch-scroll,
-                but the top 56px of padding would otherwise eat taps above the dock. */}
-            <div
-              aria-hidden
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: '56px',
-                pointerEvents: 'none',
-              }}
-            />
             <SortableContext items={entries.map(e => e.id)} strategy={horizontalListSortingStrategy}>
               {/* Servers */}
               {serverEntries.map(entry => renderEntryContent(entry))}
