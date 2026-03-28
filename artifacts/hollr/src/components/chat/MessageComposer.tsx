@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { PlusCircle, Smile, Music2, Slash, SendHorizonal } from 'lucide-react';
+import { PlusCircle, Smile, Music2, Slash, ArrowUp } from 'lucide-react';
 import { useSendMessage, useRequestUploadUrl, useListServerMembers, getListServerMembersQueryKey, getListMessagesQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -93,12 +93,10 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         .slice(0, 8)
     : [];
 
-  // Slash command filtering
   const slashMatches = slashQuery !== null
     ? SLASH_COMMANDS.filter(c => c.name.startsWith(slashQuery.toLowerCase()))
     : [];
 
-  // Auto-resize helper — collapses to 'auto' first so scrollHeight reflects content
   const resizeTextarea = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -106,7 +104,6 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     el.style.height = `${el.scrollHeight}px`;
   }, []);
 
-  // Resize whenever content changes (catches programmatic updates like @mentions)
   useEffect(() => {
     resizeTextarea();
   }, [content, resizeTextarea]);
@@ -118,7 +115,6 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     const cursor = e.target.selectionStart || 0;
     const textBefore = val.slice(0, cursor);
 
-    // Slash command: detect /command at start of input
     const slashMatch = val.match(/^\/(\w*)$/);
     if (slashMatch && cursor <= val.length) {
       setSlashQuery(slashMatch[1]);
@@ -129,7 +125,6 @@ export function MessageComposer({ channelId }: { channelId: string }) {
       setSlashQuery(null);
     }
 
-    // @mention
     const mentionMatch = textBefore.match(/@(\w*)$/);
     if (mentionMatch) {
       setMentionQuery(mentionMatch[1]);
@@ -227,14 +222,13 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     const trimmed = content.trim();
     if (!trimmed && !isUploading) return;
 
-    // Slash command interception
     if (trimmed.startsWith('/')) {
       const [cmdName] = trimmed.slice(1).split(/\s+/);
       const isKnown = SLASH_COMMANDS.some(c => c.name === cmdName);
       if (isKnown) {
         await executeSlashCommand(trimmed);
         setContent('');
-        if (textareaRef.current) textareaRef.current.style.height = '36px';
+        if (textareaRef.current) textareaRef.current.style.height = '34px';
         return;
       }
     }
@@ -242,7 +236,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     sendMessage({ channelId, data: { content: trimmed } }, {
       onSuccess: (newMsg) => {
         setContent('');
-        if (textareaRef.current) textareaRef.current.style.height = '36px';
+        if (textareaRef.current) textareaRef.current.style.height = '34px';
         qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), (old = []) => {
           if (old.some((m: any) => m.id === newMsg.id)) return old;
           return [...old, newMsg];
@@ -252,13 +246,12 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         enqueueMessage({ channelId, content: trimmed });
         toast({ title: "You're offline — message queued", description: "It will send automatically when you reconnect.", variant: "destructive" });
         setContent('');
-        if (textareaRef.current) textareaRef.current.style.height = '36px';
+        if (textareaRef.current) textareaRef.current.style.height = '34px';
       },
     });
   }, [content, isUploading, channelId, sendMessage, toast, executeSlashCommand]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Slash command palette navigation
     if (slashQuery !== null && slashMatches.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedSlashIdx(i => (i + 1) % slashMatches.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedSlashIdx(i => (i - 1 + slashMatches.length) % slashMatches.length); return; }
@@ -269,7 +262,6 @@ export function MessageComposer({ channelId }: { channelId: string }) {
       }
       if (e.key === 'Escape') { e.preventDefault(); setSlashQuery(null); return; }
     }
-    // @mention navigation
     if (mentionQuery !== null && mentionMatches.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedMentionIdx(i => (i + 1) % mentionMatches.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedMentionIdx(i => (i - 1 + mentionMatches.length) % mentionMatches.length); return; }
@@ -335,11 +327,14 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     }
   };
 
+  const hasContent = !!content.trim();
+
   return (
-    <div className="px-4 pb-2 pt-1 w-full bg-surface-3 relative">
+    <div className="px-3 pb-3 pt-1 w-full bg-surface-3 relative">
+
       {/* Slash command palette */}
       {slashQuery !== null && slashMatches.length > 0 && (
-        <div className="absolute bottom-full left-4 right-4 mb-2 bg-surface-1 border border-border/20 rounded-xl shadow-2xl overflow-hidden z-50">
+        <div className="absolute bottom-full left-3 right-3 mb-2 bg-surface-1 border border-border/20 rounded-2xl shadow-2xl overflow-hidden z-50">
           <div className="px-3 py-1.5 border-b border-border/10 flex items-center gap-2">
             <Slash size={10} className="text-muted-foreground" />
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Commands</p>
@@ -353,7 +348,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
                 i === selectedSlashIdx ? 'bg-primary/20' : 'hover:bg-secondary/50'
               )}
             >
-              <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center shrink-0">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <Music2 size={12} className="text-primary" />
               </div>
               <div className="flex-1 min-w-0">
@@ -375,7 +370,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
 
       {/* @mention autocomplete */}
       {mentionQuery !== null && mentionMatches.length > 0 && (
-        <div className="absolute bottom-full left-4 right-4 mb-2 bg-surface-1 border border-border/20 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto z-50">
+        <div className="absolute bottom-full left-3 right-3 mb-2 bg-surface-1 border border-border/20 rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto z-50">
           <div className="px-3 py-1.5 border-b border-border/10">
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Members</p>
           </div>
@@ -403,71 +398,81 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         </div>
       )}
 
-      <div className="bg-[#232428] rounded-lg flex items-center px-4 py-1 relative overflow-visible shadow-sm focus-within:ring-1 focus-within:ring-primary/50">
+      {/* Composer pill */}
+      <div className="relative flex items-end gap-2">
 
-        {isUploading && (
-          <div className="absolute top-0 left-0 h-1 bg-primary transition-all duration-300 ease-out rounded-t-lg" style={{ width: `${uploadProgress}%` }} />
-        )}
-
+        {/* Attach button */}
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="p-1 mr-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-colors shrink-0 disabled:opacity-50"
+          className="shrink-0 mb-1 p-1.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+          title="Attach file"
         >
-          <PlusCircle size={22} className="fill-muted-foreground/20" />
+          <PlusCircle size={20} className="fill-muted-foreground/10" />
         </button>
-        <input
-          type="file"
-          className="hidden"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-        />
+        <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
 
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Holler…"
-          className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground py-1.5 min-h-[36px] max-h-[200px] overflow-y-auto leading-normal"
-          rows={1}
-          style={{ height: '36px' }}
-          data-ctx-suppress
-        />
-
-        <div className="flex items-center gap-1 ml-2 shrink-0 relative">
-          <button
-            ref={emojiButtonRef}
-            onClick={() => setEmojiPickerOpen(v => !v)}
-            className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-            title="Emoji picker"
-          >
-            <Smile size={22} />
-          </button>
-          {emojiPickerOpen && (
-            <EmojiPickerPopover
-              onEmojiClick={(emoji) => {
-                setContent(c => c + emoji);
-                textareaRef.current?.focus();
-              }}
-              onClose={() => setEmojiPickerOpen(false)}
-              anchorRef={emojiButtonRef as any}
+        {/* Input pill */}
+        <div className={cn(
+          'relative flex-1 flex items-end bg-[#2b2d31] rounded-[22px] px-4 py-0 shadow-sm transition-shadow',
+          'focus-within:ring-1 focus-within:ring-primary/40',
+        )}>
+          {isUploading && (
+            <div
+              className="absolute top-0 left-0 h-0.5 bg-primary transition-all duration-300 rounded-t-full"
+              style={{ width: `${uploadProgress}%` }}
             />
           )}
-          <button
-            onClick={handleSend}
-            disabled={!content.trim() || isSending || cmdLoading}
-            className={cn(
-              'p-1.5 rounded-md transition-colors',
-              content.trim()
-                ? 'text-primary hover:bg-primary/20'
-                : 'text-muted-foreground/40 cursor-not-allowed'
+
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Holler…"
+            className="flex-1 bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground/60 py-2.5 min-h-[34px] max-h-[160px] overflow-y-auto leading-normal text-[15px]"
+            rows={1}
+            style={{ height: '34px' }}
+            data-ctx-suppress
+          />
+
+          {/* Emoji button inside pill */}
+          <div className="relative flex items-center shrink-0 mb-1">
+            <button
+              ref={emojiButtonRef}
+              onClick={() => setEmojiPickerOpen(v => !v)}
+              className="p-1 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              title="Emoji picker"
+            >
+              <Smile size={19} />
+            </button>
+            {emojiPickerOpen && (
+              <EmojiPickerPopover
+                onEmojiClick={(emoji) => {
+                  setContent(c => c + emoji);
+                  textareaRef.current?.focus();
+                }}
+                onClose={() => setEmojiPickerOpen(false)}
+                anchorRef={emojiButtonRef as any}
+              />
             )}
-            title="Send message"
-          >
-            <SendHorizonal size={20} />
-          </button>
+          </div>
         </div>
+
+        {/* Send button — filled circle when content is ready */}
+        <button
+          onClick={handleSend}
+          disabled={!hasContent || isSending || cmdLoading}
+          title="Send message"
+          className={cn(
+            'shrink-0 mb-1 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
+            hasContent
+              ? 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95'
+              : 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
+          )}
+        >
+          <ArrowUp size={18} strokeWidth={2.5} />
+        </button>
       </div>
     </div>
   );

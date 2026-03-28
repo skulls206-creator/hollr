@@ -34,11 +34,17 @@ async function toggleReaction(channelId: string, messageId: string, emojiId: str
   return res.json();
 }
 
-function formatContent(content: string) {
+function formatContent(content: string, onDark = false) {
   const parts = content.split(/(@\S+)/g);
   return parts.map((part, i) =>
     part.startsWith('@') ? (
-      <span key={i} className="bg-primary/20 text-primary font-semibold px-1 rounded text-[13px]">
+      <span
+        key={i}
+        className={cn(
+          'font-semibold px-1 rounded text-[13px]',
+          onDark ? 'bg-white/20 text-white' : 'bg-primary/20 text-primary'
+        )}
+      >
         {part}
       </span>
     ) : (
@@ -64,6 +70,21 @@ function DateSeparator({ date }: { date: Date }) {
       </div>
     </div>
   );
+}
+
+function getBubbleRadius(isOwner: boolean, isFirst: boolean, isLast: boolean) {
+  const base = 20;
+  const tight = 5;
+  if (isFirst && isLast) return `rounded-[${base}px]`;
+  if (isOwner) {
+    if (isFirst) return `rounded-[${base}px] rounded-br-[${tight}px]`;
+    if (isLast)  return `rounded-[${base}px] rounded-tr-[${tight}px]`;
+    return `rounded-2xl rounded-r-[${tight}px]`;
+  } else {
+    if (isFirst) return `rounded-[${base}px] rounded-bl-[${tight}px]`;
+    if (isLast)  return `rounded-[${base}px] rounded-tl-[${tight}px]`;
+    return `rounded-2xl rounded-l-[${tight}px]`;
+  }
 }
 
 export function MessageList({
@@ -375,7 +396,7 @@ export function MessageList({
   }
 
   return (
-    <div ref={scrollContainerRef} data-messages-scroll className="flex-1 overflow-y-auto flex flex-col p-4 gap-0 no-scrollbar">
+    <div ref={scrollContainerRef} data-messages-scroll className="flex-1 overflow-y-auto flex flex-col px-3 py-2 gap-0 no-scrollbar">
       <div className="mt-auto" />
 
       {messages.length === 0 && (
@@ -387,16 +408,23 @@ export function MessageList({
 
       {messages.map((msg, index) => {
         const prev = messages[index - 1];
+        const next = messages[index + 1];
         const msgDate = new Date(msg.createdAt);
         const prevDate = prev ? new Date(prev.createdAt) : null;
         const showDateSeparator = !prevDate || !isSameDay(msgDate, prevDate);
 
-        const showHeader = index === 0
+        const isFirst = index === 0
           || showDateSeparator
           || prev.authorId !== msg.authorId
-          || (new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60000);
+          || (msgDate.getTime() - new Date(prev.createdAt).getTime() > 5 * 60000);
+
+        const isLast = !next
+          || !isSameDay(new Date(next.createdAt), msgDate)
+          || next.authorId !== msg.authorId
+          || (new Date(next.createdAt).getTime() - msgDate.getTime() > 5 * 60000);
 
         const isOwner = user?.id === msg.authorId;
+        const isSupporter = !isOwner && !!(msg.author as any).isSupporter;
         const isEditing = editingId === msg.id;
         const isHighlighted = highlightedMessageId === msg.id;
         const isDeleted = !!(msg as any).deleted;
@@ -405,230 +433,270 @@ export function MessageList({
         const replyCount = (msg as any).replyCount || 0;
         const lp = handleLongPress(msg);
 
+        const onDark = isOwner || isSupporter;
+
+        const bubbleBg = isOwner
+          ? 'bg-primary text-primary-foreground'
+          : isSupporter
+            ? 'bg-[#007AFF] text-white'
+            : 'bg-muted text-foreground';
+
+        const radius = getBubbleRadius(isOwner, isFirst, isLast);
+
         return (
           <Fragment key={msg.id}>
-          {showDateSeparator && <DateSeparator date={msgDate} />}
-          <div
-            ref={el => { messageRefs.current[msg.id] = el; }}
-            className={cn(
-              'group relative flex py-0.5 px-4 -mx-4 rounded-sm transition-colors',
-              showHeader ? 'mt-4' : 'mt-0',
-              isHighlighted && 'bg-primary/10 hover:bg-primary/15 ring-1 ring-primary/30 rounded-md',
-              !isHighlighted && 'hover:bg-black/5',
-              msg.pinned && 'border-l-2 border-amber-500/60 pl-3'
-            )}
-            onMouseLeave={() => setEmojiHoverMsg(null)}
-            onContextMenu={e => handleMessageContextMenu(e, msg)}
-            onTouchStart={lp.onTouchStart}
-            onTouchEnd={lp.onTouchEnd}
-            onTouchMove={lp.onTouchMove}
-          >
-            {/* Avatar or timestamp stub */}
-            {showHeader ? (
-              <button
-                onClick={e => openProfileCard({
-                  userId: msg.authorId,
-                  position: { x: e.clientX, y: e.clientY },
-                })}
-                onContextMenu={e => handleAuthorContextMenu(e, msg.author, msg.authorId)}
-                className="shrink-0 mr-4"
-              >
-                <Avatar className="h-10 w-10 hover:opacity-80 transition-opacity">
-                  <AvatarImage src={msg.author.avatarUrl || undefined} />
-                  <AvatarFallback className="bg-primary text-white">
-                    {getInitials(msg.author.displayName || msg.author.username)}
-                  </AvatarFallback>
-                </Avatar>
-              </button>
-            ) : (
-              <div className="w-14 shrink-0 text-right pr-4 text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 flex items-center justify-end">
-                {format(new Date(msg.createdAt), 'h:mm a')}
-              </div>
-            )}
+            {showDateSeparator && <DateSeparator date={msgDate} />}
 
-            <div className="flex flex-col min-w-0 flex-1 py-0.5">
-              {showHeader && (
-                <div className="flex items-center gap-2 mb-0.5">
+            <div
+              ref={el => { messageRefs.current[msg.id] = el; }}
+              className={cn(
+                'group relative flex items-end gap-2',
+                isOwner ? 'flex-row-reverse' : 'flex-row',
+                isFirst ? 'mt-3' : 'mt-0.5',
+                isHighlighted && 'bg-primary/5 rounded-2xl px-1',
+              )}
+              onMouseLeave={() => setEmojiHoverMsg(null)}
+              onContextMenu={e => handleMessageContextMenu(e, msg)}
+              onTouchStart={lp.onTouchStart}
+              onTouchEnd={lp.onTouchEnd}
+              onTouchMove={lp.onTouchMove}
+            >
+              {/* Avatar (others only) */}
+              {!isOwner && (
+                isLast ? (
                   <button
                     onClick={e => openProfileCard({ userId: msg.authorId, position: { x: e.clientX, y: e.clientY } })}
                     onContextMenu={e => handleAuthorContextMenu(e, msg.author, msg.authorId)}
-                    className="font-medium text-base text-indigo-400 hover:underline flex items-center gap-1"
+                    className="shrink-0 self-end mb-0.5"
                   >
-                    {msg.author.displayName || msg.author.username}
-                    {msg.author.isSupporter && <KhurkDiamondBadge size="sm" />}
+                    <Avatar className="h-7 w-7 hover:opacity-80 transition-opacity">
+                      <AvatarImage src={msg.author.avatarUrl || undefined} />
+                      <AvatarFallback className={cn('text-[11px] text-white', isSupporter ? 'bg-[#007AFF]' : 'bg-primary')}>
+                        {getInitials(msg.author.displayName || msg.author.username)}
+                      </AvatarFallback>
+                    </Avatar>
                   </button>
-                  <span className="text-xs text-muted-foreground">
-                    {format(new Date(msg.createdAt), 'h:mm a')}
-                  </span>
-                  {msg.pinned && (
-                    <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-0.5">
-                      <Pin size={10} className="inline" /> Pinned
-                    </span>
-                  )}
-                </div>
+                ) : (
+                  <div className="w-7 shrink-0" />
+                )
               )}
 
-              {isDeleted ? (
-                <div className="text-[14px] italic text-red-400/80 select-none">
-                  Message deleted
-                </div>
-              ) : isHidden ? (
-                <button
-                  onClick={() => toggleHide(msg.id)}
-                  className="flex items-center gap-1.5 text-[13px] italic text-muted-foreground/50 hover:text-muted-foreground transition-colors select-none"
-                >
-                  <EyeOff size={12} />
-                  Message hidden — tap to show
-                </button>
-              ) : isEditing ? (
-                <div className="flex flex-col gap-1">
-                  <textarea
-                    ref={editRef}
-                    value={editDraft}
-                    onChange={e => setEditDraft(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg.id); }
-                      if (e.key === 'Escape') cancelEdit();
-                    }}
-                    className="bg-[#383A40] rounded-md px-3 py-2 text-foreground text-[15px] leading-relaxed resize-none w-full outline-none focus:ring-1 focus:ring-primary"
-                    rows={1}
-                  />
-                  <div className="flex gap-2 text-xs text-muted-foreground">
-                    <button onClick={() => saveEdit(msg.id)} className="flex items-center gap-1 text-primary hover:text-primary/80">
-                      <Check size={12} /> Save
+              {/* Bubble column */}
+              <div className={cn('flex flex-col max-w-[72%]', isOwner ? 'items-end' : 'items-start')}>
+
+                {/* Author name + timestamp — others, first in group */}
+                {!isOwner && isFirst && !isDeleted && !isHidden && (
+                  <div className="flex items-center gap-1.5 mb-1 ml-1">
+                    <button
+                      onClick={e => openProfileCard({ userId: msg.authorId, position: { x: e.clientX, y: e.clientY } })}
+                      onContextMenu={e => handleAuthorContextMenu(e, msg.author, msg.authorId)}
+                      className="text-[12px] font-semibold text-foreground hover:underline"
+                    >
+                      {msg.author.displayName || msg.author.username}
                     </button>
-                    <span>•</span>
-                    <button onClick={cancelEdit} className="flex items-center gap-1 hover:text-foreground">
-                      <X size={12} /> Cancel
-                    </button>
+                    {(msg.author as any).isSupporter && <KhurkDiamondBadge size="sm" />}
+                    <span className="text-[10px] text-muted-foreground">{format(msgDate, 'h:mm a')}</span>
+                    {msg.pinned && (
+                      <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-0.5">
+                        <Pin size={9} className="inline" /> Pinned
+                      </span>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <div className={cn(
-                  'text-foreground leading-relaxed whitespace-pre-wrap break-words',
-                  chatFontSize === 'sm' ? 'text-sm' : chatFontSize === 'lg' ? 'text-lg' : 'text-[15px]'
-                )}>
-                  {formatContent(msg.content)}
-                  {msg.edited && (
-                    <span className="text-[11px] text-muted-foreground ml-1.5 italic">(edited)</span>
-                  )}
-                </div>
-              )}
+                )}
 
-              {/* Attachments */}
-              {!isEditing && !isDeleted && !isHidden && msg.attachments && msg.attachments.length > 0 && (
-                <div className="flex flex-col gap-2 mt-2">
-                  {msg.attachments.map(att => {
-                    const isImage = att.contentType.startsWith('image/');
-                    const url = `/api/storage${att.objectPath}`;
-                    if (isImage) {
-                      return (
-                        <a key={att.id} href={url} target="_blank" rel="noopener noreferrer"
-                          className="inline-block max-w-[400px] rounded-xl overflow-hidden border border-border/50 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity"
-                          onContextMenu={e => handleImageContextMenu(e, url, att.name)}>
-                          <img
-                            src={url}
-                            alt={att.name}
-                            className="block max-w-full max-h-[350px] object-contain"
-                            loading="lazy"
-                          />
-                        </a>
-                      );
-                    }
-                    return (
-                      <a key={att.id} href={url} download target="_blank" rel="noreferrer"
-                        className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-lg hover:bg-secondary/80 transition-colors w-72">
-                        <div className="bg-primary/20 p-2 rounded-md"><FileText className="text-primary" size={24} /></div>
-                        <div className="flex flex-col overflow-hidden">
-                          <span className="text-sm font-medium text-primary hover:underline truncate">{att.name}</span>
-                          <span className="text-xs text-muted-foreground">{formatBytes(att.size)}</span>
-                        </div>
-                        <Download className="ml-auto text-muted-foreground hover:text-foreground" size={18} />
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
+                {/* Own: timestamp shown on hover above first bubble */}
+                {isOwner && isFirst && !isDeleted && !isHidden && (
+                  <div className="text-[10px] text-muted-foreground mb-0.5 mr-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
+                    {msg.pinned && (
+                      <span className="text-amber-400 flex items-center gap-0.5">
+                        <Pin size={9} className="inline" /> Pinned
+                      </span>
+                    )}
+                    {format(msgDate, 'h:mm a')}
+                  </div>
+                )}
 
-              {/* Reactions */}
-              {!isEditing && !isDeleted && !isHidden && (
-                <ReactionPills
-                  reactions={reactions}
-                  channelId={channelId}
-                  messageId={msg.id}
-                  showAddButton={emojiHoverMsg === msg.id}
-                />
-              )}
-
-              {/* Thread reply count */}
-              {!isEditing && !isDeleted && !isHidden && replyCount > 0 && (
-                <button
-                  onClick={() => openThread(channelId, msg.id)}
-                  className="mt-1 flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 hover:underline w-fit"
-                >
-                  <MessageSquare size={12} />
-                  {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
-                </button>
-              )}
-            </div>
-
-            {/* Hover action buttons — hidden for deleted/hidden messages */}
-            {!isEditing && !isDeleted && !isHidden && (
-              <div className="absolute right-4 top-0 -translate-y-1/2 bg-surface-1 border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                {/* Add reaction */}
-                <button
-                  onClick={() => setEmojiHoverMsg(v => v === msg.id ? null : msg.id)}
-                  title="Add reaction"
-                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-                >
-                  <Smile size={14} />
-                </button>
-                {/* Thread */}
-                <button
-                  onClick={() => openThread(channelId, msg.id)}
-                  title="Reply in thread"
-                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-                >
-                  <MessageSquare size={14} />
-                </button>
-                {/* Pin/Unpin */}
-                <button
-                  onClick={() => doPin({ msgId: msg.id, pinned: !!msg.pinned })}
-                  title={msg.pinned ? 'Unpin message' : 'Pin message'}
-                  className={cn(
-                    'p-1.5 rounded-md transition-colors',
-                    msg.pinned
-                      ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                  )}
-                >
-                  <Pin size={14} />
-                </button>
-                {/* Edit + Delete — owner only */}
-                {isOwner && (
+                {/* Message content */}
+                {isDeleted ? (
+                  <div className="text-[13px] italic text-muted-foreground/50 px-4 py-2 bg-muted/40 rounded-[20px]">
+                    Message deleted
+                  </div>
+                ) : isHidden ? (
+                  <button
+                    onClick={() => toggleHide(msg.id)}
+                    className="flex items-center gap-1.5 text-[13px] italic text-muted-foreground/50 hover:text-muted-foreground transition-colors select-none px-3 py-1.5 bg-muted/30 rounded-[20px]"
+                  >
+                    <EyeOff size={12} />
+                    Hidden — tap to show
+                  </button>
+                ) : isEditing ? (
+                  <div className="flex flex-col gap-1 w-full min-w-[220px]">
+                    <textarea
+                      ref={editRef}
+                      value={editDraft}
+                      onChange={e => setEditDraft(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg.id); }
+                        if (e.key === 'Escape') cancelEdit();
+                      }}
+                      className="bg-[#383A40] rounded-xl px-3 py-2 text-foreground text-[14px] leading-relaxed resize-none w-full outline-none focus:ring-1 focus:ring-primary"
+                      rows={1}
+                    />
+                    <div className="flex gap-2 text-xs text-muted-foreground px-1">
+                      <button onClick={() => saveEdit(msg.id)} className="flex items-center gap-1 text-primary hover:text-primary/80">
+                        <Check size={12} /> Save
+                      </button>
+                      <span>•</span>
+                      <button onClick={cancelEdit} className="flex items-center gap-1 hover:text-foreground">
+                        <X size={12} /> Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                   <>
-                    <button
-                      onClick={() => startEdit(msg.id, msg.content)}
-                      title="Edit"
-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(msg.id)}
-                      title="Delete"
-                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {/* Text bubble */}
+                    {msg.content && (
+                      <div
+                        className={cn(
+                          'px-4 py-2 leading-relaxed break-words whitespace-pre-wrap',
+                          chatFontSize === 'sm' ? 'text-[13px]' : chatFontSize === 'lg' ? 'text-lg' : 'text-[15px]',
+                          bubbleBg,
+                          radius,
+                          msg.pinned && 'ring-1 ring-amber-400/60',
+                        )}
+                      >
+                        {formatContent(msg.content, onDark)}
+                        {msg.edited && (
+                          <span className="text-[11px] opacity-60 ml-1.5 italic">(edited)</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Attachments */}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className={cn('flex flex-col gap-2 mt-1', isOwner ? 'items-end' : 'items-start')}>
+                        {msg.attachments.map(att => {
+                          const isImage = att.contentType.startsWith('image/');
+                          const url = `/api/storage${att.objectPath}`;
+                          if (isImage) {
+                            return (
+                              <a
+                                key={att.id}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block max-w-[280px] rounded-2xl overflow-hidden border border-border/30 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity"
+                                onContextMenu={e => handleImageContextMenu(e, url, att.name)}
+                              >
+                                <img
+                                  src={url}
+                                  alt={att.name}
+                                  className="block max-w-full max-h-[300px] object-contain"
+                                  loading="lazy"
+                                />
+                              </a>
+                            );
+                          }
+                          return (
+                            <a
+                              key={att.id}
+                              href={url}
+                              download
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-2xl hover:bg-secondary/80 transition-colors w-64"
+                            >
+                              <div className="bg-primary/20 p-2 rounded-lg"><FileText className="text-primary" size={20} /></div>
+                              <div className="flex flex-col overflow-hidden">
+                                <span className="text-sm font-medium text-primary hover:underline truncate">{att.name}</span>
+                                <span className="text-xs text-muted-foreground">{formatBytes(att.size)}</span>
+                              </div>
+                              <Download className="ml-auto text-muted-foreground hover:text-foreground shrink-0" size={16} />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Reactions */}
+                    <ReactionPills
+                      reactions={reactions}
+                      channelId={channelId}
+                      messageId={msg.id}
+                      showAddButton={emojiHoverMsg === msg.id}
+                    />
+
+                    {/* Thread reply count */}
+                    {replyCount > 0 && (
+                      <button
+                        onClick={() => openThread(channelId, msg.id)}
+                        className="mt-1 flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 hover:underline w-fit"
+                      >
+                        <MessageSquare size={12} />
+                        {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
+                      </button>
+                    )}
                   </>
                 )}
               </div>
-            )}
-          </div>
+
+              {/* Hover action bar — floats above the message row */}
+              {!isEditing && !isDeleted && !isHidden && (
+                <div className={cn(
+                  'absolute top-0 -translate-y-1/2 bg-surface-1 border border-border/30 rounded-lg shadow-lg flex items-center gap-0.5 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10',
+                  isOwner ? 'left-2' : 'right-2'
+                )}>
+                  <button
+                    onClick={() => setEmojiHoverMsg(v => v === msg.id ? null : msg.id)}
+                    title="Add reaction"
+                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                  >
+                    <Smile size={14} />
+                  </button>
+                  <button
+                    onClick={() => openThread(channelId, msg.id)}
+                    title="Reply in thread"
+                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                  >
+                    <MessageSquare size={14} />
+                  </button>
+                  <button
+                    onClick={() => doPin({ msgId: msg.id, pinned: !!msg.pinned })}
+                    title={msg.pinned ? 'Unpin message' : 'Pin message'}
+                    className={cn(
+                      'p-1.5 rounded-md transition-colors',
+                      msg.pinned
+                        ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                    )}
+                  >
+                    <Pin size={14} />
+                  </button>
+                  {isOwner && (
+                    <>
+                      <button
+                        onClick={() => startEdit(msg.id, msg.content)}
+                        title="Edit"
+                        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(msg.id)}
+                        title="Delete"
+                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </Fragment>
         );
       })}
+
       <div ref={bottomRef} />
     </div>
   );
