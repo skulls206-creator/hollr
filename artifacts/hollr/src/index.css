@@ -65,71 +65,62 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* ─── Midnight theme (default) ──────────────────────────── */
-:root, [data-theme="midnight"] {
+/* ─── Ember theme (deep dark amber-orange warmth — default) ─ */
+:root, [data-theme="ember"] {
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
   --opaque-button-border-intensity: 9;
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* Named surface steps */
-  --surface-0: #1E1F22;
-  --surface-1: #2B2D31;
-  --surface-2: #252628;
-  --surface-3: #313338;
+  /* Warm charcoal-amber surfaces */
+  --surface-0: #130E07;
+  --surface-1: #1E1509;
+  --surface-2: #17120A;
+  --surface-3: #241A0D;
 
-  /* Deep dark bluish-gray base */
-  --background: 224 71% 4%; 
-  --foreground: 210 20% 98%;
+  /* Near-black with deep warm orange hue */
+  --background: 25 60% 4%;
+  --foreground: 30 15% 96%;
 
-  --border: 216 34% 17%;
-  --input: 216 34% 17%;
-  --ring: 235 86% 65%;
+  --border: 25 30% 14%;
+  --input: 25 30% 14%;
+  --ring: 25 95% 55%;
 
-  /* Slightly lighter for cards */
-  --card: 222 47% 11%;
-  --card-foreground: 210 20% 98%;
-  --card-border: 216 34% 17%;
+  --card: 25 50% 7%;
+  --card-foreground: 30 15% 96%;
+  --card-border: 25 30% 14%;
 
-  /* Popovers */
-  --popover: 222 47% 11%;
-  --popover-foreground: 210 20% 98%;
-  --popover-border: 216 34% 17%;
+  --popover: 25 50% 7%;
+  --popover-foreground: 30 15% 96%;
+  --popover-border: 25 30% 14%;
 
-  /* Indigo primary */
-  --primary: 235 86% 65%;
+  /* Bright orange primary */
+  --primary: 25 95% 55%;
   --primary-foreground: 0 0% 100%;
 
-  /* Secondary */
-  --secondary: 217 33% 17%;
-  --secondary-foreground: 210 20% 98%;
+  --secondary: 25 25% 12%;
+  --secondary-foreground: 30 15% 96%;
 
-  /* Muted */
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 25 25% 12%;
+  --muted-foreground: 25 15% 52%;
 
-  /* Accent (Hover states) */
-  --accent: 216 34% 17%;
-  --accent-foreground: 210 20% 98%;
+  --accent: 25 30% 15%;
+  --accent-foreground: 30 15% 96%;
 
-  /* Destructive */
   --destructive: 0 84% 60%;
-  --destructive-foreground: 210 20% 98%;
+  --destructive-foreground: 30 15% 96%;
 
-  /* Sidebar - three column layout relies on slightly differing backgrounds */
-  --sidebar: 226 58% 7%; /* Column 2 (Channels) */
-  --sidebar-foreground: 210 20% 98%;
-  --sidebar-border: 216 34% 17%;
-  --sidebar-primary: 235 86% 65%;
+  --sidebar: 22 60% 5%;
+  --sidebar-foreground: 30 15% 96%;
+  --sidebar-border: 25 30% 13%;
+  --sidebar-primary: 25 95% 55%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 216 34% 17%;
-  --sidebar-accent-foreground: 210 20% 98%;
-  --sidebar-ring: 235 86% 65%;
+  --sidebar-accent: 25 25% 12%;
+  --sidebar-accent-foreground: 30 15% 96%;
+  --sidebar-ring: 25 95% 55%;
 
-  /* Column 1 (Servers) uses background color directly in component */
-
-  --radius: 0.5rem; 
+  --radius: 0.5rem;
 
   --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.2);
   --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.2);
@@ -205,57 +196,60 @@
   --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.25);
 }
 
-/* ─── Abyss theme (deeper indigo-black) ─────────────────── */
-[data-theme="abyss"] {
+/* ─── Bloom theme (deep dark rose-magenta) ───────────────── */
+[data-theme="bloom"] {
   --button-outline: rgba(255,255,255, .07);
   --badge-outline: rgba(255,255,255, .04);
   --opaque-button-border-intensity: 9;
   --elevate-1: rgba(255,255,255, .03);
   --elevate-2: rgba(255,255,255, .07);
 
-  --surface-0: #111215;
-  --surface-1: #191B1F;
-  --surface-2: #141517;
-  --surface-3: #1E2026;
+  /* Deep rose-noir surfaces */
+  --surface-0: #130A0E;
+  --surface-1: #1F1015;
+  --surface-2: #170C11;
+  --surface-3: #261018;
 
-  --background: 224 50% 3%;
-  --foreground: 210 20% 96%;
+  /* Near-black with deep rose/magenta hue */
+  --background: 340 55% 4%;
+  --foreground: 340 10% 96%;
 
-  --border: 220 30% 13%;
-  --input: 220 30% 13%;
-  --ring: 235 86% 65%;
+  --border: 340 25% 14%;
+  --input: 340 25% 14%;
+  --ring: 330 85% 60%;
 
-  --card: 224 45% 6%;
-  --card-foreground: 210 20% 96%;
-  --card-border: 220 30% 13%;
+  --card: 340 45% 7%;
+  --card-foreground: 340 10% 96%;
+  --card-border: 340 25% 14%;
 
-  --popover: 224 45% 6%;
-  --popover-foreground: 210 20% 96%;
-  --popover-border: 220 30% 13%;
+  --popover: 340 45% 7%;
+  --popover-foreground: 340 10% 96%;
+  --popover-border: 340 25% 14%;
 
-  --primary: 235 86% 65%;
+  /* Hot rose primary */
+  --primary: 330 85% 60%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 25% 11%;
-  --secondary-foreground: 210 20% 96%;
+  --secondary: 340 20% 12%;
+  --secondary-foreground: 340 10% 96%;
 
-  --muted: 220 25% 11%;
-  --muted-foreground: 215 18% 52%;
+  --muted: 340 20% 12%;
+  --muted-foreground: 340 12% 50%;
 
-  --accent: 220 30% 13%;
-  --accent-foreground: 210 20% 96%;
+  --accent: 340 25% 15%;
+  --accent-foreground: 340 10% 96%;
 
   --destructive: 0 84% 60%;
-  --destructive-foreground: 210 20% 96%;
+  --destructive-foreground: 340 10% 96%;
 
-  --sidebar: 226 55% 4%;
-  --sidebar-foreground: 210 20% 96%;
-  --sidebar-border: 220 30% 12%;
-  --sidebar-primary: 235 86% 65%;
+  --sidebar: 340 60% 5%;
+  --sidebar-foreground: 340 10% 96%;
+  --sidebar-border: 340 25% 13%;
+  --sidebar-primary: 330 85% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 25% 11%;
-  --sidebar-accent-foreground: 210 20% 96%;
-  --sidebar-ring: 235 86% 65%;
+  --sidebar-accent: 340 20% 12%;
+  --sidebar-accent-foreground: 340 10% 96%;
+  --sidebar-ring: 330 85% 60%;
 
   --radius: 0.5rem;
 

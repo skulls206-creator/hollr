@@ -197,8 +197,8 @@ interface AppState {
   setClassicChannelOpen: (open: boolean) => void;
 
   // Theme
-  theme: 'midnight' | 'slate' | 'light' | 'abyss' | 'forest' | 'void';
-  setTheme: (theme: 'midnight' | 'slate' | 'light' | 'abyss' | 'forest' | 'void') => void;
+  theme: 'ember' | 'bloom' | 'slate' | 'light' | 'forest' | 'void';
+  setTheme: (theme: 'ember' | 'bloom' | 'slate' | 'light' | 'forest' | 'void') => void;
 
   // Music bot volume (0–100), persisted so it never resets on rejoin
   musicVolume: number;

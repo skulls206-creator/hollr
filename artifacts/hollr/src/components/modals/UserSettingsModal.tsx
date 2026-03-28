@@ -654,8 +654,8 @@ export function UserSettingsModal() {
                   <div className="grid grid-cols-3 gap-2">
                     {([
                       { id: 'void',     label: 'Void',     swatches: ['#060609', '#0C0C10', '#8B5CF6'] },
-                      { id: 'midnight', label: 'Midnight', swatches: ['#0A0D14', '#1E1F22', '#2B2D31'] },
-                      { id: 'abyss',    label: 'Abyss',    swatches: ['#060710', '#111215', '#191B1F'] },
+                      { id: 'ember',  label: 'Ember',  swatches: ['#130E07', '#1E1509', '#F97316'] },
+                      { id: 'bloom',  label: 'Bloom',  swatches: ['#130A0E', '#1F1015', '#E83D80'] },
                       { id: 'slate',    label: 'Slate',    swatches: ['#2C2F33', '#36393F', '#40444B'] },
                       { id: 'forest',   label: 'Forest',   swatches: ['#060E08', '#101612', '#16201B'] },
                       { id: 'light',    label: 'Snow',     swatches: ['#ffffff', '#f2f3f5', '#e3e5e8'] },
