@@ -237,7 +237,7 @@ export function RippdPanel(_props: NativePanelProps) {
 
   const T = theme;
   const accentStyle = { background: `linear-gradient(135deg, ${T.accentFrom}, ${T.accentTo})` };
-  const accentText  = { background: `linear-gradient(90deg,${T.accentFrom},${T.accentTo})`, WebkitBackgroundClip: 'text' as const, WebkitTextFillColor: 'transparent' as const, display: 'inline-block' as const, width: 'fit-content' as const };
+  const accentText  = { color: T.accentFrom };
 
   const applyTheme = (t: RippdTheme) => {
     setTheme(t);
