@@ -92,10 +92,15 @@ router.get('/rippd/info', async (req, res) => {
   const { url } = req.query as { url?: string };
   if (!url) return res.status(400).json({ error: 'url is required' });
 
+  const normalized = normalizeUrl(url);
+  const isYt = isYouTubeUrl(url);
+  console.log(`[rippd] info raw=${url} normalized=${normalized} isYt=${isYt}`);
+
   try {
     const info = await resolveTrack(url);
     res.json(info);
   } catch (err: any) {
+    console.error('[rippd] info error:', err?.message, err?.stack?.split('\n')[1]);
     res.status(400).json({ error: err.message ?? 'Failed to resolve track' });
   }
 });
