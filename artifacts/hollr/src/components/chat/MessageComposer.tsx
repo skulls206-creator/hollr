@@ -399,13 +399,13 @@ export function MessageComposer({ channelId }: { channelId: string }) {
       )}
 
       {/* Composer pill */}
-      <div className="relative flex items-end gap-2">
+      <div className="relative flex items-center gap-2">
 
         {/* Attach button */}
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="shrink-0 mb-1 p-1.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+          className="shrink-0 p-1.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
           title="Attach file"
         >
           <PlusCircle size={20} className="fill-muted-foreground/10" />
@@ -437,7 +437,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           />
 
           {/* Emoji button inside pill */}
-          <div className="relative flex items-center shrink-0 mb-1">
+          <div className="relative flex items-center shrink-0">
             <button
               ref={emojiButtonRef}
               onClick={() => setEmojiPickerOpen(v => !v)}
@@ -465,7 +465,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           disabled={!hasContent || isSending || cmdLoading}
           title="Send message"
           className={cn(
-            'shrink-0 mb-1 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
+            'shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
             hasContent
               ? 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95'
               : 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
