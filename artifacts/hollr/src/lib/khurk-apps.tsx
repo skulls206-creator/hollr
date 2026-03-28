@@ -106,7 +106,7 @@ export const KHURK_APPS: KhurkApp[] = [
   },
   {
     id: 'playd',
-    name: 'Playd Music',
+    name: 'PLAYD',
     tagline: 'Local Music Player',
     description: 'Your local high-fidelity music library, organized perfectly.',
     url: 'https://playd.khurk.services',
@@ -117,7 +117,7 @@ export const KHURK_APPS: KhurkApp[] = [
   },
   {
     id: 'foldr',
-    name: 'Foldr Storage',
+    name: 'FOLDR',
     tagline: 'File Browser',
     description: 'Browse, manage, and preview your local files directly in-app.',
     url: 'https://foldr.khurk.services',
