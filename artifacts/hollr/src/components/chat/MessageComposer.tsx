@@ -415,7 +415,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         {/* Input pill */}
         <div
           className={cn(
-            'relative flex-1 flex items-center bg-[#2b2d31] rounded-[22px] px-4 py-0 shadow-sm transition-shadow cursor-text',
+            'relative flex-1 flex items-center bg-secondary border border-border/30 rounded-[22px] px-4 py-0 shadow-sm transition-shadow cursor-text',
             'focus-within:ring-1 focus-within:ring-primary/40',
           )}
           onClick={() => textareaRef.current?.focus()}

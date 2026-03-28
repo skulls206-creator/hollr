@@ -829,7 +829,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
 
           {/* Input pill */}
           <div
-            className="relative flex-1 flex items-center bg-[#2b2d31] rounded-[22px] px-4 py-0 shadow-sm focus-within:ring-1 focus-within:ring-primary/40 cursor-text"
+            className="relative flex-1 flex items-center bg-secondary border border-border/30 rounded-[22px] px-4 py-0 shadow-sm focus-within:ring-1 focus-within:ring-primary/40 cursor-text"
             onClick={() => textareaRef.current?.focus()}
           >
             {isUploading && (
