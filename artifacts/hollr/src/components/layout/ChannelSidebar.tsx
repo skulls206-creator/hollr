@@ -1036,9 +1036,8 @@ function UserProfilePanel({
   const updateProfile = useUpdateMyProfile();
   const qcPanel = useQueryClient();
   const [quickOpen, setQuickOpen] = useState(false);
-  const [statusOpen, setStatusOpen] = useState(false);
+
   const [customStatusInput, setCustomStatusInput] = useState('');
-  const [editingCustom, setEditingCustom] = useState(false);
   const [iosInstallOpen, setIosInstallOpen] = useState(false);
   const { canInstall, isIOS, promptInstall } = usePwaInstall();
   const { permission, isSubscribed, subscribe, unsubscribe } = usePushNotifications();
@@ -1098,7 +1097,6 @@ function UserProfilePanel({
       { data: { status: status as any } },
       { onSuccess: () => qcPanel.invalidateQueries({ queryKey: ['/api/users/me'] }) },
     );
-    setStatusOpen(false);
   };
 
   const cycleStatus = () => {
@@ -1115,12 +1113,7 @@ function UserProfilePanel({
   const handleSaveCustomStatus = () => {
     updateProfile.mutate(
       { data: { customStatus: customStatusInput.trim() || null } },
-      {
-        onSuccess: () => {
-          qcPanel.invalidateQueries({ queryKey: ['/api/users/me'] });
-          setEditingCustom(false);
-        },
-      },
+      { onSuccess: () => qcPanel.invalidateQueries({ queryKey: ['/api/users/me'] }) },
     );
   };
 
@@ -1285,17 +1278,25 @@ function UserProfilePanel({
             <div className="absolute inset-0 pointer-events-none" />
           </PopoverAnchor>
           <PopoverTrigger asChild>
-            <button className="relative shrink-0 rounded-full hover:opacity-90 transition-opacity">
-              <Avatar className="h-8 w-8 rounded-full border border-border/50">
-                <AvatarImage src={profile?.avatarUrl || undefined} />
-                <AvatarFallback className="bg-primary text-white text-xs">
-                  {getInitials(displayName)}
-                </AvatarFallback>
-              </Avatar>
-              <div className={cn(
-                "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-[2.5px] border-card rounded-full",
-                statusColor(inVoice ? 'online' : currentStatus)
-              )} />
+            <button className="flex-1 min-w-0 flex items-center gap-2 hover:bg-accent/50 rounded-xl px-1.5 py-1 transition-colors text-left">
+              <div className="relative shrink-0">
+                <Avatar className="h-8 w-8 rounded-full border border-border/50">
+                  <AvatarImage src={profile?.avatarUrl || undefined} />
+                  <AvatarFallback className="bg-primary text-white text-xs">
+                    {getInitials(displayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className={cn(
+                  "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-[2.5px] border-card rounded-full",
+                  statusColor(inVoice ? 'online' : currentStatus)
+                )} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-foreground truncate leading-tight">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate leading-tight">
+                  {inVoice ? 'In Voice' : profile?.customStatus || statusLabel(currentStatus)}
+                </p>
+              </div>
             </button>
           </PopoverTrigger>
           <PopoverContent side="top" align="center" className="w-64 p-2 bg-popover border-border/50" sideOffset={8}>
@@ -1422,111 +1423,33 @@ function UserProfilePanel({
               <LogOut size={14} className="shrink-0" />
               Sign Out
             </button>
+            <div className="h-px bg-border/40 mt-1.5 mb-1" />
+            <div className="flex items-center gap-1.5 px-2 py-1" onClick={(e) => e.stopPropagation()}>
+              <Smile size={13} className="shrink-0 text-muted-foreground/60" />
+              <input
+                value={customStatusInput}
+                onChange={(e) => setCustomStatusInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveCustomStatus();
+                  if (e.key === 'Escape') setCustomStatusInput(profile?.customStatus ?? '');
+                }}
+                onBlur={() => setCustomStatusInput(profile?.customStatus ?? '')}
+                maxLength={128}
+                placeholder="Set a custom status…"
+                className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none py-0.5"
+              />
+              {profile?.customStatus && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleClearCustomStatus(); }}
+                  className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
           </PopoverContent>
         </Popover>
 
-        {/* Username area — click to pick status */}
-        <Popover open={statusOpen} onOpenChange={setStatusOpen}>
-          <PopoverTrigger asChild>
-            <button className="flex flex-col flex-1 min-w-0 cursor-pointer hover:bg-accent rounded-md px-2 py-1 text-left transition-colors">
-              <span className="text-sm font-bold text-foreground truncate leading-tight">
-                {displayName}
-              </span>
-              <span className="text-xs text-muted-foreground truncate leading-tight">
-                {inVoice
-                  ? 'In Voice'
-                  : profile?.customStatus
-                    ? profile.customStatus
-                    : statusLabel(currentStatus)}
-              </span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            side="top"
-            align="start"
-            alignOffset={-44}
-            className="w-[232px] p-1.5 bg-popover border-border/50"
-            sideOffset={8}
-          >
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-1 pb-1.5">
-              Set Status
-            </p>
-            {STATUS_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => handleStatusChange(opt.value)}
-                className={cn(
-                  "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent",
-                  currentStatus === opt.value && "bg-accent/50 font-semibold"
-                )}
-              >
-                <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", opt.color)} />
-                <span>{opt.label}</span>
-                {currentStatus === opt.value && (
-                  <Check size={13} className="ml-auto text-primary" />
-                )}
-              </button>
-            ))}
-
-            {/* Custom status section */}
-            <div className="my-1 h-px bg-border/40" />
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-1 pb-1.5">
-              Custom Status
-            </p>
-
-            {!editingCustom ? (
-              <button
-                onClick={() => setEditingCustom(true)}
-                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent text-left"
-              >
-                <Smile size={14} className="shrink-0 text-muted-foreground" />
-                <span className={profile?.customStatus ? 'text-foreground' : 'text-muted-foreground italic'}>
-                  {profile?.customStatus || 'Set a custom status…'}
-                </span>
-                {profile?.customStatus && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleClearCustomStatus(); }}
-                    className="ml-auto text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    <X size={13} />
-                  </button>
-                )}
-              </button>
-            ) : (
-              <div className="px-2 pb-1.5 flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
-                <input
-                  autoFocus
-                  value={customStatusInput}
-                  onChange={(e) => setCustomStatusInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveCustomStatus();
-                    if (e.key === 'Escape') setEditingCustom(false);
-                  }}
-                  maxLength={128}
-                  placeholder="What's your status?"
-                  className="w-full rounded-md bg-input border border-border/50 text-sm text-foreground px-2.5 py-1.5 focus:outline-none focus:border-primary placeholder:text-muted-foreground"
-                />
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={handleSaveCustomStatus}
-                    disabled={updateProfile.isPending}
-                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  >
-                    <Check size={12} />
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setEditingCustom(false)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-md bg-accent/50 text-muted-foreground text-xs font-semibold hover:bg-accent transition-colors"
-                  >
-                    <X size={12} />
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
 
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 shrink-0">
