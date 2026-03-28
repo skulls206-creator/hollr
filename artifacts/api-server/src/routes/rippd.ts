@@ -10,13 +10,58 @@ interface TrackInfo {
   duration: number;
   thumbnail: string | null;
   source: 'youtube' | 'soundcloud' | 'unknown';
-  streamUrl?: string;
 }
 
-async function resolveTrack(url: string): Promise<TrackInfo> {
-  await ensurePlaydl();
+/**
+ * Extract a YouTube video ID from any YouTube URL variant:
+ *   youtube.com/watch?v=ID, m.youtube.com/watch?v=ID, youtu.be/ID,
+ *   youtube.com/shorts/ID, youtube.com/embed/ID, music.youtube.com/watch?v=ID
+ * Returns null if not a YouTube URL or no ID found.
+ */
+function extractYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '').replace(/^m\./, '');
 
-  if (playdl.yt_validate(url) === 'video') {
+    if (host === 'youtu.be') {
+      const id = u.pathname.slice(1).split('/')[0];
+      return id || null;
+    }
+
+    if (host === 'youtube.com' || host === 'music.youtube.com') {
+      // /watch?v=
+      const v = u.searchParams.get('v');
+      if (v) return v;
+      // /shorts/ID or /embed/ID
+      const m = u.pathname.match(/\/(?:shorts|embed|v)\/([a-zA-Z0-9_-]{11})/);
+      if (m) return m[1];
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Normalize any YouTube URL to a clean watch URL that play-dl accepts.
+ * Returns the original URL unchanged if it's not YouTube.
+ */
+function normalizeUrl(raw: string): string {
+  const ytId = extractYouTubeId(raw);
+  if (ytId) return `https://www.youtube.com/watch?v=${ytId}`;
+  return raw;
+}
+
+function isYouTubeUrl(raw: string): boolean {
+  return extractYouTubeId(raw) !== null;
+}
+
+async function resolveTrack(rawUrl: string): Promise<TrackInfo> {
+  await ensurePlaydl();
+  const url = normalizeUrl(rawUrl);
+
+  if (isYouTubeUrl(rawUrl)) {
     const info = await playdl.video_info(url);
     const details = info.video_details;
     return {
@@ -28,8 +73,8 @@ async function resolveTrack(url: string): Promise<TrackInfo> {
     };
   }
 
-  if (url.includes('soundcloud.com')) {
-    const info = await playdl.soundcloud(url) as any;
+  if (rawUrl.includes('soundcloud.com')) {
+    const info = await playdl.soundcloud(rawUrl) as any;
     return {
       title: info.name ?? 'Unknown Title',
       artist: info.user?.name ?? 'Unknown Artist',
@@ -57,26 +102,27 @@ router.get('/rippd/info', async (req, res) => {
 
 // GET /rippd/download?url=... — streams audio with download headers
 router.get('/rippd/download', async (req, res) => {
-  const { url } = req.query as { url?: string };
-  if (!url) return res.status(400).json({ error: 'url is required' });
+  const { url: rawUrl } = req.query as { url?: string };
+  if (!rawUrl) return res.status(400).json({ error: 'url is required' });
 
   try {
     await ensurePlaydl();
+    const url = normalizeUrl(rawUrl);
 
     let streamResult: any;
     let filename = 'rippd-audio.mp3';
 
-    if (playdl.yt_validate(url) === 'video') {
+    if (isYouTubeUrl(rawUrl)) {
       const info = await playdl.video_info(url);
       const title = info.video_details.title ?? 'audio';
       filename = `${title.replace(/[^a-zA-Z0-9 _-]/g, '').trim().slice(0, 80)}.mp3`;
       streamResult = await playdl.stream_from_info(info, { quality: 2 });
-    } else if (url.includes('soundcloud.com')) {
-      const info = await playdl.soundcloud(url) as any;
+    } else if (rawUrl.includes('soundcloud.com')) {
+      const info = await playdl.soundcloud(rawUrl) as any;
       filename = `${(info.name ?? 'audio').replace(/[^a-zA-Z0-9 _-]/g, '').trim().slice(0, 80)}.mp3`;
-      streamResult = await playdl.stream(url, { quality: 2 });
+      streamResult = await playdl.stream(rawUrl, { quality: 2 });
     } else {
-      return res.status(400).json({ error: 'Unsupported URL.' });
+      return res.status(400).json({ error: 'Unsupported URL. Paste a YouTube or SoundCloud link.' });
     }
 
     res.setHeader('Content-Type', 'audio/mpeg');
