@@ -348,9 +348,22 @@ export function AppWindow() {
 
   return (
     <div
-      className="flex flex-col flex-1 min-h-0 h-full overflow-hidden bg-background transition-[padding-top]"
+      className="relative flex flex-col flex-1 min-h-0 h-full overflow-hidden bg-background transition-[padding-top]"
       style={{ paddingTop: callBarVisible ? CALL_BAR_H : 0 }}
     >
+      {/* ── Tap-to-open-sidebar strip in the call-bar gap ── */}
+      {callBarVisible && (
+        <button
+          aria-label="Open messages panel"
+          onClick={() => layoutMode === 'classic' ? toggleClassicChannel() : toggleMobileSidebar()}
+          style={{ height: CALL_BAR_H }}
+          className="absolute top-0 inset-x-0 z-10 flex items-center justify-center gap-1.5 text-muted-foreground/50 hover:text-muted-foreground active:bg-white/5 transition-colors"
+        >
+          <MessageSquare size={13} />
+          <span className="text-[10px] font-medium tracking-wide">Messages</span>
+        </button>
+      )}
+
       {/* ── Header ── */}
       <div
         className="flex items-center gap-2 px-3 py-2 bg-surface-1 border-b border-border/30 shrink-0 select-none cursor-default"
