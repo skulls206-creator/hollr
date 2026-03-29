@@ -1,0 +1,92 @@
+Yes — let’s make this practical. The best way to start is to give your coding AI a prompt that tells it to build a testable first version of the native voice layer for Holler, not some giant perfect rewrite all at once, because the thing you care about first is whether background voice on iPhone actually improves on a real device.
+
+Use this prompt
+Copy and paste this directly into your coding AI:
+
+text
+I need you to help me implement a FIRST TESTABLE VERSION of a native mobile voice layer for my app, Holler.
+
+About Holler:
+- Holler is a Discord-like app with voice rooms/channels.
+- The current problem is that on iPhone, when the app/browser goes into the background, the microphone/headset or live voice session stops working correctly.
+- I want to fix this by moving the mobile voice handling to native code.
+- I do NOT want another app, another tab, or a separate calls-only product.
+- I want one Holler app, where the existing UI can stay mostly the same, but the voice room audio path becomes native on mobile.
+
+Main goal:
+Build the smallest realistic implementation that lets me TEST whether native mobile voice handling fixes the background audio problem on iPhone.
+
+Important rules:
+1. Do not try to solve this with browser-only hacks.
+2. Do not keep the live call audio inside WKWebView/browser WebRTC if native is required.
+3. Keep the existing Holler UI and backend as intact as possible.
+4. Focus on a minimal working prototype I can run on a real iPhone and test myself.
+5. Prefer the least disruptive architecture based on my current app.
+6. If my current stack is unclear, assume I have an existing web app that may be wrapped for mobile.
+
+What I need you to do:
+1. First, explain the best low-risk architecture for a testable phase-1 version.
+2. Clearly separate:
+   - what stays in the existing web/shared app
+   - what must move to native iOS code
+   - what will later need Android-native support
+3. Then implement a phase-1 iPhone-native voice layer that supports:
+   - join voice room
+   - leave voice room
+   - mute/unmute
+   - speaker on/off
+   - Bluetooth/headset routing if possible
+   - keeping audio active during an active voice session as much as iOS allows
+   - handling app backgrounding during an active voice session
+4. On iOS, use proper native audio handling such as:
+   - AVAudioSession
+   - playAndRecord category
+   - appropriate speaker/Bluetooth routing options
+   - interruption handling
+   - route change handling
+5. If needed, create a JS-to-native bridge so my existing UI can call:
+   - joinVoiceRoom(roomId)
+   - leaveVoiceRoom()
+   - muteMic()
+   - unmuteMic()
+   - setSpeaker(enabled)
+   - getCurrentAudioRoute()
+6. Stub or mock backend integration only where necessary, but preserve the real architecture.
+7. If full media transport is too large for one pass, still build the full native session/audio management layer and clearly mark where the transport hooks in.
+8. Do not over-engineer this into a giant rewrite. I want the fastest path to a test build.
+
+Deliverables:
+- architecture overview in plain English
+- recommended project structure
+- exact files to create/change
+- actual code for the native iOS layer
+- actual bridge code between UI and native layer
+- instructions to run it locally
+- exact steps to test on a physical iPhone
+- checklist for these test cases:
+  - join room
+  - mute/unmute
+  - lock phone
+  - switch apps
+  - put app in background
+  - reconnect app to foreground
+  - plug/unplug headset
+  - connect/disconnect AirPods
+  - toggle speaker
+- list of current limitations in the phase-1 implementation
+
+Success criteria:
+- I can build the app
+- I can run it on a real iPhone
+- I can manually test whether backgrounding still kills the voice session
+- The result is structured so I can later add Android support using the same room/backend design
+
+Output format:
+Step 1: Architecture
+Step 2: Project/file changes
+Step 3: Code
+Step 4: Run instructions
+Step 5: Physical-device test checklist
+Step 6: Next steps for Android
+Why this prompt is better
+This version forces the AI to build a phase-1 prototype instead of disappearing into a huge refactor that you may not be able to run soon. It also explicitly tells the AI not to “fix” the issue with browser tricks, which matters because WKWebView and browser-based WebRTC background behavior on iPhone is exactly where these problems often show up.

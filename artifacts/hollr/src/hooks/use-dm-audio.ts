@@ -20,6 +20,43 @@ function createHiddenVideoElement(): HTMLVideoElement {
   return el;
 }
 
+// ── Silent AudioContext keepalive ──────────────────────────────────────────
+// iOS suspends WebRTC audio when the app backgrounds *unless* there is an
+// active AudioContext playing something. We create a 1-second silent buffer
+// looping forever for the lifetime of the call. Cost: effectively zero CPU.
+function startSilentKeepalive(): () => void {
+  let ctx: AudioContext | null = null;
+  let source: AudioBufferSourceNode | null = null;
+
+  const start = () => {
+    try {
+      ctx = new AudioContext();
+      const buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      source = ctx.createBufferSource();
+      source.buffer = buf;
+      source.loop = true;
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch {}
+  };
+
+  // iOS suspends AudioContexts created outside a user-gesture; resume on
+  // any user interaction AND whenever the page returns to the foreground.
+  const resume = () => { ctx?.state === 'suspended' && ctx.resume().catch(() => {}); };
+  document.addEventListener('visibilitychange', resume, { passive: true });
+  document.addEventListener('touchstart', resume, { passive: true, once: false });
+
+  start();
+
+  // Return a cleanup function
+  return () => {
+    document.removeEventListener('visibilitychange', resume);
+    document.removeEventListener('touchstart', resume);
+    try { source?.stop(); } catch {}
+    ctx?.close().catch(() => {});
+  };
+}
+
 export function useDmCallAudio() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -29,6 +66,7 @@ export function useDmCallAudio() {
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
   const remoteDescSetRef = useRef(false);
   const peerIdRef = useRef<string | null>(null);
+  const stopKeepaliveRef = useRef<(() => void) | null>(null);
 
   // Persisted state refs — applied immediately when audio element exists,
   // and re-applied when the element is created if toggled early.
@@ -44,6 +82,10 @@ export function useDmCallAudio() {
   }, []);
 
   const cleanupAudio = useCallback(() => {
+    // Stop the silent keepalive AudioContext
+    stopKeepaliveRef.current?.();
+    stopKeepaliveRef.current = null;
+
     if (pcRef.current) {
       pcRef.current.ontrack = null;
       pcRef.current.onicecandidate = null;
@@ -70,6 +112,11 @@ export function useDmCallAudio() {
     pcRef.current?.close();
     remoteDescSetRef.current = false;
     pendingIceRef.current = [];
+
+    // Start the silent keepalive so iOS doesn't kill the audio session
+    // when the app backgrounds. Stop any previous instance first.
+    stopKeepaliveRef.current?.();
+    stopKeepaliveRef.current = startSilentKeepalive();
 
     const iceServers = await fetchIceServers();
     const pc = new RTCPeerConnection({ iceServers });
