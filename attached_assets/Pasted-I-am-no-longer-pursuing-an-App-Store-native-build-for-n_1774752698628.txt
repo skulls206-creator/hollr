@@ -1,0 +1,54 @@
+I am no longer pursuing an App Store native build for now. I am keeping Holler as an installed PWA / web app.
+
+Holler is a Discord-like voice/chat app. On iPhone, when the app goes into the background, live voice can break because of iOS web/PWA limitations.
+
+I want you to help me optimize Holler for the best possible PWA behavior on iPhone and other devices.
+
+Goals:
+- improve reliability of voice rooms in a PWA context
+- do not assume true native background call behavior is possible on iPhone
+- design for graceful degradation, fast recovery, and clear UX when backgrounding breaks voice
+- keep the app cross-platform for iPhone, Android, and desktop web
+
+Please do the following:
+
+1. Audit the current voice-room architecture for PWA/web limitations.
+2. Add defensive handling for:
+   - app backgrounding
+   - visibility changes
+   - page hide/show
+   - audio context suspension/resume
+   - dropped mic tracks
+   - lost headset/audio routes
+   - failed WebRTC reconnects
+3. Implement:
+   - fast voice reconnect on foreground return
+   - room/session state restore
+   - mic state restore
+   - speaker/output state restore where possible
+   - user warnings when iPhone backgrounding may interrupt voice
+   - prominent rejoin/reconnect controls
+4. Add telemetry/logging so I can see exactly what happens when:
+   - app goes hidden
+   - mic track ends
+   - peer connection disconnects
+   - app returns to foreground
+   - reconnect succeeds or fails
+5. Add a device/platform-specific UX path for iPhone PWAs that explains the limitation clearly.
+6. Do NOT propose App Store/native-only solutions in this pass.
+7. Do NOT use fake silent-audio keepalive hacks as the primary solution.
+8. Focus on production-safe web/PWA improvements I can test immediately.
+
+Deliverables:
+- architecture notes
+- exact files to change
+- actual code changes
+- event logging hooks
+- reconnect/state-restore logic
+- UX copy for interrupted-call recovery
+- manual testing checklist for iPhone installed PWA
+
+Success criteria:
+- when voice breaks after backgrounding, the user is guided back quickly
+- the app reconnects as automatically as possible
+- I can test the behavior myself on installed iPhone PWA, Android, and desktop
