@@ -724,7 +724,7 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
       )}
 
       {/* Note list */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2.5">
+      <div className="flex-1 overflow-y-auto px-3 py-2.5 flex flex-col gap-1.5">
         {loading ? (
           <div className="flex-1 flex items-center justify-center py-16" style={{ color: MUTED }}>
             <div className="text-center">
@@ -856,55 +856,55 @@ function NoteCard({
   onTrash: () => void; onRestore: () => void; onDelete: () => void;
   inTrash: boolean; onCtxMenu?: (x: number, y: number) => void;
 }) {
-  const preview = getPlainText(note.content).slice(0, 100);
+  const preview = getPlainText(note.content).slice(0, 80);
 
   return (
     <div
-      className="rounded-2xl overflow-hidden border cursor-pointer transition-all active:scale-[0.98]"
+      className="rounded-xl overflow-hidden border cursor-pointer transition-all active:scale-[0.98] flex items-stretch"
       style={{
         background: SURFACE,
-        borderColor: isActive ? ACCENT : BORDER,
-        boxShadow: isActive ? `0 0 0 1px ${ACCENT}40` : '0 1px 3px rgba(0,0,0,0.2)',
+        borderColor: isActive ? `${ACCENT}80` : 'rgba(255,255,255,0.07)',
+        boxShadow: isActive ? `0 0 0 1px ${ACCENT}35` : '0 1px 2px rgba(0,0,0,0.12)',
       }}
       onClick={onOpen}
       onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onCtxMenu?.(e.clientX, e.clientY); }}
     >
-      {/* Color accent bar */}
-      <div className="h-1" style={{ background: color }} />
+      {/* Left accent strip */}
+      <div className="w-[3px] shrink-0" style={{ background: color }} />
 
-      <div className="px-4 py-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-1">
-              {note.isPinned && <Star size={11} style={{ color: ACCENT2 }} fill="currentColor" className="shrink-0" />}
-              <p className="text-sm font-semibold truncate" style={{ color: FG }}>
-                {note.title || 'Untitled'}
-              </p>
-            </div>
-            <p className="text-xs leading-relaxed line-clamp-2" style={{ color: MUTED }}>
-              {preview || 'No content'}
-            </p>
+      {/* Content */}
+      <div className="flex-1 min-w-0 px-3 py-2.5 flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          {/* Title + pin */}
+          <div className="flex items-center gap-1 leading-tight mb-0.5">
+            {note.isPinned && <Star size={9} style={{ color: ACCENT2 }} fill="currentColor" className="shrink-0" />}
+            <span className="text-[13px] font-semibold truncate" style={{ color: FG }}>
+              {note.title || 'Untitled'}
+            </span>
           </div>
-
-          {/* ⋯ button — opens full context menu (fixed-positioned, never overflows) */}
-          <button
-            onClick={e => {
-              e.stopPropagation();
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              onCtxMenu?.(rect.right, rect.bottom + 4);
-            }}
-            className="p-1.5 rounded-xl hover:bg-white/10 transition-colors shrink-0"
-            style={{ color: MUTED }}
-          >
-            <MoreVertical size={14} />
-          </button>
+          {/* Preview + timestamp on one line */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[11px] truncate flex-1 leading-snug" style={{ color: MUTED }}>
+              {preview || 'No content'}
+            </span>
+            <span className="text-[10px] shrink-0 tabular-nums" style={{ color: `${MUTED}99` }}>
+              {inTrash ? '🗑' : ''}{formatDate(note.updatedAt)}
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1 mt-2">
-          <Clock size={10} style={{ color: MUTED }} />
-          <span className="text-[10px]" style={{ color: MUTED }}>{formatDate(note.updatedAt)}</span>
-          {inTrash && <span className="text-[10px] ml-1" style={{ color: MUTED }}>· Trash</span>}
-        </div>
+        {/* ⋯ menu button */}
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            onCtxMenu?.(rect.right, rect.bottom + 4);
+          }}
+          className="p-1 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+          style={{ color: MUTED }}
+        >
+          <MoreVertical size={13} />
+        </button>
       </div>
     </div>
   );
