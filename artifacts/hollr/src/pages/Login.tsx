@@ -85,7 +85,7 @@ export function Login() {
             <MessageSquare size={32} className="text-white rotate-6" />
           </div>
           <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
-            {mode === 'login' ? 'Welcome back.' : 'Join hollr.'}
+            {mode === 'login' ? 'Hollr Back' : 'Join Hollr'}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {mode === 'login'
