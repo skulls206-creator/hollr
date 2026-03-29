@@ -1,12 +1,27 @@
 /* hollr.chat service worker — offline shell + push notifications */
 /* Strategy: Cache-first for assets, network-first for API, app-shell for navigation */
 
-const CACHE_VERSION = 'hollr-v8';
+const CACHE_VERSION = 'hollr-v9';
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const API_CACHE   = `${CACHE_VERSION}-api`;
 
-const SHELL_URLS = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png', '/favicon.svg'];
+const SHELL_URLS = [
+  '/',
+  '/offline.html',
+  '/manifest.webmanifest',
+  '/icon-48.png',
+  '/icon-72.png',
+  '/icon-96.png',
+  '/icon-128.png',
+  '/icon-144.png',
+  '/icon-152.png',
+  '/icon-192.png',
+  '/icon-384.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+  '/favicon.svg',
+];
 
 // ── Install: pre-cache app shell ───────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -85,8 +100,8 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() =>
+          caches.match('/offline.html') ||
           caches.match('/') ||
-          caches.match('/index.html') ||
           new Response('Offline — open hollr when connected to load the app.', {
             headers: { 'Content-Type': 'text/plain' },
           })
