@@ -185,6 +185,14 @@ export function UserSettingsModal() {
   const [selectedStatus, setSelectedStatus] = useState<UserStatus>('online');
   const [statusSaving, setStatusSaving] = useState(false);
   const [previewingRingtone, setPreviewingRingtone] = useState<RingtoneId | null>(null);
+  const [rbtrayOpen, setRbtrayOpen] = useState(false);
+
+  // Only show the Desktop Integration section when the app is installed as a PWA on Windows
+  const isPWA = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches;
+  const isWindows = typeof navigator !== 'undefined' && (
+    (navigator as any).userAgentData?.platform === 'Windows' ||
+    navigator.userAgent.includes('Windows')
+  );
 
   const [emailInput, setEmailInput] = useState('');
   const [emailSaving, setEmailSaving] = useState(false);
@@ -408,6 +416,7 @@ export function UserSettingsModal() {
   const groups = [...new Set(NAV.map(n => n.group))];
 
   return (
+    <>
     <Dialog open={userSettingsModalOpen} onOpenChange={setUserSettingsModalOpen}>
       <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-2xl bg-surface-1 border-border/50 overflow-hidden max-h-[92dvh] flex flex-col sm:flex-row p-0 gap-0 [&>button:last-child]:hidden">
 
@@ -753,6 +762,28 @@ export function UserSettingsModal() {
                     <span className="absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform duration-200" style={{ width: 16, height: 16, transform: khurkDashboardOpen ? 'translateX(16px)' : 'translateX(0)' }} />
                   </button>
                 </div>
+
+                {/* Desktop Integration — only shown when running as an installed PWA on Windows */}
+                {isPWA && isWindows && (
+                  <>
+                    <div className="h-px bg-border/20" />
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-[10px] font-bold uppercase text-muted-foreground/60 tracking-widest flex items-center gap-1.5">
+                        <Monitor size={10} /> Desktop Integration
+                      </Label>
+                      <button
+                        onClick={() => setRbtrayOpen(true)}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/30 bg-surface-0 text-muted-foreground hover:border-border/60 hover:bg-surface-2 hover:text-foreground transition-all text-left w-full"
+                      >
+                        <Monitor size={16} className="shrink-0" />
+                        <span className="flex flex-col min-w-0">
+                          <span className="text-sm font-semibold text-foreground">Set up system tray</span>
+                          <span className="text-[11px] opacity-60">Minimise hollr to the Windows taskbar tray</span>
+                        </span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1118,5 +1149,51 @@ export function UserSettingsModal() {
         </div>{/* end right panel */}
       </DialogContent>
     </Dialog>
+
+    {/* ── RBTray setup dialog — sibling of settings dialog to avoid nesting ── */}
+    <Dialog open={rbtrayOpen} onOpenChange={setRbtrayOpen}>
+      <DialogContent className="max-w-sm bg-surface-1 border-border/50">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Monitor size={16} className="shrink-0" />
+            System Tray with RBTray
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 pt-1">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground">RBTray</span> is a tiny Windows utility that sends any app to the system tray — the icon area near the clock — by right-clicking the minimize button instead of left-clicking it. Keep hollr running silently in the background without a taskbar button.
+          </p>
+          <ol className="flex flex-col gap-2.5 text-sm">
+            {([
+              'Download the zip below and extract it anywhere on your PC.',
+              'Run RBTray.exe — no installation, no admin rights needed.',
+              'Right-click hollr\'s minimize button (instead of left-clicking) to send it to the tray.',
+              'Click the hollr icon in your system tray to restore the window.',
+            ] as const).map((step, i) => (
+              <li key={i} className="flex gap-3 items-start">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center mt-0.5">
+                  {i + 1}
+                </span>
+                <span className="text-muted-foreground leading-snug">{step}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="flex gap-2 pt-1">
+            <a
+              href="https://pub-fb9bbc0ec64642ee8355b08bfffe25bd.r2.dev/downloads/RBTray-4_3.zip"
+              download="RBTray-4_3.zip"
+              className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+            >
+              <ExternalLink size={14} />
+              Download RBTray
+            </a>
+            <Button variant="ghost" onClick={() => setRbtrayOpen(false)} className="px-4 shrink-0">
+              Got it
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
