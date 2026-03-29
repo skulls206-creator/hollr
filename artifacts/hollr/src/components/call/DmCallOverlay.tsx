@@ -211,7 +211,7 @@ export function DmCallOverlay() {
         {state === 'connected' && (
           <button
             onClick={() => setDmCallState({ minimized: true })}
-            className="absolute right-5 top-0 p-2 rounded-full text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+            className="absolute right-5 top-12 p-2 rounded-full text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
           >
             <Minimize2 size={18} />
           </button>
