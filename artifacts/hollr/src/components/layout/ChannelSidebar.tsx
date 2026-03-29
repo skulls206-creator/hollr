@@ -28,6 +28,7 @@ import type { VoiceChannelUser } from '@/store/use-app-store';
 import { cn, getInitials } from '@/lib/utils';
 import { useAuth } from '@workspace/replit-auth-web';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
