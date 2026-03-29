@@ -1,7 +1,7 @@
 /* hollr.chat service worker — offline shell + push notifications */
 /* Strategy: Cache-first for assets, network-first for API, app-shell for navigation */
 
-const CACHE_VERSION = 'hollr-v9';
+const CACHE_VERSION = 'hollr-v10';
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const API_CACHE   = `${CACHE_VERSION}-api`;
@@ -191,15 +191,24 @@ self.addEventListener('notificationclick', (event) => {
 
   const targetUrl = notifData.url || '/';
   const nav = notifData.nav || null;
+  const isAnswerAction = isCall && event.action === 'answer';
 
-  const messageToClient =
-    isCall && event.action === 'answer'
-      ? {
-          type: 'CALL_ANSWER_FROM_NOTIFICATION',
-          callerId: notifData.callerId,
-          notifType: notifData.notifType,
-        }
-      : { type: 'NOTIFICATION_NAVIGATE', nav, url: targetUrl };
+  const messageToClient = isAnswerAction
+    ? { type: 'CALL_ANSWER_FROM_NOTIFICATION', callerId: notifData.callerId, callerName: notifData.callerName, dmThreadId: notifData.dmThreadId, notifType: notifData.notifType }
+    : { type: 'NOTIFICATION_NAVIGATE', nav, url: targetUrl };
+
+  // When opening a new window for an "Answer" tap, encode the action in the URL so the
+  // freshly-launched app can read it and surface the incoming call UI immediately.
+  const openUrl = isAnswerAction
+    ? (() => {
+        const u = new URL(targetUrl, self.location.origin);
+        u.searchParams.set('swCallAction', 'answer');
+        u.searchParams.set('swCallerId', notifData.callerId || '');
+        u.searchParams.set('swCallerName', notifData.callerName || '');
+        u.searchParams.set('swDmThreadId', notifData.dmThreadId || '');
+        return u.toString();
+      })()
+    : targetUrl;
 
   event.waitUntil(
     self.clients
@@ -210,8 +219,30 @@ self.addEventListener('notificationclick', (event) => {
           existing.focus();
           existing.postMessage(messageToClient);
         } else {
-          self.clients.openWindow(targetUrl);
+          self.clients.openWindow(openUrl);
         }
+      })
+  );
+});
+
+// ── Notification close (user swiped away a call notification) ───────────────
+// Send a decline message to any open app windows so the caller is informed.
+self.addEventListener('notificationclose', (event) => {
+  const notifData = event.notification.data || {};
+  const isCall = notifData.notifType === 'call' || notifData.notifType === 'video_call';
+  if (!isCall) return;
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        clients.forEach((c) =>
+          c.postMessage({
+            type: 'CALL_DECLINE_FROM_NOTIFICATION',
+            callerId: notifData.callerId,
+            notifType: notifData.notifType,
+          })
+        );
       })
   );
 });

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, messageReactionsTable, dmCallSignalsTable } from "@workspace/db/schema";
-import { eq, and, lt, inArray, sql as drizzleSql, ilike, isNull, desc } from "drizzle-orm";
+import { eq, and, lt, inArray, sql as drizzleSql, ilike, isNull, desc, asc } from "drizzle-orm";
 import { OpenDmThreadBody, SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast, sendToUser, sendNotification } from "../lib/ws";
 import { sendPushToUser, getNotifPrefs } from "../lib/push";
@@ -428,23 +428,39 @@ router.post("/call-signal", async (req, res) => {
   // Broadcast to all connected sockets (covers race conditions with multiple tabs)
   broadcast({ type: "DM_CALL_SIGNAL", payload: wsPayload });
 
-  // If target user has no active WS socket, send a push notification to wake them up
+  // If target user has no active WS socket, send a push notification to wake them up.
+  // Only push on the FIRST ring from this caller — repeat rings (every 5 s) should not
+  // fire a new push because the OS already shows the notification and a second push
+  // causes duplicate vibration / re-notification on iOS even with the same tag.
   if (signalType === "call_ring" && !delivered) {
-    const callerName = payload?.callerName ?? "Someone";
-    const callerAvatar = payload?.callerAvatar ?? null;
-    const navParams = new URLSearchParams({ navType: "dm", threadId: threadId ?? "" });
-    sendPushToUser(toUserId, {
-      title: `📞 Incoming call`,
-      body: `${callerName} is calling you`,
-      icon: callerAvatar || "/images/icon-192.png",
-      tag: "incoming-call",
-      url: `/app?${navParams.toString()}`,
-      nav: threadId ? { type: "dm", threadId } : undefined,
-      notifType: "call",
-      callerId: req.user.id,
-      callerName,
-      dmThreadId: threadId,
-    }).catch(() => {});
+    const priorRings = await db
+      .select({ id: dmCallSignalsTable.id })
+      .from(dmCallSignalsTable)
+      .where(and(
+        eq(dmCallSignalsTable.fromUserId, req.user.id),
+        eq(dmCallSignalsTable.toUserId, toUserId),
+        eq(dmCallSignalsTable.signalType, "call_ring"),
+        isNull(dmCallSignalsTable.consumedAt),
+      ))
+      .limit(2);
+    // priorRings includes the row we just inserted; length === 1 means this is the first ring
+    if (priorRings.length <= 1) {
+      const callerName = payload?.callerName ?? "Someone";
+      const callerAvatar = payload?.callerAvatar ?? null;
+      const navParams = new URLSearchParams({ navType: "dm", threadId: threadId ?? "" });
+      sendPushToUser(toUserId, {
+        title: `📞 Incoming call`,
+        body: `${callerName} is calling you`,
+        icon: callerAvatar || "/images/icon-192.png",
+        tag: "incoming-call",
+        url: `/app?${navParams.toString()}`,
+        nav: threadId ? { type: "dm", threadId } : undefined,
+        notifType: "call",
+        callerId: req.user.id,
+        callerName,
+        dmThreadId: threadId,
+      }).catch(() => {});
+    }
   }
 
   // When the callee declines (via REST), notify the caller of a missed call.
@@ -483,7 +499,7 @@ router.get("/call-signal/pending", async (req, res) => {
       eq(dmCallSignalsTable.toUserId, req.user.id),
       isNull(dmCallSignalsTable.consumedAt),
     ))
-    .orderBy(desc(dmCallSignalsTable.createdAt))
+    .orderBy(asc(dmCallSignalsTable.createdAt))
     .limit(20);
 
   if (signals.length > 0) {

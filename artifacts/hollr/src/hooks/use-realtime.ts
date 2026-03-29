@@ -30,6 +30,17 @@ let _onDmCallRtcSignal: ((payload: any) => void) | null = null;
 // Triggered whenever PRESENCE_UPDATE arrives so useDockPresence can refetch immediately
 let _presenceRefetchTrigger: (() => void) | null = null;
 
+// When the user taps "Answer" on a push notification and the app is NOT already open,
+// the SW encodes the action in the URL params. We read it once here at module load and
+// store the callerId so the REST poll / WS handler can auto-accept when the ring arrives.
+let _pendingAutoAnswerCallerId: string | null = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('swCallAction') === 'answer') return p.get('swCallerId') || null;
+  } catch {}
+  return null;
+})();
+
 export function setPresenceRefetchTrigger(fn: (() => void) | null) {
   _presenceRefetchTrigger = fn;
 }
@@ -220,6 +231,26 @@ export function useRealtime(userId?: string) {
         return;
       }
 
+      if (type === 'CALL_ANSWER_FROM_NOTIFICATION') {
+        // User tapped "Answer" on the push notification while the app was already open.
+        // If the incoming call UI is already showing, mark the pending answer so the
+        // DmCallOverlay can auto-accept it. If the call state hasn't arrived yet (still
+        // waiting for REST poll), store the callerId so the poll can accept on arrival.
+        _pendingAutoAnswerCallerId = callerId ?? null;
+        const snap = useAppStore.getState();
+        const { dmCall } = snap;
+        if (
+          (dmCall.state === 'incoming_ringing' || dmCall.state === 'incoming_request') &&
+          dmCall.targetUserId === callerId
+        ) {
+          // Call is already showing — accept immediately
+          sendDmCallSignal({ type: 'call_accept', targetId: callerId, callerId: snap.userId });
+          snap.setDmCallState({ state: 'connected', startedAt: Date.now() });
+          _pendingAutoAnswerCallerId = null;
+        }
+        return;
+      }
+
       if (type === 'CALL_DECLINE_FROM_NOTIFICATION') {
         const snap = useAppStore.getState();
         const { dmCall } = snap;
@@ -228,9 +259,8 @@ export function useRealtime(userId?: string) {
           (dmCall.state === 'incoming_ringing' || dmCall.state === 'incoming_request') &&
           dmCall.targetUserId === callerId
         ) {
-          if (_sendRaw) {
-            _sendRaw({ type: 'DM_CALL_SIGNAL', payload: { type: 'call_decline', targetId: callerId } });
-          }
+          // Use sendDmCallSignal (WS + REST) so decline is delivered even if WS is reconnecting
+          sendDmCallSignal({ type: 'call_decline', targetId: callerId, callerId: snap.userId });
           stopCallRinging();
           dismissCallNotification();
           snap.endDmCall();
@@ -578,20 +608,27 @@ export function useRealtime(userId?: string) {
                   dmThreadId: dmThreadId ?? null,
                   minimized: false,
                 });
-                startCallRinging(useAppStore.getState().ringtoneId);
-                showSwNotification(
-                  `📞 Incoming call`,
-                  `${callerName ?? 'Someone'} is calling you`,
-                  {
-                    icon: callerAvatar,
-                    tag: 'incoming-call',
-                    requireInteraction: true,
-                    silent: false,
-                    vibrate: [200, 100, 200],
-                    actions: [{ action: 'answer', title: '📞 Answer' }, { action: 'decline', title: '🚫 Decline' }],
-                    data: { notifType: 'call', callerId, callerName, dmThreadId, url: '/app' },
-                  },
-                );
+                // Auto-accept if user tapped "Answer" on push notification before app loaded
+                if (_pendingAutoAnswerCallerId && _pendingAutoAnswerCallerId === callerId) {
+                  _pendingAutoAnswerCallerId = null;
+                  sendDmCallSignal({ type: 'call_accept', targetId: callerId, callerId: userId });
+                  storeSnap.setDmCallState({ state: 'connected', startedAt: Date.now() });
+                } else {
+                  startCallRinging(useAppStore.getState().ringtoneId);
+                  showSwNotification(
+                    `📞 Incoming call`,
+                    `${callerName ?? 'Someone'} is calling you`,
+                    {
+                      icon: callerAvatar,
+                      tag: 'incoming-call',
+                      requireInteraction: true,
+                      silent: false,
+                      vibrate: [200, 100, 200],
+                      actions: [{ action: 'answer', title: '📞 Answer' }, { action: 'decline', title: '🚫 Decline' }],
+                      data: { notifType: 'call', callerId, callerName, dmThreadId, url: '/app' },
+                    },
+                  );
+                }
               }
             } else if (ctype === 'call_accept') {
               stopCallRinging();
@@ -683,7 +720,14 @@ export function useRealtime(userId?: string) {
                 : 'incoming_request';
             if (callState) {
               storeSnap.setDmCallState({ state: callState, targetUserId: callerId, targetDisplayName: callerName, targetAvatarUrl: callerAvatar, dmThreadId: dmThreadId ?? null, minimized: false });
-              startCallRinging(storeSnap.ringtoneId);
+              // Auto-accept if user tapped "Answer" on push notification before app loaded
+              if (_pendingAutoAnswerCallerId && _pendingAutoAnswerCallerId === callerId) {
+                _pendingAutoAnswerCallerId = null;
+                sendDmCallSignal({ type: 'call_accept', targetId: callerId, callerId: userId });
+                storeSnap.setDmCallState({ state: 'connected', startedAt: Date.now() });
+              } else {
+                startCallRinging(storeSnap.ringtoneId);
+              }
             }
           } else if (ctype === 'call_accept') {
             stopCallRinging();
