@@ -68,8 +68,14 @@ export function VoiceOverlay() {
   const panelRight = 8;
 
   useEffect(() => {
-    if (voiceMinimized || voiceConnection.status === 'disconnected' || (isMobile && (mobileSidebarOpen || memberListOpen || pinnedPanelOpen))) {
+    if (voiceConnection.status === 'disconnected' || (isMobile && (mobileSidebarOpen || memberListOpen || pinnedPanelOpen))) {
       setVoicePanelHeight(0);
+      return;
+    }
+    if (voiceMinimized) {
+      // Minimized pill is absolute bottom-3 (~44px tall) — reserve space so it
+      // doesn't overlap the message composer in both dock and classic layouts.
+      setVoicePanelHeight(72);
       return;
     }
     const el = panelRef.current;
