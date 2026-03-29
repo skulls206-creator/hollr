@@ -2,7 +2,8 @@
  * BallpointPanel — account-backed rich text editor (Tiptap + DB storage)
  * Mobile-first: full-screen list → full-screen editor navigation
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef } from 'react';
+import type { Editor } from '@tiptap/react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -16,12 +17,13 @@ import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import {
-  Bold, Italic, Underline as UnderlineIcon, Plus, Link2,
+  Bold, Italic, Underline as UnderlineIcon, Strikethrough, Plus, Link2,
   AlignLeft, AlignCenter, AlignRight, List, ListOrdered,
   CheckSquare, Undo2, Redo2, Search, ChevronLeft, X, Pin,
   Archive, Trash2, RotateCcw, Cloud, ChevronDown, MoreVertical,
   FileText, Star, Clock, Copy, Download, Type, Hash as HashIcon,
-  Check,
+  Check, Scissors, Heading1, Heading2, Heading3, Pilcrow, Quote,
+  RemoveFormatting,
 } from 'lucide-react';
 import type { NativePanelProps } from '@/lib/khurk-apps';
 import { useAuth } from '@workspace/replit-auth-web';
@@ -157,15 +159,23 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
   const [showSearch, setShowSearch] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fontFamily, setFontFamily] = useState('Sans-serif');
+  const [titleInput, setTitleInput] = useState('');
   const [showNoteMenu, setShowNoteMenu] = useState(false);
   const [showFontMenu, setShowFontMenu] = useState(false);
+  const [showHeadingMenu, setShowHeadingMenu] = useState(false);
   const [noteCtxMenu, setNoteCtxMenu] = useState<{ x: number; y: number; note: BpNote } | null>(null);
+  const [editorCtxMenu, setEditorCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [ctxCopied, setCtxCopied] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const notesRef = useRef<BpNote[]>([]);
   const noteMenuRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef('');
+  const activeTabRef = useRef<string | null>(null);
+  const editorCtxMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { notesRef.current = notes; }, [notes]);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { titleInputRef.current = titleInput; }, [titleInput]);
 
   const activeNote = notes.find(n => n.id === activeTab) ?? null;
 
@@ -278,17 +288,16 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     ],
     content: '',
     onUpdate({ editor }) {
-      const note = notesRef.current.find(n => n.id === activeTab);
+      const note = notesRef.current.find(n => n.id === activeTabRef.current);
       if (!note) return;
       const html = editor.getHTML();
-      const firstLine = editor.getText().split('\n')[0]?.slice(0, 80) || 'Untitled';
       setNotes(prev => prev.map(n =>
-        n.id === note.id ? { ...n, content: html, title: firstLine } : n
+        n.id === note.id ? { ...n, content: html } : n
       ));
       notesRef.current = notesRef.current.map(n =>
-        n.id === note.id ? { ...n, content: html, title: firstLine } : n
+        n.id === note.id ? { ...n, content: html } : n
       );
-      scheduleSave(note.id, firstLine, html);
+      scheduleSave(note.id, titleInputRef.current, html);
     },
   });
 
@@ -298,9 +307,11 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     if (activeNote && lastLoadedId.current !== activeNote.id) {
       lastLoadedId.current = activeNote.id;
       editor.commands.setContent(activeNote.content || '');
+      setTitleInput(activeNote.title || '');
     } else if (!activeNote) {
       lastLoadedId.current = null;
       editor.commands.setContent('');
+      setTitleInput('');
     }
   }, [editor, activeNote]);
 
@@ -319,6 +330,16 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     editor?.chain().focus().setLink({ href: url }).run();
   };
 
+  const handleTitleChange = useCallback((val: string) => {
+    setTitleInput(val);
+    const id = activeTabRef.current;
+    if (!id) return;
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, title: val } : n));
+    notesRef.current = notesRef.current.map(n => n.id === id ? { ...n, title: val } : n);
+    const content = notesRef.current.find(n => n.id === id)?.content ?? '';
+    scheduleSave(id, val, content);
+  }, [scheduleSave]);
+
   /* ── Close note menu on outside click ── */
   useEffect(() => {
     if (!showNoteMenu) return;
@@ -328,6 +349,21 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showNoteMenu]);
+
+  /* ── Close editor context menu on outside click ── */
+  useEffect(() => {
+    if (!editorCtxMenu) return;
+    const close = (e: MouseEvent) => {
+      if (!editorCtxMenuRef.current?.contains(e.target as Node)) setEditorCtxMenu(null);
+    };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditorCtxMenu(null); };
+    document.addEventListener('mousedown', close, true);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('mousedown', close, true);
+      document.removeEventListener('keydown', key);
+    };
+  }, [editorCtxMenu]);
 
   /* ── Filtered note list ── */
   const visibleNotes = notes.filter(n => {
@@ -472,79 +508,149 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
         </div>
 
         {/* Editor content */}
-        <div className="flex-1 overflow-y-auto" style={{ background: BG }}>
+        <div
+          className="flex-1 overflow-y-auto"
+          style={{ background: BG }}
+          onContextMenu={e => { e.preventDefault(); setEditorCtxMenu({ x: e.clientX, y: e.clientY }); }}
+        >
+          {/* Title field — separate from body */}
+          <div className="px-5 pt-5 pb-3">
+            <input
+              type="text"
+              value={titleInput}
+              onChange={e => handleTitleChange(e.target.value)}
+              placeholder="Title"
+              className="w-full bg-transparent outline-none text-[22px] font-bold leading-tight tracking-tight"
+              style={{ color: FG }}
+            />
+          </div>
+          <div className="mx-5 h-px opacity-25" style={{ background: ACCENT2 }} />
           <EditorContent
             editor={editor}
-            className="ballpoint-editor min-h-full px-5 py-5"
+            className="ballpoint-editor min-h-full px-5 py-4"
           />
         </div>
 
-        {/* Formatting toolbar — bottom */}
+        {/* Formatting toolbar — bottom (compact) */}
         <div
-          className="shrink-0 flex items-center gap-0.5 px-2 overflow-x-auto scrollbar-none"
-          style={{ height: 48, background: SURFACE, borderTop: `1px solid ${BORDER}` }}
+          className="shrink-0 flex items-center gap-px px-1.5 overflow-x-auto scrollbar-none"
+          style={{ height: 42, background: SURFACE, borderTop: `1px solid ${BORDER}` }}
         >
-          <FmtBtn active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold">
-            <Bold size={14} />
+          {/* Inline format */}
+          <FmtBtn active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold (Ctrl+B)">
+            <Bold size={13} />
           </FmtBtn>
-          <FmtBtn active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} title="Italic">
-            <Italic size={14} />
+          <FmtBtn active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} title="Italic (Ctrl+I)">
+            <Italic size={13} />
           </FmtBtn>
-          <FmtBtn active={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleUnderline().run()} title="Underline">
-            <UnderlineIcon size={14} />
+          <FmtBtn active={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleUnderline().run()} title="Underline (Ctrl+U)">
+            <UnderlineIcon size={13} />
           </FmtBtn>
-
-          <div className="w-px h-5 shrink-0 mx-1" style={{ background: BORDER }} />
-
-          <FmtBtn active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="List">
-            <List size={14} />
-          </FmtBtn>
-          <FmtBtn active={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="Numbered">
-            <ListOrdered size={14} />
-          </FmtBtn>
-          <FmtBtn active={editor?.isActive('taskList')} onClick={() => editor?.chain().focus().toggleTaskList().run()} title="Tasks">
-            <CheckSquare size={14} />
+          <FmtBtn active={editor?.isActive('strike')} onClick={() => editor?.chain().focus().toggleStrike().run()} title="Strikethrough">
+            <Strikethrough size={13} />
           </FmtBtn>
 
-          <div className="w-px h-5 shrink-0 mx-1" style={{ background: BORDER }} />
+          <TbSep />
 
-          <FmtBtn active={editor?.isActive({ textAlign: 'left' })} onClick={() => editor?.chain().focus().setTextAlign('left').run()} title="Left">
-            <AlignLeft size={14} />
+          {/* Heading picker */}
+          <div className="relative shrink-0">
+            <button
+              onMouseDown={e => { e.preventDefault(); setShowHeadingMenu(v => !v); }}
+              title="Heading style"
+              className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[11px] font-bold transition-colors hover:bg-white/10"
+              style={{
+                color: (editor?.isActive('heading') || editor?.isActive('blockquote')) ? ACCENT2 : MUTED,
+                background: (editor?.isActive('heading') || editor?.isActive('blockquote')) ? `${ACCENT}22` : 'transparent',
+              }}
+            >
+              {editor?.isActive('heading', { level: 1 }) ? 'H1'
+                : editor?.isActive('heading', { level: 2 }) ? 'H2'
+                : editor?.isActive('heading', { level: 3 }) ? 'H3'
+                : editor?.isActive('blockquote') ? '❝'
+                : 'Aa'}
+              <ChevronDown size={9} />
+            </button>
+            {showHeadingMenu && (
+              <div
+                className="absolute bottom-10 left-0 rounded-xl overflow-hidden shadow-2xl border z-50"
+                style={{ background: SURFACE, borderColor: BORDER, minWidth: 150 }}
+              >
+                {([
+                  { label: 'Normal', icon: <Pilcrow size={12} />, action: () => editor?.chain().focus().setParagraph().run(), active: !editor?.isActive('heading') && !editor?.isActive('blockquote') },
+                  { label: 'Heading 1', icon: <Heading1 size={12} />, action: () => editor?.chain().focus().toggleHeading({ level: 1 }).run(), active: editor?.isActive('heading', { level: 1 }) },
+                  { label: 'Heading 2', icon: <Heading2 size={12} />, action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run(), active: editor?.isActive('heading', { level: 2 }) },
+                  { label: 'Heading 3', icon: <Heading3 size={12} />, action: () => editor?.chain().focus().toggleHeading({ level: 3 }).run(), active: editor?.isActive('heading', { level: 3 }) },
+                  { label: 'Block Quote', icon: <Quote size={12} />, action: () => editor?.chain().focus().toggleBlockquote().run(), active: editor?.isActive('blockquote') },
+                ] as const).map(({ label, icon, action, active }) => (
+                  <button
+                    key={label}
+                    onMouseDown={e => { e.preventDefault(); action(); setShowHeadingMenu(false); }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-xs hover:bg-white/5 transition-colors"
+                    style={{ color: active ? ACCENT2 : FG }}
+                  >
+                    <span style={{ color: active ? ACCENT2 : MUTED }}>{icon}</span>
+                    {label}
+                    {active && <Check size={10} className="ml-auto" style={{ color: ACCENT2 }} />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <TbSep />
+
+          {/* Lists */}
+          <FmtBtn active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="Bullet list">
+            <List size={13} />
+          </FmtBtn>
+          <FmtBtn active={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="Numbered list">
+            <ListOrdered size={13} />
+          </FmtBtn>
+          <FmtBtn active={editor?.isActive('taskList')} onClick={() => editor?.chain().focus().toggleTaskList().run()} title="Checklist">
+            <CheckSquare size={13} />
+          </FmtBtn>
+
+          <TbSep />
+
+          {/* Alignment */}
+          <FmtBtn active={editor?.isActive({ textAlign: 'left' })} onClick={() => editor?.chain().focus().setTextAlign('left').run()} title="Align left">
+            <AlignLeft size={13} />
           </FmtBtn>
           <FmtBtn active={editor?.isActive({ textAlign: 'center' })} onClick={() => editor?.chain().focus().setTextAlign('center').run()} title="Center">
-            <AlignCenter size={14} />
+            <AlignCenter size={13} />
           </FmtBtn>
-          <FmtBtn active={editor?.isActive({ textAlign: 'right' })} onClick={() => editor?.chain().focus().setTextAlign('right').run()} title="Right">
-            <AlignRight size={14} />
-          </FmtBtn>
-
-          <div className="w-px h-5 shrink-0 mx-1" style={{ background: BORDER }} />
-
-          <FmtBtn active={editor?.isActive('link')} onClick={setLink} title="Link">
-            <Link2 size={14} />
+          <FmtBtn active={editor?.isActive({ textAlign: 'right' })} onClick={() => editor?.chain().focus().setTextAlign('right').run()} title="Align right">
+            <AlignRight size={13} />
           </FmtBtn>
 
-          <div className="w-px h-5 shrink-0 mx-1" style={{ background: BORDER }} />
+          <TbSep />
+
+          {/* Link + Font */}
+          <FmtBtn active={editor?.isActive('link')} onClick={setLink} title="Insert link">
+            <Link2 size={13} />
+          </FmtBtn>
+
+          <TbSep />
 
           {/* Font family picker */}
           <div className="relative shrink-0">
             <button
               onClick={() => setShowFontMenu(v => !v)}
-              className="flex items-center gap-1 px-2 h-8 rounded-lg text-xs transition-colors hover:bg-white/10"
+              className="flex items-center gap-0.5 px-1.5 h-7 rounded-lg text-[11px] transition-colors hover:bg-white/10"
               style={{ color: MUTED }}
             >
-              {fontFamily.slice(0, 5)} <ChevronDown size={11} />
+              {fontFamily.slice(0, 4)} <ChevronDown size={9} />
             </button>
             {showFontMenu && (
               <div
-                className="absolute bottom-10 left-0 rounded-xl overflow-hidden shadow-2xl border z-50"
+                className="absolute bottom-9 left-0 rounded-xl overflow-hidden shadow-2xl border z-50"
                 style={{ background: SURFACE, borderColor: BORDER, minWidth: 130 }}
               >
                 {FONTS.map(f => (
                   <button
                     key={f}
                     onClick={() => { setFontFamily(f); setShowFontMenu(false); }}
-                    className="w-full px-4 py-2.5 text-left text-xs hover:bg-white/5 transition-colors"
+                    className="w-full px-3.5 py-2 text-left text-xs hover:bg-white/5 transition-colors"
                     style={{ color: fontFamily === f ? ACCENT2 : FG }}
                   >
                     {f}
@@ -554,6 +660,17 @@ export function BallpointPanel({ storagePrefix }: NativePanelProps) {
             )}
           </div>
         </div>
+
+        {/* Editor right-click context menu */}
+        {editorCtxMenu && (
+          <EditorCtxMenu
+            ref={editorCtxMenuRef}
+            x={editorCtxMenu.x}
+            y={editorCtxMenu.y}
+            editor={editor}
+            onClose={() => setEditorCtxMenu(null)}
+          />
+        )}
       </div>
     );
   }
@@ -793,7 +910,12 @@ function NoteCard({
   );
 }
 
-/* ── Format Button ── */
+/* ── Toolbar separator ── */
+function TbSep() {
+  return <div className="w-px h-4 shrink-0 mx-0.5" style={{ background: BORDER }} />;
+}
+
+/* ── Format Button (compact) ── */
 function FmtBtn({ children, active, onClick, title }: {
   children: React.ReactNode; active?: boolean | null;
   onClick?: () => void; title?: string;
@@ -802,7 +924,7 @@ function FmtBtn({ children, active, onClick, title }: {
     <button
       onMouseDown={e => { e.preventDefault(); onClick?.(); }}
       title={title}
-      className="p-2 rounded-xl transition-colors shrink-0"
+      className="p-1.5 rounded-lg transition-colors shrink-0"
       style={{
         color: active ? ACCENT2 : MUTED,
         background: active ? `${ACCENT}22` : 'transparent',
@@ -940,3 +1062,103 @@ function BpNoteCtxMenu({
     </div>
   );
 }
+
+/* ── Editor right-click context menu ── */
+const EditorCtxMenu = forwardRef<HTMLDivElement, {
+  x: number; y: number; editor: Editor | null; onClose: () => void;
+}>(function EditorCtxMenu({ x, y, editor, onClose }, ref) {
+  const w = 210;
+  const left = x + w > window.innerWidth ? x - w : x;
+  const top = y + 320 > window.innerHeight ? y - 320 : y;
+
+  function CRow({ icon, label, onClick, active, danger, shortcut }: {
+    icon: React.ReactNode; label: string; onClick: () => void;
+    active?: boolean; danger?: boolean; shortcut?: string;
+  }) {
+    return (
+      <button
+        onMouseDown={e => { e.preventDefault(); onClick(); onClose(); }}
+        className="w-full flex items-center gap-2.5 px-3 py-[7px] text-xs transition-colors text-left"
+        style={{ color: danger ? '#f87171' : active ? ACCENT2 : FG, background: 'none' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
+      >
+        <span style={{ color: danger ? '#f87171' : ACCENT2, width: 15, flexShrink: 0, display: 'flex' }}>{icon}</span>
+        <span className="flex-1">{label}</span>
+        {shortcut && <span style={{ color: MUTED, fontSize: 10 }}>{shortcut}</span>}
+        {active && <Check size={10} style={{ color: ACCENT2, flexShrink: 0 }} />}
+      </button>
+    );
+  }
+
+  const sep = <div style={{ height: 1, background: BORDER, margin: '3px 10px' }} />;
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: 'fixed', top, left, zIndex: 10001,
+        background: SURFACE,
+        border: `1px solid ${BORDER}`,
+        borderRadius: 14, boxShadow: '0 16px 48px rgba(0,0,0,0.55)',
+        padding: '6px 4px', minWidth: w,
+        backdropFilter: 'blur(16px)',
+      }}
+    >
+      {/* Inline formatting */}
+      <div style={{ padding: '4px 8px 2px', color: MUTED, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Format</div>
+      <div style={{ display: 'flex', gap: 2, padding: '2px 8px 4px' }}>
+        {([
+          { icon: <Bold size={13} />, title: 'Bold', active: editor?.isActive('bold'), action: () => editor?.chain().focus().toggleBold().run() },
+          { icon: <Italic size={13} />, title: 'Italic', active: editor?.isActive('italic'), action: () => editor?.chain().focus().toggleItalic().run() },
+          { icon: <UnderlineIcon size={13} />, title: 'Underline', active: editor?.isActive('underline'), action: () => editor?.chain().focus().toggleUnderline().run() },
+          { icon: <Strikethrough size={13} />, title: 'Strikethrough', active: editor?.isActive('strike'), action: () => editor?.chain().focus().toggleStrike().run() },
+        ] as const).map(({ icon, title, active, action }) => (
+          <button
+            key={title}
+            title={title}
+            onMouseDown={e => { e.preventDefault(); action(); onClose(); }}
+            style={{
+              flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: active ? `${ACCENT}33` : 'rgba(255,255,255,0.04)',
+              color: active ? ACCENT2 : MUTED,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 0.15s',
+            }}
+          >{icon}</button>
+        ))}
+      </div>
+
+      {sep}
+
+      {/* Heading / block style */}
+      <div style={{ padding: '4px 8px 2px', color: MUTED, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Style</div>
+      <CRow icon={<Pilcrow size={12} />} label="Normal" active={!editor?.isActive('heading') && !editor?.isActive('blockquote')} onClick={() => editor?.chain().focus().setParagraph().run()} />
+      <CRow icon={<Heading1 size={12} />} label="Heading 1" active={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} />
+      <CRow icon={<Heading2 size={12} />} label="Heading 2" active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} />
+      <CRow icon={<Heading3 size={12} />} label="Heading 3" active={editor?.isActive('heading', { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} />
+      <CRow icon={<Quote size={12} />} label="Block Quote" active={editor?.isActive('blockquote')} onClick={() => editor?.chain().focus().toggleBlockquote().run()} />
+
+      {sep}
+
+      {/* Edit actions */}
+      <CRow
+        icon={<Copy size={12} />}
+        label="Copy"
+        shortcut="⌘C"
+        onClick={() => document.execCommand('copy')}
+      />
+      <CRow
+        icon={<Scissors size={12} />}
+        label="Cut"
+        shortcut="⌘X"
+        onClick={() => document.execCommand('cut')}
+      />
+      <CRow
+        icon={<RemoveFormatting size={12} />}
+        label="Clear formatting"
+        onClick={() => editor?.chain().focus().clearNodes().unsetAllMarks().run()}
+      />
+    </div>
+  );
+});
