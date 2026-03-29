@@ -157,6 +157,12 @@ const RBTRAY_STEPS = [
   "Run RBTray.exe — no installation, no admin rights needed.",
   "Right-click hollr's minimize button (instead of left-clicking) to send it to the tray.",
   'Click the hollr icon in your system tray to restore the window.',
+  <>
+    <span>To auto-start RBTray on login, paste a shortcut of RBTray.exe into your Startup folder:</span>
+    <code className="mt-1 block text-[11px] bg-surface-0 border border-border/30 rounded px-2 py-1 text-muted-foreground select-all break-all">
+      C:\Users\[USERNAME]\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup
+    </code>
+  </>,
 ] as const;
 
 function RBTrayDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
