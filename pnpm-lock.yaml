@@ -153,6 +153,9 @@ importers:
 
   .:
     dependencies:
+      '@replit/connectors-sdk':
+        specifier: ^0.3.0
+        version: 0.3.0
       stripe:
         specifier: ^20.4.1
         version: 20.4.1(@types/node@25.3.5)
@@ -1861,6 +1864,9 @@ packages:
 
   '@remirror/core-constants@3.0.0':
     resolution: {integrity: sha512-42aWfPrimMfDKDi4YegyS7x+/0tlzaqwPQCULLanv3DMIlu96KTJR0fM5isWX2UViOqlGnX6YFgqWepcX+XMNg==}
+
+  '@replit/connectors-sdk@0.3.0':
+    resolution: {integrity: sha512-JBHKPL69UsegdqXXxgUsz+mCps1YwbJELx7SxxsazR9+J3/TWPcuK/tNVO6mGP9Hd+AqeV2pF7BeODoOSyzfDg==}
 
   '@replit/vite-plugin-cartographer@0.5.0':
     resolution: {integrity: sha512-U1LKR78LU0F/nQFRVzaFSH2tX189oFUNsut25KQh24bFN0N9OJEkrCMiJfMBtLXGabjUX4aw2OWJ0u8TjBlxkg==}
@@ -5972,6 +5978,8 @@ snapshots:
   '@radix-ui/rect@1.1.1': {}
 
   '@remirror/core-constants@3.0.0': {}
+
+  '@replit/connectors-sdk@0.3.0': {}
 
   '@replit/vite-plugin-cartographer@0.5.0':
     dependencies:
