@@ -426,9 +426,13 @@ export function useRealtime(userId?: string) {
           case 'VOICE_ROOM_STATE': {
             const { channelId, users } = data.payload;
             setVoiceRoomState(channelId, users);
-            users.forEach(u => {
-              if (u.userId !== userId && _onNewPeer) _onNewPeer(u.userId);
-            });
+            // Do NOT proactively call _onNewPeer for existing users here.
+            // Existing participants receive VOICE_USER_JOINED for the new joiner and
+            // create peers (with their screen-share tracks already attached) then send
+            // offers to the new joiner.  The new joiner answers reactively via
+            // handleSignal, which creates a peer only when the offer arrives.
+            // This eliminates simultaneous offer/answer "glare" that previously caused
+            // the screen-share video track to be dropped for late joiners.
             break;
           }
 
@@ -437,11 +441,10 @@ export function useRealtime(userId?: string) {
             addVoiceChannelUser(channelId, user);
             if (user.userId !== userId) {
               playVoiceJoinSound();
-              // Existing participants must also create a fresh peer for the joiner.
-              // This is critical when the local user has an active screen-share: createPeer
-              // adds the video track, triggering onnegotiationneeded → the joiner receives
-              // an offer that already includes the video stream without needing a separate
-              // renegotiation round-trip.
+              // Existing participants create a fresh peer for the joiner.
+              // createPeer adds any active screen-share / camera tracks so the
+              // late joiner receives the video stream in the very first offer —
+              // no separate renegotiation round-trip required.
               if (_onNewPeer) _onNewPeer(user.userId);
             }
             break;
