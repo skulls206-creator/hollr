@@ -23,7 +23,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useAppStore } from '@/store/use-app-store';
 import { useListMyServers, useGetMyProfile, useUpdateMyProfile, UpdateUserRequestStatus } from '@workspace/api-client-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn, getInitials } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -284,24 +283,24 @@ export function DockBar() {
   const qc = useQueryClient();
   const { data: myProfile } = useGetMyProfile();
   const updateProfile = useUpdateMyProfile();
-  const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
   const currentStatus = myProfile?.status ?? 'online';
 
   const STATUS_OPTIONS: { value: UpdateUserRequestStatus; label: string; color: string }[] = [
-    { value: UpdateUserRequestStatus.online,  label: 'Online',          color: 'bg-emerald-500' },
-    { value: UpdateUserRequestStatus.idle,    label: 'Away',            color: 'bg-yellow-400' },
-    { value: UpdateUserRequestStatus.dnd,     label: 'Do Not Disturb',  color: 'bg-red-500' },
-    { value: UpdateUserRequestStatus.offline, label: 'Invisible',       color: 'bg-zinc-500' },
+    { value: UpdateUserRequestStatus.online,  label: 'Online',    color: 'bg-emerald-500' },
+    { value: UpdateUserRequestStatus.idle,    label: 'Away',      color: 'bg-yellow-400' },
+    { value: UpdateUserRequestStatus.dnd,     label: 'Busy',      color: 'bg-red-500' },
+    { value: UpdateUserRequestStatus.offline, label: 'Invisible', color: 'bg-zinc-500' },
   ];
 
-  const statusDotClass = STATUS_OPTIONS.find(o => o.value === currentStatus)?.color ?? 'bg-emerald-500';
+  const currentStatusOpt = STATUS_OPTIONS.find(o => o.value === currentStatus) ?? STATUS_OPTIONS[0];
+  const nextStatusOpt = STATUS_OPTIONS[(STATUS_OPTIONS.findIndex(o => o.value === currentStatus) + 1) % STATUS_OPTIONS.length];
 
-  const handleStatusChange = (status: UpdateUserRequestStatus) => {
+  const cycleStatus = (e: React.MouseEvent) => {
+    e.stopPropagation();
     updateProfile.mutate(
-      { data: { status } },
+      { data: { status: nextStatusOpt.value } },
       { onSuccess: () => qc.invalidateQueries({ queryKey: ['/api/users/me'] }) },
     );
-    setStatusPopoverOpen(false);
   };
 
   const totalDmUnread = Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0);
@@ -635,38 +634,18 @@ export function DockBar() {
                   {khurkDashboardOpen && !activeServerId && !activeDmThreadId && !activeKhurkAppId && (
                     <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-foreground" />
                   )}
-                  {/* User status dot — bottom-left corner, click to change status */}
-                  <Popover open={statusPopoverOpen} onOpenChange={setStatusPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => { e.stopPropagation(); setStatusPopoverOpen(p => !p); }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setStatusPopoverOpen(p => !p); } }}
-                        className={cn(
-                          'absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full ring-[1.5px] ring-background z-20 cursor-pointer transition-transform hover:scale-125',
-                          statusDotClass
-                        )}
-                        title={`Status: ${currentStatus}`}
-                      />
-                    </PopoverTrigger>
-                    <PopoverContent side="top" align="start" className="w-44 p-1.5" onClick={(e) => e.stopPropagation()}>
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1" style={{ letterSpacing: '0.1em' }}>Set Status</p>
-                      {STATUS_OPTIONS.map(opt => (
-                        <button
-                          key={opt.value}
-                          onClick={() => handleStatusChange(opt.value as UpdateUserRequestStatus)}
-                          className={cn(
-                            'w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent',
-                            currentStatus === opt.value && 'bg-accent/50 font-semibold'
-                          )}
-                        >
-                          <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', opt.color)} />
-                          {opt.label}
-                        </button>
-                      ))}
-                    </PopoverContent>
-                  </Popover>
+                  {/* User status dot — bottom-left corner, click to cycle status */}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={cycleStatus}
+                    onKeyDown={(e) => { if (e.key === 'Enter') cycleStatus(e as any); }}
+                    className={cn(
+                      'absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full ring-[1.5px] ring-background z-20 cursor-pointer transition-transform hover:scale-125',
+                      currentStatusOpt.color
+                    )}
+                    title={`${currentStatusOpt.label} · click to set ${nextStatusOpt.label}`}
+                  />
                 </motion.button>
               </TooltipTrigger>
               <TooltipContent side="top" className="mb-1">
