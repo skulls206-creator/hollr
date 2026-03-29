@@ -780,6 +780,10 @@ export function DockBar() {
                 </DockItem>
               </>
             )}
+
+            {/* Trailing spacer — padding-right on overflow:auto containers is
+                ignored by some browsers; a real element reliably adds the gap. */}
+            <div className="shrink-0 w-3 h-px" aria-hidden="true" />
           </div>
         </motion.div>
       </div>
