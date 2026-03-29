@@ -620,12 +620,37 @@ function RemoteUserTile({
   // with playsInline and off-screen CSS stays active — matching the DM call approach.
   const audioElRef = useRef<HTMLVideoElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const deafenedRef = useRef(deafened);
+  deafenedRef.current = deafened;
+
+  // One-time setup: set webkit-playsinline (older iOS requires this via setAttribute,
+  // JSX playsInline alone is not enough) and register a gesture-retry handler so
+  // iOS can unblock play() after a NotAllowedError without user needing to re-join.
+  useEffect(() => {
+    const el = audioElRef.current;
+    if (!el) return;
+    el.setAttribute('webkit-playsinline', 'true');
+    el.autoplay = true;
+    el.muted = false;
+
+    const retryPlay = () => {
+      if (el.paused && el.srcObject && !deafenedRef.current) {
+        el.play().catch(() => {});
+      }
+    };
+    document.addEventListener('touchstart', retryPlay, { passive: true });
+    document.addEventListener('click', retryPlay);
+    return () => {
+      document.removeEventListener('touchstart', retryPlay);
+      document.removeEventListener('click', retryPlay);
+    };
+  }, []);
 
   useEffect(() => {
     const el = audioElRef.current;
     if (!el || !stream) return;
     el.srcObject = stream;
-    el.muted = false; // must set via JS — JSX muted prop can't reliably set false
+    el.muted = false;
     if (outputDeviceId && typeof (el as any).setSinkId === 'function') {
       (el as any).setSinkId(outputDeviceId).catch(() => {});
     }
