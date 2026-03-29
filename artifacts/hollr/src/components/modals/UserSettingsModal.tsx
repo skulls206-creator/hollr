@@ -152,6 +152,56 @@ function DeviceRow({
   );
 }
 
+const RBTRAY_STEPS = [
+  'Download the zip below and extract it anywhere on your PC.',
+  "Run RBTray.exe — no installation, no admin rights needed.",
+  "Right-click hollr's minimize button (instead of left-clicking) to send it to the tray.",
+  'Click the hollr icon in your system tray to restore the window.',
+] as const;
+
+function RBTrayDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm bg-surface-1 border-border/50">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Monitor size={16} className="shrink-0" />
+            System Tray with RBTray
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 pt-1">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground">RBTray</span> is a tiny Windows utility that sends any app to the system tray — the icon area near the clock — by right-clicking the minimize button instead of left-clicking it. Keep hollr running silently in the background without a taskbar button.
+          </p>
+          <ol className="flex flex-col gap-2.5 text-sm">
+            {RBTRAY_STEPS.map((step, i) => (
+              <li key={i} className="flex gap-3 items-start">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center mt-0.5">
+                  {i + 1}
+                </span>
+                <span className="text-muted-foreground leading-snug">{step}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="flex gap-2 pt-1">
+            <a
+              href="https://pub-fb9bbc0ec64642ee8355b08bfffe25bd.r2.dev/downloads/RBTray-4_3.zip"
+              download="RBTray-4_3.zip"
+              className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+            >
+              <ExternalLink size={14} />
+              Download RBTray
+            </a>
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="px-4 shrink-0">
+              Got it
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function UserSettingsModal() {
   const {
     userSettingsModalOpen, setUserSettingsModalOpen, voiceConnection,
@@ -190,7 +240,7 @@ export function UserSettingsModal() {
   // Only show the Desktop Integration section when the app is installed as a PWA on Windows
   const isPWA = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches;
   const isWindows = typeof navigator !== 'undefined' && (
-    (navigator as any).userAgentData?.platform === 'Windows' ||
+    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform === 'Windows' ||
     navigator.userAgent.includes('Windows')
   );
 
@@ -1151,49 +1201,7 @@ export function UserSettingsModal() {
     </Dialog>
 
     {/* ── RBTray setup dialog — sibling of settings dialog to avoid nesting ── */}
-    <Dialog open={rbtrayOpen} onOpenChange={setRbtrayOpen}>
-      <DialogContent className="max-w-sm bg-surface-1 border-border/50">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Monitor size={16} className="shrink-0" />
-            System Tray with RBTray
-          </DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-4 pt-1">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            <span className="font-semibold text-foreground">RBTray</span> is a tiny Windows utility that sends any app to the system tray — the icon area near the clock — by right-clicking the minimize button instead of left-clicking it. Keep hollr running silently in the background without a taskbar button.
-          </p>
-          <ol className="flex flex-col gap-2.5 text-sm">
-            {([
-              'Download the zip below and extract it anywhere on your PC.',
-              'Run RBTray.exe — no installation, no admin rights needed.',
-              'Right-click hollr\'s minimize button (instead of left-clicking) to send it to the tray.',
-              'Click the hollr icon in your system tray to restore the window.',
-            ] as const).map((step, i) => (
-              <li key={i} className="flex gap-3 items-start">
-                <span className="shrink-0 w-5 h-5 rounded-full bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center mt-0.5">
-                  {i + 1}
-                </span>
-                <span className="text-muted-foreground leading-snug">{step}</span>
-              </li>
-            ))}
-          </ol>
-          <div className="flex gap-2 pt-1">
-            <a
-              href="https://pub-fb9bbc0ec64642ee8355b08bfffe25bd.r2.dev/downloads/RBTray-4_3.zip"
-              download="RBTray-4_3.zip"
-              className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-            >
-              <ExternalLink size={14} />
-              Download RBTray
-            </a>
-            <Button variant="ghost" onClick={() => setRbtrayOpen(false)} className="px-4 shrink-0">
-              Got it
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <RBTrayDialog open={rbtrayOpen} onOpenChange={setRbtrayOpen} />
     </>
   );
 }
