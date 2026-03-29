@@ -132,7 +132,11 @@ export function useDmCallAudio() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       localStreamRef.current = stream;
-      stream.getAudioTracks().forEach(t => pc.addTrack(t, stream));
+      const isMuted = useAppStore.getState().micMuted;
+      stream.getAudioTracks().forEach(t => {
+        t.enabled = !isMuted; // honour the stored mute state before adding to PC
+        pc.addTrack(t, stream);
+      });
     } catch (err) {
       console.error('[DM call] Microphone error:', err);
       toast({ title: 'Microphone unavailable', description: 'Could not access your microphone.', variant: 'destructive' });
