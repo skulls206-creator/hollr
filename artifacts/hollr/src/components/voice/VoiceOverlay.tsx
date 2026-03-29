@@ -615,13 +615,17 @@ function RemoteUserTile({
   onVolumeChange: (v: number) => void;
   onWatch: () => void;
 }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+  // Use a <video> element (not <audio>) for remote audio playback.
+  // On iOS Safari, <audio display:none> is suspended by the OS; a <video> element
+  // with playsInline and off-screen CSS stays active — matching the DM call approach.
+  const audioElRef = useRef<HTMLVideoElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const el = audioRef.current;
+    const el = audioElRef.current;
     if (!el || !stream) return;
     el.srcObject = stream;
+    el.muted = false; // must set via JS — JSX muted prop can't reliably set false
     if (outputDeviceId && typeof (el as any).setSinkId === 'function') {
       (el as any).setSinkId(outputDeviceId).catch(() => {});
     }
@@ -637,7 +641,7 @@ function RemoteUserTile({
   }, [videoStream]);
 
   useEffect(() => {
-    const el = audioRef.current;
+    const el = audioElRef.current;
     if (!el) return;
     el.volume = Math.max(0, Math.min(1, volume));
   }, [volume]);
@@ -650,7 +654,13 @@ function RemoteUserTile({
       )}
       onClick={(e) => onOpenProfile(e.clientX, e.clientY)}
     >
-      <audio ref={audioRef} autoPlay playsInline className="hidden" />
+      {/* video element used for audio — <audio display:none> is suspended on iOS Safari */}
+      <video
+        ref={audioElRef}
+        autoPlay
+        playsInline
+        style={{ position: 'fixed', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none', top: '-9999px', left: '-9999px' }}
+      />
 
       {videoStream ? (
         <video
