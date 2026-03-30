@@ -6,7 +6,7 @@ import {
   Mic, MicOff, Headphones, VolumeX, MonitorUp, PhoneOff,
   Monitor, AppWindow, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Radio,
   MessageSquare, AtSign, Volume2, Loader2, Wifi, Globe, Server, Video, VideoOff, Music2,
-  Signal, BarChart2,
+  Signal, BarChart2, MoreHorizontal,
 } from 'lucide-react';
 import type { VoiceStats } from '@/store/use-app-store';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -43,6 +43,7 @@ export function VoiceOverlay() {
   const [resizeHeight, setResizeHeight] = useState<number | null>(null);
   const [showQualityCard, setShowQualityCard] = useState(false);
   const [showStatsPanel, setShowStatsPanel] = useState(false);
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [cardAnchor, setCardAnchor] = useState<{ x: number; y: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);
@@ -388,13 +389,14 @@ export function VoiceOverlay() {
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 setCardAnchor({ x: rect.left, y: rect.bottom });
-                setShowStatsPanel(v => !v);
+                setShowOverflowMenu(v => !v);
+                setShowStatsPanel(false);
                 setShowQualityCard(false);
               }}
-              title="Connection Stats"
+              title="More options"
               className="w-7 h-7 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 transition-colors text-muted-foreground hover:text-foreground"
             >
-              <BarChart2 size={14} />
+              <MoreHorizontal size={14} />
             </button>
             <button
               onClick={() => setVoiceMinimized(true)}
@@ -544,7 +546,26 @@ export function VoiceOverlay() {
         />
       )}
 
-      {/* Connection stats panel (full overlay) */}
+      {/* ⋯ overflow dropdown menu */}
+      {showOverflowMenu && cardAnchor && (
+        <>
+          <div className="fixed inset-0 z-[70]" onClick={() => setShowOverflowMenu(false)} />
+          <div
+            className="fixed z-[71] bg-popover border border-border/60 rounded-lg shadow-xl py-1 min-w-[168px]"
+            style={{ left: cardAnchor.x, top: cardAnchor.y + 2 }}
+          >
+            <button
+              onClick={() => { setShowOverflowMenu(false); setShowStatsPanel(true); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+            >
+              <BarChart2 size={13} className="text-muted-foreground" />
+              Connection Stats
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Connection stats panel */}
       {showStatsPanel && cardAnchor && (
         <>
           <div className="fixed inset-0 z-[70]" onClick={() => setShowStatsPanel(false)} />
