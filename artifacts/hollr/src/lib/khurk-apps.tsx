@@ -99,7 +99,7 @@ export const KHURK_APPS: KhurkApp[] = [
     name: 'STREAMD',
     tagline: 'Movies & TV',
     description: 'High-definition streaming of movies and television series.',
-    url: 'https://ustream.khurk.services',
+    url: 'https://streamd.khurk.services',
     imageSrc: uStreamImg,
     bannerSrc: uStreamBanner,
     gradient: ['#1a1f8f', '#4a54d4'],
