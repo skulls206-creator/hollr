@@ -691,7 +691,7 @@ function VoiceConnectionPopover({
   }, [audioInputDeviceId]);
 
   const CARD_W = 268;
-  const left = Math.min(anchorX, window.innerWidth - CARD_W - 12);
+  const left = Math.max(8, Math.min(anchorX, window.innerWidth - CARD_W - 12));
   const top = Math.max(8, anchorY - 280);
 
   const connVals = Object.values(connectionTypes);
@@ -764,7 +764,7 @@ function ConnectionStatsPanel({
   onClose: () => void;
 }) {
   const CARD_W = 284;
-  const left = Math.min(anchorX, window.innerWidth - CARD_W - 12);
+  const left = Math.max(8, Math.min(anchorX, window.innerWidth - CARD_W - 12));
   const top = Math.max(8, anchorY + 4);
 
   const [, tick] = useState(0);

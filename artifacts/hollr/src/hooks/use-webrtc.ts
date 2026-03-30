@@ -477,6 +477,7 @@ export function useWebRTC(
     const poll = async () => {
       if (polling) return;
       polling = true;
+      try {
       const entries = Object.entries(peersRef.current);
 
       // Even with no active peer connections, publish duration + participant
@@ -497,7 +498,6 @@ export function useWebRTC(
           startedAt: statsStartedAtRef.current,
           participantCount: participants,
         });
-        polling = false;
         return;
       }
 
@@ -599,7 +599,9 @@ export function useWebRTC(
         startedAt:        statsStartedAtRef.current,
         participantCount: participants,
       });
-      polling = false;
+      } finally {
+        polling = false;
+      }
     };
 
     poll();
