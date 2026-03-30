@@ -108,11 +108,13 @@ function AppContextMenu({
     <div
       className="fixed inset-0 z-[9999]"
       onContextMenu={e => { e.preventDefault(); onClose(); }}
+      onClick={onClose}
     >
       <div
         ref={menuRef}
         className="absolute w-[220px] bg-[#111214] border border-[#ffffff0f] rounded-md shadow-[0_8px_32px_rgba(0,0,0,0.6)] py-1.5 overflow-visible"
         style={{ left: pos.x, top: pos.y }}
+        onClick={e => e.stopPropagation()}
       >
         {/* App/item title header */}
         {config.title && (
@@ -243,6 +245,66 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
 
   const hide = useCallback(() => {
     setCurrent(null);
+  }, []);
+
+  // iOS long-press → fire a synthetic contextmenu event so all onContextMenu
+  // handlers work exactly as on desktop.  Also temporarily suppresses native
+  // text selection so the blue handles never appear during the hold.
+  useEffect(() => {
+    const HOLD_MS = 500;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let startX = 0, startY = 0;
+
+    const reset = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      // Restore text selection a beat after the touch ends
+      setTimeout(() => {
+        document.body.style.webkitUserSelect = '';
+        (document.body.style as any).userSelect = '';
+      }, 80);
+    };
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) { reset(); return; }
+      const t = e.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      // Suppress native text selection during the hold
+      document.body.style.webkitUserSelect = 'none';
+      (document.body.style as any).userSelect = 'none';
+      timer = setTimeout(() => {
+        const el = document.elementFromPoint(startX, startY);
+        if (el) {
+          el.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: startX,
+            clientY: startY,
+            view: window,
+          }));
+        }
+        reset();
+      }, HOLD_MS);
+    };
+
+    const onMove = (e: TouchEvent) => {
+      if (!timer) return;
+      const t = e.touches[0];
+      if (Math.abs(t.clientX - startX) > 8 || Math.abs(t.clientY - startY) > 8) reset();
+    };
+
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', reset);
+    document.addEventListener('touchcancel', reset);
+
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', reset);
+      document.removeEventListener('touchcancel', reset);
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   return (

@@ -666,3 +666,10 @@
 
 .ballpoint-editor .ProseMirror p { margin: 0.3em 0; }
 
+/* ── iOS: kill native long-press callouts everywhere ── */
+/* Prevents "Save Image", "Copy Link", and selection callouts from
+   appearing before our custom context menu can open.             */
+* {
+  -webkit-touch-callout: none;
+}
+
