@@ -26,7 +26,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function ChatArea() {
   const {
-    activeServerId, activeChannelId,
+    activeServerId, activeChannelId, previousChannelId,
     toggleMemberList, toggleMobileSidebar, togglePinnedPanel, pinnedPanelOpen,
     isChannelMuted, toggleMuteChannel,
     setHelpModalOpen,
@@ -34,9 +34,14 @@ export function ChatArea() {
     layoutMode, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen,
     triggerCommand,
     sidebarLocked, setSidebarLocked,
+    setActiveChannel,
   } = useAppStore();
 
   const [nsfwConfirmed, confirmNsfw] = useNsfwConfirmed(activeChannelId || '');
+
+  const handleNsfwGoBack = useCallback(() => {
+    setActiveChannel(previousChannelId);
+  }, [setActiveChannel, previousChannelId]);
 
   const { show: showMenu } = useContextMenu();
 
@@ -389,7 +394,7 @@ export function ChatArea() {
 
         {/* NSFW gate or messages */}
         {channel.nsfw && !nsfwConfirmed ? (
-          <NsfwGate channelName={channel.name} onConfirm={confirmNsfw} />
+          <NsfwGate channelName={channel.name} onConfirm={confirmNsfw} onGoBack={handleNsfwGoBack} />
         ) : (
           <>
             <MessageList channelId={channel.id} highlightedMessageId={highlightedMessageId} />

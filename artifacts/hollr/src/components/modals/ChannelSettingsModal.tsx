@@ -31,11 +31,13 @@ export function ChannelSettingsModal() {
 
   const channel = channels.find(c => c.id === channelSettingsModalChannelId) ?? null;
 
+  const [name, setName] = useState('');
   const [nsfw, setNsfw] = useState(false);
   const [topic, setTopic] = useState('');
 
   useEffect(() => {
     if (channel) {
+      setName(channel.name);
       setNsfw(channel.nsfw ?? false);
       setTopic(channel.topic ?? '');
     }
@@ -47,16 +49,21 @@ export function ChannelSettingsModal() {
 
   const handleSave = () => {
     if (!activeServerId || !channel) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      toast({ title: 'Channel name cannot be empty', variant: 'destructive' });
+      return;
+    }
     updateChannel(
       {
         serverId: activeServerId,
         channelId: channel.id,
-        data: { topic: topic.trim() || null, nsfw },
+        data: { name: trimmedName, topic: topic.trim() || null, nsfw },
       },
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getListChannelsQueryKey(activeServerId) });
-          toast({ title: `#${channel.name} settings saved` });
+          toast({ title: `#${trimmedName} settings saved` });
           handleClose();
         },
         onError: () => toast({ title: 'Failed to save settings', variant: 'destructive' }),
@@ -72,11 +79,25 @@ export function ChannelSettingsModal() {
         <DialogHeader>
           <DialogTitle>Channel Settings — #{channel.name}</DialogTitle>
           <DialogDescription>
-            Manage topic and age-restriction for this channel.
+            Manage name, topic, and age-restriction for this channel.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-4">
+          {/* Channel Name */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Channel Name
+            </label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              maxLength={100}
+              placeholder="channel-name"
+              className="w-full bg-secondary border-0 px-3 py-2.5 rounded-lg text-foreground focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/50 text-sm"
+            />
+          </div>
+
           {/* Topic */}
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

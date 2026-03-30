@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Flame, ShieldAlert } from 'lucide-react';
+import { Flame, ShieldAlert, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const SESSION_KEY_PREFIX = 'nsfw_confirmed_';
@@ -27,9 +27,10 @@ export function useNsfwConfirmed(channelId: string): [boolean, () => void] {
 interface NsfwGateProps {
   channelName: string;
   onConfirm: () => void;
+  onGoBack: () => void;
 }
 
-export function NsfwGate({ channelName, onConfirm }: NsfwGateProps) {
+export function NsfwGate({ channelName, onConfirm, onGoBack }: NsfwGateProps) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 text-center select-none">
       {/* Icon cluster */}
@@ -58,14 +59,22 @@ export function NsfwGate({ channelName, onConfirm }: NsfwGateProps) {
         </p>
       </div>
 
-      {/* CTA */}
+      {/* CTAs */}
       <div className="flex flex-col gap-2 w-full max-w-xs">
         <Button
           variant="primary"
           className="w-full bg-orange-500 hover:bg-orange-600 text-white border-0"
           onClick={onConfirm}
         >
-          I am 18 or older — Show Channel
+          I am 18 or older — Enter Channel
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full gap-2"
+          onClick={onGoBack}
+        >
+          <ArrowLeft size={15} />
+          Go Back
         </Button>
         <p className="text-[11px] text-muted-foreground/60">
           This confirmation is valid for the current session only.

@@ -45,6 +45,7 @@ export interface VoiceStats {
 interface AppState {
   activeServerId: string | null;
   activeChannelId: string | null;
+  previousChannelId: string | null;
   activeDmThreadId: string | null;
 
   // Modals
@@ -328,6 +329,7 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
   activeServerId: null,
   activeChannelId: null,
+  previousChannelId: null,
   activeDmThreadId: null,
 
   createServerModalOpen: false,
@@ -431,7 +433,8 @@ export const useAppStore = create<AppState>()(
     activeKhurkAppId: null,
     appWindowSidebarHidden: false,
   }),
-  setActiveChannel: (id) => set({
+  setActiveChannel: (id) => set((state) => ({
+    previousChannelId: state.activeChannelId,
     activeChannelId: id,
     mobileSidebarOpen: false,
     pinnedPanelOpen: false,
@@ -441,7 +444,7 @@ export const useAppStore = create<AppState>()(
     // Cleanup calls (id === null) fire from ChannelSidebar's server-change effect
     // and must not kill a dashboard that was just opened.
     ...(id !== null ? { khurkDashboardOpen: false, activeKhurkAppId: null } : {}),
-  }),
+  })),
   setActiveDmThread: (id) => set({
     activeDmThreadId: id,
     activeServerId: null,
