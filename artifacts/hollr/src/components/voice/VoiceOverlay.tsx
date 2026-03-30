@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { useWebRTC } from '@/hooks/use-webrtc';
 import { useAuth } from '@workspace/replit-auth-web';
