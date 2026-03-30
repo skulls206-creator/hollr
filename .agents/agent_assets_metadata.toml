@@ -18,6 +18,36 @@ uri = "file://attached_assets/generated_images/hollr_logo_final.png"
 type = "image"
 title = "hollr final app icon"
 
+[[generated]]
+id = "reAdJ6sJ_AVGZ44Uvphhm"
+uri = "file://attached_assets/generated_images/banner_playd.png"
+type = "image"
+title = "playd dark purple music banner"
+
+[[generated]]
+id = "9Nl8w-FGAxLRtG40vVZMH"
+uri = "file://attached_assets/generated_images/banner_foldr.png"
+type = "image"
+title = "foldr dark crystal banner"
+
+[[generated]]
+id = "KDxmGVRgAaivopn25wSOw"
+uri = "file://attached_assets/generated_images/banner_instaghost.png"
+type = "image"
+title = "ghostd dark neon purple banner"
+
+[[generated]]
+id = "g2YysFUlWgrdUiE7OUVce"
+uri = "file://attached_assets/generated_images/banner_gasless.png"
+type = "image"
+title = "gasless dark electric purple banner"
+
+[[generated]]
+id = "LlRyX3GCnIgFTHh8Q8gd4"
+uri = "file://attached_assets/generated_images/banner_onlyxmr.png"
+type = "image"
+title = "onlyxmr dark amber crystal banner"
+
 [[outputs]]
 id = "QBu7uwlotLYM0ql1-2kWC"
 uri = "file://artifacts/hollr/public/icon-512.png"
