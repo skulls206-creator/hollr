@@ -372,23 +372,32 @@ export function useWebRTC(
         rawStream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
         rawStreamRef.current = rawStream;
 
-        if (ctx.state === 'suspended') await ctx.resume();
+        if (ctx.state === 'suspended') {
+          try { await ctx.resume(); } catch { /* ignore */ }
+        }
 
-        // Build gain chain: rawStream → GainNode → MediaStreamDestination
-        const source = ctx.createMediaStreamSource(rawStream);
-        const gainNode = ctx.createGain();
-        gainNode.gain.value = micGain / 100;
-        gainNodeRef.current = gainNode;
-        const destination = ctx.createMediaStreamDestination();
-        source.connect(gainNode);
-        gainNode.connect(destination);
+        let processedStream: MediaStream;
 
-        // Peers receive the gain-processed stream; raw stream is kept for mute/detection
-        const processedStream = destination.stream;
+        if (ctx.state === 'running') {
+          // Build gain chain: rawStream → GainNode → MediaStreamDestination
+          const source = ctx.createMediaStreamSource(rawStream);
+          const gainNode = ctx.createGain();
+          gainNode.gain.value = micGain / 100;
+          gainNodeRef.current = gainNode;
+          const destination = ctx.createMediaStreamDestination();
+          source.connect(gainNode);
+          gainNode.connect(destination);
+          processedStream = destination.stream;
+          startSpeakingDetection(rawStream, ctx);
+        } else {
+          // AudioContext stayed suspended (e.g. Replit iframe on Desktop) — send the
+          // raw mic stream directly so peers actually receive audio.
+          console.warn('[WebRTC] AudioContext suspended — bypassing gain chain, using raw stream');
+          processedStream = rawStream;
+        }
+
         setLocalStream(processedStream);
         localStreamRef.current = processedStream;
-
-        startSpeakingDetection(rawStream, ctx);
 
         const { displayName, username, avatarUrl } = getDisplayInfo();
         sendVoiceSignal({ type: 'join', channelId, userId: user?.id, displayName, username, avatarUrl });
