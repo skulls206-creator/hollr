@@ -127,8 +127,18 @@ async function checkAndGrantReferralSupporter(referrerId: string): Promise<void>
   // This prevents granting on every call once the threshold is exceeded.
   if (n === 0 || n % REFERRALS_NEEDED !== 0) return;
 
+  // Extend from whichever is later: existing expiry or now.
+  // This ensures seamless stacking — if someone re-earns before their current
+  // grant expires, the 6 months is added on top rather than resetting to now.
+  const referrerProfile = await db.query.userProfilesTable.findFirst({
+    where: eq(userProfilesTable.userId, referrerId),
+    columns: { referralSupporterUntil: true },
+  });
+
   const now = new Date();
-  const newUntil = new Date(now);
+  const currentUntil = referrerProfile?.referralSupporterUntil;
+  const base = currentUntil && currentUntil > now ? currentUntil : now;
+  const newUntil = new Date(base);
   newUntil.setMonth(newUntil.getMonth() + REFERRAL_SUPPORTER_MONTHS);
 
   await db
