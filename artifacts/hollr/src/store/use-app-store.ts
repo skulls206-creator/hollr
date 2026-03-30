@@ -28,6 +28,20 @@ export interface VoiceChannelUser {
   isBot?: boolean;
 }
 
+export interface VoiceStats {
+  rttMs: number | null;
+  avgRttMs: number | null;
+  jitterMs: number | null;
+  audioSendKbps: number | null;
+  audioRecvKbps: number | null;
+  videoSendKbps: number | null;
+  videoRecvKbps: number | null;
+  packetLossPct: number | null;
+  rttHistory: number[];
+  startedAt: number | null;
+  participantCount: number;
+}
+
 interface AppState {
   activeServerId: string | null;
   activeChannelId: string | null;
@@ -176,6 +190,10 @@ interface AppState {
   // Per-participant voice volumes (shared between VoiceOverlay + sidebar)
   voiceVolumes: Record<string, number>;
   setVoiceVolume: (userId: string, volume: number) => void;
+
+  // Live WebRTC diagnostics (not persisted)
+  voiceStats: VoiceStats | null;
+  setVoiceStats: (stats: VoiceStats | null) => void;
 
   // Pending mention to insert into the active composer
   pendingMention: string | null;
@@ -516,6 +534,9 @@ export const useAppStore = create<AppState>()(
 
   voiceVolumes: {},
   setVoiceVolume: (userId, volume) => set((state) => ({ voiceVolumes: { ...state.voiceVolumes, [userId]: volume } })),
+
+  voiceStats: null,
+  setVoiceStats: (stats) => set({ voiceStats: stats }),
 
   pendingMention: null,
   triggerMention: (displayName) => set({ pendingMention: displayName }),

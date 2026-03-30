@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { sendVoiceSignal, setVoiceSignalListener, setNewPeerHandler } from './use-realtime';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
+import type { VoiceStats } from '@/store/use-app-store';
 import { fetchIceServers } from '@/lib/ice-servers';
 
 const SPEAKING_THRESHOLD = 18;
@@ -36,6 +37,11 @@ export function useWebRTC(
   const speakingRef = useRef(false);
   const speakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speakingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Stats polling refs
+  const prevBytesRef = useRef<Record<string, { audioSend: number; audioRecv: number; videoSend: number; videoRecv: number; ts: number }>>({});
+  const rttHistoryRef = useRef<number[]>([]);
+  const statsStartedAtRef = useRef<number | null>(null);
 
   const channelIdRef = useRef(channelId);
   channelIdRef.current = channelId;
@@ -432,6 +438,104 @@ export function useWebRTC(
     const id = setInterval(poll, 5000);
     return () => clearInterval(id);
   }, []);
+
+  // ── WebRTC diagnostics stats polling (every 1 s) ──────────────────────────
+  useEffect(() => {
+    if (!channelId) {
+      useAppStore.getState().setVoiceStats(null);
+      rttHistoryRef.current = [];
+      statsStartedAtRef.current = null;
+      prevBytesRef.current = {};
+      return;
+    }
+    if (!statsStartedAtRef.current) statsStartedAtRef.current = Date.now();
+
+    const poll = async () => {
+      const entries = Object.entries(peersRef.current);
+      if (!entries.length) return;
+
+      let rttSum = 0, rttN = 0;
+      let jitterSum = 0, jitterN = 0;
+      let audioSendKbps = 0, audioRecvKbps = 0;
+      let videoSendKbps = 0, videoRecvKbps = 0;
+      let lostSum = 0, receivedSum = 0;
+      const now = Date.now();
+
+      for (const [peerId, peer] of entries) {
+        if (peer.connectionState === 'closed' || peer.connectionState === 'failed') continue;
+        try {
+          const report = await peer.getStats();
+          const prev = prevBytesRef.current[peerId] ?? { audioSend: 0, audioRecv: 0, videoSend: 0, videoRecv: 0, ts: now - 1000 };
+          const dt = Math.max(0.5, (now - prev.ts) / 1000);
+          let curAS = prev.audioSend, curAR = prev.audioRecv, curVS = prev.videoSend, curVR = prev.videoRecv;
+
+          let selectedPairId: string | null = null;
+          report.forEach((r: any) => {
+            if (r.type === 'transport' && r.selectedCandidatePairId) selectedPairId = r.selectedCandidatePairId;
+          });
+          if (selectedPairId) {
+            report.forEach((r: any) => {
+              if (r.type === 'candidate-pair' && r.id === selectedPairId && r.currentRoundTripTime != null) {
+                rttSum += r.currentRoundTripTime * 1000;
+                rttN++;
+              }
+            });
+          }
+
+          report.forEach((r: any) => {
+            if (r.type === 'outbound-rtp') {
+              if (r.mediaType === 'audio' && r.bytesSent != null) curAS = r.bytesSent;
+              if (r.mediaType === 'video' && r.bytesSent != null) curVS = r.bytesSent;
+            }
+            if (r.type === 'inbound-rtp') {
+              if (r.mediaType === 'audio') {
+                if (r.bytesReceived != null) curAR = r.bytesReceived;
+                if (r.jitter != null) { jitterSum += r.jitter * 1000; jitterN++; }
+              }
+              if (r.mediaType === 'video' && r.bytesReceived != null) curVR = r.bytesReceived;
+              if (r.packetsLost != null) lostSum += r.packetsLost;
+              if (r.packetsReceived != null) receivedSum += r.packetsReceived;
+            }
+          });
+
+          audioSendKbps  += Math.max(0, (curAS - prev.audioSend)  * 8 / 1000 / dt);
+          audioRecvKbps  += Math.max(0, (curAR - prev.audioRecv)  * 8 / 1000 / dt);
+          videoSendKbps  += Math.max(0, (curVS - prev.videoSend)  * 8 / 1000 / dt);
+          videoRecvKbps  += Math.max(0, (curVR - prev.videoRecv)  * 8 / 1000 / dt);
+          prevBytesRef.current[peerId] = { audioSend: curAS, audioRecv: curAR, videoSend: curVS, videoRecv: curVR, ts: now };
+        } catch { /* peer closed or stats unavailable */ }
+      }
+
+      if (rttN > 0) {
+        const rttMs = rttSum / rttN;
+        const history = [...rttHistoryRef.current.slice(-29), rttMs];
+        rttHistoryRef.current = history;
+        const avgRttMs = history.reduce((a, b) => a + b, 0) / history.length;
+        const state = useAppStore.getState();
+        const chId = channelIdRef.current;
+        const participants = chId ? (state.voiceChannelUsers[chId] ?? []).length : 0;
+        state.setVoiceStats({
+          rttMs: Math.round(rttMs),
+          avgRttMs: Math.round(avgRttMs),
+          jitterMs: jitterN > 0 ? Math.round(jitterSum / jitterN) : 0,
+          audioSendKbps: Math.round(audioSendKbps),
+          audioRecvKbps: Math.round(audioRecvKbps),
+          videoSendKbps: videoSendKbps > 0.5 ? Math.round(videoSendKbps) : null,
+          videoRecvKbps: videoRecvKbps > 0.5 ? Math.round(videoRecvKbps) : null,
+          packetLossPct: (lostSum + receivedSum) > 0
+            ? parseFloat(((lostSum / (lostSum + receivedSum)) * 100).toFixed(1))
+            : 0,
+          rttHistory: history,
+          startedAt: statsStartedAtRef.current,
+          participantCount: participants,
+        } as VoiceStats);
+      }
+    };
+
+    poll();
+    const statsId = setInterval(poll, 1000);
+    return () => clearInterval(statsId);
+  }, [channelId]);
 
   const stopScreenShare = useCallback(() => {
     const stream = screenStreamRef.current;

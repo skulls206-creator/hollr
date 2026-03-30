@@ -6,7 +6,9 @@ import {
   Mic, MicOff, Headphones, VolumeX, MonitorUp, PhoneOff,
   Monitor, AppWindow, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Radio,
   MessageSquare, AtSign, Volume2, Loader2, Wifi, Globe, Server, Video, VideoOff, Music2,
+  Signal, BarChart2,
 } from 'lucide-react';
+import type { VoiceStats } from '@/store/use-app-store';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Slider } from '@/components/ui/slider';
@@ -27,6 +29,7 @@ export function VoiceOverlay() {
     setVoicePanelHeight,
     audioOutputDeviceId,
     voiceVolumes, setVoiceVolume,
+    voiceStats,
   } = useAppStore();
   const { data: profile } = useGetMyProfile({ query: { queryKey: getGetMyProfileQueryKey(), enabled: !!user } });
   const {
@@ -38,6 +41,9 @@ export function VoiceOverlay() {
   const [watchingUserId, setWatchingUserId] = useState<string | null>(null);
   const [voiceCard, setVoiceCard] = useState<{ userId: string; x: number; y: number } | null>(null);
   const [resizeHeight, setResizeHeight] = useState<number | null>(null);
+  const [showQualityCard, setShowQualityCard] = useState(false);
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
+  const [cardAnchor, setCardAnchor] = useState<{ x: number; y: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);
   const dragStartY = useRef(0);
@@ -129,6 +135,7 @@ export function VoiceOverlay() {
   // ── Minimized pill ──────────────────────────────────────────────────────────
   if (voiceMinimized) {
     return (
+      <>
       <AnimatePresence>
         <motion.div
           initial={{ y: 40, opacity: 0 }}
@@ -193,8 +200,43 @@ export function VoiceOverlay() {
           >
             <ChevronUp size={14} />
           </button>
+
+          {/* Connection quality indicator */}
+          <div className="w-px h-4 bg-border/50 mx-0.5" />
+          <button
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setCardAnchor({ x: rect.left, y: rect.top });
+              setShowQualityCard(v => !v);
+              setShowStatsPanel(false);
+            }}
+            title="Voice Connection Quality"
+            className="flex items-center gap-1 px-1.5 py-1 rounded-lg hover:bg-muted/60 transition-colors"
+          >
+            <Signal size={12} style={{ color: qualityColor(voiceStats?.rttMs ?? null) }} />
+            <span className="text-[11px] font-mono tabular-nums" style={{ color: qualityColor(voiceStats?.rttMs ?? null) }}>
+              {voiceStats?.rttMs != null ? `${voiceStats.rttMs}ms` : '—ms'}
+            </span>
+          </button>
         </motion.div>
       </AnimatePresence>
+
+      {/* Voice connection quality popover */}
+      <AnimatePresence>
+        {showQualityCard && cardAnchor && (
+          <>
+            <div className="fixed inset-0 z-[70]" onClick={() => setShowQualityCard(false)} />
+            <VoiceConnectionPopover
+              stats={voiceStats}
+              connectionTypes={connectionTypes}
+              anchorX={cardAnchor.x}
+              anchorY={cardAnchor.y}
+              onClose={() => setShowQualityCard(false)}
+            />
+          </>
+        )}
+      </AnimatePresence>
+      </>
     );
   }
 
@@ -341,13 +383,27 @@ export function VoiceOverlay() {
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Voice · {channelUsers.length} connected
           </span>
-          <button
-            onClick={() => setVoiceMinimized(true)}
-            title="Minimize"
-            className="w-7 h-7 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 transition-colors text-muted-foreground hover:text-foreground"
-          >
-            <ChevronDown size={15} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setCardAnchor({ x: rect.left, y: rect.bottom });
+                setShowStatsPanel(v => !v);
+                setShowQualityCard(false);
+              }}
+              title="Connection Stats"
+              className="w-7 h-7 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <BarChart2 size={14} />
+            </button>
+            <button
+              onClick={() => setVoiceMinimized(true)}
+              title="Minimize"
+              className="w-7 h-7 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <ChevronDown size={15} />
+            </button>
+          </div>
         </div>
 
         {screenStream && (
@@ -487,7 +543,242 @@ export function VoiceOverlay() {
           onClose={() => setVoiceCard(null)}
         />
       )}
+
+      {/* Connection stats panel (full overlay) */}
+      {showStatsPanel && cardAnchor && (
+        <>
+          <div className="fixed inset-0 z-[70]" onClick={() => setShowStatsPanel(false)} />
+          <ConnectionStatsPanel
+            stats={voiceStats}
+            anchorX={cardAnchor.x}
+            anchorY={cardAnchor.y}
+            onClose={() => setShowStatsPanel(false)}
+          />
+        </>
+      )}
     </AnimatePresence>
+  );
+}
+
+// ── Voice diagnostics helpers & components ────────────────────────────────
+
+function qualityColor(rttMs: number | null | undefined): string {
+  if (rttMs == null) return 'hsl(var(--muted-foreground))';
+  if (rttMs < 80)   return '#22c55e';
+  if (rttMs < 150)  return '#f59e0b';
+  return '#ef4444';
+}
+
+function formatDuration(startedAt: number | null): string {
+  if (!startedAt) return '0:00';
+  const totalSecs = Math.floor((Date.now() - startedAt) / 1000);
+  const m = Math.floor(totalSecs / 60);
+  const s = totalSecs % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function PingSparkline({ history }: { history: number[] }) {
+  const W = 232, H = 64, PAD_L = 30;
+  if (history.length < 2) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-lg text-[10px] text-muted-foreground"
+        style={{ width: W, height: H, background: 'rgba(128,128,128,0.07)' }}
+      >
+        Collecting data…
+      </div>
+    );
+  }
+  const maxVal = Math.max(...history, 80);
+  const ticks = [maxVal, Math.round(maxVal * 0.5), 0];
+  const toX = (i: number) => PAD_L + (i / (history.length - 1)) * (W - PAD_L - 4);
+  const toY = (v: number) => 4 + (1 - v / maxVal) * (H - 8);
+  const pts = history.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
+  const last = history[history.length - 1];
+  const avg = history.reduce((a, b) => a + b, 0) / history.length;
+  const col = qualityColor(avg);
+
+  return (
+    <div className="rounded-lg overflow-hidden" style={{ background: 'rgba(128,128,128,0.07)', padding: '2px 0' }}>
+      <svg width={W} height={H}>
+        {ticks.map((v, i) => {
+          const y = toY(v);
+          return (
+            <g key={i}>
+              <line x1={PAD_L} y1={y} x2={W - 4} y2={y} stroke="rgba(128,128,128,0.15)" strokeWidth={0.5} />
+              <text x={PAD_L - 3} y={y} fontSize={8} fill="rgba(128,128,128,0.5)" textAnchor="end" dominantBaseline="middle">
+                {v}ms
+              </text>
+            </g>
+          );
+        })}
+        <polyline points={pts} fill="none" stroke={col} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={toX(history.length - 1)} cy={toY(last)} r={2.5} fill={col} />
+      </svg>
+    </div>
+  );
+}
+
+function VoiceConnectionPopover({
+  stats, connectionTypes, anchorX, anchorY, onClose,
+}: {
+  stats: VoiceStats | null;
+  connectionTypes: Record<string, 'lan' | 'stun' | 'relay' | 'connecting'>;
+  anchorX: number;
+  anchorY: number;
+  onClose: () => void;
+}) {
+  const CARD_W = 268;
+  const left = Math.min(anchorX, window.innerWidth - CARD_W - 12);
+  const top = Math.max(8, anchorY - 280);
+
+  const connVals = Object.values(connectionTypes);
+  const primaryType = connVals.find(t => t !== 'connecting') ?? null;
+  const endpointLabel = primaryType === 'lan' ? 'Local Network'
+    : primaryType === 'stun' ? 'P2P / STUN'
+    : primaryType === 'relay' ? 'Relay Server'
+    : '—';
+
+  const osLabel = (() => {
+    const ua = navigator.userAgent;
+    if (ua.includes('Mac')) return 'macOS';
+    if (ua.includes('Win')) return 'Windows';
+    if (ua.includes('Linux')) return 'Linux';
+    return 'Device';
+  })();
+
+  return (
+    <motion.div
+      key="quality-popover"
+      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+      transition={{ duration: 0.15 }}
+      className="fixed z-[71] bg-popover border border-border/60 rounded-xl shadow-2xl p-4 flex flex-col gap-3"
+      style={{ left, top, width: CARD_W }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Signal size={13} className="text-muted-foreground" />
+          <span className="text-sm font-semibold">Voice Connection</span>
+        </div>
+        <button onClick={onClose} className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors rounded">
+          <X size={13} />
+        </button>
+      </div>
+
+      <PingSparkline history={stats?.rttHistory ?? []} />
+
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Device</span>
+          <span className="text-xs font-medium flex items-center gap-1">
+            <Monitor size={11} className="text-muted-foreground" />
+            {osLabel}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Current ping</span>
+          <span className="text-xs font-bold tabular-nums" style={{ color: qualityColor(stats?.rttMs) }}>
+            {stats?.rttMs != null ? `${stats.rttMs}ms` : '—'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Average ping</span>
+          <span className="text-xs font-bold tabular-nums" style={{ color: qualityColor(stats?.avgRttMs) }}>
+            {stats?.avgRttMs != null ? `${stats.avgRttMs}ms` : '—'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Endpoint</span>
+          <span className="text-xs font-medium flex items-center gap-1" style={{ color: qualityColor(stats?.rttMs) }}>
+            <Globe size={10} />
+            {endpointLabel}
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function ConnectionStatsPanel({
+  stats, anchorX, anchorY, onClose,
+}: {
+  stats: VoiceStats | null;
+  anchorX: number;
+  anchorY: number;
+  onClose: () => void;
+}) {
+  const CARD_W = 284;
+  const left = Math.min(anchorX, window.innerWidth - CARD_W - 12);
+  const top = Math.max(8, anchorY + 4);
+
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const Row = ({ label, value, dim }: { label: string; value: React.ReactNode; dim?: boolean }) => (
+    <div className={cn('flex items-center justify-between py-0.5', dim && 'opacity-40')}>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-xs font-medium tabular-nums">{value}</span>
+    </div>
+  );
+
+  const lossColor = (pct: number | null) => (
+    <span style={{ color: (pct ?? 0) < 1 ? '#22c55e' : (pct ?? 0) < 5 ? '#f59e0b' : '#ef4444' }}>
+      {pct != null ? `${pct}%` : '—'}
+    </span>
+  );
+
+  return (
+    <motion.div
+      key="stats-panel"
+      initial={{ opacity: 0, y: -4, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -4, scale: 0.96 }}
+      transition={{ duration: 0.15 }}
+      className="fixed z-[71] bg-popover border border-border/60 rounded-xl shadow-2xl p-4 flex flex-col gap-1.5"
+      style={{ left, top, width: CARD_W }}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <BarChart2 size={13} className="text-muted-foreground" />
+          <span className="text-sm font-semibold">Connection Stats</span>
+        </div>
+        <button onClick={onClose} className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors rounded">
+          <X size={13} />
+        </button>
+      </div>
+
+      <Row label="Duration" value={formatDuration(stats?.startedAt ?? null)} />
+      <Row label="Participants" value={stats?.participantCount ?? 0} />
+
+      <div className="h-px bg-border/40 my-0.5" />
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+        <Mic size={10} /> Audio
+      </p>
+      <Row label="Send" value={`${stats?.audioSendKbps ?? 0} kbps`} />
+      <Row label="Receive" value={`${stats?.audioRecvKbps ?? 0} kbps`} />
+      <Row label="Packet Loss" value={lossColor(stats?.packetLossPct ?? 0)} />
+
+      <div className="h-px bg-border/40 my-0.5" />
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+        <Video size={10} /> Video
+      </p>
+      <Row label="Send"    value={stats?.videoSendKbps != null ? `${stats.videoSendKbps} kbps` : '—'} dim={stats?.videoSendKbps == null} />
+      <Row label="Receive" value={stats?.videoRecvKbps != null ? `${stats.videoRecvKbps} kbps` : '—'} dim={stats?.videoRecvKbps == null} />
+
+      <div className="h-px bg-border/40 my-0.5" />
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+        <Globe size={10} /> Network
+      </p>
+      <Row label="Latency (RTT)" value={stats?.rttMs    != null ? <span style={{ color: qualityColor(stats.rttMs) }}>{stats.rttMs} ms</span>    : '—'} />
+      <Row label="Jitter"        value={stats?.jitterMs != null ? <span style={{ color: qualityColor(stats.jitterMs) }}>{stats.jitterMs} ms</span> : '—'} />
+
+      <p className="text-[10px] text-muted-foreground/50 text-center pt-1">Updates every second</p>
+    </motion.div>
   );
 }
 
