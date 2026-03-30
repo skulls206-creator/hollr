@@ -599,42 +599,46 @@ function formatDuration(startedAt: number | null): string {
 }
 
 function PingSparkline({ history }: { history: number[] }) {
-  const W = 232, H = 64, PAD_L = 30;
+  // Chart area: 120×40; left padding for Y-axis labels
+  const CW = 120, CH = 40, PAD_L = 26;
+  const SVG_W = PAD_L + CW + 2;
+
   if (history.length < 2) {
     return (
       <div
         className="flex items-center justify-center rounded-lg text-[10px] text-muted-foreground"
-        style={{ width: W, height: H, background: 'rgba(128,128,128,0.07)' }}
+        style={{ width: SVG_W, height: CH, background: 'rgba(128,128,128,0.07)' }}
       >
         Collecting data…
       </div>
     );
   }
   const maxVal = Math.max(...history, 80);
-  const ticks = [maxVal, Math.round(maxVal * 0.5), 0];
-  const toX = (i: number) => PAD_L + (i / (history.length - 1)) * (W - PAD_L - 4);
-  const toY = (v: number) => 4 + (1 - v / maxVal) * (H - 8);
+  const ticks  = [maxVal, Math.round(maxVal * 0.5), 0];
+  const toX = (i: number) => PAD_L + (i / (history.length - 1)) * CW;
+  const toY = (v: number) => 3 + (1 - v / maxVal) * (CH - 6);
   const pts = history.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
   const last = history[history.length - 1];
-  const avg = history.reduce((a, b) => a + b, 0) / history.length;
-  const col = qualityColor(avg);
+  const avg  = history.reduce((a, b) => a + b, 0) / history.length;
+  const col  = qualityColor(avg);
 
   return (
     <div className="rounded-lg overflow-hidden" style={{ background: 'rgba(128,128,128,0.07)', padding: '2px 0' }}>
-      <svg width={W} height={H}>
+      <svg width={SVG_W} height={CH}>
         {ticks.map((v, i) => {
           const y = toY(v);
           return (
             <g key={i}>
-              <line x1={PAD_L} y1={y} x2={W - 4} y2={y} stroke="rgba(128,128,128,0.15)" strokeWidth={0.5} />
-              <text x={PAD_L - 3} y={y} fontSize={8} fill="rgba(128,128,128,0.5)" textAnchor="end" dominantBaseline="middle">
+              <line x1={PAD_L} y1={y} x2={SVG_W - 2} y2={y} stroke="rgba(128,128,128,0.15)" strokeWidth={0.5} />
+              <text x={PAD_L - 3} y={y} fontSize={7} fill="rgba(128,128,128,0.5)" textAnchor="end" dominantBaseline="middle">
                 {v}ms
               </text>
             </g>
           );
         })}
         <polyline points={pts} fill="none" stroke={col} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={toX(history.length - 1)} cy={toY(last)} r={2.5} fill={col} />
+        {/* Current-value marker */}
+        <circle cx={toX(history.length - 1)} cy={toY(last)} r={2} fill={col} />
       </svg>
     </div>
   );
@@ -649,6 +653,25 @@ function VoiceConnectionPopover({
   anchorY: number;
   onClose: () => void;
 }) {
+  const { audioInputDeviceId } = useAppStore();
+
+  // Resolve the actual microphone device label via enumerateDevices
+  const [deviceLabel, setDeviceLabel] = useState<string>('This device');
+  useEffect(() => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      const target = audioInputDeviceId ?? 'default';
+      const mic = devices.find(d => d.kind === 'audioinput' && d.deviceId === target)
+        ?? devices.find(d => d.kind === 'audioinput' && d.deviceId === 'default')
+        ?? devices.find(d => d.kind === 'audioinput');
+      if (mic?.label) {
+        // Strip trailing "(USB 2.0 Device)" / "(…)" model suffixes for brevity
+        const clean = mic.label.replace(/\s*\(.*?\)\s*$/, '').trim();
+        setDeviceLabel(clean || mic.label);
+      }
+    }).catch(() => {});
+  }, [audioInputDeviceId]);
+
   const CARD_W = 268;
   const left = Math.min(anchorX, window.innerWidth - CARD_W - 12);
   const top = Math.max(8, anchorY - 280);
@@ -659,14 +682,6 @@ function VoiceConnectionPopover({
     : primaryType === 'stun' ? 'P2P / STUN'
     : primaryType === 'relay' ? 'Relay Server'
     : '—';
-
-  const osLabel = (() => {
-    const ua = navigator.userAgent;
-    if (ua.includes('Mac')) return 'macOS';
-    if (ua.includes('Win')) return 'Windows';
-    if (ua.includes('Linux')) return 'Linux';
-    return 'Device';
-  })();
 
   return (
     <motion.div
@@ -693,9 +708,9 @@ function VoiceConnectionPopover({
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">Device</span>
-          <span className="text-xs font-medium flex items-center gap-1">
-            <Monitor size={11} className="text-muted-foreground" />
-            {osLabel}
+          <span className="text-xs font-medium flex items-center gap-1 max-w-[140px] truncate text-right">
+            <Mic size={11} className="text-muted-foreground shrink-0" />
+            <span className="truncate">{deviceLabel}</span>
           </span>
         </div>
         <div className="flex items-center justify-between">

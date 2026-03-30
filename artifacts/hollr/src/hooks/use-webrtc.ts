@@ -469,7 +469,27 @@ export function useWebRTC(
 
     const poll = async () => {
       const entries = Object.entries(peersRef.current);
-      if (!entries.length) return;
+
+      // Even with no active peer connections, publish duration + participant
+      // telemetry so the stats panel shows live data from session start.
+      if (!entries.length) {
+        const state       = useAppStore.getState();
+        const chId        = channelIdRef.current;
+        const participants = chId ? (state.voiceChannelUsers[chId] ?? []).length : 0;
+        const avgRttMs     = rttHistoryRef.current.length > 0
+          ? Math.round(rttHistoryRef.current.reduce((a, b) => a + b, 0) / rttHistoryRef.current.length)
+          : null;
+        state.setVoiceStats({
+          rttMs: null, avgRttMs, jitterMs: null,
+          audioSendKbps: 0, audioRecvKbps: 0,
+          videoSendKbps: null, videoRecvKbps: null,
+          packetLossPct: 0,
+          rttHistory: rttHistoryRef.current,
+          startedAt: statsStartedAtRef.current,
+          participantCount: participants,
+        });
+        return;
+      }
 
       let rttSum = 0, rttN = 0;
       let jitterSum = 0, jitterN = 0;
