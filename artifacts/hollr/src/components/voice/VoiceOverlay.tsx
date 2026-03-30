@@ -30,7 +30,6 @@ export function VoiceOverlay() {
     audioOutputDeviceId,
     voiceVolumes, setVoiceVolume,
     voiceStats,
-    setRemoteScreenStreams,
     pendingTheaterUserId, setPendingTheaterUserId,
   } = useAppStore();
   const { data: profile } = useGetMyProfile({ query: { queryKey: getGetMyProfileQueryKey(), enabled: !!user } });
@@ -55,11 +54,6 @@ export function VoiceOverlay() {
     setShowOverflowMenu(false);
     setCardAnchor(null);
   }, [voiceMinimized]);
-
-  // Publish remote video streams to the store so ScreenShareMiniPreview can read them
-  useEffect(() => {
-    setRemoteScreenStreams(remoteVideoStreams);
-  }, [remoteVideoStreams, setRemoteScreenStreams]);
 
   // Respond to ScreenShareMiniPreview's "expand to theater" request.
   // setVoiceMinimized(false) must fire too so the minimized-pill early-return

@@ -609,6 +609,12 @@ export function useWebRTC(
     return () => clearInterval(statsId);
   }, [channelId]);
 
+  // Publish remote video streams to the store so ScreenShareMiniPreview can
+  // access them independently of VoiceOverlay's lifecycle.
+  useEffect(() => {
+    useAppStore.getState().setRemoteScreenStreams(remoteVideoStreams);
+  }, [remoteVideoStreams]);
+
   const stopScreenShare = useCallback(() => {
     const stream = screenStreamRef.current;
     if (!stream) return;
