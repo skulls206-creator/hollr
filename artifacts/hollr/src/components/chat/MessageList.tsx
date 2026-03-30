@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { useListMessages, useEditMessage, useDeleteMessage, getListMessagesQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
+import { useListMessages, useEditMessage, useDeleteMessage, useGetServer, useListServerMembers, getListMessagesQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
@@ -100,7 +100,11 @@ export function MessageList({
   const qc = useQueryClient();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { openThread, openProfileCard, chatFontSize, setActiveDmThread, triggerMention } = useAppStore();
+  const { openThread, openProfileCard, chatFontSize, setActiveDmThread, triggerMention, activeServerId } = useAppStore();
+  const { data: server } = useGetServer(activeServerId || '', { query: { enabled: !!activeServerId } });
+  const { data: serverMembers = [] } = useListServerMembers(activeServerId || '', { query: { enabled: !!activeServerId } });
+  const myMemberRole = (serverMembers as any[]).find(m => m.userId === user?.id)?.role ?? null;
+  const isServerMod = !!(server as any)?.ownerId && ((server as any).ownerId === user?.id || myMemberRole === 'admin');
   const { show: showMenu } = useContextMenu();
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -298,12 +302,12 @@ export function MessageList({
           icon: <Trash2 size={14} />,
           onClick: () => handleDelete(msg.id),
           danger: true,
-          disabled: !isOwner,
+          disabled: !(isOwner || isServerMod),
           dividerBefore: true,
         },
       ],
     });
-  }, [user, hiddenMsgIds, showMenu, doReact, channelId, openThread, startEdit, doPin, toggleHide, handleDelete]);
+  }, [user, hiddenMsgIds, showMenu, doReact, channelId, openThread, startEdit, doPin, toggleHide, handleDelete, isServerMod]);
 
   const handleMessageContextMenu = useCallback((e: React.MouseEvent, msg: any) => {
     e.preventDefault();
@@ -671,22 +675,22 @@ export function MessageList({
                     <Pin size={14} />
                   </button>
                   {isOwner && (
-                    <>
-                      <button
-                        onClick={() => startEdit(msg.id, msg.content)}
-                        title="Edit"
-                        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(msg.id)}
-                        title="Delete"
-                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </>
+                    <button
+                      onClick={() => startEdit(msg.id, msg.content)}
+                      title="Edit"
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                  {(isOwner || isServerMod) && (
+                    <button
+                      onClick={() => handleDelete(msg.id)}
+                      title="Delete"
+                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   )}
                 </div>
               )}

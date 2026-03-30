@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, userProfilesTable, messageReactionsTable } from "@workspace/db/schema";
+import { messagesTable, attachmentsTable, serverMembersTable, channelsTable, serversTable, userProfilesTable, messageReactionsTable } from "@workspace/db/schema";
 import { eq, and, lt, desc, sql as drizzleSql } from "drizzle-orm";
 import { SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast, sendNotification } from "../lib/ws";
@@ -246,7 +246,17 @@ router.delete("/channels/:channelId/messages/:messageId", async (req, res) => {
 
   const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, req.params.messageId) });
   if (!msg) { res.status(404).json({ error: "Not found" }); return; }
-  if (msg.authorId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  if (msg.authorId !== req.user.id) {
+    const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, req.params.channelId) });
+    if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+    const [server, member] = await Promise.all([
+      db.query.serversTable.findFirst({ where: eq(serversTable.id, channel.serverId) }),
+      db.query.serverMembersTable.findFirst({ where: and(eq(serverMembersTable.serverId, channel.serverId), eq(serverMembersTable.userId, req.user.id)) }),
+    ]);
+    const isServerMod = server?.ownerId === req.user.id || member?.role === 'admin';
+    if (!isServerMod) { res.status(403).json({ error: "Forbidden" }); return; }
+  }
 
   const [updated] = await db
     .update(messagesTable)
