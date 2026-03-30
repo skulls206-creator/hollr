@@ -22,6 +22,7 @@ import {
   getListServerMembersQueryKey, useListServerMembers,
   useDeleteChannel, useUpdateChannel,
   useGetMyProfile, useUpdateMyProfile,
+  getListMyServersQueryKey,
   type Member,
 } from '@workspace/api-client-react';
 import type { VoiceChannelUser } from '@/store/use-app-store';
@@ -50,7 +51,7 @@ async function markChannelRead(channelId: string) {
 export function ChannelSidebar() {
   const {
     activeServerId, activeChannelId, activeDmThreadId,
-    setActiveChannel, setActiveDmThread,
+    setActiveChannel, setActiveDmThread, setActiveServer,
     setCreateChannelModalOpen, setInviteModalOpen, setServerSettingsModalOpen,
     voiceConnection, setVoiceConnection, voiceChannelUsers,
     unreadCounts, setUnreadCount, clearUnreadCount,
@@ -160,6 +161,36 @@ export function ChannelSidebar() {
 
   const joinVoice = (channelId: string) => setVoiceConnection({ status: 'connecting', channelId, serverId: activeServerId });
   const leaveVoice = () => setVoiceConnection({ status: 'disconnected', channelId: null, serverId: null });
+
+  const handleLeaveServer = async () => {
+    if (!activeServerId || !server) return;
+    if (!confirm(`Leave "${server.name}"? You can rejoin later if invited.`)) return;
+    setServerMenuOpen(false);
+    try {
+      const res = await fetch(`${BASE}api/servers/${activeServerId}/leave`, { method: 'POST', credentials: 'include' });
+      if (!res.ok) throw new Error();
+      setActiveServer(null);
+      qc.invalidateQueries({ queryKey: getListMyServersQueryKey() });
+      toast({ title: `Left ${server.name}` });
+    } catch {
+      toast({ title: 'Could not leave server', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteServer = async () => {
+    if (!activeServerId || !server) return;
+    if (!confirm(`Permanently delete "${server.name}"? This cannot be undone.`)) return;
+    setServerMenuOpen(false);
+    try {
+      const res = await fetch(`${BASE}api/servers/${activeServerId}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) throw new Error();
+      setActiveServer(null);
+      qc.invalidateQueries({ queryKey: getListMyServersQueryKey() });
+      toast({ title: `${server.name} deleted` });
+    } catch {
+      toast({ title: 'Could not delete server', variant: 'destructive' });
+    }
+  };
 
   const handleSelectChannel = (channelId: string) => {
     setActiveChannel(channelId);
@@ -702,10 +733,23 @@ export function ChannelSidebar() {
               Create Channel
             </button>
             <div className="h-[1px] bg-border/20 my-1" />
-            <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
-              <LogOut size={16} />
-              Leave Server
-            </button>
+            {server?.ownerId === user?.id ? (
+              <button
+                onClick={handleDeleteServer}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <Trash2 size={16} />
+                Delete Server
+              </button>
+            ) : (
+              <button
+                onClick={handleLeaveServer}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <LogOut size={16} />
+                Leave Server
+              </button>
+            )}
           </div>
         )}
       </div>

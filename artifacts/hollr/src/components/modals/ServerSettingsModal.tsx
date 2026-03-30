@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Loader2, Server } from 'lucide-react';
+import { X, Save, Loader2, Server, Trash2, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useGetServer, useUpdateServer, getGetServerQueryKey, getListMyServersQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@workspace/replit-auth-web';
 import { getInitials } from '@/lib/utils';
 import { ImageCropUploader } from '@/components/shared/ImageCropUploader';
 
+const BASE = import.meta.env.BASE_URL;
+
 export function ServerSettingsModal() {
-  const { serverSettingsModalOpen, setServerSettingsModalOpen, activeServerId } = useAppStore();
+  const { serverSettingsModalOpen, setServerSettingsModalOpen, activeServerId, setActiveServer } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: server } = useGetServer(activeServerId || '', {
     query: { queryKey: getGetServerQueryKey(activeServerId || ''), enabled: !!activeServerId && serverSettingsModalOpen },
@@ -29,6 +33,22 @@ export function ServerSettingsModal() {
   }, [server, serverSettingsModalOpen]);
 
   const { mutate: updateServer, isPending } = useUpdateServer();
+  const isOwner = server?.ownerId === user?.id;
+
+  const handleDeleteServer = async () => {
+    if (!activeServerId || !server) return;
+    if (!confirm(`Permanently delete "${server.name}"? All channels and messages will be lost. This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${BASE}api/servers/${activeServerId}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) throw new Error();
+      setActiveServer(null);
+      qc.invalidateQueries({ queryKey: getListMyServersQueryKey() });
+      toast({ title: `${server.name} deleted` });
+      setServerSettingsModalOpen(false);
+    } catch {
+      toast({ title: 'Could not delete server', variant: 'destructive' });
+    }
+  };
 
   const handleSave = () => {
     if (!activeServerId || !name.trim()) return;
@@ -130,6 +150,30 @@ export function ServerSettingsModal() {
               placeholder="What's this server about?"
             />
           </div>
+
+          {/* Danger Zone — owner only */}
+          {isOwner && (
+            <div className="border border-destructive/30 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={14} className="text-destructive shrink-0" />
+                <span className="text-xs font-bold text-destructive uppercase tracking-wider">Danger Zone</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Delete this server</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Permanently removes this server and all its channels. This cannot be undone.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDeleteServer}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-bold rounded-lg border border-destructive/30 transition-colors"
+                >
+                  <Trash2 size={13} />
+                  Delete
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer — sticky at bottom */}
