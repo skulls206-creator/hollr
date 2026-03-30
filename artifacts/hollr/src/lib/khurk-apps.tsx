@@ -9,7 +9,7 @@ import gaslessImg from '@assets/5963_1774286181380.png';
 import ballpointImg from '@assets/IMG_0048_1774899223660.png';
 import onlyGamesImg from '@assets/5961_1774286181406.png';
 import onlyXmrImg from '@assets/5959_1774286181386.png';
-import rippdImg from '@assets/Screenshot_2026-03-28_002535_1774671950475.png';
+import rippdImg from '@assets/IMG_0050_1774900796709.png';
 
 import uStreamBanner from '@assets/generated_images/banner_ustream.png';
 import playdBanner from '@assets/generated_images/banner_playd.png';
