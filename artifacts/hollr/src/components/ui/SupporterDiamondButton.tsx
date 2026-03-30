@@ -4,8 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAppStore } from '@/store/use-app-store';
 import { useAuth } from '@workspace/replit-auth-web';
 import { cn } from '@/lib/utils';
-
-const BASE = import.meta.env.BASE_URL;
+import { useIsSupporter } from '@/hooks/use-supporter-status';
 
 function dismissKey(userId: string | undefined): string {
   return userId ? `hollr:supporter-button:dismissed:${userId}` : 'hollr:supporter-button:dismissed';
@@ -15,35 +14,6 @@ function isDismissed(userId: string | undefined): boolean {
 }
 function persistDismiss(userId: string | undefined) {
   try { localStorage.setItem(dismissKey(userId), '1'); } catch {}
-}
-
-function useIsSupporter(): boolean | null {
-  const [isSupporter, setIsSupporter] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const controller = new AbortController();
-
-    const fetchStatus = () => {
-      fetch(`${BASE}api/supporter/status`, { credentials: 'include', signal: controller.signal })
-        .then(r => r.json())
-        .then(data => { if (alive) setIsSupporter(data.isSupporter ?? false); })
-        .catch(() => { if (alive) setIsSupporter(false); });
-    };
-
-    fetchStatus();
-
-    // Re-check on window focus — detects subscription after Stripe checkout in new tab
-    window.addEventListener('focus', fetchStatus);
-
-    return () => {
-      alive = false;
-      controller.abort();
-      window.removeEventListener('focus', fetchStatus);
-    };
-  }, []);
-
-  return isSupporter;
 }
 
 export function useSupporterButtonState() {

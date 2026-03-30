@@ -3,6 +3,7 @@ import { sendVoiceSignal, setVoiceSignalListener, setNewPeerHandler } from './us
 import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
 import { fetchIceServers } from '@/lib/ice-servers';
+import { useIsSupporter } from './use-supporter-status';
 
 /** Extended RTCStats shape covering all fields read during the diagnostics poll.
  *  Includes both `mediaType` (Chrome/Edge legacy) and `kind` (spec-standard) so
@@ -35,6 +36,7 @@ export function useWebRTC(
 ) {
   const { user } = useAuth();
   const { micMuted, deafened, audioInputDeviceId, micGain } = useAppStore();
+  const isSupporter = useIsSupporter();
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -400,11 +402,11 @@ export function useWebRTC(
         localStreamRef.current = processedStream;
 
         const { displayName, username, avatarUrl } = getDisplayInfo();
-        sendVoiceSignal({ type: 'join', channelId, userId: user?.id, displayName, username, avatarUrl });
+        sendVoiceSignal({ type: 'join', channelId, userId: user?.id, displayName, username, avatarUrl, isSupporter: isSupporter === true });
       } catch (err) {
         console.error('[WebRTC] Failed to access microphone:', err);
         const { displayName, username, avatarUrl } = getDisplayInfo();
-        sendVoiceSignal({ type: 'join', channelId, userId: user?.id, displayName, username, avatarUrl });
+        sendVoiceSignal({ type: 'join', channelId, userId: user?.id, displayName, username, avatarUrl, isSupporter: isSupporter === true });
       }
     };
 

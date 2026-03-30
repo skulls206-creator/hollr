@@ -1158,7 +1158,12 @@ export function UserSettingsModal() {
                               key={p.price_id}
                               onClick={() => handleSupporterCheckout(p.price_id)}
                               disabled={supporterLoading}
-                              className="flex flex-col items-start gap-1 px-4 py-3 bg-surface-0 border border-border/40 hover:border-cyan-500/50 hover:bg-cyan-500/5 rounded-xl transition-all text-left disabled:opacity-60"
+                              className={cn(
+                                'flex flex-col items-start gap-1 px-4 py-3 bg-surface-0 rounded-xl transition-all text-left disabled:opacity-60',
+                                isYearly
+                                  ? 'border border-emerald-500/40 hover:border-emerald-500/70 hover:bg-emerald-500/5'
+                                  : 'border border-border/40 hover:border-cyan-500/50 hover:bg-cyan-500/5',
+                              )}
                             >
                               <div className="flex items-center gap-2">
                                 <KhurkDiamondBadge size="sm" />
@@ -1172,8 +1177,8 @@ export function UserSettingsModal() {
                                   </span>
                                 )}
                                 {isYearly && (
-                                  <span className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-full">
-                                    Save ~17%
+                                  <span className="text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">
+                                    Best Value · Save 25%
                                   </span>
                                 )}
                               </div>
@@ -1212,14 +1217,14 @@ export function UserSettingsModal() {
                           </button>
                           <button
                             disabled
-                            className="flex flex-col items-start gap-1 px-4 py-3 bg-surface-0 border border-border/40 rounded-xl text-left opacity-60"
+                            className="flex flex-col items-start gap-1 px-4 py-3 bg-surface-0 border border-emerald-500/30 rounded-xl text-left opacity-60"
                           >
                             <div className="flex items-center gap-2">
                               <KhurkDiamondBadge size="sm" />
                               <span className="text-base font-bold text-foreground">
-                                $10.00<span className="text-xs font-normal text-muted-foreground">/year</span>
+                                $9.00<span className="text-xs font-normal text-muted-foreground">/year</span>
                               </span>
-                              <span className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-full">Save ~17%</span>
+                              <span className="text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">Best Value · Save 25%</span>
                             </div>
                             <p className="text-xs text-muted-foreground">Yearly · billed once a year</p>
                           </button>

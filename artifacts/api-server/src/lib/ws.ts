@@ -26,6 +26,7 @@ interface VoiceParticipant {
   streaming: boolean;
   hasCamera: boolean;
   isBot?: boolean;
+  isSupporter?: boolean;
 }
 
 // channelId → Map<userId, VoiceParticipant>
@@ -154,7 +155,7 @@ export function initWebSocket(server: Server) {
             const { type: vtype, channelId, targetId } = payload;
 
             if (vtype === "join") {
-              const { userId, displayName, username, avatarUrl } = payload;
+              const { userId, displayName, username, avatarUrl, isSupporter } = payload;
               if (!channelId || !userId) break;
 
               // Leave any previous room
@@ -165,6 +166,7 @@ export function initWebSocket(server: Server) {
               const participant: VoiceParticipant = {
                 userId, displayName, username, avatarUrl: avatarUrl ?? null,
                 muted: false, deafened: false, speaking: false, streaming: false, hasCamera: false,
+                isSupporter: isSupporter === true,
               };
               room.set(userId, participant);
               userVoiceChannel.set(userId, channelId);

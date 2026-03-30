@@ -1714,7 +1714,10 @@ function VoiceSidebarUser({
               </span>
             )}
           </div>
-          <span className="text-xs text-muted-foreground truncate flex-1">{u.displayName}</span>
+          <span className="text-xs text-muted-foreground truncate flex-1 flex items-center gap-1">
+            {u.displayName}
+            {u.isSupporter && <KhurkDiamondBadge size="sm" className="shrink-0" />}
+          </span>
           <div className="flex items-center gap-0.5 shrink-0">
             {u.muted
               ? <MicOff size={11} className="text-destructive" />
