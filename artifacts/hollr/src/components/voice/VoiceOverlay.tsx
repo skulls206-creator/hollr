@@ -776,8 +776,9 @@ function ConnectionStatsPanel({
   onClose: () => void;
 }) {
   const CARD_W = 284;
+  const CARD_H_EST = 380;
   const left = Math.max(8, Math.min(anchorX, window.innerWidth - CARD_W - 12));
-  const top = Math.max(8, anchorY + 4);
+  const top = Math.max(8, anchorY - CARD_H_EST - 4);
 
   const [, tick] = useState(0);
   useEffect(() => {
