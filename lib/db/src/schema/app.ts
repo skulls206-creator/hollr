@@ -16,6 +16,10 @@ export const userProfilesTable = pgTable("user_profiles", {
   customStatus: varchar("custom_status", { length: 128 }),
   isSupporter: boolean("is_supporter").notNull().default(false),
   stripeCustomerId: text("stripe_customer_id"),
+  referralCode: varchar("referral_code", { length: 16 }).unique(),
+  referredByUserId: varchar("referred_by_user_id"),
+  signupIp: text("signup_ip"),
+  referralSupporterUntil: timestamp("referral_supporter_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -296,3 +300,19 @@ export const ballpointNotesTable = pgTable("ballpoint_notes", {
 ]);
 
 export type BallpointNote = typeof ballpointNotesTable.$inferSelect;
+
+// ── Referral system ────────────────────────────────────────────────────────
+export const referralsTable = pgTable("referrals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerId: varchar("referrer_id").notNull().references(() => userProfilesTable.userId, { onDelete: "cascade" }),
+  referredUserId: varchar("referred_user_id").notNull().unique().references(() => userProfilesTable.userId, { onDelete: "cascade" }),
+  signupIp: text("signup_ip"),
+  validated: boolean("validated").notNull().default(false),
+  validatedAt: timestamp("validated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("referrals_referrer_id_idx").on(t.referrerId),
+  index("referrals_referred_user_id_idx").on(t.referredUserId),
+]);
+
+export type Referral = typeof referralsTable.$inferSelect;

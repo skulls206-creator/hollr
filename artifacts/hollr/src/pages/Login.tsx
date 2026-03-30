@@ -10,7 +10,11 @@ export function Login() {
   const { setAuthUser } = useAuth();
   const [, navigate] = useLocation();
 
-  const [mode, setMode] = useState<Mode>('login');
+  const refCode = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('ref')
+    : null;
+
+  const [mode, setMode] = useState<Mode>(refCode ? 'signup' : 'login');
   const [identifier, setIdentifier] = useState('');   // username or email (login)
   const [username, setUsername] = useState('');        // username only (signup)
   const [password, setPassword] = useState('');
@@ -34,7 +38,7 @@ export function Login() {
     try {
       const url = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
       const body = mode === 'signup'
-        ? { username: username.trim(), password }
+        ? { username: username.trim(), password, ref: refCode ?? undefined }
         : { identifier: identifier.trim(), password };
 
       const res = await fetch(url, {
@@ -93,6 +97,14 @@ export function Login() {
               : 'Create a free account in seconds.'}
           </p>
         </div>
+
+        {/* Referral invite banner */}
+        {refCode && mode === 'signup' && (
+          <div className="mb-5 flex items-center gap-2.5 px-4 py-3 bg-primary/10 border border-primary/25 rounded-xl text-sm text-primary font-medium">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            You were invited to join hollr!
+          </div>
+        )}
 
         {/* Tab switcher */}
         <div className="flex bg-secondary/50 rounded-xl p-1 mb-7">

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import confetti from 'canvas-confetti';
 import { useAppStore } from '@/store/use-app-store';
 import type { UserSettingsTab } from '@/types/settings';
 import { useGetMyProfile, useUpdateMyProfile, getGetMyProfileQueryKey, UpdateUserRequestStatus } from '@workspace/api-client-react';
@@ -272,6 +273,16 @@ export function UserSettingsModal() {
   const [supporterStatus, setSupporterStatus] = useState<{ isSupporter: boolean; hasCustomerId: boolean } | null>(null);
   const [supporterPrices, setSupporterPrices] = useState<Array<{ price_id: string; unit_amount: number; currency: string; recurring: any }>>([]);
 
+  const [referralStatus, setReferralStatus] = useState<{
+    referralCode: string;
+    referralLink: string;
+    totalSignups: number;
+    validatedCount: number;
+    referralSupporterUntil: string | null;
+  } | null>(null);
+  const [referralCopied, setReferralCopied] = useState(false);
+  const [referralCelebrated, setReferralCelebrated] = useState(false);
+
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.displayName ?? '');
@@ -313,9 +324,17 @@ export function UserSettingsModal() {
     Promise.all([
       fetch(`${BASE}api/supporter/status`, { credentials: 'include', signal: controller.signal }).then(r => r.json()),
       fetch(`${BASE}api/supporter/prices`, { credentials: 'include', signal: controller.signal }).then(r => r.json()),
-    ]).then(([statusData, pricesData]) => {
+      fetch(`${BASE}api/referral/status`, { credentials: 'include', signal: controller.signal }).then(r => r.json()),
+    ]).then(([statusData, pricesData, referralData]) => {
       setSupporterStatus(statusData);
       setSupporterPrices(pricesData.prices ?? []);
+      if (!referralData.error) {
+        const prevCount = referralStatus?.validatedCount ?? 0;
+        setReferralStatus(referralData);
+        if (prevCount < 10 && referralData.validatedCount >= 10 && !referralCelebrated) {
+          setReferralCelebrated(true);
+        }
+      }
     }).catch(() => {});
     return () => controller.abort();
   }, [userSettingsModalOpen, tab]);
@@ -338,6 +357,39 @@ export function UserSettingsModal() {
       setSupporterLoading(false);
     }
   };
+
+  const handleReferralCopy = useCallback(() => {
+    if (!referralStatus?.referralLink) return;
+    navigator.clipboard.writeText(referralStatus.referralLink).then(() => {
+      setReferralCopied(true);
+      setTimeout(() => setReferralCopied(false), 2000);
+    }).catch(() => {});
+  }, [referralStatus?.referralLink]);
+
+  const handleReferralShare = useCallback(() => {
+    if (!referralStatus?.referralLink) return;
+    if (navigator.share) {
+      navigator.share({
+        title: 'Join me on hollr!',
+        text: 'Come chat with me on hollr — the Discord alternative with a whole OS built in.',
+        url: referralStatus.referralLink,
+      }).catch(() => {});
+    } else {
+      handleReferralCopy();
+    }
+  }, [referralStatus?.referralLink, handleReferralCopy]);
+
+  useEffect(() => {
+    if (!referralCelebrated) return;
+    const duration = 2500;
+    const end = Date.now() + duration;
+    const frame = () => {
+      confetti({ particleCount: 6, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#7c3aed', '#2563eb', '#06b6d4'] });
+      confetti({ particleCount: 6, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#7c3aed', '#2563eb', '#06b6d4'] });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    };
+    frame();
+  }, [referralCelebrated]);
 
   const handleSupporterPortal = async () => {
     if (supporterLoading) return;
@@ -1198,6 +1250,118 @@ export function UserSettingsModal() {
                     )}
                   </div>
                 )}
+
+                {/* ── Earn Free via referrals ── */}
+                <div className="h-px bg-border/20" />
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest flex items-center gap-1.5">
+                      <Users size={9} /> Earn Free Supporter
+                    </p>
+                    {referralStatus && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {referralStatus.validatedCount}/{10} confirmed
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Refer 10 real friends and get <span className="text-foreground font-medium">6 months of Supporter</span> free. Each friend must sign up and send at least one message to count.
+                  </p>
+
+                  {referralCelebrated && (
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/25 rounded-lg">
+                      <Check size={14} className="text-emerald-400 shrink-0" />
+                      <p className="text-sm font-semibold text-emerald-400">You hit 10 referrals — 6 months of Supporter unlocked!</p>
+                    </div>
+                  )}
+
+                  {referralStatus?.referralSupporterUntil && !referralCelebrated && (() => {
+                    const expiry = new Date(referralStatus.referralSupporterUntil);
+                    const now = new Date();
+                    const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                    const isExpiringSoon = daysLeft <= 30;
+                    return (
+                      <div className={cn('flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs', isExpiringSoon ? 'bg-yellow-500/10 border-yellow-500/25 text-yellow-400' : 'bg-primary/8 border-primary/20 text-primary')}>
+                        <Gem size={12} className="shrink-0" />
+                        <span>
+                          Referral Supporter active until <strong>{expiry.toLocaleDateString()}</strong>
+                          {isExpiringSoon && ` — expiring in ${daysLeft}d, share again to re-earn!`}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Progress dots */}
+                  {referralStatus && (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {Array.from({ length: 10 }).map((_, i) => {
+                          const isValidated = i < referralStatus.validatedCount;
+                          const isPending = !isValidated && i < referralStatus.totalSignups;
+                          return (
+                            <div
+                              key={i}
+                              className={cn(
+                                'w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all',
+                                isValidated
+                                  ? 'bg-primary border-primary shadow-sm shadow-primary/30'
+                                  : isPending
+                                  ? 'bg-primary/20 border-primary/40'
+                                  : 'bg-surface-0 border-border/40'
+                              )}
+                            >
+                              {isValidated && <Check size={10} className="text-white" />}
+                              {isPending && <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {referralStatus.totalSignups} joined · {referralStatus.validatedCount} confirmed
+                        {referralStatus.totalSignups > referralStatus.validatedCount && ` · ${referralStatus.totalSignups - referralStatus.validatedCount} pending`}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Referral link */}
+                  {referralStatus && (
+                    <div className="flex gap-2">
+                      <div className="flex-1 min-w-0 flex items-center bg-surface-0 border border-border/40 rounded-lg px-3 py-2 overflow-hidden">
+                        <span className="text-xs text-muted-foreground truncate font-mono select-all">
+                          {referralStatus.referralLink}
+                        </span>
+                      </div>
+                      <button
+                        onClick={handleReferralCopy}
+                        className={cn(
+                          'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all',
+                          referralCopied
+                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                            : 'bg-surface-0 border-border/40 text-muted-foreground hover:border-primary/40 hover:text-primary'
+                        )}
+                      >
+                        {referralCopied ? <Check size={12} /> : <ExternalLink size={12} />}
+                        {referralCopied ? 'Copied!' : 'Copy'}
+                      </button>
+                      {'share' in navigator && (
+                        <button
+                          onClick={handleReferralShare}
+                          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-border/40 bg-surface-0 text-muted-foreground hover:border-primary/40 hover:text-primary transition-all"
+                        >
+                          <Users size={12} />
+                          Share
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {!referralStatus && (
+                    <div className="h-10 flex items-center justify-center">
+                      <Loader2 size={14} className="animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

@@ -17,6 +17,7 @@ import supporterRouter from "./supporter";
 import foldrRouter from "./foldr";
 import ballpointRouter from "./ballpoint";
 import rippdRouter from "./rippd";
+import referralRouter from "./referral";
 
 const router: IRouter = Router();
 
@@ -35,6 +36,7 @@ router.use(turnRouter);
 router.use(notificationsRouter);
 router.use(activityRouter);
 router.use(supporterRouter);
+router.use(referralRouter);
 router.use(foldrRouter);
 router.use(ballpointRouter);
 router.use(rippdRouter);

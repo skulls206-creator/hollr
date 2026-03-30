@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { GetCurrentAuthUserResponse } from "@workspace/api-zod";
 import { db, usersTable } from "@workspace/db";
-import { userProfilesTable } from "@workspace/db/schema";
+import { userProfilesTable, referralsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import {
   clearSession,
@@ -12,6 +12,7 @@ import {
   SESSION_COOKIE,
   SESSION_TTL,
 } from "../lib/auth";
+import { runReferralValidation } from "./referral";
 
 const router: IRouter = Router();
 
@@ -46,9 +47,15 @@ router.get("/auth/user", (req: Request, res: Response) => {
   }
 });
 
+function getClientIp(req: Request): string | null {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
+  return req.socket?.remoteAddress ?? req.ip ?? null;
+}
+
 // ── POST /auth/signup ─────────────────────────────────────────────────────────
 router.post("/auth/signup", async (req: Request, res: Response) => {
-  const { username, password } = req.body ?? {};
+  const { username, password, ref } = req.body ?? {};
 
   if (typeof username !== "string" || !USERNAME_RE.test(username)) {
     res.status(400).json({ error: "Username must be 3–32 characters (letters, numbers, underscores only)" });
@@ -76,13 +83,43 @@ router.post("/auth/signup", async (req: Request, res: Response) => {
     .returning();
 
   const normalizedUsername = username.toLowerCase();
+  const signupIp = getClientIp(req);
+
+  let referredByUserId: string | undefined;
+  if (typeof ref === "string" && ref.length > 0) {
+    const referrerProfile = await db.query.userProfilesTable.findFirst({
+      where: eq(userProfilesTable.referralCode, ref.toLowerCase().trim()),
+      columns: { userId: true, signupIp: true },
+    });
+    if (referrerProfile && referrerProfile.userId !== newUser.id) {
+      const referrerIp = referrerProfile.signupIp;
+      const isSameIp = signupIp && referrerIp && signupIp === referrerIp;
+      if (!isSameIp) {
+        referredByUserId = referrerProfile.userId;
+      }
+    }
+  }
 
   await db.insert(userProfilesTable).values({
     userId: newUser.id,
     username: normalizedUsername,
     displayName: username,
     status: "online",
+    signupIp: signupIp ?? undefined,
+    referredByUserId: referredByUserId,
   });
+
+  if (referredByUserId) {
+    try {
+      await db.insert(referralsTable).values({
+        referrerId: referredByUserId,
+        referredUserId: newUser.id,
+        signupIp: signupIp ?? undefined,
+      }).onConflictDoNothing();
+    } catch {
+      // non-fatal — referral already exists
+    }
+  }
 
   const sid = await createSession({
     user: { id: newUser.id, username: normalizedUsername, email: null },
@@ -172,6 +209,9 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   setSessionCookie(res, sid);
 
   res.json({ id: userId, username, email: userEmail });
+
+  // Fire-and-forget: validate any pending referrals for this user
+  runReferralValidation(userId).catch(() => {});
 });
 
 // ── POST /auth/logout ─────────────────────────────────────────────────────────

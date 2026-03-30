@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { userProfilesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { getUncachableStripeClient } from "../stripeClient";
+import { expireReferralSupporter } from "./referral";
 
 const router: IRouter = Router();
 
@@ -78,8 +79,14 @@ router.get('/supporter/status', async (req: Request, res: Response) => {
       where: eq(userProfilesTable.userId, req.user.id),
     });
 
-    res.json({
+    const isSupporter = await expireReferralSupporter(req.user.id, {
       isSupporter: profile?.isSupporter ?? false,
+      referralSupporterUntil: profile?.referralSupporterUntil ?? null,
+      stripeCustomerId: profile?.stripeCustomerId ?? null,
+    });
+
+    res.json({
+      isSupporter,
       hasCustomerId: !!(profile?.stripeCustomerId),
     });
   } catch (err) {
