@@ -1,6 +1,6 @@
 {
-  "name": "hollr.chat — Chat & Voice",
-  "short_name": "hollr",
+  "name": "HOLLR — Chat & Voice",
+  "short_name": "HOLLR",
   "description": "Real-time messaging, voice chat, and the full KHURK ecosystem — Ballpoint notes, Foldr files, and Playd music — in one beautiful app.",
   "start_url": "/",
   "scope": "/",
