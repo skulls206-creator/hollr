@@ -48,6 +48,12 @@ uri = "file://attached_assets/generated_images/banner_onlyxmr.png"
 type = "image"
 title = "onlyxmr dark amber crystal banner"
 
+[[generated]]
+id = "HBgIe7Q6elvtSe92dxYa4"
+uri = "file://attached_assets/generated_images/banner_rippd.png"
+type = "image"
+title = "rippd dark neon pink cyan banner"
+
 [[outputs]]
 id = "QBu7uwlotLYM0ql1-2kWC"
 uri = "file://artifacts/hollr/public/icon-512.png"

@@ -14,6 +14,7 @@ import rippdImg from '@assets/IMG_0050_1774900796709.png';
 import uStreamBanner from '@assets/generated_images/banner_ustream.png';
 import playdBanner from '@assets/generated_images/banner_playd.png';
 import foldrBanner from '@assets/generated_images/banner_foldr.png';
+import rippdBanner from '@assets/generated_images/banner_rippd.png';
 import ghostdBanner from '@assets/generated_images/banner_instaghost.png';
 import gaslessBanner from '@assets/generated_images/banner_gasless.png';
 import ballpointBanner from '@assets/generated_images/banner_ballpoint.png';
@@ -133,6 +134,7 @@ export const KHURK_APPS: KhurkApp[] = [
     description: 'Rip MP3s from YouTube and SoundCloud links instantly.',
     url: 'https://rippd.khurk.services',
     imageSrc: rippdImg,
+    bannerSrc: rippdBanner,
     gradient: ['#7e1d8f', '#0891b2'],
     nativePanel: RippdPanel,
   },
