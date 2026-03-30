@@ -331,68 +331,68 @@
   --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.75);
 }
 
-/* ─── Forest theme (deep emerald-green colorway) ─────────── */
-[data-theme="forest"] {
+/* ─── Blue Apple theme (iMessage / Apple Blue colorway) ─────── */
+[data-theme="blueapple"] {
   --button-outline: rgba(255,255,255, .07);
   --badge-outline: rgba(255,255,255, .04);
   --opaque-button-border-intensity: 9;
   --elevate-1: rgba(255,255,255, .03);
   --elevate-2: rgba(255,255,255, .07);
 
-  --surface-0: #101612;
-  --surface-1: #16201B;
-  --surface-2: #121814;
-  --surface-3: #1B261F;
+  --surface-0: #1C1C1E;
+  --surface-1: #2C2C2E;
+  --surface-2: #1A1A1C;
+  --surface-3: #323236;
 
-  --background: 155 35% 3%;
-  --foreground: 150 10% 95%;
+  --background: 240 2% 4%;
+  --foreground: 0 0% 98%;
 
-  --border: 155 20% 16%;
-  --input: 155 20% 16%;
-  --ring: 158 70% 48%;
+  --border: 240 2% 22%;
+  --input: 240 2% 22%;
+  --ring: 211 100% 50%;
 
-  --card: 155 30% 6%;
-  --card-foreground: 150 10% 95%;
-  --card-border: 155 20% 16%;
+  --card: 240 2% 8%;
+  --card-foreground: 0 0% 98%;
+  --card-border: 240 2% 22%;
 
-  --popover: 155 30% 6%;
-  --popover-foreground: 150 10% 95%;
-  --popover-border: 155 20% 16%;
+  --popover: 240 2% 8%;
+  --popover-foreground: 0 0% 98%;
+  --popover-border: 240 2% 22%;
 
-  --primary: 158 70% 48%;
+  --primary: 211 100% 50%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 155 20% 12%;
-  --secondary-foreground: 150 10% 95%;
+  --secondary: 240 2% 16%;
+  --secondary-foreground: 0 0% 98%;
 
-  --muted: 155 20% 12%;
-  --muted-foreground: 155 12% 54%;
+  --muted: 240 2% 16%;
+  --muted-foreground: 240 5% 55%;
 
-  --accent: 155 20% 15%;
-  --accent-foreground: 150 10% 95%;
+  --accent: 240 2% 20%;
+  --accent-foreground: 0 0% 98%;
 
   --destructive: 0 84% 60%;
-  --destructive-foreground: 150 10% 95%;
+  --destructive-foreground: 0 0% 98%;
 
-  --sidebar: 155 40% 4%;
-  --sidebar-foreground: 150 10% 95%;
-  --sidebar-border: 155 20% 14%;
-  --sidebar-primary: 158 70% 48%;
+  --sidebar: 240 2% 5%;
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-border: 240 2% 18%;
+  --sidebar-primary: 211 100% 50%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 155 20% 12%;
-  --sidebar-accent-foreground: 150 10% 95%;
-  --sidebar-ring: 158 70% 48%;
+  --sidebar-accent: 240 2% 14%;
+  --sidebar-accent-foreground: 0 0% 98%;
+  --sidebar-ring: 211 100% 50%;
 
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
-  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.35);
-  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.35);
-  --shadow-sm: 0px 2px 0px 0px hsl(0 0% 0% / 0.35), 0px 1px 2px -1px hsl(0 0% 0% / 0.35);
-  --shadow: 0px 2px 0px 0px hsl(0 0% 0% / 0.35), 0px 1px 2px -1px hsl(0 0% 0% / 0.35);
-  --shadow-md: 0px 2px 0px 0px hsl(0 0% 0% / 0.35), 0px 2px 4px -1px hsl(0 0% 0% / 0.35);
-  --shadow-lg: 0px 2px 0px 0px hsl(0 0% 0% / 0.35), 0px 4px 6px -1px hsl(0 0% 0% / 0.35);
-  --shadow-xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.35), 0px 8px 10px -1px hsl(0 0% 0% / 0.45);
-  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.6);
+  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.45);
+  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.45);
+  --shadow-sm: 0px 2px 0px 0px hsl(0 0% 0% / 0.45), 0px 1px 2px -1px hsl(0 0% 0% / 0.45);
+  --shadow: 0px 2px 0px 0px hsl(0 0% 0% / 0.45), 0px 1px 2px -1px hsl(0 0% 0% / 0.45);
+  --shadow-md: 0px 2px 0px 0px hsl(0 0% 0% / 0.45), 0px 2px 4px -1px hsl(0 0% 0% / 0.45);
+  --shadow-lg: 0px 2px 0px 0px hsl(0 0% 0% / 0.45), 0px 4px 6px -1px hsl(0 0% 0% / 0.45);
+  --shadow-xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.45), 0px 8px 10px -1px hsl(0 0% 0% / 0.55);
+  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.7);
 }
 
 /* ─── Snow theme (light mode) ───────────────────────────── */

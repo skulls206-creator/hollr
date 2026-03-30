@@ -74,11 +74,11 @@ function Router() {
 }
 
 const THEME_BAR_COLORS: Record<string, string> = {
-  ember:  '#130E07',
-  bloom:  '#130A0E',
-  slate:  '#222426',
-  forest: '#050D07',
-  light:  '#f2f3f5',
+  ember:     '#130E07',
+  bloom:     '#130A0E',
+  slate:     '#222426',
+  blueapple: '#0A0A0C',
+  light:     '#f2f3f5',
 };
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {

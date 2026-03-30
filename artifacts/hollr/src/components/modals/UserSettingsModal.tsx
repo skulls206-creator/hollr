@@ -722,7 +722,7 @@ export function UserSettingsModal() {
                       { id: 'ember',  label: 'Ember',  swatches: ['#130E07', '#1E1509', '#F97316'] },
                       { id: 'bloom',  label: 'Bloom',  swatches: ['#130A0E', '#1F1015', '#E83D80'] },
                       { id: 'slate',    label: 'Slate',    swatches: ['#2C2F33', '#36393F', '#40444B'] },
-                      { id: 'forest',   label: 'Forest',   swatches: ['#060E08', '#101612', '#16201B'] },
+                      { id: 'blueapple', label: 'Blue Apple', swatches: ['#0A0A0C', '#1C1C1E', '#007AFF'] },
                       { id: 'light',    label: 'Snow',     swatches: ['#ffffff', '#f2f3f5', '#e3e5e8'] },
                     ] as const).map(opt => (
                       <button
