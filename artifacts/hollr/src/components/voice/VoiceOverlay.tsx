@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, type RefObject } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { useWebRTC } from '@/hooks/use-webrtc';
 import { useAuth } from '@workspace/replit-auth-web';
@@ -979,54 +979,119 @@ function RemoteUserTile({
   onVolumeChange: (v: number) => void;
   onWatch: () => void;
 }) {
-  // Audio element strategy:
-  // - iOS Safari: must use <video playsInline> kept in-viewport; <audio> hidden by
-  //   the OS even after a user gesture, causing silence.
-  // - Android Chrome / Desktop: must use <audio>; a <video> element with an
-  //   audio-only MediaStream (no video track) silently discards the audio on Android.
+  // Audio output strategy (cross-platform):
+  //
+  // iOS Safari: <video playsInline> kept 1×1px in-viewport.
+  //   - <audio display:none> is silently suspended by the OS.
+  //   - <video> with playsInline stays active even when hidden.
+  //
+  // Android Chrome + Desktop: Web Audio API (AudioContext).
+  //   - <audio> and <video> elements route WebRTC streams to the earpiece
+  //     on Android, not the media speaker.
+  //   - createMediaStreamSource() → GainNode → ctx.destination routes to
+  //     the media speaker (same as music/video playback).
+  //   - Also correctly respects deafen: disconnect the graph instead of
+  //     relying on element.pause() which can lag behind autoPlay.
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const audioElRef = useRef<HTMLMediaElement>(null);
+  const audioElRef = useRef<HTMLVideoElement>(null);   // iOS only
+  const audioCtxRef = useRef<AudioContext | null>(null); // Android/Desktop
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const deafenedRef = useRef(deafened);
   deafenedRef.current = deafened;
   const [audioBlocked, setAudioBlocked] = useState(false);
 
+  // iOS: tap-to-unblock
   const tryPlay = useCallback(() => {
     const el = audioElRef.current;
-    if (!el || !(el as any).srcObject || deafenedRef.current) return;
+    if (!isIOS || !el || !el.srcObject || deafenedRef.current) return;
     el.play().then(() => setAudioBlocked(false)).catch((err) => {
       if (err?.name === 'NotAllowedError') setAudioBlocked(true);
     });
-  }, []);
+  }, [isIOS]);
 
-  // One-time setup
+  // iOS one-time setup
   useEffect(() => {
+    if (!isIOS) return;
     const el = audioElRef.current;
     if (!el) return;
-    if (isIOS) el.setAttribute('webkit-playsinline', 'true');
+    el.setAttribute('webkit-playsinline', 'true');
     el.autoplay = true;
-    (el as HTMLVideoElement).muted = false;
-  }, []);
+    el.muted = false;
+  }, [isIOS]);
 
+  // Audio graph — runs whenever stream or deafened changes
   useEffect(() => {
-    const el = audioElRef.current;
-    if (!el || !stream) return;
-    (el as any).srcObject = stream;
-    (el as HTMLVideoElement).muted = false;
-    if (outputDeviceId && typeof (el as any).setSinkId === 'function') {
-      (el as any).setSinkId(outputDeviceId).catch(() => {});
-    }
-    if (!deafened) {
-      el.play().then(() => setAudioBlocked(false)).catch((err) => {
-        if (err?.name === 'NotAllowedError') {
-          setAudioBlocked(true);
-          console.warn('[Voice] Audio autoplay blocked — waiting for user gesture');
-        }
-      });
+    if (!stream) return;
+
+    if (isIOS) {
+      // ── iOS path: <video> element ───────────────────────────────────────
+      const el = audioElRef.current;
+      if (!el) return;
+      el.srcObject = stream;
+      el.muted = deafened; // set BEFORE play() to avoid brief earpiece blip
+      if (outputDeviceId && typeof (el as any).setSinkId === 'function') {
+        (el as any).setSinkId(outputDeviceId).catch(() => {});
+      }
+      if (!deafened) {
+        el.play().then(() => setAudioBlocked(false)).catch((err) => {
+          if (err?.name === 'NotAllowedError') {
+            setAudioBlocked(true);
+            console.warn('[Voice] iOS audio autoplay blocked');
+          }
+        });
+      } else {
+        el.pause();
+      }
     } else {
-      el.pause();
+      // ── Android / Desktop path: Web Audio API ───────────────────────────
+      // Disconnect any existing graph
+      sourceNodeRef.current?.disconnect();
+      sourceNodeRef.current = null;
+      gainNodeRef.current = null;
+
+      if (deafened) return; // leave graph disconnected while deafened
+
+      try {
+        if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+          audioCtxRef.current = new AudioContext();
+        }
+        const ctx = audioCtxRef.current;
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+        const source = ctx.createMediaStreamSource(stream);
+        const gain = ctx.createGain();
+        gain.gain.value = Math.max(0, Math.min(2, volume));
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        sourceNodeRef.current = source;
+        gainNodeRef.current = gain;
+        console.log('[Voice] Web Audio graph connected for', stream.id);
+      } catch (err) {
+        console.warn('[Voice] Web Audio API failed:', err);
+      }
     }
-  }, [stream, deafened, outputDeviceId]);
+  }, [stream, deafened, isIOS, outputDeviceId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Volume changes (Web Audio path)
+  useEffect(() => {
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = Math.max(0, Math.min(2, volume));
+    }
+    // iOS path
+    if (isIOS && audioElRef.current) {
+      audioElRef.current.volume = Math.max(0, Math.min(1, volume));
+    }
+  }, [volume, isIOS]);
+
+  // Clean up AudioContext on unmount
+  useEffect(() => {
+    return () => {
+      sourceNodeRef.current?.disconnect();
+      audioCtxRef.current?.close().catch(() => {});
+    };
+  }, []);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -1034,12 +1099,6 @@ function RemoteUserTile({
     el.srcObject = videoStream ?? null;
     if (videoStream) el.play().catch(() => {});
   }, [videoStream]);
-
-  useEffect(() => {
-    const el = audioElRef.current;
-    if (!el) return;
-    el.volume = Math.max(0, Math.min(1, volume));
-  }, [volume]);
 
   return (
     <div
@@ -1052,19 +1111,13 @@ function RemoteUserTile({
         onOpenProfile(e.clientX, e.clientY);
       }}
     >
-      {/* iOS: <video playsInline> in-viewport prevents OS audio suspension.
-          Android/Desktop: <audio> correctly handles audio-only MediaStreams. */}
-      {isIOS ? (
+      {/* iOS only: <video playsInline> kept 1×1px in-viewport.
+          Android/Desktop use Web Audio API (no element needed — no earpiece routing). */}
+      {isIOS && (
         <video
-          ref={audioElRef as RefObject<HTMLVideoElement>}
+          ref={audioElRef}
           autoPlay playsInline
           style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none', top: 0, left: 0 }}
-        />
-      ) : (
-        <audio
-          ref={audioElRef as RefObject<HTMLAudioElement>}
-          autoPlay
-          style={{ display: 'none' }}
         />
       )}
 
