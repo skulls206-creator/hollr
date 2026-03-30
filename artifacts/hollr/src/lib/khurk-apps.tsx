@@ -6,7 +6,7 @@ import playdImg from '@assets/IMG_0046_1774898193619.png';
 import foldrImg from '@assets/IMG_0047_1774898186170.png';
 import ghostdImg from '@assets/IMG_0042_1774896984642.png';
 import gaslessImg from '@assets/5963_1774286181380.png';
-import ballpointImg from '@assets/5955_1774286181397.png';
+import ballpointImg from '@assets/IMG_0048_1774899223660.png';
 import onlyGamesImg from '@assets/5961_1774286181406.png';
 import onlyXmrImg from '@assets/5959_1774286181386.png';
 import rippdImg from '@assets/Screenshot_2026-03-28_002535_1774671950475.png';
