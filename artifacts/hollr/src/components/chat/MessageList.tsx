@@ -100,7 +100,7 @@ export function MessageList({
   const qc = useQueryClient();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { openThread, openProfileCard, chatFontSize, setActiveDmThread, triggerMention, activeServerId } = useAppStore();
+  const { openThread, openProfileCard, chatFontSize, setActiveDmThread, triggerMention, activeServerId, theme } = useAppStore();
   const { data: server } = useGetServer(activeServerId || '', { query: { enabled: !!activeServerId } });
   const { data: serverMembers = [] } = useListServerMembers(activeServerId || '', { query: { enabled: !!activeServerId } });
   const myMemberRole = (serverMembers as any[]).find(m => m.userId === user?.id)?.role ?? null;
@@ -435,13 +435,16 @@ export function MessageList({
         const replyCount = (msg as any).replyCount || 0;
         const lp = handleLongPress(msg);
 
-        const onDark = isOwner || isSupporter;
+        const isBlueApple = theme === 'blueapple';
+        const onDark = isOwner || isSupporter || isBlueApple;
 
         const bubbleBg = isOwner
           ? 'bg-primary text-primary-foreground'
           : isSupporter
             ? 'bg-[#007AFF] text-white'
-            : 'bg-muted text-foreground';
+            : isBlueApple
+              ? 'bg-[#007AFF] text-white'
+              : 'bg-muted text-foreground';
 
         const radius = getBubbleRadius(isOwner, isFirst, isLast);
 

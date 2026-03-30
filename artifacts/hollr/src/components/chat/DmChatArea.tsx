@@ -81,7 +81,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   });
   const { mutate: sendMessage } = useSendDmMessage();
   const { mutateAsync: requestUpload } = useRequestUploadUrl();
-  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState, videoCall, openProfileCard, clearDmUnreadCount } = useAppStore();
+  const { setActiveDmThread, voicePanelHeight, layoutMode, toggleMobileSidebar, toggleClassicChannel, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked, setSidebarLocked, dmCall, setDmCallState, videoCall, openProfileCard, clearDmUnreadCount, theme } = useAppStore();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -607,13 +607,16 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
           const isHidden = hiddenMsgIds.has(msg.id);
           const reactions = (msg as any).reactions || [];
           const lp = handleLongPress(msg);
-          const onDark = isOwner || isSupporter;
+          const isBlueApple = theme === 'blueapple';
+          const onDark = isOwner || isSupporter || isBlueApple;
 
           const bubbleBg = isOwner
             ? 'bg-primary text-primary-foreground'
             : isSupporter
               ? 'bg-[#007AFF] text-white'
-              : 'bg-muted text-foreground';
+              : isBlueApple
+                ? 'bg-[#007AFF] text-white'
+                : 'bg-muted text-foreground';
 
           let radius: string;
           if (isFirst && isLast) radius = 'rounded-[20px]';
