@@ -88,8 +88,10 @@ router.patch("/servers/:serverId/channels/:channelId", async (req, res) => {
       ...(parsed.data.topic !== undefined ? { topic: parsed.data.topic } : {}),
       ...(parsed.data.nsfw !== undefined ? { nsfw: parsed.data.nsfw } : {}),
     })
-    .where(eq(channelsTable.id, req.params.channelId))
+    .where(and(eq(channelsTable.id, req.params.channelId), eq(channelsTable.serverId, req.params.serverId)))
     .returning();
+
+  if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
 
   res.json({
     id: channel.id,
@@ -109,7 +111,7 @@ router.delete("/servers/:serverId/channels/:channelId", async (req, res) => {
   const member = await isMember(req.user.id, req.params.serverId);
   if (!member || member.role === "member") { res.status(403).json({ error: "Forbidden" }); return; }
 
-  await db.delete(channelsTable).where(eq(channelsTable.id, req.params.channelId));
+  await db.delete(channelsTable).where(and(eq(channelsTable.id, req.params.channelId), eq(channelsTable.serverId, req.params.serverId)));
   res.json({ success: true });
 });
 
