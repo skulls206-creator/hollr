@@ -1724,7 +1724,13 @@ function VoiceSidebarUser({
           </div>
         </div>
       </PopoverTrigger>
-      <PopoverContent side="right" align="start" className="w-64 p-3 bg-popover border-border/30">
+      <PopoverContent
+        side="bottom"
+        align="center"
+        sideOffset={4}
+        collisionPadding={12}
+        className="w-64 p-3 bg-popover border-border/30"
+      >
         <div className="flex items-center gap-2 mb-3">
           <Avatar className="h-8 w-8">
             <AvatarImage src={u.avatarUrl || undefined} />
