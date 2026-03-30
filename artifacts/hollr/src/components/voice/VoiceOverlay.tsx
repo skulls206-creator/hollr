@@ -573,7 +573,7 @@ export function VoiceOverlay() {
           <div className="fixed inset-0 z-[70]" onClick={() => setShowOverflowMenu(false)} />
           <div
             className="fixed z-[71] bg-popover border border-border/60 rounded-lg shadow-xl py-1 min-w-[168px]"
-            style={{ left: cardAnchor.x, top: cardAnchor.y + 2 }}
+            style={{ left: Math.min(cardAnchor.x, window.innerWidth - 180), top: cardAnchor.y + 2 }}
           >
             <button
               onClick={() => { setShowOverflowMenu(false); setShowStatsPanel(true); }}
