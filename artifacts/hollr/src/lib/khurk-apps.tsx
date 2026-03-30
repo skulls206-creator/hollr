@@ -11,6 +11,7 @@ import onlyGamesImg from '@assets/IMG_0055_1774902599575.png';
 import onlyXmrImg from '@assets/IMG_0054_1774902599574.png';
 import rippdImg from '@assets/IMG_0050_1774900796709.png';
 
+import hollrLogoImg from '@assets/generated_images/hollr_logo_final.png';
 import uStreamBanner from '@assets/generated_images/banner_ustream.png';
 import playdBanner from '@assets/generated_images/banner_playd.png';
 import foldrBanner from '@assets/generated_images/banner_foldr.png';
@@ -78,19 +79,14 @@ const RippdPanel = lazy(() =>
 
 export function HollrIcon({ size = 26 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 26 26" fill="none">
-      <path
-        d="M13 3C7.48 3 3 7.03 3 12c0 2.37 1 4.52 2.64 6.1L4.5 22l4.36-1.38C10.14 21.5 11.54 22 13 22c5.52 0 10-4.03 10-9S18.52 3 13 3z"
-        fill="white"
-        fillOpacity="0.95"
-      />
-      <path
-        d="M8.5 12h9M8.5 9h5.5"
-        stroke="rgba(99,91,255,1)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
+    <img
+      src={hollrLogoImg}
+      alt="hollr"
+      width={size}
+      height={size}
+      style={{ objectFit: 'cover', borderRadius: '22%', display: 'block' }}
+      draggable={false}
+    />
   );
 }
 
