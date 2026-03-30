@@ -1,0 +1,218 @@
+Here’s a tightened, builder-ready prompt you can give an AI to upgrade your HOLLR CHAT with the exact ideas from the screenshots: add voice-channel connection diagnostics, a compact floating screenshare preview in chat, and a per-channel 18+ toggle for text channels, while checking both Classic and DOCK layouts for parity and responsive behavior.
+
+Better prompt
+Use this as your main prompt:
+
+Upgrade my HOLLR CHAT app by adding 4 Discord-inspired features, but make them feel native to HOLLR, not like a clone.
+
+Feature 1: Voice connection card
+When a user is connected to a voice channel, show a compact “Voice Connection” popover/card with: current ping in ms, average ping in ms, endpoint/server label, device name, and a small live line chart showing recent latency trend from good to bad.
+​
+The chart should visually indicate connection quality using thresholds, for example green for healthy latency, yellow for unstable, red for poor.
+​
+The card should be accessible from the active voice status area and update in near real time.
+
+Feature 2: Expanded voice/channel stats modal or popover
+Add a second detailed “Connection Stats” panel for the active voice session showing duration, participants count, audio send bitrate, audio receive bitrate, video send bitrate, video receive bitrate, packet loss, latency (RTT), and jitter.
+​
+Update stats every second or on a reasonable polling interval and make sure empty values degrade gracefully when video or receive streams are not active.
+​
+
+Feature 3: Floating screenshare preview in chat
+When someone in the active voice channel is screensharing, show a small floating mini-player/preview anchored in the bottom-right of the chat window.
+​
+The preview should not block message composition, should be draggable or dismissible, and should open the full stream view when clicked.
+​
+Add states for: live screenshare, paused/ended share, hidden/minimized preview, and no active screenshare.
+
+Feature 4: Per-channel age restriction toggle
+In each server’s text-channel settings, add an “Age-restricted (18+) / NSFW” toggle for individual hashtag channels such as #general.
+​
+This should be configurable per channel, not just per server.
+​
+When enabled, underage users must be blocked and adults should see a warning/confirm screen before entering the channel.
+​
+Include backend schema changes, permission handling, API updates, validation, and UI states.
+
+Layouts and QA
+Implement all features in both Classic layout and DOCK layout if my app supports both.
+
+If a feature needs layout-specific behavior, document the differences clearly.
+Ensure mobile, tablet, and desktop responsiveness.
+
+What I want back from you
+
+A feature spec.
+
+Database/schema updates.
+
+Backend API/events needed.
+
+Frontend component list.
+
+Realtime/data-flow plan.
+
+Edge cases.
+
+A phased implementation plan.
+
+Actual code for the UI and backend integration, not just pseudocode.
+
+Stronger add-ons
+These additions will make the AI give you a much more useful answer for a production app.
+
+Add architecture instructions
+Append this:
+
+Assume this is a production chat app with channels, voice rooms, screen sharing, and role-based permissions.
+Reuse my current design system where possible.
+Prefer modular components and minimal disruption to existing chat/voice architecture.
+Do not remove existing behavior unless necessary.
+If a metric depends on WebRTC or transport stats, explain exactly which browser APIs or server metrics provide it.
+
+That helps because the voice metrics shown in the screenshots are the kind of data typically surfaced from connection/session statistics rather than ordinary chat state alone.
+
+Force implementation detail
+Append this too:
+
+For each feature, provide:
+
+UI behavior
+
+data model changes
+
+client state changes
+
+backend requirements
+
+permission logic
+
+analytics/events
+
+fallback behavior if stats are unavailable
+
+test cases
+
+exact files/components likely to change
+
+This is important because your request is really a product/engineering brief, not just a design idea list.
+
+Best product wording
+If you want the AI to think like a senior PM + engineer, use these exact clarifications.
+
+For voice stats
+Use wording like:
+
+“Expose voice transport health telemetry for the active voice session.”
+
+“Show both lightweight quick stats and expanded diagnostic stats.”
+
+“Use rolling samples for latency history and compute average ping from a recent window.”
+​
+
+That matches the two screenshot patterns: one compact quality card and one fuller connection panel.
+
+For screenshare preview
+Use wording like:
+
+“Render an always-available picture-in-picture style stream preview inside the chat view.”
+​
+
+“Anchor to the bottom-right safe area above the composer and allow minimize/dismiss.”
+​
+
+That better communicates what you want than just “copy this.”
+​
+
+For NSFW channels
+Use wording like:
+
+“Channel-level maturity gating for text channels.”
+​
+
+“Store NSFW as a channel property, enforce at access time, and show warning UX before entry.”
+​
+
+That tells the AI you want a real permission/content gate, not just a visual toggle.
+​
+
+Even better master prompt
+If you want, this version is the cleanest and most complete:
+
+I’m upgrading HOLLR CHAT and want to add 4 new features inspired by the attached screenshots, but styled to match HOLLR’s own UI.
+
+Build a production-ready implementation plan and code for:
+
+Voice Connection popover for active voice users: compact card with current ping, average ping, endpoint, device name, and a live latency trend graph.
+​
+
+Detailed Connection Stats panel: duration, participants, audio/video send and receive kbps, packet loss, RTT latency, jitter, and live updates.
+​
+
+Floating screenshare mini-preview in the bottom-right of the chat area when a stream is active, with minimize, dismiss, and click-to-expand behaviors.
+​
+
+Per-channel Age-Restricted / NSFW toggle in channel settings for hashtag channels, with backend enforcement and age-gated warning flow.
+​
+
+Requirements:
+
+Support both Classic and DOCK layouts if both exist in HOLLR.
+
+Preserve current architecture where possible.
+
+Use modular components.
+
+Explain what can be derived from WebRTC stats versus server-side data for voice metrics.
+
+Include frontend, backend, schema, permissions, realtime events, and QA coverage.
+
+Show exact implementation steps and code, not only high-level ideas.
+
+For each feature, provide:
+
+user story
+
+UI spec
+
+data requirements
+
+API/events
+
+database/schema changes
+
+edge cases
+
+security/privacy concerns
+
+test plan
+
+rollout order
+
+Also identify anything that is risky, expensive, or browser-limited before implementation.
+
+What the screenshots imply
+The attached images clearly point to four separate feature opportunities in your app: a lightweight voice-health card with ping trend, a deeper session diagnostics panel, a bottom-right embedded stream preview inside chat, and a per-channel age restriction control in channel settings.
+
+The NSFW setting shown is at the channel level under a specific channel’s settings screen, so your prompt should explicitly say “per text channel” to prevent the AI from incorrectly designing it as a server-wide setting.
+​
+The stream preview image also shows that the mini-player belongs inside the chat experience rather than as a full modal, so it helps to specify anchored in-chat preview behavior instead of generic screenshare support.
+​
+
+Small improvements to your original wording
+Your original wording is understandable, but these swaps make it much stronger:
+
+Your idea	Better phrasing
+Your idea	Better phrasing
+“steal their ideas”	“implement Discord-inspired patterns adapted to HOLLR’s design system”
+“internet stats in the milliseconds”	“voice connection telemetry including latency, jitter, packet loss, bitrate, endpoint, and trend history” 
+“screen share in the bottom right of the chat window”	“floating in-chat screenshare mini-preview anchored to the bottom-right safe area” 
+​
+“18 and up type of toggle for servers, for specific hashtags”	“per-channel age-restricted / NSFW toggle for individual text channels within a server” 
+​
+One thing you should ask the AI too
+Add this final line:
+
+If any feature depends on unsupported browser APIs or missing backend infrastructure, propose the closest fallback implementation and mark it clearly.
+
+That matters because some of the stats you want may depend on what your voice stack already exposes, especially for bitrate, jitter, packet loss, and endpoint-level diagnostics.
