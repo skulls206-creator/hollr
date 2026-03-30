@@ -100,7 +100,7 @@ export function Layout() {
     const rawDx = e.clientX - swipeDrag.current.startX;
     setTabSnapping(true);
     setSwipeDx(0);
-    if (Math.abs(rawDx) > SWIPE_THRESHOLD) action();
+    if (Math.abs(rawDx) < 5 || Math.abs(rawDx) > SWIPE_THRESHOLD) action();
   };
 
   useRealtime(user?.id);
