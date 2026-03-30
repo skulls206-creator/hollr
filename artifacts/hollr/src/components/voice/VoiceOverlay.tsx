@@ -30,6 +30,8 @@ export function VoiceOverlay() {
     audioOutputDeviceId,
     voiceVolumes, setVoiceVolume,
     voiceStats,
+    setRemoteScreenStreams,
+    pendingTheaterUserId, setPendingTheaterUserId,
   } = useAppStore();
   const { data: profile } = useGetMyProfile({ query: { queryKey: getGetMyProfileQueryKey(), enabled: !!user } });
   const {
@@ -53,6 +55,19 @@ export function VoiceOverlay() {
     setShowOverflowMenu(false);
     setCardAnchor(null);
   }, [voiceMinimized]);
+
+  // Publish remote video streams to the store so ScreenShareMiniPreview can read them
+  useEffect(() => {
+    setRemoteScreenStreams(remoteVideoStreams);
+  }, [remoteVideoStreams, setRemoteScreenStreams]);
+
+  // Respond to ScreenShareMiniPreview's "expand to theater" request
+  useEffect(() => {
+    if (pendingTheaterUserId) {
+      setWatchingUserId(pendingTheaterUserId);
+      setPendingTheaterUserId(null);
+    }
+  }, [pendingTheaterUserId, setPendingTheaterUserId]);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);

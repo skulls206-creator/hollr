@@ -195,6 +195,14 @@ interface AppState {
   voiceStats: VoiceStats | null;
   setVoiceStats: (stats: VoiceStats | null) => void;
 
+  // Remote screenshare MediaStream objects keyed by userId (not persisted)
+  remoteScreenStreams: Record<string, MediaStream>;
+  setRemoteScreenStreams: (streams: Record<string, MediaStream>) => void;
+
+  // Signal from ScreenShareMiniPreview → VoiceOverlay to enter theater mode for a userId
+  pendingTheaterUserId: string | null;
+  setPendingTheaterUserId: (id: string | null) => void;
+
   // Pending mention to insert into the active composer
   pendingMention: string | null;
   triggerMention: (displayName: string) => void;
@@ -537,6 +545,12 @@ export const useAppStore = create<AppState>()(
 
   voiceStats: null,
   setVoiceStats: (stats) => set({ voiceStats: stats }),
+
+  remoteScreenStreams: {},
+  setRemoteScreenStreams: (streams) => set({ remoteScreenStreams: streams }),
+
+  pendingTheaterUserId: null,
+  setPendingTheaterUserId: (id) => set({ pendingTheaterUserId: id }),
 
   pendingMention: null,
   triggerMention: (displayName) => set({ pendingMention: displayName }),
