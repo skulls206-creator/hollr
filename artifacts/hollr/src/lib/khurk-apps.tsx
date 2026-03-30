@@ -4,7 +4,7 @@ import type { ComponentType } from 'react';
 import uStreamImg from '@assets/download_(1)_1774290216897.png';
 import playdImg from '@assets/5957_1774286181393.png';
 import foldrImg from '@assets/5996_1774290216887.png';
-import instaGhostImg from '@assets/5952_1774286181402.png';
+import ghostdImg from '@assets/5952_1774286181402.png';
 import gaslessImg from '@assets/5963_1774286181380.png';
 import ballpointImg from '@assets/5955_1774286181397.png';
 import onlyGamesImg from '@assets/5961_1774286181406.png';
@@ -14,7 +14,7 @@ import rippdImg from '@assets/Screenshot_2026-03-28_002535_1774671950475.png';
 import uStreamBanner from '@assets/generated_images/banner_ustream.png';
 import playdBanner from '@assets/generated_images/banner_playd.png';
 import foldrBanner from '@assets/generated_images/banner_foldr.png';
-import instaGhostBanner from '@assets/generated_images/banner_instaghost.png';
+import ghostdBanner from '@assets/generated_images/banner_instaghost.png';
 import gaslessBanner from '@assets/generated_images/banner_gasless.png';
 import ballpointBanner from '@assets/generated_images/banner_ballpoint.png';
 import onlyGamesBanner from '@assets/generated_images/banner_onlygames.png';
@@ -137,13 +137,13 @@ export const KHURK_APPS: KhurkApp[] = [
     nativePanel: RippdPanel,
   },
   {
-    id: 'instaghost',
-    name: 'InstaGhost Exchange',
+    id: 'ghostd',
+    name: 'GHOSTD',
     tagline: 'Crypto Exchange',
     description: 'Anonymous and lightning-fast cryptocurrency exchange.',
     url: 'https://instaghost.khurk.services',
-    imageSrc: instaGhostImg,
-    bannerSrc: instaGhostBanner,
+    imageSrc: ghostdImg,
+    bannerSrc: ghostdBanner,
     gradient: ['#006b4a', '#00c47a'],
   },
   {

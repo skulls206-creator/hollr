@@ -46,7 +46,7 @@ router.post("/khurk-apps/dismiss-all", async (req: Request, res: Response) => {
     return;
   }
   const ALL_IDS = [
-    "ustream", "playd", "foldr", "instaghost",
+    "ustream", "playd", "foldr", "ghostd",
     "gasless", "ballpoint", "onlygames", "onlyxmr",
   ];
   await db
