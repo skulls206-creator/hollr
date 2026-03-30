@@ -128,6 +128,22 @@ router.get("/dms", async (req, res) => {
   res.json(threads.filter(Boolean));
 });
 
+// ─── Close (leave) a DM thread ────────────────────────────────────────────────
+router.delete("/dms/:threadId", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { threadId } = req.params;
+  const participant = await db.query.dmParticipantsTable.findFirst({
+    where: and(eq(dmParticipantsTable.threadId, threadId), eq(dmParticipantsTable.userId, req.user.id)),
+  });
+  if (!participant) { res.status(404).json({ error: "Thread not found" }); return; }
+
+  await db.delete(dmParticipantsTable)
+    .where(and(eq(dmParticipantsTable.threadId, threadId), eq(dmParticipantsTable.userId, req.user.id)));
+
+  res.json({ ok: true });
+});
+
 // ─── Search DM messages (across all threads) ─────────────────────────────────
 router.get("/dms/search", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }

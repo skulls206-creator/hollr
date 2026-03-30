@@ -7,7 +7,7 @@ import { cn, getInitials } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   MessageSquarePlus, MessageCircle, Menu, Search, X,
-  MessageSquare, PhoneCall, Video, User, Check, Copy, RefreshCw,
+  MessageSquare, PhoneCall, Video, User, Check, Copy, RefreshCw, Trash2,
 } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
@@ -153,6 +153,19 @@ export function MobileDmList() {
           label: 'Copy Username',
           icon: <Copy size={14} />,
           onClick: () => navigator.clipboard.writeText(other.username || other.displayName || ''),
+        },
+        {
+          id: 'close-dm',
+          label: 'Close DM',
+          icon: <Trash2 size={14} />,
+          danger: true,
+          dividerBefore: true,
+          onClick: async () => {
+            await fetch(`/api/dms/${thread.id}`, { method: 'DELETE' });
+            qc.invalidateQueries({ queryKey: getListDmThreadsQueryKey() });
+            const { activeDmThreadId, setActiveDmThread } = useAppStore.getState();
+            if (activeDmThreadId === thread.id) setActiveDmThread(null);
+          },
         },
       ],
     });

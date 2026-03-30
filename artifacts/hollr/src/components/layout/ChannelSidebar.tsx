@@ -368,6 +368,19 @@ export function ChannelSidebar() {
           icon: <Copy size={14} />,
           onClick: () => navigator.clipboard.writeText(other.username || other.displayName || ''),
         },
+        {
+          id: 'close-dm',
+          label: 'Close DM',
+          icon: <Trash2 size={14} />,
+          danger: true,
+          dividerBefore: true,
+          onClick: async () => {
+            await fetch(`/api/dms/${thread.id}`, { method: 'DELETE' });
+            qc.invalidateQueries({ queryKey: getListDmThreadsQueryKey() });
+            const { activeDmThreadId, setActiveDmThread } = useAppStore.getState();
+            if (activeDmThreadId === thread.id) setActiveDmThread(null);
+          },
+        },
       ],
     });
   };
