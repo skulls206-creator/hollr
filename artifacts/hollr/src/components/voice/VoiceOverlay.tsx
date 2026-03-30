@@ -928,8 +928,17 @@ function LocalUserTile({
   );
 }
 
-function ConnectionBadge({ type }: { type: 'lan' | 'stun' | 'relay' | 'connecting' | null }) {
-  if (!type || type === 'connecting') return null;
+function ConnectionBadge({ type, hasStream }: { type: 'lan' | 'stun' | 'relay' | 'connecting' | null; hasStream: boolean }) {
+  if (!type) return null;
+
+  if (type === 'connecting') {
+    return (
+      <div className="absolute bottom-3 right-3 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold z-30 pointer-events-none bg-zinc-600/90 text-white animate-pulse">
+        <Loader2 size={9} className="animate-spin" />
+        Connecting
+      </div>
+    );
+  }
 
   const configs = {
     lan:   { icon: Wifi,   label: 'LAN',   cls: 'bg-emerald-500/90 text-white' },
@@ -940,19 +949,23 @@ function ConnectionBadge({ type }: { type: 'lan' | 'stun' | 'relay' | 'connectin
   const { icon: Icon, label, cls } = configs[type];
 
   return (
-    <div
-      title={
-        type === 'lan'   ? 'Connected via local network (LAN)' :
-        type === 'stun'  ? 'Connected via direct internet (P2P)' :
-        'Connected via relay server (TURN)'
-      }
-      className={cn(
-        'absolute bottom-3 right-3 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold z-30 pointer-events-none',
-        cls,
+    <div className="absolute bottom-3 right-3 flex items-center gap-1 z-30 pointer-events-none">
+      {!hasStream && (
+        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/90 text-white">
+          No audio
+        </div>
       )}
-    >
-      <Icon size={9} />
-      {label}
+      <div
+        title={
+          type === 'lan'   ? 'Connected via local network (LAN)' :
+          type === 'stun'  ? 'Connected via direct internet (P2P)' :
+          'Connected via relay server (TURN)'
+        }
+        className={cn('flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold', cls)}
+      >
+        <Icon size={9} />
+        {label}
+      </div>
     </div>
   );
 }
@@ -1121,7 +1134,7 @@ function RemoteUserTile({
         </div>
       )}
 
-      <ConnectionBadge type={connectionType} />
+      <ConnectionBadge type={connectionType} hasStream={!!stream} />
     </div>
   );
 }
