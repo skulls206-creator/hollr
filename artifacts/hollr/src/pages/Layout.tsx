@@ -76,45 +76,31 @@ export function Layout() {
     return () => document.removeEventListener('keydown', onKey);
   }, [memberListOpen, toggleMemberList]);
 
-  // ── Draggable pull-tab ──────────────────────────────────────────────────────
-  const TAB_W = 14;
-  const TAB_H = 52;
-  const [tabPos, setTabPos] = useState<{ x: number; y: number }>(() => {
-    try {
-      const s = localStorage.getItem('hollr:pull-tab-pos');
-      if (s) return JSON.parse(s);
-    } catch {}
-    return { x: 0, y: typeof window !== 'undefined' ? Math.max(0, Math.floor(window.innerHeight / 2) - 26) : 200 };
-  });
-  const tabDrag = useRef({ active: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false });
+  // ── Swipeable pull-tab (Tinder-style horizontal swipe) ─────────────────────
+  const SWIPE_THRESHOLD = 40;
+  const [swipeDx, setSwipeDx] = useState(0);
+  const [tabSnapping, setTabSnapping] = useState(false);
+  const swipeDrag = useRef({ active: false, startX: 0 });
 
   const onTabPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const d = tabDrag.current;
-    d.active = true;
-    d.startX = e.clientX;
-    d.startY = e.clientY;
-    d.origX = tabPos.x;
-    d.origY = tabPos.y;
-    d.moved = false;
+    swipeDrag.current = { active: true, startX: e.clientX };
+    setTabSnapping(false);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onTabPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const d = tabDrag.current;
-    if (!d.active) return;
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) d.moved = true;
-    if (!d.moved) return;
-    const x = Math.max(0, Math.min(window.innerWidth - TAB_W, d.origX + dx));
-    const y = Math.max(0, Math.min(window.innerHeight - TAB_H, d.origY + dy));
-    const next = { x: Math.round(x), y: Math.round(y) };
-    setTabPos(next);
-    localStorage.setItem('hollr:pull-tab-pos', JSON.stringify(next));
+    if (!swipeDrag.current.active) return;
+    const rawDx = e.clientX - swipeDrag.current.startX;
+    // Elastic resistance so it feels springy at extremes
+    const elastic = rawDx / (1 + Math.abs(rawDx) * 0.018);
+    setSwipeDx(elastic);
   };
   const makeTabPointerUp = (action: () => void) => (e: React.PointerEvent<HTMLButtonElement>) => {
-    const d = tabDrag.current;
-    d.active = false;
-    if (!d.moved) action();
+    if (!swipeDrag.current.active) return;
+    swipeDrag.current.active = false;
+    const rawDx = e.clientX - swipeDrag.current.startX;
+    setTabSnapping(true);
+    setSwipeDx(0);
+    if (Math.abs(rawDx) > SWIPE_THRESHOLD) action();
   };
 
   useRealtime(user?.id);
@@ -417,26 +403,33 @@ export function Layout() {
           • Desktop + normal chat (sidebar in-flow): always md:left-[300px]
       */}
 
-      {/* ── Classic mode pull-tab (draggable) ── */}
+      {/* ── Classic mode pull-tab (swipe left/right to toggle) ── */}
       {layoutMode === 'classic' && !showAppWindow && (
         <button
           onPointerDown={onTabPointerDown}
           onPointerMove={onTabPointerMove}
           onPointerUp={makeTabPointerUp(toggleClassicChannel)}
-          className="fixed z-[60] flex flex-col items-center justify-center gap-[3.5px] opacity-40 hover:opacity-100 active:opacity-100 cursor-grab active:cursor-grabbing select-none"
+          className={cn(
+            'fixed top-1/2 z-[60]',
+            'flex flex-col items-center justify-center gap-[3.5px]',
+            'opacity-40 hover:opacity-100 active:opacity-100 select-none',
+            classicChannelOpen ? 'left-[372px]' : 'left-[72px]',
+          )}
           style={{
-            left: tabPos.x,
-            top: tabPos.y,
             width: '14px',
             height: '52px',
+            transform: `translateY(-50%) translateX(${swipeDx}px)`,
+            transition: tabSnapping ? 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1)' : 'none',
             background: 'rgba(16,16,24,0.92)',
             backdropFilter: 'blur(8px)',
-            borderRadius: '9px',
+            borderRadius: '0 9px 9px 0',
             border: '1px solid rgba(255,255,255,0.10)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.55)',
+            borderLeft: 'none',
+            boxShadow: '3px 0 14px rgba(0,0,0,0.55)',
             touchAction: 'none',
+            cursor: swipeDx !== 0 ? 'grabbing' : 'grab',
           }}
-          title={classicChannelOpen ? 'Close channel list' : 'Open channel list'}
+          title={classicChannelOpen ? 'Swipe left to close · tap to toggle' : 'Swipe right to open · tap to toggle'}
         >
           {[0, 1, 2].map((i) => (
             <div key={i} style={{ width: '5px', height: '1.5px', borderRadius: '2px', background: 'rgba(255,255,255,0.75)' }} />
@@ -444,7 +437,7 @@ export function Layout() {
         </button>
       )}
 
-      {/* ── Dock mode pull-tab (draggable) ── */}
+      {/* ── Dock mode pull-tab (swipe left/right to toggle) ── */}
       {layoutMode === 'dock' && !showAppWindow && (
         <button
           onPointerDown={onTabPointerDown}
@@ -458,22 +451,30 @@ export function Layout() {
               setMobileSidebarOpen(true);
             }
           })}
-          className="fixed z-[60] flex flex-col items-center justify-center gap-[3.5px] opacity-40 hover:opacity-100 active:opacity-100 cursor-grab active:cursor-grabbing select-none"
+          className={cn(
+            'fixed top-1/2 z-[60]',
+            'flex flex-col items-center justify-center gap-[3.5px]',
+            'opacity-40 hover:opacity-100 active:opacity-100 select-none',
+            (sidebarLocked || mobileSidebarOpen) ? 'left-[300px]' : 'left-0',
+            !showDashboard && !showAppWindow && 'md:left-[300px]',
+          )}
           style={{
-            left: tabPos.x,
-            top: tabPos.y,
             width: '14px',
             height: '52px',
+            transform: `translateY(-50%) translateX(${swipeDx}px)`,
+            transition: tabSnapping ? 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1)' : 'none',
             background: 'rgba(16,16,24,0.92)',
             backdropFilter: 'blur(8px)',
-            borderRadius: '9px',
+            borderRadius: '0 9px 9px 0',
             border: '1px solid rgba(255,255,255,0.10)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.55)',
+            borderLeft: 'none',
+            boxShadow: '3px 0 14px rgba(0,0,0,0.55)',
             touchAction: 'none',
+            cursor: swipeDx !== 0 ? 'grabbing' : 'grab',
           }}
           title={
-            sidebarLocked ? 'Unpin sidebar' :
-            mobileSidebarOpen ? 'Close sidebar' : 'Open sidebar'
+            sidebarLocked ? 'Swipe left to unpin' :
+            mobileSidebarOpen ? 'Swipe left to close' : 'Swipe right to open'
           }
         >
           {[0, 1, 2].map((i) => (
