@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
-import { MessageSquare, Lock, Eye, EyeOff, Loader2, User, KeyRound } from 'lucide-react';
+import { Lock, Eye, EyeOff, Loader2, User, KeyRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type Mode = 'login' | 'signup';
@@ -106,8 +106,8 @@ export function Login() {
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30 mb-5 -rotate-6">
-            <MessageSquare size={32} className="text-white rotate-6" />
+          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg shadow-primary/30 mb-5">
+            <img src={`${import.meta.env.BASE_URL}hollr-logo.png`} alt="hollr" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
             {mode === 'login' ? 'Hollr Back' : 'Join Hollr'}

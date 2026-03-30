@@ -12,6 +12,12 @@ uri = "file://attached_assets/generated_images/hollr_logo_bubble_v2.png"
 type = "image"
 title = "hollr chat bubble glow logo"
 
+[[generated]]
+id = "4BWjktjy3cLnhbOpwB1Lg"
+uri = "file://attached_assets/generated_images/hollr_logo_final.png"
+type = "image"
+title = "hollr final app icon"
+
 [[outputs]]
 id = "QBu7uwlotLYM0ql1-2kWC"
 uri = "file://artifacts/hollr/public/icon-512.png"
