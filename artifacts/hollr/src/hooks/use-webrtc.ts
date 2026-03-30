@@ -494,6 +494,12 @@ export function useWebRTC(
         return;
       }
 
+      // Prune cached byte-counters for peers that have disconnected
+      const activePeerIds = new Set(entries.map(([id]) => id));
+      Object.keys(prevBytesRef.current).forEach(id => {
+        if (!activePeerIds.has(id)) delete prevBytesRef.current[id];
+      });
+
       let rttSum = 0, rttN = 0;
       let jitterSum = 0, jitterN = 0;
       let audioSendKbps = 0, audioRecvKbps = 0;

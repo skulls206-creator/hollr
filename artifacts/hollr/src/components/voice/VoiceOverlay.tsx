@@ -45,6 +45,15 @@ export function VoiceOverlay() {
   const [showStatsPanel, setShowStatsPanel] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [cardAnchor, setCardAnchor] = useState<{ x: number; y: number } | null>(null);
+
+  // Reset all diagnostic overlays when switching between minimized / expanded
+  useEffect(() => {
+    setShowQualityCard(false);
+    setShowStatsPanel(false);
+    setShowOverflowMenu(false);
+    setCardAnchor(null);
+  }, [voiceMinimized]);
+
   const panelRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);
   const dragStartY = useRef(0);
