@@ -95,8 +95,8 @@ export function HollrIcon({ size = 26 }: { size?: number }) {
 
 export const KHURK_APPS: KhurkApp[] = [
   {
-    id: 'ustream',
-    name: 'uStream',
+    id: 'streamd',
+    name: 'STREAMD',
     tagline: 'Movies & TV',
     description: 'High-definition streaming of movies and television series.',
     url: 'https://ustream.khurk.services',
