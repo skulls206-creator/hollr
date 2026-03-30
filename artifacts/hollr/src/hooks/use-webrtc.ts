@@ -461,16 +461,22 @@ export function useWebRTC(
 
   // ── WebRTC diagnostics stats polling (every 1 s) ──────────────────────────
   useEffect(() => {
+    // Always reset per-session data when channelId changes (handles direct
+    // channel-to-channel hops where channelId never passes through null).
+    rttHistoryRef.current = [];
+    prevBytesRef.current = {};
+    statsStartedAtRef.current = channelId ? Date.now() : null;
+
     if (!channelId) {
       useAppStore.getState().setVoiceStats(null);
-      rttHistoryRef.current = [];
-      statsStartedAtRef.current = null;
-      prevBytesRef.current = {};
       return;
     }
-    if (!statsStartedAtRef.current) statsStartedAtRef.current = Date.now();
+
+    let polling = false;  // guard against overlapping async getStats() calls
 
     const poll = async () => {
+      if (polling) return;
+      polling = true;
       const entries = Object.entries(peersRef.current);
 
       // Even with no active peer connections, publish duration + participant
@@ -491,6 +497,7 @@ export function useWebRTC(
           startedAt: statsStartedAtRef.current,
           participantCount: participants,
         });
+        polling = false;
         return;
       }
 
@@ -592,6 +599,7 @@ export function useWebRTC(
         startedAt:        statsStartedAtRef.current,
         participantCount: participants,
       });
+      polling = false;
     };
 
     poll();

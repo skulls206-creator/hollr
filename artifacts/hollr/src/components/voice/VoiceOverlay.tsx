@@ -831,7 +831,7 @@ function ConnectionStatsPanel({
       <Row label="Latency (RTT)" value={stats?.rttMs    != null ? <span style={{ color: qualityColor(stats.rttMs) }}>{stats.rttMs} ms</span>    : '—'} />
       <Row label="Jitter"        value={stats?.jitterMs != null ? <span style={{ color: qualityColor(stats.jitterMs) }}>{stats.jitterMs} ms</span> : '—'} />
 
-      <p className="text-[10px] text-muted-foreground/50 text-center pt-1">Updates every second</p>
+      <p className="text-[10px] text-muted-foreground/50 text-center pt-1">Stats update every second</p>
     </motion.div>
   );
 }
