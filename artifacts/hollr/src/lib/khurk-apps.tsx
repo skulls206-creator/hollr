@@ -141,7 +141,7 @@ export const KHURK_APPS: KhurkApp[] = [
     name: 'GHOSTD',
     tagline: 'Crypto Exchange',
     description: 'Anonymous and lightning-fast cryptocurrency exchange.',
-    url: 'https://instaghost.khurk.services',
+    url: 'https://ghostd.khurk.services',
     imageSrc: ghostdImg,
     bannerSrc: ghostdBanner,
     gradient: ['#006b4a', '#00c47a'],
