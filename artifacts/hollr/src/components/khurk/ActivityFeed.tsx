@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   MessageSquare, UserPlus, MessageCircle,
   ChevronDown, ChevronUp, Activity,
-  EyeOff, Eye, UserX, ExternalLink,
+  EyeOff, Eye, UserX, ExternalLink, CheckCheck,
 } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
@@ -14,6 +14,16 @@ const BASE = import.meta.env.BASE_URL;
 const LS_COLLAPSED   = 'hollr:activity-feed:collapsed';
 const LS_HIDDEN_IDS  = 'hollr:activity-feed:hidden-ids';
 const LS_HIDDEN_SNDR = 'hollr:activity-feed:hidden-senders';
+const LS_VISITS      = 'hollr:activity-feed:visits';
+
+function loadVisits(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(LS_VISITS) ?? '{}') as Record<string, number>; }
+  catch { return {}; }
+}
+
+function saveVisits(v: Record<string, number>) {
+  try { localStorage.setItem(LS_VISITS, JSON.stringify(v)); } catch {}
+}
 
 type ActivityEvent = {
   type: 'message' | 'dm' | 'join';
@@ -240,6 +250,9 @@ function SkeletonRow() {
 }
 
 export function ActivityFeed() {
+  const activeChannelId   = useAppStore(s => s.activeChannelId);
+  const activeDmThreadId  = useAppStore(s => s.activeDmThreadId);
+
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(LS_COLLAPSED) === 'true'; } catch { return false; }
   });
@@ -247,6 +260,28 @@ export function ActivityFeed() {
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => loadSet(LS_HIDDEN_IDS));
   const [hiddenSenders, setHiddenSenders] = useState<Set<string>>(() => loadSet(LS_HIDDEN_SNDR));
   const [showHidden, setShowHidden] = useState(false);
+  const [showRead, setShowRead] = useState(false);
+  const [visits, setVisits] = useState<Record<string, number>>(loadVisits);
+
+  // Record visit timestamp when user enters a channel
+  useEffect(() => {
+    if (!activeChannelId) return;
+    setVisits(prev => {
+      const next = { ...prev, [activeChannelId]: Date.now() };
+      saveVisits(next);
+      return next;
+    });
+  }, [activeChannelId]);
+
+  // Record visit timestamp when user enters a DM thread
+  useEffect(() => {
+    if (!activeDmThreadId) return;
+    setVisits(prev => {
+      const next = { ...prev, [activeDmThreadId]: Date.now() };
+      saveVisits(next);
+      return next;
+    });
+  }, [activeDmThreadId]);
 
   const toggleCollapsed = () => {
     setCollapsed(c => {
@@ -287,13 +322,38 @@ export function ActivityFeed() {
       if (!r.ok) return [];
       return r.json();
     },
-    refetchInterval: 15_000,
-    staleTime: 10_000,
+    refetchInterval: 5_000,
+    staleTime: 3_000,
   });
 
+  const isEventRead = useCallback((event: ActivityEvent): boolean => {
+    const locationKey = event.channelId ?? event.threadId;
+    if (!locationKey) return false;
+    const visitedAt = visits[locationKey];
+    if (!visitedAt) return false;
+    return visitedAt >= new Date(event.timestamp).getTime();
+  }, [visits]);
+
+  const markAllRead = useCallback(() => {
+    const allEvents = data ?? [];
+    const now = Date.now();
+    const next = { ...loadVisits() };
+    for (const ev of allEvents) {
+      const k = ev.channelId ?? ev.threadId;
+      if (k) next[k] = now;
+    }
+    saveVisits(next);
+    setVisits(next);
+    setShowRead(false);
+  }, [data]);
+
   const events = data ?? [];
-  const hiddenCount = events.filter(e => hiddenIds.has(eventKey(e)) || hiddenSenders.has(e.title)).length;
-  const visibleCount = events.length - hiddenCount;
+  const visibleEvents = events.filter(e => !hiddenIds.has(eventKey(e)) && !hiddenSenders.has(e.title));
+  const unreadEvents  = visibleEvents.filter(e => !isEventRead(e));
+  const readEvents    = visibleEvents.filter(e => isEventRead(e));
+  const hiddenCount   = events.length - visibleEvents.length;
+  const unreadCount   = unreadEvents.length;
+  const readCount     = readEvents.length;
 
   return (
     <div className="w-full max-w-5xl px-6 md:px-10 mb-6">
@@ -305,16 +365,28 @@ export function ActivityFeed() {
         >
           <Activity size={13} className="text-muted-foreground/70" />
           <span className="text-[10px] font-bold uppercase text-muted-foreground/60" style={{ letterSpacing: '0.2em' }}>
-            Recent Activity
+            What You Missed
           </span>
-          {!isLoading && visibleCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[9px] font-bold leading-none">
-              {visibleCount}
+          {!isLoading && unreadCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-primary/15 text-primary text-[9px] font-bold leading-none">
+              {unreadCount}
             </span>
           )}
         </button>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Mark all read — only shown when there are unread items */}
+          {unreadCount > 0 && !collapsed && (
+            <button
+              onClick={markAllRead}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold transition-colors bg-accent/50 text-muted-foreground hover:text-foreground"
+              title="Mark all as read"
+            >
+              <CheckCheck size={9} />
+              all read
+            </button>
+          )}
+
           {/* Show/hide hidden toggle — only visible when there are hidden items */}
           {hiddenCount > 0 && !collapsed && (
             <button
@@ -356,15 +428,14 @@ export function ActivityFeed() {
             </div>
           ) : (
             <div className="py-1">
-              {events.map((event, i) => {
+              {/* Unread events */}
+              {unreadEvents.map((event, i) => {
                 const key = eventKey(event);
-                const isHiddenItem = hiddenIds.has(key) || hiddenSenders.has(event.title);
-                if (isHiddenItem && !showHidden) return null;
                 return (
                   <ActivityRow
                     key={`${key}-${i}`}
                     event={event}
-                    isHidden={isHiddenItem}
+                    isHidden={false}
                     onHide={() => hideId(key)}
                     onUnhide={() => unhideId(key)}
                     onHideSender={() => hideSender(event.title)}
@@ -372,8 +443,65 @@ export function ActivityFeed() {
                   />
                 );
               })}
-              {/* Empty state when everything is hidden */}
-              {visibleCount === 0 && !showHidden && (
+
+              {/* All caught up empty state */}
+              {unreadCount === 0 && !showRead && (
+                <div className="flex flex-col items-center justify-center py-6 gap-1.5 text-center">
+                  <CheckCheck size={18} className="text-primary/30" />
+                  <p className="text-xs text-muted-foreground/50">You're all caught up</p>
+                  {readCount > 0 && (
+                    <button
+                      onClick={() => setShowRead(true)}
+                      className="text-[11px] text-primary/60 hover:text-primary transition-colors"
+                    >
+                      Show {readCount} already read
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Already-read items (dimmed, optional) */}
+              {showRead && readEvents.map((event, i) => {
+                const key = eventKey(event);
+                return (
+                  <ActivityRow
+                    key={`read-${key}-${i}`}
+                    event={event}
+                    isHidden={true}
+                    onHide={() => hideId(key)}
+                    onUnhide={() => unhideId(key)}
+                    onHideSender={() => hideSender(event.title)}
+                    onUnhideSender={() => unhideSender(event.title)}
+                  />
+                );
+              })}
+              {showRead && readCount > 0 && (
+                <button
+                  onClick={() => setShowRead(false)}
+                  className="w-full py-2 text-[10px] text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors text-center"
+                >
+                  Hide already read
+                </button>
+              )}
+
+              {/* Hidden-by-user items */}
+              {showHidden && events.filter(e => hiddenIds.has(eventKey(e)) || hiddenSenders.has(e.title)).map((event, i) => {
+                const key = eventKey(event);
+                return (
+                  <ActivityRow
+                    key={`hidden-${key}-${i}`}
+                    event={event}
+                    isHidden={true}
+                    onHide={() => hideId(key)}
+                    onUnhide={() => unhideId(key)}
+                    onHideSender={() => hideSender(event.title)}
+                    onUnhideSender={() => unhideSender(event.title)}
+                  />
+                );
+              })}
+
+              {/* Empty state when everything is user-hidden */}
+              {unreadCount === 0 && readCount === 0 && !showHidden && hiddenCount > 0 && (
                 <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
                   <EyeOff size={18} className="text-muted-foreground/30" />
                   <p className="text-xs text-muted-foreground/50">

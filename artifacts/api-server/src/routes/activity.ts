@@ -92,6 +92,7 @@ router.get("/activity", async (req, res) => {
         .limit(20);
 
       for (const m of serverMsgs) {
+        if (m.authorId === userId) continue; // skip own messages
         const chan = m.channelId ? channelMap[m.channelId] : null;
         const serverName = chan ? (serverMap[chan.serverId]?.name ?? 'Server') : 'Server';
         const channelName = chan?.name ?? 'channel';
