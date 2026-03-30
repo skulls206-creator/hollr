@@ -200,6 +200,26 @@ export function useWebRTC(
         delete peersRef.current[peerId];
         screenVideoSenderRef.current.delete(peerId);
       }
+      if (state === 'connected' || state === 'completed') {
+        // Android Chrome sometimes misses the ontrack event entirely.
+        // Once ICE is up, manually scan getReceivers() and backfill any
+        // audio tracks that weren't surfaced via ontrack.
+        peer.getReceivers().forEach(receiver => {
+          const track = receiver.track;
+          if (!track || track.kind !== 'audio') return;
+          setRemoteStreams(prev => {
+            const existing = prev[peerId];
+            if (existing) {
+              const ids = existing.getAudioTracks().map(t => t.id);
+              if (ids.includes(track.id)) return prev;
+              existing.addTrack(track);
+              return { ...prev, [peerId]: existing };
+            }
+            console.log(`[WebRTC] Android ontrack fallback — backfilling audio for ${peerId}`);
+            return { ...prev, [peerId]: new MediaStream([track]) };
+          });
+        });
+      }
     };
 
     peer.onconnectionstatechange = () => {
