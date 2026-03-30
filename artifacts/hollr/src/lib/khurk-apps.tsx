@@ -7,8 +7,8 @@ import foldrImg from '@assets/IMG_0047_1774898186170.png';
 import ghostdImg from '@assets/IMG_0042_1774896984642.png';
 import gaslessImg from '@assets/IMG_0051_1774901156456.png';
 import ballpointImg from '@assets/IMG_0048_1774899223660.png';
-import onlyGamesImg from '@assets/5961_1774286181406.png';
-import onlyXmrImg from '@assets/5959_1774286181386.png';
+import onlyGamesImg from '@assets/IMG_0055_1774902599575.png';
+import onlyXmrImg from '@assets/IMG_0054_1774902599574.png';
 import rippdImg from '@assets/IMG_0050_1774900796709.png';
 
 import uStreamBanner from '@assets/generated_images/banner_ustream.png';
