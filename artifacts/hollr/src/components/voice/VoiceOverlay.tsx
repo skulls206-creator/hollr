@@ -980,33 +980,30 @@ function RemoteUserTile({
 }) {
   // Use a <video> element (not <audio>) for remote audio playback.
   // On iOS Safari, <audio display:none> is suspended by the OS; a <video> element
-  // with playsInline and off-screen CSS stays active — matching the DM call approach.
+  // with playsInline and in-viewport CSS stays active.
+  // On Android Chrome, autoplay is blocked if the user gesture window expires before
+  // the peer stream arrives. We track this and show a "tap to enable audio" badge.
   const audioElRef = useRef<HTMLVideoElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const deafenedRef = useRef(deafened);
   deafenedRef.current = deafened;
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
-  // One-time setup: set webkit-playsinline (older iOS requires this via setAttribute,
-  // JSX playsInline alone is not enough) and register a gesture-retry handler so
-  // iOS can unblock play() after a NotAllowedError without user needing to re-join.
+  const tryPlay = useCallback(() => {
+    const el = audioElRef.current;
+    if (!el || !el.srcObject || deafenedRef.current) return;
+    el.play().then(() => setAudioBlocked(false)).catch((err) => {
+      if (err?.name === 'NotAllowedError') setAudioBlocked(true);
+    });
+  }, []);
+
+  // One-time setup: set webkit-playsinline (older iOS requires this via setAttribute)
   useEffect(() => {
     const el = audioElRef.current;
     if (!el) return;
     el.setAttribute('webkit-playsinline', 'true');
     el.autoplay = true;
     el.muted = false;
-
-    const retryPlay = () => {
-      if (el.paused && el.srcObject && !deafenedRef.current) {
-        el.play().catch(() => {});
-      }
-    };
-    document.addEventListener('touchstart', retryPlay, { passive: true });
-    document.addEventListener('click', retryPlay);
-    return () => {
-      document.removeEventListener('touchstart', retryPlay);
-      document.removeEventListener('click', retryPlay);
-    };
   }, []);
 
   useEffect(() => {
@@ -1017,8 +1014,16 @@ function RemoteUserTile({
     if (outputDeviceId && typeof (el as any).setSinkId === 'function') {
       (el as any).setSinkId(outputDeviceId).catch(() => {});
     }
-    if (!deafened) el.play().catch(() => {});
-    else el.pause();
+    if (!deafened) {
+      el.play().then(() => setAudioBlocked(false)).catch((err) => {
+        if (err?.name === 'NotAllowedError') {
+          setAudioBlocked(true);
+          console.warn('[Voice] Audio autoplay blocked — waiting for user gesture');
+        }
+      });
+    } else {
+      el.pause();
+    }
   }, [stream, deafened, outputDeviceId]);
 
   useEffect(() => {
@@ -1040,15 +1045,30 @@ function RemoteUserTile({
         "relative aspect-video bg-surface-0 rounded-xl flex items-center justify-center overflow-hidden border transition-colors cursor-pointer",
         muted ? "border-destructive/30" : speaking ? "border-emerald-500/60" : "border-border/30"
       )}
-      onClick={(e) => onOpenProfile(e.clientX, e.clientY)}
+      onClick={(e) => {
+        if (audioBlocked) { tryPlay(); return; }
+        onOpenProfile(e.clientX, e.clientY);
+      }}
     >
-      {/* video element used for audio — <audio display:none> is suspended on iOS Safari */}
+      {/* video element used for audio — kept in-viewport (not off-screen) so
+          Android Chrome doesn't suspend it. opacity:0 + pointer-events:none hides it visually. */}
       <video
         ref={audioElRef}
         autoPlay
         playsInline
-        style={{ position: 'fixed', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none', top: '-9999px', left: '-9999px' }}
+        style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none', top: 0, left: 0 }}
       />
+
+      {/* Tap-to-enable-audio badge — appears when Android/iOS blocks autoplay */}
+      {audioBlocked && (
+        <div
+          className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-1 bg-black/60 rounded-xl cursor-pointer"
+          onClick={(e) => { e.stopPropagation(); tryPlay(); }}
+        >
+          <Volume2 size={20} className="text-white/80" />
+          <span className="text-[10px] text-white/70 font-medium">Tap to enable audio</span>
+        </div>
+      )}
 
       {videoStream ? (
         <video
