@@ -4,7 +4,7 @@ import type { ComponentType } from 'react';
 import uStreamImg from '@assets/download_(1)_1774290216897.png';
 import playdImg from '@assets/5957_1774286181393.png';
 import foldrImg from '@assets/5996_1774290216887.png';
-import ghostdImg from '@assets/5952_1774286181402.png';
+import ghostdImg from '@assets/IMG_0042_1774896984642.png';
 import gaslessImg from '@assets/5963_1774286181380.png';
 import ballpointImg from '@assets/5955_1774286181397.png';
 import onlyGamesImg from '@assets/5961_1774286181406.png';
