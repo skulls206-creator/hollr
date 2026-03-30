@@ -55,6 +55,8 @@ interface AppState {
   inviteModalOpen: boolean;
   helpModalOpen: boolean;
   newDmModalOpen: boolean;
+  channelSettingsModalOpen: boolean;
+  channelSettingsModalChannelId: string | null;
 
   // UI panels
   memberListOpen: boolean;
@@ -141,6 +143,8 @@ interface AppState {
   setInviteModalOpen: (open: boolean) => void;
   setHelpModalOpen: (open: boolean) => void;
   setNewDmModalOpen: (open: boolean) => void;
+  openChannelSettings: (channelId: string) => void;
+  closeChannelSettings: () => void;
 
   setMemberListOpen: (open: boolean) => void;
   toggleMemberList: () => void;
@@ -333,6 +337,8 @@ export const useAppStore = create<AppState>()(
   inviteModalOpen: false,
   helpModalOpen: false,
   newDmModalOpen: false,
+  channelSettingsModalOpen: false,
+  channelSettingsModalChannelId: null,
 
   memberListOpen: false,
   mobileSidebarOpen: false,
@@ -456,6 +462,8 @@ export const useAppStore = create<AppState>()(
   setInviteModalOpen: (open) => set({ inviteModalOpen: open }),
   setHelpModalOpen: (open) => set({ helpModalOpen: open }),
   setNewDmModalOpen: (open) => set({ newDmModalOpen: open }),
+  openChannelSettings: (channelId) => set({ channelSettingsModalOpen: true, channelSettingsModalChannelId: channelId }),
+  closeChannelSettings: () => set({ channelSettingsModalOpen: false, channelSettingsModalChannelId: null }),
 
   setMemberListOpen: (open) => set({ memberListOpen: open }),
   toggleMemberList: () => set((state) => ({ memberListOpen: !state.memberListOpen })),

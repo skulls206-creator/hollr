@@ -4,7 +4,7 @@ import {
   PhoneOff, UserPlus, LogOut, MessageSquarePlus, Trash2, Pencil, Check, X, AudioLines,
   Smile, MessageSquare, AtSign, MonitorDown, Share2, Bell, BellOff, Copy, User, PhoneCall,
   Volume1, VolumeOff, LayoutGrid, PanelLeft, CheckCheck, Camera, RefreshCw, Menu, Search, Video,
-  MoreVertical,
+  MoreVertical, Flame,
 } from 'lucide-react';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { initiateVideoCall } from '@/hooks/use-video-call';
@@ -58,6 +58,7 @@ export function ChannelSidebar() {
     voiceVolumes, setVoiceVolume,
     triggerMention,
     layoutMode, setClassicChannelOpen, setMobileSidebarOpen, sidebarLocked,
+    openChannelSettings,
   } = useAppStore();
 
   // Always closes (never opens) the sidebar — the pull-tab is how you reopen it.
@@ -777,6 +778,9 @@ export function ChannelSidebar() {
                     <span className={cn("truncate text-sm", unreadCounts[channel.id] ? "font-bold text-foreground" : "font-medium")}>
                       {channel.name}
                     </span>
+                    {channel.nsfw && (
+                      <Flame size={11} className="ml-1 shrink-0 text-orange-400 opacity-80" aria-label="Age-restricted" />
+                    )}
                     {!!unreadCounts[channel.id] && (
                       <span className="ml-auto mr-1 min-w-[18px] h-[18px] px-1 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
                         {unreadCounts[channel.id] > 99 ? '99+' : unreadCounts[channel.id]}
@@ -838,6 +842,12 @@ export function ChannelSidebar() {
                 )}
                 {isOwnerOrAdmin && (
                   <>
+                    <ContextMenuItem
+                      onSelect={() => openChannelSettings(channel.id)}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Settings size={13} /> Channel Settings
+                    </ContextMenuItem>
                     <ContextMenuItem
                       onSelect={() => startEditChannel(channel, { stopPropagation: () => {} } as any)}
                       className="flex items-center gap-2 cursor-pointer"

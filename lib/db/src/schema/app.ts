@@ -75,6 +75,7 @@ export const channelsTable = pgTable("channels", {
   topic: text("topic"),
   type: channelTypeEnum("type").notNull().default("text"),
   position: integer("position").notNull().default(0),
+  nsfw: boolean("nsfw").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [

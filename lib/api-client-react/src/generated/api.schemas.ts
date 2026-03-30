@@ -202,6 +202,7 @@ export interface Channel {
   topic?: string | null;
   type: ChannelType;
   position: number;
+  nsfw?: boolean;
   createdAt: string;
 }
 
@@ -238,6 +239,7 @@ export interface UpdateChannelRequest {
    * @nullable
    */
   topic?: string | null;
+  nsfw?: boolean;
 }
 
 export interface Attachment {

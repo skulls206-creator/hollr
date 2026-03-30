@@ -386,6 +386,7 @@ export const updateChannelBodyTopicMax = 1024;
 export const UpdateChannelBody = zod.object({
   name: zod.string().min(1).max(updateChannelBodyNameMax).optional(),
   topic: zod.string().max(updateChannelBodyTopicMax).nullish(),
+  nsfw: zod.boolean().optional(),
 });
 
 export const UpdateChannelResponse = zod.object({
@@ -395,6 +396,7 @@ export const UpdateChannelResponse = zod.object({
   topic: zod.string().nullish(),
   type: zod.enum(["text", "voice"]),
   position: zod.number(),
+  nsfw: zod.boolean().optional(),
   createdAt: zod.date(),
 });
 

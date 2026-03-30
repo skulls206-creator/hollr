@@ -15,5 +15,6 @@ export interface Channel {
   topic?: string | null;
   type: ChannelType;
   position: number;
+  nsfw?: boolean;
   createdAt: Date;
 }

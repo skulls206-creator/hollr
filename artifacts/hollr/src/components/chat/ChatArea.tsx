@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Hash, Users, Bell, BellOff, Pin, Search, HelpCircle, Menu, X, Copy, ChevronsDown, ScrollText, Music, PinOff } from 'lucide-react';
+import { Hash, Users, Bell, BellOff, Pin, Search, HelpCircle, Menu, X, Copy, ChevronsDown, ScrollText, Music, PinOff, Flame } from 'lucide-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useListChannels, getListChannelsQueryKey } from '@workspace/api-client-react';
 import { MessageList } from './MessageList';
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { ScreenShareMiniPreview } from '@/components/voice/ScreenShareMiniPreview';
+import { NsfwGate, useNsfwConfirmed } from './NsfwGate';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -34,6 +35,8 @@ export function ChatArea() {
     triggerCommand,
     sidebarLocked, setSidebarLocked,
   } = useAppStore();
+
+  const [nsfwConfirmed, confirmNsfw] = useNsfwConfirmed(activeChannelId || '');
 
   const { show: showMenu } = useContextMenu();
 
@@ -237,6 +240,11 @@ export function ChatArea() {
             </button>
             <Hash size={24} className="text-muted-foreground mr-2 shrink-0" />
             <h2 className="font-bold text-foreground truncate text-[15px]">{channel.name}</h2>
+            {channel.nsfw && (
+              <span title="Age-restricted channel" className="ml-1.5 shrink-0">
+                <Flame size={14} className="text-orange-400" />
+              </span>
+            )}
             {channel.topic && (
               <>
                 <div className="w-[1px] h-6 bg-border/40 mx-4 shrink-0" />
@@ -379,11 +387,15 @@ export function ChatArea() {
           </div>
         </div>
 
-        {/* Messages */}
-        <MessageList channelId={channel.id} highlightedMessageId={highlightedMessageId} />
-
-        {/* Composer */}
-        <MessageComposer channelId={channel.id} />
+        {/* NSFW gate or messages */}
+        {channel.nsfw && !nsfwConfirmed ? (
+          <NsfwGate channelName={channel.name} onConfirm={confirmNsfw} />
+        ) : (
+          <>
+            <MessageList channelId={channel.id} highlightedMessageId={highlightedMessageId} />
+            <MessageComposer channelId={channel.id} />
+          </>
+        )}
 
         {/* Floating screenshare mini-preview — anchored to chat bottom-right above composer */}
         <ScreenShareMiniPreview />

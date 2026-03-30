@@ -31,6 +31,7 @@ router.get("/servers/:serverId/channels", async (req, res) => {
     topic: c.topic,
     type: c.type,
     position: c.position,
+    nsfw: c.nsfw,
     createdAt: c.createdAt.toISOString(),
   })));
 });
@@ -66,6 +67,7 @@ router.post("/servers/:serverId/channels", async (req, res) => {
     topic: channel.topic,
     type: channel.type,
     position: channel.position,
+    nsfw: channel.nsfw,
     createdAt: channel.createdAt.toISOString(),
   });
 });
@@ -84,6 +86,7 @@ router.patch("/servers/:serverId/channels/:channelId", async (req, res) => {
     .set({
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.topic !== undefined ? { topic: parsed.data.topic } : {}),
+      ...(parsed.data.nsfw !== undefined ? { nsfw: parsed.data.nsfw } : {}),
     })
     .where(eq(channelsTable.id, req.params.channelId))
     .returning();
@@ -95,6 +98,7 @@ router.patch("/servers/:serverId/channels/:channelId", async (req, res) => {
     topic: channel.topic,
     type: channel.type,
     position: channel.position,
+    nsfw: channel.nsfw,
     createdAt: channel.createdAt.toISOString(),
   });
 });

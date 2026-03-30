@@ -17,4 +17,5 @@ export interface UpdateChannelRequest {
    * @nullable
    */
   topic?: string | null;
+  nsfw?: boolean;
 }
