@@ -48,9 +48,9 @@ router.get("/auth/user", (req: Request, res: Response) => {
 });
 
 function getClientIp(req: Request): string | null {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
-  return req.socket?.remoteAddress ?? req.ip ?? null;
+  // req.ip is set by Express using the trusted proxy chain (app.set('trust proxy', 1))
+  // This reflects the real client IP as determined by Replit's proxy, not user-supplied headers.
+  return req.ip ?? null;
 }
 
 // ── POST /auth/signup ─────────────────────────────────────────────────────────
@@ -86,16 +86,18 @@ router.post("/auth/signup", async (req: Request, res: Response) => {
   const signupIp = getClientIp(req);
 
   let referredByUserId: string | undefined;
+  let referrerDisplayName: string | undefined;
   if (typeof ref === "string" && ref.length > 0) {
     const referrerProfile = await db.query.userProfilesTable.findFirst({
       where: eq(userProfilesTable.referralCode, ref.toLowerCase().trim()),
-      columns: { userId: true, signupIp: true },
+      columns: { userId: true, signupIp: true, displayName: true, username: true },
     });
     if (referrerProfile && referrerProfile.userId !== newUser.id) {
       const referrerIp = referrerProfile.signupIp;
       const isSameIp = signupIp && referrerIp && signupIp === referrerIp;
       if (!isSameIp) {
         referredByUserId = referrerProfile.userId;
+        referrerDisplayName = referrerProfile.displayName ?? referrerProfile.username ?? undefined;
       }
     }
   }
@@ -126,7 +128,12 @@ router.post("/auth/signup", async (req: Request, res: Response) => {
   });
   setSessionCookie(res, sid);
 
-  res.status(201).json({ id: newUser.id, username: normalizedUsername, email: null });
+  res.status(201).json({
+    id: newUser.id,
+    username: normalizedUsername,
+    email: null,
+    referrerName: referrerDisplayName ?? null,
+  });
 });
 
 // ── POST /auth/login ──────────────────────────────────────────────────────────

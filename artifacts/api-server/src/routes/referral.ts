@@ -2,11 +2,13 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { userProfilesTable, referralsTable, messagesTable } from "@workspace/db/schema";
 import { eq, and, count } from "drizzle-orm";
+import { getUncachableStripeClient } from "../stripeClient";
 
 const router: IRouter = Router();
 
 const REFERRAL_SUPPORTER_MONTHS = 6;
 const REFERRALS_NEEDED = 10;
+const SUPPORTER_PRODUCT_NAME = "hollr Supporter";
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 const CODE_LENGTH = 8;
 
@@ -32,7 +34,7 @@ async function ensureReferralCode(userId: string): Promise<string> {
 
   if (profile?.referralCode) return profile.referralCode;
 
-  let code: string;
+  let code = "";
   let attempts = 0;
   while (true) {
     code = generateCode();
@@ -50,6 +52,39 @@ async function ensureReferralCode(userId: string): Promise<string> {
     .where(eq(userProfilesTable.userId, userId));
 
   return code;
+}
+
+/**
+ * Check via Stripe API whether a customer currently has an active/trialing
+ * hollr Supporter subscription. Returns false on any error or if no customer.
+ */
+async function hasActiveStripeSubscription(stripeCustomerId: string | null): Promise<boolean> {
+  if (!stripeCustomerId) return false;
+  try {
+    const stripe = await getUncachableStripeClient();
+    const [activeSubs, trialingSubs] = await Promise.all([
+      stripe.subscriptions.list({
+        customer: stripeCustomerId,
+        status: "active",
+        limit: 20,
+        expand: ["data.items.data.price.product"],
+      }),
+      stripe.subscriptions.list({
+        customer: stripeCustomerId,
+        status: "trialing",
+        limit: 20,
+        expand: ["data.items.data.price.product"],
+      }),
+    ]);
+    return [...activeSubs.data, ...trialingSubs.data].some(sub =>
+      sub.items.data.some(item => {
+        const product = item.price?.product as { name?: string; active?: boolean } | null;
+        return product?.active && product.name === SUPPORTER_PRODUCT_NAME;
+      })
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function runReferralValidation(userId: string): Promise<void> {
@@ -86,46 +121,75 @@ async function checkAndGrantReferralSupporter(referrerId: string): Promise<void>
     .from(referralsTable)
     .where(and(eq(referralsTable.referrerId, referrerId), eq(referralsTable.validated, true)));
 
-  if (Number(validatedCount) < REFERRALS_NEEDED) return;
+  const n = Number(validatedCount);
 
-  const referrerProfile = await db.query.userProfilesTable.findFirst({
-    where: eq(userProfilesTable.userId, referrerId),
-    columns: { referralSupporterUntil: true, isSupporter: true },
-  });
+  // Only grant at exact multiples of REFERRALS_NEEDED (10, 20, 30, …)
+  // This prevents granting on every call once the threshold is exceeded.
+  if (n === 0 || n % REFERRALS_NEEDED !== 0) return;
 
   const now = new Date();
-  const currentUntil = referrerProfile?.referralSupporterUntil;
-  const base = currentUntil && currentUntil > now ? currentUntil : now;
-  const newUntil = new Date(base);
+  const newUntil = new Date(now);
   newUntil.setMonth(newUntil.getMonth() + REFERRAL_SUPPORTER_MONTHS);
 
   await db
     .update(userProfilesTable)
-    .set({ referralSupporterUntil: newUntil, isSupporter: true, updatedAt: new Date() })
+    .set({ referralSupporterUntil: newUntil, isSupporter: true, updatedAt: now })
     .where(eq(userProfilesTable.userId, referrerId));
 }
 
-export async function expireReferralSupporter(userId: string, profile: { isSupporter: boolean; referralSupporterUntil: Date | null; stripeCustomerId: string | null }): Promise<boolean> {
+/**
+ * Called on every /api/supporter/status request.
+ * If the referral grant has expired, verify via Stripe whether the user
+ * still has an active paid subscription before revoking isSupporter.
+ */
+export async function expireReferralSupporter(
+  userId: string,
+  profile: {
+    isSupporter: boolean;
+    referralSupporterUntil: Date | null;
+    stripeCustomerId: string | null;
+  }
+): Promise<boolean> {
   if (!profile.referralSupporterUntil) return profile.isSupporter;
   const now = new Date();
   if (profile.referralSupporterUntil > now) return profile.isSupporter;
 
-  const hasStripe = !!profile.stripeCustomerId;
-  if (!hasStripe) {
-    await db
-      .update(userProfilesTable)
-      .set({ isSupporter: false, referralSupporterUntil: null, updatedAt: new Date() })
-      .where(eq(userProfilesTable.userId, userId));
-    return false;
-  }
+  const hasPaidSub = await hasActiveStripeSubscription(profile.stripeCustomerId);
 
   await db
     .update(userProfilesTable)
-    .set({ referralSupporterUntil: null, updatedAt: new Date() })
+    .set({ referralSupporterUntil: null, isSupporter: hasPaidSub, updatedAt: now })
     .where(eq(userProfilesTable.userId, userId));
 
-  return profile.isSupporter;
+  return hasPaidSub;
 }
+
+/**
+ * Public endpoint — no auth required.
+ * Returns the referrer's display name for a given referral code, so the
+ * signup page can show "You were invited by [Name] to join hollr!".
+ */
+router.get("/referral/info/:code", async (req: Request, res: Response) => {
+  const { code } = req.params;
+  if (!code || code.length > 16) {
+    res.status(400).json({ error: "Invalid code" });
+    return;
+  }
+  try {
+    const profile = await db.query.userProfilesTable.findFirst({
+      where: eq(userProfilesTable.referralCode, code.toLowerCase()),
+      columns: { displayName: true, username: true },
+    });
+    if (!profile) {
+      res.status(404).json({ error: "Referral code not found" });
+      return;
+    }
+    res.json({ displayName: profile.displayName ?? profile.username });
+  } catch (err) {
+    console.error("[referral] info error:", err);
+    res.status(500).json({ error: "Failed to fetch referral info" });
+  }
+});
 
 router.get("/referral/status", async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {

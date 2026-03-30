@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useLocation } from 'wouter';
+import { useState, useEffect, useMemo } from 'react';
+import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
-import { MessageSquare, Shield, Lock, Eye, EyeOff, Loader2, User, KeyRound } from 'lucide-react';
+import { MessageSquare, Lock, Eye, EyeOff, Loader2, User, KeyRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type Mode = 'login' | 'signup';
@@ -9,18 +9,35 @@ type Mode = 'login' | 'signup';
 export function Login() {
   const { setAuthUser } = useAuth();
   const [, navigate] = useLocation();
+  const search = useSearch();
 
-  const refCode = typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('ref')
-    : null;
+  const refCode = useMemo(() => new URLSearchParams(search).get('ref'), [search]);
 
   const [mode, setMode] = useState<Mode>(refCode ? 'signup' : 'login');
-  const [identifier, setIdentifier] = useState('');   // username or email (login)
-  const [username, setUsername] = useState('');        // username only (signup)
+
+  // Sync mode to signup when a ref code appears (SPA navigation)
+  useEffect(() => {
+    if (refCode) setMode('signup');
+  }, [refCode]);
+
+  const [identifier, setIdentifier] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [referrerName, setReferrerName] = useState<string | null>(null);
+
+  // Fetch referrer's display name when a ref code is in the URL
+  useEffect(() => {
+    if (!refCode) return;
+    fetch(`/api/referral/info/${encodeURIComponent(refCode)}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { displayName?: string } | null) => {
+        if (data?.displayName) setReferrerName(data.displayName);
+      })
+      .catch(() => {});
+  }, [refCode]);
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -47,16 +64,20 @@ export function Login() {
         credentials: 'include',
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await res.json() as { id?: string; email?: string | null; username?: string; referrerName?: string | null; error?: string };
 
       if (!res.ok) {
         setError(data.error ?? (mode === 'signup' ? 'Signup failed' : 'Login failed'));
         return;
       }
 
-      // Set auth state immediately so the app can render without waiting for
-      // a cookie round-trip, then navigate to /app so RequireAuth mounts fresh.
-      setAuthUser({ id: data.id, email: data.email ?? null, firstName: null, lastName: null, profileImageUrl: null });
+      // After a referred signup, store the referrer's name so the welcome
+      // toast can be shown once after the user lands in the app.
+      if (mode === 'signup' && data.referrerName) {
+        sessionStorage.setItem('hollr_welcome_referrer', data.referrerName);
+      }
+
+      setAuthUser({ id: data.id!, email: data.email ?? null, firstName: null, lastName: null, profileImageUrl: null });
       navigate('/app');
     } catch {
       setError('Network error — please try again');
@@ -98,11 +119,14 @@ export function Login() {
           </p>
         </div>
 
-        {/* Referral invite banner */}
+        {/* Referral invite banner — shown in signup mode when a ref code is present */}
         {refCode && mode === 'signup' && (
           <div className="mb-5 flex items-center gap-2.5 px-4 py-3 bg-primary/10 border border-primary/25 rounded-xl text-sm text-primary font-medium">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            You were invited to join hollr!
+            {referrerName
+              ? <span>You were invited by <strong>{referrerName}</strong> to join hollr!</span>
+              : <span>You were invited to join hollr!</span>
+            }
           </div>
         )}
 
@@ -139,19 +163,17 @@ export function Login() {
                   Username
                 </label>
                 <div className="relative">
-                  <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="e.g. cooluser42"
+                    onChange={e => setUsername(e.target.value)}
+                    placeholder="Pick a username"
+                    className="w-full bg-secondary/60 border border-border/50 rounded-xl pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition"
                     autoComplete="username"
-                    maxLength={32}
-                    required={mode === 'signup'}
-                    className="w-full bg-secondary/50 border border-border/50 rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+                    required
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground/60 mt-1 ml-1">Letters, numbers and underscores only (3–32 chars)</p>
               </motion.div>
             ) : (
               <motion.div
@@ -165,15 +187,15 @@ export function Login() {
                   Username or Email
                 </label>
                 <div className="relative">
-                  <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
                     value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="username or email@example.com"
+                    onChange={e => setIdentifier(e.target.value)}
+                    placeholder="Enter your username or email"
+                    className="w-full bg-secondary/60 border border-border/50 rounded-xl pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition"
                     autoComplete="username"
-                    required={mode === 'login'}
-                    className="w-full bg-secondary/50 border border-border/50 rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+                    required
                   />
                 </div>
               </motion.div>
@@ -186,57 +208,77 @@ export function Login() {
               Password
             </label>
             <div className="relative">
-              <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 type={showPw ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === 'signup' ? 'Min. 6 characters' : '••••••••'}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={mode === 'signup' ? 'Choose a password (6+ chars)' : 'Enter your password'}
+                className="w-full bg-secondary/60 border border-border/50 rounded-xl pl-9 pr-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition"
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 required
-                className="w-full bg-secondary/50 border border-border/50 rounded-xl pl-10 pr-11 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+                minLength={mode === 'signup' ? 6 : undefined}
               />
               <button
                 type="button"
-                onClick={() => setShowPw((v) => !v)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowPw(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+                tabIndex={-1}
               >
-                {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
           </div>
 
-          {/* Error */}
-          {error && (
-            <motion.p
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-[13px] text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2"
-            >
-              {error}
-            </motion.p>
-          )}
+          {/* Error message */}
+          <AnimatePresence>
+            {error && (
+              <motion.p
+                key="error"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="text-red-400 text-sm text-center"
+              >
+                {error}
+              </motion.p>
+            )}
+          </AnimatePresence>
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-2xl h-12 bg-primary hover:bg-primary/90 text-white font-bold text-base shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-60 transition mt-1"
+            className="w-full bg-primary text-white font-semibold py-3 rounded-xl hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
           >
             {loading ? (
               <Loader2 size={18} className="animate-spin" />
-            ) : mode === 'login' ? (
-              'Sign In'
-            ) : (
-              'Create Account'
-            )}
+            ) : null}
+            {mode === 'signup' ? 'Create Account' : 'Sign In'}
           </button>
         </form>
 
-        {/* Footer note */}
-        <div className="flex items-center justify-center gap-6 mt-8 text-xs text-muted-foreground/50 font-medium">
-          <span className="flex items-center gap-1"><Shield size={12} /> Encrypted at rest</span>
-          <span className="flex items-center gap-1"><Lock size={12} /> Never sold or shared</span>
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          {mode === 'login'
+            ? "Don't have an account? "
+            : 'Already have an account? '}
+          <button
+            type="button"
+            onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
+            className="text-primary hover:underline font-semibold"
+          >
+            {mode === 'login' ? 'Sign Up' : 'Sign In'}
+          </button>
+        </p>
+
+        <div className="mt-6 pt-5 border-t border-border/30 flex items-center justify-center gap-4 text-xs text-muted-foreground/60">
+          <span className="flex items-center gap-1">
+            <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            End-to-end encrypted
+          </span>
+          <span className="flex items-center gap-1">
+            <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Private by default
+          </span>
         </div>
       </motion.div>
     </div>

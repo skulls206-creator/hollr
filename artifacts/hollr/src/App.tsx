@@ -53,7 +53,9 @@ function Router() {
 
   useEffect(() => {
     if (!isLoading && location === "/") {
-      setLocation(isAuthenticated ? "/app" : "/login");
+      // Preserve any query params (e.g. ?ref=...) when redirecting to /login
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      setLocation(isAuthenticated ? "/app" : `/login${search}`);
     }
   }, [isLoading, isAuthenticated, location, setLocation]);
 

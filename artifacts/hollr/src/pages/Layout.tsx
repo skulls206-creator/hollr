@@ -1,6 +1,7 @@
 import { useAuth } from '@workspace/replit-auth-web';
 import { useRealtime } from '@/hooks/use-realtime';
 import { useAppStore } from '@/store/use-app-store';
+import { useToast } from '@/hooks/use-toast';
 import { ServerSidebar } from '@/components/layout/ServerSidebar';
 import { ChannelSidebar } from '@/components/layout/ChannelSidebar';
 import { ChatArea } from '@/components/chat/ChatArea';
@@ -35,6 +36,7 @@ import { dmLastSeenMsgId, markDmThreadRead } from '@/lib/dm-seen-tracker';
 
 export function Layout() {
   const { user, isLoading } = useAuth();
+  const { toast } = useToast();
   const {
     activeServerId, activeDmThreadId, memberListOpen, mobileSidebarOpen, setMobileSidebarOpen,
     threadMessageId, threadChannelId, closeThread,
@@ -57,6 +59,20 @@ export function Layout() {
       applyNav(pendingNav);
     }
   }, [isLoading, user]);
+
+  // Show one-time welcome toast for users who just signed up via a referral link
+  useEffect(() => {
+    if (isLoading || !user) return;
+    const referrerName = sessionStorage.getItem('hollr_welcome_referrer');
+    if (!referrerName) return;
+    sessionStorage.removeItem('hollr_welcome_referrer');
+    setTimeout(() => {
+      toast({
+        title: `You joined via ${referrerName}'s invite!`,
+        description: 'Welcome to hollr — say hi in a server to get started.',
+      });
+    }, 1200);
+  }, [isLoading, user, toast]);
 
   // Auto-close the mobile sidebar whenever the viewport grows past the md
   // breakpoint (≥ 768px) while in normal chat mode — prevents the sidebar
