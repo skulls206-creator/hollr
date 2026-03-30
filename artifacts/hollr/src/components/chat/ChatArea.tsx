@@ -12,6 +12,7 @@ import { getInitials } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { ScreenShareMiniPreview } from '@/components/voice/ScreenShareMiniPreview';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -216,7 +217,7 @@ export function ChatArea() {
 
   return (
     <div className="flex flex-1 min-w-0 h-full">
-      <div className="flex-1 bg-surface-0 flex flex-col h-full min-w-0" onContextMenu={handleBodyContextMenu}>
+      <div className="flex-1 bg-surface-0 flex flex-col h-full min-w-0 relative" onContextMenu={handleBodyContextMenu}>
         {/* Top Header */}
         <div className="relative z-50 h-12 border-b border-border/20 flex items-center justify-between px-4 shrink-0 shadow-sm bg-surface-1" onContextMenu={handleHeaderContextMenu}>
           <div className="flex items-center min-w-0">
@@ -383,6 +384,9 @@ export function ChatArea() {
 
         {/* Composer */}
         <MessageComposer channelId={channel.id} />
+
+        {/* Floating screenshare mini-preview — anchored to chat bottom-right above composer */}
+        <ScreenShareMiniPreview />
 
         {/* Spacer so the floating voice panel doesn't cover the composer */}
         {voicePanelHeight > 0 && (

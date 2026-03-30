@@ -61,13 +61,16 @@ export function VoiceOverlay() {
     setRemoteScreenStreams(remoteVideoStreams);
   }, [remoteVideoStreams, setRemoteScreenStreams]);
 
-  // Respond to ScreenShareMiniPreview's "expand to theater" request
+  // Respond to ScreenShareMiniPreview's "expand to theater" request.
+  // setVoiceMinimized(false) must fire too so the minimized-pill early-return
+  // branch doesn't block the watchingUserId theater branch from rendering.
   useEffect(() => {
     if (pendingTheaterUserId) {
+      setVoiceMinimized(false);
       setWatchingUserId(pendingTheaterUserId);
       setPendingTheaterUserId(null);
     }
-  }, [pendingTheaterUserId, setPendingTheaterUserId]);
+  }, [pendingTheaterUserId, setPendingTheaterUserId, setVoiceMinimized]);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);

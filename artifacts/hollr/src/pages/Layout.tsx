@@ -16,7 +16,6 @@ import { UserSettingsModal } from '@/components/modals/UserSettingsModal';
 import { ThreadSidebar } from '@/components/chat/ThreadSidebar';
 import { UserProfileCard } from '@/components/chat/UserProfileCard';
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay';
-import { ScreenShareMiniPreview } from '@/components/voice/ScreenShareMiniPreview';
 import { DmCallOverlay, MinimizedDmCallBar } from '@/components/call/DmCallOverlay';
 import { VideoCallOverlay } from '@/components/call/VideoCallOverlay';
 import { useListDmThreads, getListDmThreadsQueryKey } from '@workspace/api-client-react';
@@ -337,7 +336,6 @@ export function Layout() {
             )}
 
             <VoiceOverlay />
-            <ScreenShareMiniPreview />
           </div>
         </div>
 
