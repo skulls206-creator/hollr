@@ -28,7 +28,7 @@ import { PiPWindow } from '@/components/khurk/PiPWindow';
 import { DashboardView } from '@/components/khurk/DashboardView';
 import { useInitNotifications } from '@/components/notifications/NotificationBell';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { pendingNav, applyNav } from '@/lib/notification-nav';
 import { dmLastSeenMsgId, markDmThreadRead } from '@/lib/dm-seen-tracker';
@@ -75,6 +75,47 @@ export function Layout() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [memberListOpen, toggleMemberList]);
+
+  // ── Draggable pull-tab ──────────────────────────────────────────────────────
+  const TAB_W = 14;
+  const TAB_H = 52;
+  const [tabPos, setTabPos] = useState<{ x: number; y: number }>(() => {
+    try {
+      const s = localStorage.getItem('hollr:pull-tab-pos');
+      if (s) return JSON.parse(s);
+    } catch {}
+    return { x: 0, y: typeof window !== 'undefined' ? Math.max(0, Math.floor(window.innerHeight / 2) - 26) : 200 };
+  });
+  const tabDrag = useRef({ active: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false });
+
+  const onTabPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = tabDrag.current;
+    d.active = true;
+    d.startX = e.clientX;
+    d.startY = e.clientY;
+    d.origX = tabPos.x;
+    d.origY = tabPos.y;
+    d.moved = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onTabPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = tabDrag.current;
+    if (!d.active) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) d.moved = true;
+    if (!d.moved) return;
+    const x = Math.max(0, Math.min(window.innerWidth - TAB_W, d.origX + dx));
+    const y = Math.max(0, Math.min(window.innerHeight - TAB_H, d.origY + dy));
+    const next = { x: Math.round(x), y: Math.round(y) };
+    setTabPos(next);
+    localStorage.setItem('hollr:pull-tab-pos', JSON.stringify(next));
+  };
+  const makeTabPointerUp = (action: () => void) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = tabDrag.current;
+    d.active = false;
+    if (!d.moved) action();
+  };
 
   useRealtime(user?.id);
 
@@ -376,25 +417,24 @@ export function Layout() {
           • Desktop + normal chat (sidebar in-flow): always md:left-[300px]
       */}
 
-      {/* ── Classic mode pull-tab ── */}
+      {/* ── Classic mode pull-tab (draggable) ── */}
       {layoutMode === 'classic' && !showAppWindow && (
         <button
-          onClick={toggleClassicChannel}
-          className={cn(
-            'fixed top-1/2 -translate-y-1/2 z-[60]',
-            'flex flex-col items-center justify-center gap-[3.5px]',
-            'opacity-40 hover:opacity-100 transition-[left,opacity] duration-200 ease-out',
-            classicChannelOpen ? 'left-[372px]' : 'left-[72px]',
-          )}
+          onPointerDown={onTabPointerDown}
+          onPointerMove={onTabPointerMove}
+          onPointerUp={makeTabPointerUp(toggleClassicChannel)}
+          className="fixed z-[60] flex flex-col items-center justify-center gap-[3.5px] opacity-40 hover:opacity-100 active:opacity-100 cursor-grab active:cursor-grabbing select-none"
           style={{
+            left: tabPos.x,
+            top: tabPos.y,
             width: '14px',
             height: '52px',
             background: 'rgba(16,16,24,0.92)',
             backdropFilter: 'blur(8px)',
-            borderRadius: '0 9px 9px 0',
+            borderRadius: '9px',
             border: '1px solid rgba(255,255,255,0.10)',
-            borderLeft: 'none',
-            boxShadow: '3px 0 14px rgba(0,0,0,0.55)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.55)',
+            touchAction: 'none',
           }}
           title={classicChannelOpen ? 'Close channel list' : 'Open channel list'}
         >
@@ -404,10 +444,12 @@ export function Layout() {
         </button>
       )}
 
-      {/* ── Dock mode pull-tab ── */}
+      {/* ── Dock mode pull-tab (draggable) ── */}
       {layoutMode === 'dock' && !showAppWindow && (
         <button
-          onClick={() => {
+          onPointerDown={onTabPointerDown}
+          onPointerMove={onTabPointerMove}
+          onPointerUp={makeTabPointerUp(() => {
             if (sidebarLocked) {
               setSidebarLocked(false);
             } else if (mobileSidebarOpen) {
@@ -415,23 +457,19 @@ export function Layout() {
             } else {
               setMobileSidebarOpen(true);
             }
-          }}
-          className={cn(
-            'fixed top-1/2 -translate-y-1/2 z-[60]',
-            'flex flex-col items-center justify-center gap-[3.5px]',
-            'opacity-40 hover:opacity-100 transition-[left,opacity] duration-200 ease-out',
-            (sidebarLocked || mobileSidebarOpen) ? 'left-[300px]' : 'left-0',
-            !showDashboard && !showAppWindow && 'md:left-[300px]',
-          )}
+          })}
+          className="fixed z-[60] flex flex-col items-center justify-center gap-[3.5px] opacity-40 hover:opacity-100 active:opacity-100 cursor-grab active:cursor-grabbing select-none"
           style={{
+            left: tabPos.x,
+            top: tabPos.y,
             width: '14px',
             height: '52px',
             background: 'rgba(16,16,24,0.92)',
             backdropFilter: 'blur(8px)',
-            borderRadius: '0 9px 9px 0',
+            borderRadius: '9px',
             border: '1px solid rgba(255,255,255,0.10)',
-            borderLeft: 'none',
-            boxShadow: '3px 0 14px rgba(0,0,0,0.55)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.55)',
+            touchAction: 'none',
           }}
           title={
             sidebarLocked ? 'Unpin sidebar' :
