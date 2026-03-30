@@ -86,12 +86,12 @@ async function findOutputFile(fileId: string): Promise<string | null> {
 // GET /rippd/info?url=...
 router.get('/rippd/info', async (req, res) => {
   const { url } = req.query as { url?: string };
-  if (!url) return res.status(400).json({ error: 'url is required' });
+  if (!url) { res.status(400).json({ error: 'url is required' }); return; }
 
   try {
     validateUrl(url);
   } catch (err: any) {
-    return res.status(400).json({ error: err.message });
+    res.status(400).json({ error: err.message }); return;
   }
 
   try {
@@ -114,12 +114,12 @@ router.get('/rippd/info', async (req, res) => {
 // POST /rippd/audio — downloads audio and returns a one-time token
 router.post('/rippd/audio', async (req, res) => {
   const { url } = req.body as { url?: string };
-  if (!url) return res.status(400).json({ error: 'url is required' });
+  if (!url) { res.status(400).json({ error: 'url is required' }); return; }
 
   try {
     validateUrl(url);
   } catch (err: any) {
-    return res.status(400).json({ error: err.message });
+    res.status(400).json({ error: err.message }); return;
   }
 
   try {
@@ -159,12 +159,12 @@ router.post('/rippd/audio', async (req, res) => {
 // GET /rippd/file/:token — serve the downloaded file
 router.get('/rippd/file/:token', async (req, res) => {
   const info = downloadTokens.get(req.params.token);
-  if (!info) return res.status(404).json({ error: 'File not found or expired. Please rip again.' });
+  if (!info) { res.status(404).json({ error: 'File not found or expired. Please rip again.' }); return; }
 
   if (Date.now() - info.createdAt > FILE_TTL_MS) {
     downloadTokens.delete(req.params.token);
     fs.unlink(info.filePath).catch(() => {});
-    return res.status(404).json({ error: 'Download link expired. Please rip again.' });
+    res.status(404).json({ error: 'Download link expired. Please rip again.' }); return;
   }
 
   try {

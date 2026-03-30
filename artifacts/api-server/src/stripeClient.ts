@@ -29,7 +29,7 @@ async function getCredentials(): Promise<{ publishableKey: string; secretKey: st
     const response = await fetch(url.toString(), {
       headers: {
         'Accept': 'application/json',
-        'X-Replit-Token': xReplitToken,
+        'X-Replit-Token': xReplitToken as string,
       },
     });
     const data = await response.json() as { items?: ConnectionSettings[] };

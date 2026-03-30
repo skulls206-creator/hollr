@@ -196,7 +196,7 @@ export async function expireReferralSupporter(
  * signup page can show "You were invited by [Name] to join hollr!".
  */
 router.get("/referral/info/:code", async (req: Request, res: Response) => {
-  const { code } = req.params;
+  const code = String(req.params["code"] ?? "");
   if (!code || code.length > 16) {
     res.status(400).json({ error: "Invalid code" });
     return;
