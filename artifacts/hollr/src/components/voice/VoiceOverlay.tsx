@@ -637,8 +637,17 @@ function PingSparkline({ history }: { history: number[] }) {
           );
         })}
         <polyline points={pts} fill="none" stroke={col} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-        {/* Current-value marker */}
-        <circle cx={toX(history.length - 1)} cy={toY(last)} r={2} fill={col} />
+        {/* Per-sample dot markers */}
+        {history.map((v, i) => (
+          <circle
+            key={i}
+            cx={toX(i)}
+            cy={toY(v)}
+            r={i === history.length - 1 ? 2 : 1}
+            fill={col}
+            opacity={i === history.length - 1 ? 1 : 0.55}
+          />
+        ))}
       </svg>
     </div>
   );

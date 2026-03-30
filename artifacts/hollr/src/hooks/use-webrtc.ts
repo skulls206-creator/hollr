@@ -4,7 +4,9 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { useAppStore } from '@/store/use-app-store';
 import { fetchIceServers } from '@/lib/ice-servers';
 
-/** Extended RTCStats shape covering all fields read during the diagnostics poll. */
+/** Extended RTCStats shape covering all fields read during the diagnostics poll.
+ *  Includes both `mediaType` (Chrome/Edge legacy) and `kind` (spec-standard) so
+ *  telemetry works regardless of which field the browser exposes. */
 interface RTCExtStats {
   id: string;
   type: string;
@@ -13,8 +15,9 @@ interface RTCExtStats {
   selectedCandidatePairId?: string;
   // candidate-pair
   currentRoundTripTime?: number;
-  // rtp streams (outbound + inbound)
+  // rtp streams (outbound + inbound) — browsers use either mediaType or kind
   mediaType?: string;
+  kind?: string;
   bytesSent?: number;
   bytesReceived?: number;
   jitter?: number;
@@ -525,19 +528,21 @@ export function useWebRTC(
             });
           }
 
-          // Accumulate bitrate counters and packet-loss stats
+          // Accumulate bitrate counters and packet-loss stats.
+          // Use both `mediaType` (Chrome/Edge legacy) and `kind` (spec standard).
           report.forEach((r) => {
-            const s = r as RTCExtStats;
+            const s    = r as RTCExtStats;
+            const mKind = s.mediaType ?? s.kind;   // whichever field the browser exposes
             if (s.type === 'outbound-rtp') {
-              if (s.mediaType === 'audio' && s.bytesSent != null) curAS = s.bytesSent;
-              if (s.mediaType === 'video' && s.bytesSent != null) curVS = s.bytesSent;
+              if (mKind === 'audio' && s.bytesSent != null) curAS = s.bytesSent;
+              if (mKind === 'video' && s.bytesSent != null) curVS = s.bytesSent;
             }
             if (s.type === 'inbound-rtp') {
-              if (s.mediaType === 'audio') {
+              if (mKind === 'audio') {
                 if (s.bytesReceived != null) curAR = s.bytesReceived;
                 if (s.jitter != null) { jitterSum += s.jitter * 1000; jitterN++; }
               }
-              if (s.mediaType === 'video' && s.bytesReceived != null) curVR = s.bytesReceived;
+              if (mKind === 'video' && s.bytesReceived != null) curVR = s.bytesReceived;
               if (s.packetsLost     != null) lostSum     += s.packetsLost;
               if (s.packetsReceived != null) receivedSum += s.packetsReceived;
             }
