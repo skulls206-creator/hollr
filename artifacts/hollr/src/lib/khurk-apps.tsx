@@ -2,7 +2,7 @@ import { lazy } from 'react';
 import type { ComponentType } from 'react';
 
 import uStreamImg from '@assets/download_(1)_1774290216897.png';
-import playdImg from '@assets/IMG_0046_1774898193619.png';
+import playdImg from '@assets/IMG_0052_1774901386511.png';
 import foldrImg from '@assets/IMG_0047_1774898186170.png';
 import ghostdImg from '@assets/IMG_0042_1774896984642.png';
 import gaslessImg from '@assets/IMG_0051_1774901156456.png';
