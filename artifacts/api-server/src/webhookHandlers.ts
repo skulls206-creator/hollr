@@ -15,36 +15,53 @@ async function syncSupporterStatusForCustomer(stripeCustomerId: string) {
     const stripe = await getUncachableStripeClient();
 
     // List active/trialing subscriptions for this customer
-    const subscriptions = await stripe.subscriptions.list({
-      customer: stripeCustomerId,
-      status: 'active',
-      limit: 20,
-      expand: ['data.items.data.price.product'],
-    });
-
-    // Also include trialing subscriptions
-    const trialingSubscriptions = await stripe.subscriptions.list({
-      customer: stripeCustomerId,
-      status: 'trialing',
-      limit: 20,
-      expand: ['data.items.data.price.product'],
-    });
+    const [subscriptions, trialingSubscriptions] = await Promise.all([
+      stripe.subscriptions.list({
+        customer: stripeCustomerId,
+        status: 'active',
+        limit: 20,
+        expand: ['data.items.data.price.product'],
+      }),
+      stripe.subscriptions.list({
+        customer: stripeCustomerId,
+        status: 'trialing',
+        limit: 20,
+        expand: ['data.items.data.price.product'],
+      }),
+    ]);
 
     const allSubs = [...subscriptions.data, ...trialingSubscriptions.data];
 
-    const isActive = allSubs.some(sub =>
+    const hasPaidSub = allSubs.some(sub =>
       sub.items.data.some(item => {
         const product = item.price?.product as { name?: string; active?: boolean } | null;
         return product && product.active && product.name === SUPPORTER_PRODUCT_NAME;
       })
     );
 
+    // Look up the user's referral grant so we don't clobber it.
+    // isSupporter = true if EITHER the paid sub is active OR the referral grant has not expired.
+    const userProfile = await db.query.userProfilesTable.findFirst({
+      where: eq(userProfilesTable.stripeCustomerId, stripeCustomerId),
+      columns: { referralSupporterUntil: true },
+    });
+
+    const now = new Date();
+    const hasActiveReferral =
+      userProfile?.referralSupporterUntil != null &&
+      userProfile.referralSupporterUntil > now;
+
+    const isSupporter = hasPaidSub || hasActiveReferral;
+
     await db
       .update(userProfilesTable)
-      .set({ isSupporter: isActive })
+      .set({ isSupporter })
       .where(eq(userProfilesTable.stripeCustomerId, stripeCustomerId));
 
-    console.log(`[webhookHandlers] supporter status for ${stripeCustomerId}: ${isActive}`);
+    console.log(
+      `[webhookHandlers] supporter status for ${stripeCustomerId}: ${isSupporter}` +
+      ` (paid=${hasPaidSub}, referral=${hasActiveReferral})`
+    );
   } catch (err) {
     console.error('[webhookHandlers] syncSupporterStatus error:', err);
   }

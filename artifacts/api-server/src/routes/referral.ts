@@ -139,8 +139,12 @@ async function checkAndGrantReferralSupporter(referrerId: string): Promise<void>
 
 /**
  * Called on every /api/supporter/status request.
- * If the referral grant has expired, verify via Stripe whether the user
- * still has an active paid subscription before revoking isSupporter.
+ *
+ * Two roles:
+ * 1. Self-heal: if referral grant is still active but isSupporter was clobbered to false
+ *    (e.g. by a Stripe webhook that doesn't know about the referral period), restore it.
+ * 2. Expiry: if the referral grant has expired, verify via Stripe whether the user
+ *    still has an active paid subscription before revoking isSupporter.
  */
 export async function expireReferralSupporter(
   userId: string,
@@ -152,8 +156,20 @@ export async function expireReferralSupporter(
 ): Promise<boolean> {
   if (!profile.referralSupporterUntil) return profile.isSupporter;
   const now = new Date();
-  if (profile.referralSupporterUntil > now) return profile.isSupporter;
 
+  // Referral grant is still active — ensure isSupporter reflects it.
+  // This self-heals if a Stripe webhook previously clobbered the flag.
+  if (profile.referralSupporterUntil > now) {
+    if (!profile.isSupporter) {
+      await db
+        .update(userProfilesTable)
+        .set({ isSupporter: true, updatedAt: now })
+        .where(eq(userProfilesTable.userId, userId));
+    }
+    return true;
+  }
+
+  // Referral grant has expired — check for an active paid subscription.
   const hasPaidSub = await hasActiveStripeSubscription(profile.stripeCustomerId);
 
   await db
@@ -232,7 +248,21 @@ router.post("/referral/claim", async (req: Request, res: Response) => {
   }
 
   try {
-    await runReferralValidation(req.user.id);
+    // Run validation for all users referred by the current user who are still pending.
+    // This checks whether each referred user has now sent ≥1 message and, if so,
+    // marks their referral as validated and grants the referrer's reward.
+    const pendingReferrals = await db.query.referralsTable.findMany({
+      where: and(
+        eq(referralsTable.referrerId, req.user.id),
+        eq(referralsTable.validated, false),
+      ),
+      columns: { referredUserId: true },
+    });
+
+    for (const referral of pendingReferrals) {
+      await runReferralValidation(referral.referredUserId);
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error("[referral] claim error:", err);
