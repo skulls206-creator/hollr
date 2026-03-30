@@ -1,8 +1,19 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "ZLoreVBhU05ggBil2aJJN"
+uri = "file://attached_assets/generated_images/hollr_logo_ghost.png"
+type = "image"
+title = "hollr ghost chat logo"
 
 [[outputs]]
 id = "QBu7uwlotLYM0ql1-2kWC"
 uri = "file://artifacts/hollr/public/icon-512.png"
 type = "image"
 title = "hollr.chat Logo — 512×512 PNG"
+
+[[outputs]]
+id = "PtDa1E-sB3WY4cSd4tFKZ"
+uri = "file://attached_assets/generated_images/hollr_logo_ghost.png"
+type = "image"
+title = "HOLLR Ghost Logo Concept"
