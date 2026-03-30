@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type RefObject } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { useWebRTC } from '@/hooks/use-webrtc';
 import { useAuth } from '@workspace/replit-auth-web';
@@ -979,12 +979,13 @@ function RemoteUserTile({
   onVolumeChange: (v: number) => void;
   onWatch: () => void;
 }) {
-  // Use a <video> element (not <audio>) for remote audio playback.
-  // On iOS Safari, <audio display:none> is suspended by the OS; a <video> element
-  // with playsInline and in-viewport CSS stays active.
-  // On Android Chrome, autoplay is blocked if the user gesture window expires before
-  // the peer stream arrives. We track this and show a "tap to enable audio" badge.
-  const audioElRef = useRef<HTMLVideoElement>(null);
+  // Audio element strategy:
+  // - iOS Safari: must use <video playsInline> kept in-viewport; <audio> hidden by
+  //   the OS even after a user gesture, causing silence.
+  // - Android Chrome / Desktop: must use <audio>; a <video> element with an
+  //   audio-only MediaStream (no video track) silently discards the audio on Android.
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const audioElRef = useRef<HTMLMediaElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const deafenedRef = useRef(deafened);
   deafenedRef.current = deafened;
@@ -992,26 +993,26 @@ function RemoteUserTile({
 
   const tryPlay = useCallback(() => {
     const el = audioElRef.current;
-    if (!el || !el.srcObject || deafenedRef.current) return;
+    if (!el || !(el as any).srcObject || deafenedRef.current) return;
     el.play().then(() => setAudioBlocked(false)).catch((err) => {
       if (err?.name === 'NotAllowedError') setAudioBlocked(true);
     });
   }, []);
 
-  // One-time setup: set webkit-playsinline (older iOS requires this via setAttribute)
+  // One-time setup
   useEffect(() => {
     const el = audioElRef.current;
     if (!el) return;
-    el.setAttribute('webkit-playsinline', 'true');
+    if (isIOS) el.setAttribute('webkit-playsinline', 'true');
     el.autoplay = true;
-    el.muted = false;
+    (el as HTMLVideoElement).muted = false;
   }, []);
 
   useEffect(() => {
     const el = audioElRef.current;
     if (!el || !stream) return;
-    el.srcObject = stream;
-    el.muted = false;
+    (el as any).srcObject = stream;
+    (el as HTMLVideoElement).muted = false;
     if (outputDeviceId && typeof (el as any).setSinkId === 'function') {
       (el as any).setSinkId(outputDeviceId).catch(() => {});
     }
@@ -1051,14 +1052,21 @@ function RemoteUserTile({
         onOpenProfile(e.clientX, e.clientY);
       }}
     >
-      {/* video element used for audio — kept in-viewport (not off-screen) so
-          Android Chrome doesn't suspend it. opacity:0 + pointer-events:none hides it visually. */}
-      <video
-        ref={audioElRef}
-        autoPlay
-        playsInline
-        style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none', top: 0, left: 0 }}
-      />
+      {/* iOS: <video playsInline> in-viewport prevents OS audio suspension.
+          Android/Desktop: <audio> correctly handles audio-only MediaStreams. */}
+      {isIOS ? (
+        <video
+          ref={audioElRef as RefObject<HTMLVideoElement>}
+          autoPlay playsInline
+          style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none', top: 0, left: 0 }}
+        />
+      ) : (
+        <audio
+          ref={audioElRef as RefObject<HTMLAudioElement>}
+          autoPlay
+          style={{ display: 'none' }}
+        />
+      )}
 
       {/* Tap-to-enable-audio badge — appears when Android/iOS blocks autoplay */}
       {audioBlocked && (
