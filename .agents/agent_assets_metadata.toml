@@ -35,3 +35,9 @@ id = "tCm485l2EVnhmOVRx1eNM"
 uri = "file://attached_assets/generated_images/hollr_logo_bubble_v2.png"
 type = "image"
 title = "HOLLR Logo — Glowing Chat Bubble"
+
+[[outputs]]
+id = "PJ9S2qB3OLCy7j2TiJQvS"
+uri = "file://attached_assets/generated_images/hollr_logo_final.png"
+type = "image"
+title = "HOLLR Logo"
