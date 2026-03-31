@@ -47,7 +47,7 @@ export function Layout() {
     classicChannelOpen, toggleClassicChannel, setClassicChannelOpen,
     sidebarLocked, setSidebarLocked, toggleMobileSidebar,
     incrementDmUnreadCount, clearDmUnreadCount, markNotificationsReadByThread,
-    appWindowSidebarHidden,
+    appWindowSidebarHidden, dmSectionHidden,
   } = useAppStore();
 
   useInitNotifications();
@@ -362,14 +362,27 @@ export function Layout() {
               />
             ) : !activeServerId ? (
               /* ── No server / DM selected ── */
-              <>
-                <div className="flex md:hidden flex-1 h-full min-w-0">
-                  <MobileDmList />
+              dmSectionHidden ? (
+                /* DM view toggled off — show idle placeholder */
+                <div className="flex flex-1 h-full min-w-0 flex-col items-center justify-center gap-3 text-center px-6 select-none">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-1" style={{ background: 'hsl(var(--surface-2))' }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/40">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-muted-foreground/60 font-semibold text-sm tracking-wide">No text chat chosen</p>
+                  <p className="text-muted-foreground/35 text-xs max-w-[200px] leading-relaxed">Tap the messages icon to open your DMs</p>
                 </div>
-                <div className="hidden md:flex flex-1 h-full min-w-0">
-                  <ChatArea />
-                </div>
-              </>
+              ) : (
+                <>
+                  <div className="flex md:hidden flex-1 h-full min-w-0">
+                    <MobileDmList />
+                  </div>
+                  <div className="hidden md:flex flex-1 h-full min-w-0">
+                    <ChatArea />
+                  </div>
+                </>
+              )
             ) : (
               /* ── Server channel ── */
               <ChatArea />

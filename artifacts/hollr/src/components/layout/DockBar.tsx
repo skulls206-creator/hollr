@@ -280,6 +280,7 @@ export function DockBar() {
     activeServerId, setActiveServer, setCreateServerModalOpen, dmUnreadCounts, setNewDmModalOpen,
     setActiveKhurkAppId, activeDmThreadId, setActiveDmThread,
     khurkDashboardOpen, setKhurkDashboardOpen, openKhurkDashboard, activeKhurkAppId,
+    khurkOsEnabled, dmSectionHidden, setDmSectionHidden,
     setInviteModalOpen, setServerSettingsModalOpen,
   } = useAppStore();
   const { user } = useAuth();
@@ -667,23 +668,31 @@ export function DockBar() {
             <DockItem
               mouseX={mouseX}
               label="Direct Messages"
-              sublabel={activeServerId === null && !khurkDashboardOpen && !activeDmThreadId ? 'Click to start a new DM' : undefined}
-              isActive={activeServerId === null && !khurkDashboardOpen}
+              sublabel={activeServerId === null && !khurkDashboardOpen && !activeDmThreadId && !dmSectionHidden ? 'Click to start a new DM' : undefined}
+              isActive={activeServerId === null && !khurkDashboardOpen && !dmSectionHidden}
               unreadCount={totalDmUnread}
               onClick={() => {
                 if (khurkDashboardOpen) {
+                  // KHURK OS is open — close it and return to DM view
                   setKhurkDashboardOpen(false);
-                } else if (activeServerId === null && !activeDmThreadId) {
-                  setNewDmModalOpen(true);
+                  setDmSectionHidden(false);
+                } else if (activeServerId === null && !dmSectionHidden) {
+                  // DM view is currently open → close/hide it
+                  if (khurkOsEnabled) {
+                    openKhurkDashboard();
+                  } else {
+                    setDmSectionHidden(true);
+                  }
                 } else {
-                  setActiveServer(null);
+                  // Not in DM mode (or was hidden) → open DM view
+                  setActiveServer(null); // also clears dmSectionHidden
                 }
               }}
             >
               <div
                 className="w-full h-full relative overflow-hidden transition-all duration-200"
                 style={{
-                  background: activeServerId === null && !khurkDashboardOpen
+                  background: activeServerId === null && !khurkDashboardOpen && !dmSectionHidden
                     ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
                     : 'hsl(var(--surface-2))',
                 }}
@@ -692,7 +701,7 @@ export function DockBar() {
                 <div style={{
                   position: 'absolute', width: '54%', height: '50%',
                   top: '12%', right: '8%',
-                  background: activeServerId === null && !khurkDashboardOpen
+                  background: activeServerId === null && !khurkDashboardOpen && !dmSectionHidden
                     ? 'rgba(255,255,255,0.25)' : 'rgba(128,128,160,0.18)',
                   borderRadius: '6px 6px 2px 6px',
                 }} />
@@ -700,7 +709,7 @@ export function DockBar() {
                 <div style={{
                   position: 'absolute', width: '62%', height: '54%',
                   bottom: '12%', left: '8%',
-                  background: activeServerId === null && !khurkDashboardOpen
+                  background: activeServerId === null && !khurkDashboardOpen && !dmSectionHidden
                     ? 'rgba(255,255,255,0.93)' : 'rgba(128,128,160,0.35)',
                   borderRadius: '6px 6px 6px 2px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px',
@@ -708,7 +717,7 @@ export function DockBar() {
                   {[0, 1, 2].map(i => (
                     <div key={i} style={{
                       width: '4px', height: '4px', borderRadius: '50%',
-                      background: activeServerId === null && !khurkDashboardOpen
+                      background: activeServerId === null && !khurkDashboardOpen && !dmSectionHidden
                         ? '#6366f1' : 'rgba(128,128,180,0.7)',
                     }} />
                   ))}

@@ -133,6 +133,10 @@ interface AppState {
   toggleAppWindowSidebar: () => void;
   setAppWindowSidebarHidden: (v: boolean) => void;
 
+  // DM section visibility toggle (dock icon tap-to-close)
+  dmSectionHidden: boolean;
+  setDmSectionHidden: (v: boolean) => void;
+
   // Actions
   setActiveServer: (id: string | null) => void;
   setActiveChannel: (id: string | null) => void;
@@ -425,9 +429,13 @@ export const useAppStore = create<AppState>()(
 
   // When navigating to content (server/channel/DM), exit the full AppWindow and
   // close the dashboard. PiP windows (pipWindows array) survive navigation.
+  dmSectionHidden: false,
+  setDmSectionHidden: (v) => set({ dmSectionHidden: v }),
+
   setActiveServer: (id) => set({
     activeServerId: id,
     activeDmThreadId: null,
+    dmSectionHidden: false,
     pinnedPanelOpen: false,
     threadMessageId: null,
     threadChannelId: null,
@@ -451,6 +459,7 @@ export const useAppStore = create<AppState>()(
     activeDmThreadId: id,
     activeServerId: null,
     activeChannelId: null,
+    dmSectionHidden: false,
     mobileSidebarOpen: false,
     pinnedPanelOpen: false,
     threadMessageId: null,
