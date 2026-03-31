@@ -390,8 +390,6 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
           <span className="text-sm font-bold tracking-tight text-foreground">KHURK OS</span>
         </div>
         <div className="flex items-center gap-1 ml-auto">
-          <NotificationBell />
-          <div className="w-px h-4 bg-border/30 mx-0.5 shrink-0" />
           <button
             onClick={() => setViewMode('grid')}
             className={cn(
@@ -412,6 +410,8 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
           >
             <LayoutList size={14} />
           </button>
+          <div className="w-px h-4 bg-border/30 mx-0.5 shrink-0" />
+          <NotificationBell />
         </div>
       </div>
 
