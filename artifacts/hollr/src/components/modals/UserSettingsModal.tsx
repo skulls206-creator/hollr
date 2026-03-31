@@ -283,6 +283,13 @@ export function UserSettingsModal() {
   const [referralCopied, setReferralCopied] = useState(false);
   const [referralCelebrated, setReferralCelebrated] = useState(false);
 
+  // ── Admin state ──────────────────────────────────────────────
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminMonths, setAdminMonths] = useState(1);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminMessage, setAdminMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.displayName ?? '');
@@ -325,9 +332,11 @@ export function UserSettingsModal() {
       fetch(`${BASE}api/supporter/status`, { credentials: 'include', signal: controller.signal }).then(r => r.json()),
       fetch(`${BASE}api/supporter/prices`, { credentials: 'include', signal: controller.signal }).then(r => r.json()),
       fetch(`${BASE}api/referral/status`, { credentials: 'include', signal: controller.signal }).then(r => r.json()),
-    ]).then(([statusData, pricesData, referralData]) => {
+      fetch(`${BASE}api/admin/check`, { credentials: 'include', signal: controller.signal }).then(r => r.json()).catch(() => ({ isAdmin: false })),
+    ]).then(([statusData, pricesData, referralData, adminData]) => {
       setSupporterStatus(statusData);
       setSupporterPrices(pricesData.prices ?? []);
+      setIsAdmin(adminData.isAdmin === true);
       if (!referralData.error) {
         const prevCount = referralStatus?.validatedCount ?? 0;
         setReferralStatus(referralData);
@@ -1367,6 +1376,113 @@ export function UserSettingsModal() {
                     </div>
                   )}
                 </div>
+
+                {/* ── Admin: Cash Grant Panel (only visible to admins) ── */}
+                {isAdmin && (
+                  <>
+                    <div className="h-px bg-border/20" />
+                    <div className="flex flex-col gap-3">
+                      <p className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest flex items-center gap-1.5">
+                        <ShieldCheck size={9} /> Admin — Grant Supporter
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Grant Supporter status to any user (cash payments, gifting, etc). Status stacks — granting again extends their current expiry.
+                      </p>
+
+                      <div className="flex flex-col gap-2">
+                        <Input
+                          placeholder="Username (without @)"
+                          value={adminUsername}
+                          onChange={e => { setAdminUsername(e.target.value); setAdminMessage(null); }}
+                          className="h-8 text-sm"
+                        />
+                        <div className="flex gap-2">
+                          {([1, 6, 12] as const).map(m => (
+                            <button
+                              key={m}
+                              onClick={() => setAdminMonths(m)}
+                              className={cn(
+                                'flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all',
+                                adminMonths === m
+                                  ? 'bg-primary border-primary text-primary-foreground'
+                                  : 'bg-surface-0 border-border/40 text-muted-foreground hover:border-primary/40 hover:text-primary'
+                              )}
+                            >
+                              {m === 1 ? '1 mo' : m === 6 ? '6 mo' : '1 yr'}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="flex-1 h-8 text-xs"
+                            disabled={adminLoading || !adminUsername.trim()}
+                            onClick={async () => {
+                              setAdminLoading(true);
+                              setAdminMessage(null);
+                              try {
+                                const res = await fetch(`${BASE}api/admin/grant-supporter`, {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ username: adminUsername.trim(), months: adminMonths }),
+                                });
+                                const data = await res.json();
+                                setAdminMessage({ ok: res.ok, text: data.message ?? data.error ?? 'Done' });
+                                if (res.ok) setAdminUsername('');
+                              } catch {
+                                setAdminMessage({ ok: false, text: 'Network error' });
+                              } finally {
+                                setAdminLoading(false);
+                              }
+                            }}
+                          >
+                            {adminLoading ? <Loader2 size={12} className="animate-spin" /> : <Gem size={12} />}
+                            Grant
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="flex-1 h-8 text-xs text-destructive hover:text-destructive"
+                            disabled={adminLoading || !adminUsername.trim()}
+                            onClick={async () => {
+                              setAdminLoading(true);
+                              setAdminMessage(null);
+                              try {
+                                const res = await fetch(`${BASE}api/admin/grant-supporter`, {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ username: adminUsername.trim(), revoke: true }),
+                                });
+                                const data = await res.json();
+                                setAdminMessage({ ok: res.ok, text: data.message ?? data.error ?? 'Done' });
+                                if (res.ok) setAdminUsername('');
+                              } catch {
+                                setAdminMessage({ ok: false, text: 'Network error' });
+                              } finally {
+                                setAdminLoading(false);
+                              }
+                            }}
+                          >
+                            Revoke
+                          </Button>
+                        </div>
+                        {adminMessage && (
+                          <div className={cn(
+                            'flex items-center gap-2 px-3 py-2 rounded-lg text-xs border',
+                            adminMessage.ok
+                              ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                              : 'bg-destructive/10 border-destructive/25 text-destructive'
+                          )}>
+                            {adminMessage.ok ? <Check size={12} /> : <X size={12} />}
+                            {adminMessage.text}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

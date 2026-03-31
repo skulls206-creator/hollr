@@ -265,4 +265,82 @@ router.post('/supporter/portal', async (req: Request, res: Response) => {
   }
 });
 
+// ── Admin helpers ─────────────────────────────────────────────────────────────
+
+function isAdminUser(userId: string): boolean {
+  const raw = process.env.ADMIN_USER_IDS ?? '';
+  return raw.split(',').map(s => s.trim()).filter(Boolean).includes(userId);
+}
+
+// GET /api/admin/check — returns whether the current user is an admin
+router.get('/admin/check', (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  res.json({ isAdmin: isAdminUser(req.user.id) });
+});
+
+// POST /api/admin/grant-supporter
+// Body: { username: string, months: number, revoke?: boolean }
+router.post('/admin/grant-supporter', async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  if (!isAdminUser(req.user.id)) { res.status(403).json({ error: 'Forbidden' }); return; }
+
+  const { username, months, revoke } = req.body as {
+    username?: string;
+    months?: number;
+    revoke?: boolean;
+  };
+
+  if (!username || typeof username !== 'string') {
+    res.status(400).json({ error: 'username is required' });
+    return;
+  }
+
+  try {
+    const profile = await db.query.userProfilesTable.findFirst({
+      where: eq(userProfilesTable.username, username.trim()),
+    });
+
+    if (!profile) {
+      res.status(404).json({ error: `No user found with username "${username}"` });
+      return;
+    }
+
+    if (revoke) {
+      await db
+        .update(userProfilesTable)
+        .set({ isSupporter: false, referralSupporterUntil: null })
+        .where(eq(userProfilesTable.userId, profile.userId));
+
+      console.log(`[admin] revoked supporter for ${username}`);
+      res.json({ ok: true, message: `Supporter revoked for @${username}` });
+      return;
+    }
+
+    const m = typeof months === 'number' && months > 0 ? months : 1;
+    const until = new Date();
+    until.setMonth(until.getMonth() + m);
+
+    // Extend from current expiry if already active
+    if (profile.referralSupporterUntil && profile.referralSupporterUntil > new Date()) {
+      until.setTime(profile.referralSupporterUntil.getTime());
+      until.setMonth(until.getMonth() + m);
+    }
+
+    await db
+      .update(userProfilesTable)
+      .set({ isSupporter: true, referralSupporterUntil: until })
+      .where(eq(userProfilesTable.userId, profile.userId));
+
+    console.log(`[admin] granted supporter to ${username} until ${until.toISOString()}`);
+    res.json({
+      ok: true,
+      message: `@${username} is now a Supporter until ${until.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+      expiresAt: until.toISOString(),
+    });
+  } catch (err) {
+    console.error('[admin] grant-supporter error:', err);
+    res.status(500).json({ error: 'Failed to update supporter status' });
+  }
+});
+
 export default router;
