@@ -387,7 +387,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
         <ThemeSwitcherButton />
         <div className="flex items-center gap-2 ml-1">
           <img src="/khurk-logo.png" alt="KHURK OS" className="w-6 h-6 rounded-md object-cover shrink-0" draggable={false} />
-          <span className="text-sm font-bold tracking-tight text-foreground">KHURK OS</span>
+          <span className="hidden sm:inline text-sm font-bold tracking-tight text-foreground">KHURK OS</span>
         </div>
         <div className="flex items-center gap-1 ml-auto">
           <button
