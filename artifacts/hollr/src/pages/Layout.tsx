@@ -288,19 +288,19 @@ export function Layout() {
               • Normal chat: fixed on mobile (hamburger), relative on desktop. */}
         <div
           className={[
-            'flex z-[55] shrink-0 transition-all duration-200',
+            'flex z-[55] shrink-0 transition-[transform,width] duration-200',
             layoutMode === 'classic'
               // Classic: icon rail (ServerSidebar, 72px) is always in-flow.
               // Channel sidebar slides independently beside it.
-              // Mobile open (rail visible):  left-[72px] translate-x-0  → right of icon rail ✓
+              // left is always 0 — only transform changes, so iOS Safari can GPU-composite the slide.
+              // Mobile open (rail visible):  left-0 translate-x-[72px]  → right of icon rail ✓
               // Mobile open (rail hidden):   left-0 translate-x-0       → flush left edge ✓
-              // Mobile closed: left-0 -translate-x-full     → x = 0-260 = -260 → fully off screen ✓
-              //   (using left-[72px] when closed gave x = 72-260 = -188, leaving 72px visible)
+              // Mobile closed: left-0 -translate-x-full → x = 0-260 = -260 → fully off screen ✓
               // Desktop: in-flow, collapses to w-0 when closed.
               ? [
                   'top-0 h-[100dvh] fixed md:left-auto md:relative md:h-full',
                   classicChannelOpen
-                    ? `${showAppWindow && appWindowSidebarHidden ? 'left-0' : 'left-[72px]'} translate-x-0`
+                    ? `left-0 ${showAppWindow && appWindowSidebarHidden ? 'translate-x-0' : 'translate-x-[72px]'}`
                     : 'left-0 -translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:min-w-0',
                 ].join(' ')
               : layoutMode === 'dock'
