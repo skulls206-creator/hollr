@@ -508,7 +508,7 @@ export function ServerSidebar() {
               className="relative group flex items-center justify-center w-full h-12"
             >
               <div className={cn(
-                "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
+                "absolute -left-3 w-1 bg-foreground rounded-r-full transition-all duration-300",
                 activeServerId === null ? "h-10 opacity-100" : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
               )} />
               <div className={cn(
