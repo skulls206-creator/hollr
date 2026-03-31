@@ -1,7 +1,7 @@
 /* hollr.chat service worker — offline shell + push notifications */
 /* Strategy: Cache-first for assets, network-first for API, app-shell for navigation */
 
-const CACHE_VERSION = 'hollr-v10';
+const CACHE_VERSION = 'hollr-v11';
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const API_CACHE   = `${CACHE_VERSION}-api`;
