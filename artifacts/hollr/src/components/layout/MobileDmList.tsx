@@ -10,6 +10,7 @@ import {
   MessageSquare, PhoneCall, Video, User, Check, Copy, RefreshCw, Trash2,
 } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { initiateVideoCall } from '@/hooks/use-video-call';
 
@@ -310,9 +311,12 @@ export function MobileDmList() {
 
               {/* Name + preview */}
               <div className="flex-1 min-w-0">
-                <p className={cn('truncate text-[15px]', dmUnread > 0 ? 'font-bold text-foreground' : 'font-semibold')}>
-                  {other?.displayName || other?.username || 'Unknown'}
-                </p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className={cn('truncate text-[15px]', dmUnread > 0 ? 'font-bold text-foreground' : 'font-semibold')}>
+                    {other?.displayName || other?.username || 'Unknown'}
+                  </p>
+                  {other?.isSupporter && <KhurkDiamondBadge size="sm" className="shrink-0" />}
+                </div>
                 {thread.lastMessage && (
                   <p className={cn('text-[13px] truncate mt-0.5', dmUnread > 0 ? 'text-foreground' : 'text-muted-foreground')}>
                     {thread.lastMessage.content || 'Sent an attachment'}

@@ -615,9 +615,12 @@ export function ChannelSidebar() {
                   <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-[#2B2D31] rounded-full" />
                 </div>
                 <div className="flex-1 min-w-0 text-left">
-                  <p className={cn("truncate text-sm", dmUnread > 0 ? "font-bold" : "font-medium")}>
-                    {other?.displayName || other?.username || 'Unknown'}
-                  </p>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <p className={cn("truncate text-sm", dmUnread > 0 ? "font-bold" : "font-medium")}>
+                      {other?.displayName || other?.username || 'Unknown'}
+                    </p>
+                    {other?.isSupporter && <KhurkDiamondBadge size="sm" className="shrink-0" />}
+                  </div>
                   {thread.lastMessage && (
                     <p className={cn("text-[11px] truncate", dmUnread > 0 ? "text-foreground" : "text-muted-foreground")}>
                       {thread.lastMessage.content}
