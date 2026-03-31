@@ -354,7 +354,7 @@ export function ServerSidebar() {
     });
   };
 
-  const { setActiveKhurkAppId, openKhurkDashboard, khurkDashboardOpen, setKhurkDashboardOpen, activeKhurkAppId: activeApp } = useAppStore();
+  const { setActiveKhurkAppId, activeKhurkAppId: activeApp } = useAppStore();
 
   const handleAppClick = (app: KhurkApp) => {
     if (app.openMode === 'tab') window.open(app.url, '_blank', 'noopener');
