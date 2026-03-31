@@ -14,28 +14,38 @@ async function syncSupporterStatusForCustomer(stripeCustomerId: string) {
   try {
     const stripe = await getUncachableStripeClient();
 
-    // List active/trialing subscriptions for this customer
+    // Find the hollr Supporter product ID by name first (avoids deep expansion)
+    const productSearch = await stripe.products.search({
+      query: `name:'${SUPPORTER_PRODUCT_NAME}' AND active:'true'`,
+      limit: 1,
+    });
+    const supporterProductId = productSearch.data[0]?.id ?? null;
+
+    // List active/trialing subscriptions — expand only 4 levels (price, not product)
     const [subscriptions, trialingSubscriptions] = await Promise.all([
       stripe.subscriptions.list({
         customer: stripeCustomerId,
         status: 'active',
         limit: 20,
-        expand: ['data.items.data.price.product'],
+        expand: ['data.items.data.price'],
       }),
       stripe.subscriptions.list({
         customer: stripeCustomerId,
         status: 'trialing',
         limit: 20,
-        expand: ['data.items.data.price.product'],
+        expand: ['data.items.data.price'],
       }),
     ]);
 
     const allSubs = [...subscriptions.data, ...trialingSubscriptions.data];
 
-    const hasPaidSub = allSubs.some(sub =>
+    const hasPaidSub = supporterProductId != null && allSubs.some(sub =>
       sub.items.data.some(item => {
-        const product = item.price?.product as { name?: string; active?: boolean } | null;
-        return product && product.active && product.name === SUPPORTER_PRODUCT_NAME;
+        // item.price.product is a string product ID when not expanded
+        const productId = typeof item.price?.product === 'string'
+          ? item.price.product
+          : (item.price?.product as { id?: string } | null)?.id ?? null;
+        return productId === supporterProductId;
       })
     );
 

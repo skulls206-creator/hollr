@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { userProfilesTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { getUncachableStripeClient } from "../stripeClient";
 import { expireReferralSupporter } from "./referral";
 
@@ -71,6 +71,70 @@ export async function bootstrapSupporterProduct() {
     console.log('[supporter] bootstrap complete');
   } catch (err) {
     console.error('[supporter] bootstrap error:', err);
+  }
+}
+
+/**
+ * On startup, re-sync every user who has a Stripe customer ID.
+ * Catches any missed webhooks (e.g. the expansion-depth bug) and keeps
+ * isSupporter accurate without requiring manual intervention.
+ */
+export async function syncAllSupporterStatuses() {
+  try {
+    const stripe = await getUncachableStripeClient();
+
+    // Get the hollr Supporter product ID once
+    const productSearch = await stripe.products.search({
+      query: `name:'${PRODUCT_NAME}' AND active:'true'`,
+      limit: 1,
+    });
+    const supporterProductId = productSearch.data[0]?.id ?? null;
+    if (!supporterProductId) {
+      console.warn('[supporter] sync-all: product not found, skipping');
+      return;
+    }
+
+    // All users with a Stripe customer ID
+    const users = await db.query.userProfilesTable.findMany({
+      where: isNotNull(userProfilesTable.stripeCustomerId),
+      columns: { userId: true, stripeCustomerId: true, referralSupporterUntil: true },
+    });
+
+    console.log(`[supporter] sync-all: checking ${users.length} Stripe customer(s)`);
+    let updated = 0;
+
+    for (const user of users) {
+      if (!user.stripeCustomerId) continue;
+      try {
+        const [active, trialing] = await Promise.all([
+          stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'active',   limit: 10, expand: ['data.items.data.price'] }),
+          stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'trialing', limit: 10, expand: ['data.items.data.price'] }),
+        ]);
+        const allSubs = [...active.data, ...trialing.data];
+        const hasPaidSub = allSubs.some(sub =>
+          sub.items.data.some(item => {
+            const pid = typeof item.price?.product === 'string'
+              ? item.price.product
+              : (item.price?.product as { id?: string } | null)?.id ?? null;
+            return pid === supporterProductId;
+          })
+        );
+        const now = new Date();
+        const hasActiveReferral = user.referralSupporterUntil != null && user.referralSupporterUntil > now;
+        const isSupporter = hasPaidSub || hasActiveReferral;
+        await db.update(userProfilesTable).set({ isSupporter }).where(eq(userProfilesTable.userId, user.userId));
+        if (hasPaidSub || hasActiveReferral) {
+          console.log(`[supporter] sync-all: ${user.userId} isSupporter=${isSupporter} (paid=${hasPaidSub} referral=${hasActiveReferral})`);
+          updated++;
+        }
+      } catch (innerErr) {
+        console.warn(`[supporter] sync-all: error for ${user.stripeCustomerId}:`, innerErr);
+      }
+    }
+
+    console.log(`[supporter] sync-all complete — ${updated} supporter(s) confirmed`);
+  } catch (err) {
+    console.error('[supporter] sync-all error:', err);
   }
 }
 

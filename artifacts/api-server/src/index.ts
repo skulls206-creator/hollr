@@ -8,7 +8,7 @@ import bcrypt from "bcryptjs";
 import { runMigrations } from "stripe-replit-sync";
 import { PutBucketCorsCommand } from "@aws-sdk/client-s3";
 import { getR2Client, getR2BucketName } from "./lib/r2Client";
-import { bootstrapSupporterProduct } from "./routes/supporter";
+import { bootstrapSupporterProduct, syncAllSupporterStatuses } from "./routes/supporter";
 
 const rawPort = process.env["PORT"];
 
@@ -129,5 +129,5 @@ const LEGACY_EMAILS = [
 
 server.listen(port, () => {
   console.log(`Server listening on port ${port}`);
-  bootstrapSupporterProduct();
+  bootstrapSupporterProduct().then(() => syncAllSupporterStatuses());
 });
