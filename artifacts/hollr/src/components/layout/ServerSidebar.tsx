@@ -165,6 +165,8 @@ export function ServerSidebar() {
     dmUnreadCounts, activeDmThreadId, setInviteModalOpen, setServerSettingsModalOpen,
     setUserSettingsModalOpen, setJoinServerModalOpen, setHelpModalOpen,
     toggleServerPrivacy, isServerPrivate,
+    khurkOsEnabled, khurkDashboardOpen, setKhurkDashboardOpen, openKhurkDashboard,
+    dmSectionHidden, setDmSectionHidden,
   } = useAppStore();
   const { data: rawServers = [] } = useListMyServers();
   const { user } = useAuth();
@@ -503,19 +505,32 @@ export function ServerSidebar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={() => setActiveServer(null)}
+              onClick={() => {
+                if (khurkDashboardOpen) {
+                  setKhurkDashboardOpen(false);
+                  setDmSectionHidden(false);
+                } else if (activeServerId === null && !dmSectionHidden) {
+                  if (khurkOsEnabled) {
+                    openKhurkDashboard();
+                  } else {
+                    setDmSectionHidden(true);
+                  }
+                } else {
+                  setActiveServer(null);
+                }
+              }}
               onContextMenu={handleDmContextMenu}
               className="relative group flex items-center justify-center w-full h-12"
             >
               <div className={cn(
                 "absolute -left-3 w-1 bg-foreground rounded-r-full transition-all duration-300",
-                activeServerId === null ? "h-10 opacity-100" : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
+                activeServerId === null && !khurkDashboardOpen && !dmSectionHidden ? "h-10 opacity-100" : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
               )} />
               <div className={cn(
                 "w-12 h-12 relative overflow-hidden transition-all duration-300",
-                activeServerId === null ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"
+                activeServerId === null && !khurkDashboardOpen && !dmSectionHidden ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"
               )} style={{
-                background: activeServerId === null
+                background: activeServerId === null && !khurkDashboardOpen && !dmSectionHidden
                   ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
                   : 'hsl(var(--secondary))',
               }}>
@@ -523,7 +538,7 @@ export function ServerSidebar() {
                 <div style={{
                   position: 'absolute', width: '54%', height: '50%',
                   top: '12%', right: '8%',
-                  background: activeServerId === null
+                  background: activeServerId === null && !khurkDashboardOpen && !dmSectionHidden
                     ? 'rgba(255,255,255,0.25)' : 'rgba(128,128,160,0.18)',
                   borderRadius: '7px 7px 2px 7px',
                 }} />
@@ -531,7 +546,7 @@ export function ServerSidebar() {
                 <div style={{
                   position: 'absolute', width: '62%', height: '54%',
                   bottom: '12%', left: '8%',
-                  background: activeServerId === null
+                  background: activeServerId === null && !khurkDashboardOpen && !dmSectionHidden
                     ? 'rgba(255,255,255,0.93)' : 'rgba(128,128,160,0.35)',
                   borderRadius: '7px 7px 7px 2px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3.5px',
@@ -539,7 +554,7 @@ export function ServerSidebar() {
                   {[0, 1, 2].map(i => (
                     <div key={i} style={{
                       width: '5px', height: '5px', borderRadius: '50%',
-                      background: activeServerId === null ? '#6366f1' : 'rgba(128,128,180,0.7)',
+                      background: activeServerId === null && !khurkDashboardOpen && !dmSectionHidden ? '#6366f1' : 'rgba(128,128,180,0.7)',
                     }} />
                   ))}
                 </div>
