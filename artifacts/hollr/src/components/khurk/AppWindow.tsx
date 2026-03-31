@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useAppStore } from '@/store/use-app-store';
-import { KHURK_APPS, HollrIcon, getKhurkIconFilter, type KhurkThemeId } from '@/lib/khurk-apps';
+import { KHURK_APPS, HollrIcon, getKhurkContainerStyle, getKhurkImgFilter, type KhurkThemeId } from '@/lib/khurk-apps';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
 import { X, RefreshCw, ExternalLink, PictureInPicture2, Loader2, PanelLeft, PanelLeftClose, MessageSquare, FolderOpen, FolderCheck, RotateCcw } from 'lucide-react';
@@ -67,7 +67,8 @@ export function AppWindow() {
 
   const app = KHURK_APPS.find((a) => a.id === activeKhurkAppId);
   const isNative = !!app?.nativePanel;
-  const iconFilter = app ? getKhurkIconFilter(theme, app.id) : '';
+  const containerStyle = app ? getKhurkContainerStyle(theme, app.id, app.gradient) : {};
+  const imgFilter = app ? getKhurkImgFilter(theme, app.id) : '';
 
   // ── Handle persistence: save to IndexedDB whenever a native handle is connected ─
   useEffect(() => {
@@ -392,14 +393,15 @@ export function AppWindow() {
         {/* App icon */}
         <div
           className="w-7 h-7 rounded-lg overflow-hidden shrink-0 shadow-sm"
-          style={{
-            background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
-            filter: iconFilter || undefined,
-            transition: 'filter 0.4s ease',
-          }}
+          style={containerStyle}
         >
           {app.imageSrc ? (
-            <img src={app.imageSrc} alt={app.name} className="w-full h-full object-cover" />
+            <img
+              src={app.imageSrc}
+              alt={app.name}
+              className="w-full h-full object-cover"
+              style={imgFilter ? { filter: imgFilter } : undefined}
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <HollrIcon size={16} />
@@ -480,13 +482,10 @@ export function AppWindow() {
             <div className="flex-1 flex flex-col items-center justify-center gap-4">
               <div
                 className="w-14 h-14 rounded-2xl overflow-hidden shadow-lg"
-                style={{
-                  background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
-                  filter: iconFilter || undefined,
-                }}
+                style={containerStyle}
               >
                 {app.imageSrc
-                  ? <img src={app.imageSrc} alt={app.name} className="w-full h-full object-cover" />
+                  ? <img src={app.imageSrc} alt={app.name} className="w-full h-full object-cover" style={imgFilter ? { filter: imgFilter } : undefined} />
                   : <div className="w-full h-full flex items-center justify-center"><HollrIcon size={28} /></div>
                 }
               </div>
@@ -506,13 +505,10 @@ export function AppWindow() {
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10 gap-4 pointer-events-none">
                 <div
                   className="w-14 h-14 rounded-2xl overflow-hidden shadow-lg"
-                  style={{
-                    background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
-                    filter: iconFilter || undefined,
-                  }}
+                  style={containerStyle}
                 >
                   {app.imageSrc
-                    ? <img src={app.imageSrc} alt={app.name} className="w-full h-full object-cover" />
+                    ? <img src={app.imageSrc} alt={app.name} className="w-full h-full object-cover" style={imgFilter ? { filter: imgFilter } : undefined} />
                     : <div className="w-full h-full flex items-center justify-center"><HollrIcon size={28} /></div>
                   }
                 </div>

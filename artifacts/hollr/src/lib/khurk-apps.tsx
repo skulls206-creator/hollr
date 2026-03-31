@@ -24,29 +24,55 @@ import onlyXmrBanner from '@assets/generated_images/banner_onlyxmr.png';
 
 export type KhurkThemeId = 'void' | 'ember' | 'bloom' | 'slate' | 'blueapple' | 'light';
 
+const SNOW_IMG_FILTER =
+  'saturate(0.06) brightness(2) contrast(1.4) drop-shadow(0 0 6px rgba(190,220,255,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))';
+
 /**
- * Returns a CSS filter string for tinting khurk app icons to match the
- * current theme. onlyxmr is always excluded — it stays its own gold colour.
+ * CSS filter for the icon *container* div (gradient background + image together).
+ * Snow/light is intentionally excluded here — it uses a white container instead
+ * so the filter is not applied to a dark background (which stays dark).
  */
 export function getKhurkIconFilter(theme: KhurkThemeId, appId: string): string {
   if (appId === 'onlyxmr') return '';
   switch (theme) {
-    case 'ember':
-      // purple → warm amber/orange
-      return 'hue-rotate(130deg) saturate(1.5)';
-    case 'bloom':
-      // purple → vivid rose-pink
-      return 'hue-rotate(55deg) saturate(1.35)';
-    case 'blueapple':
-      // purple → dense sky-blue
-      return 'hue-rotate(-65deg) saturate(1.3) brightness(1.1)';
-    case 'light':
-      // Snow — bleach colour out, crank brightness → clear diamond with icy shimmer
-      return 'saturate(0.06) brightness(2) contrast(1.4) drop-shadow(0 0 6px rgba(190,220,255,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))';
-    default:
-      // void / slate — keep natural purple
-      return '';
+    case 'ember':    return 'hue-rotate(130deg) saturate(1.5)';
+    case 'bloom':    return 'hue-rotate(55deg) saturate(1.35)';
+    case 'blueapple':return 'hue-rotate(-65deg) saturate(1.3) brightness(1.1)';
+    default:         return ''; // void / slate / light — handled separately
   }
+}
+
+/**
+ * Returns the full style object for an icon *container* div.
+ * For Snow theme: replaces the gradient with an icy-white background so the
+ * Snow img filter has a clean surface to work on.
+ * For other themes: keeps the gradient and applies the hue-rotate filter.
+ */
+export function getKhurkContainerStyle(
+  theme: KhurkThemeId,
+  appId: string,
+  gradient: [string, string],
+): React.CSSProperties {
+  if (theme === 'light' && appId !== 'onlyxmr') {
+    return {
+      background: 'linear-gradient(135deg, rgba(232,238,255,0.96) 0%, rgba(255,255,255,0.99) 100%)',
+      transition: 'background 0.4s ease',
+    };
+  }
+  const filter = getKhurkIconFilter(theme, appId);
+  return {
+    background: `linear-gradient(135deg, ${gradient[0]} 0%, ${gradient[1]} 100%)`,
+    ...(filter ? { filter, transition: 'filter 0.4s ease' } : {}),
+  };
+}
+
+/**
+ * CSS filter to apply to the <img> element only.
+ * Only used for Snow theme — other themes tint the whole container.
+ */
+export function getKhurkImgFilter(theme: KhurkThemeId, appId: string): string {
+  if (theme === 'light' && appId !== 'onlyxmr') return SNOW_IMG_FILTER;
+  return '';
 }
 
 export interface NativePanelProps {

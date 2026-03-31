@@ -8,7 +8,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { KHURK_APPS, HollrIcon, getKhurkIconFilter, type KhurkApp, type KhurkThemeId } from '@/lib/khurk-apps';
+import { KHURK_APPS, HollrIcon, getKhurkContainerStyle, getKhurkImgFilter, type KhurkApp, type KhurkThemeId } from '@/lib/khurk-apps';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { SupporterDiamondButton } from '@/components/ui/SupporterDiamondButton';
 import {
@@ -46,21 +46,19 @@ const BASE = import.meta.env.BASE_URL;
 function KhurkAppIcon({ app }: { app: KhurkApp }) {
   const fit = app.iconFit ?? 'cover';
   const theme = useAppStore(s => s.theme) as KhurkThemeId;
-  const iconFilter = getKhurkIconFilter(theme, app.id);
+  const containerStyle = getKhurkContainerStyle(theme, app.id, app.gradient);
+  const imgFilter = getKhurkImgFilter(theme, app.id);
   return (
     <div
       className="w-full h-full flex items-center justify-center overflow-hidden"
-      style={{
-        background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
-        filter: iconFilter || undefined,
-        transition: 'filter 0.4s ease',
-      }}
+      style={containerStyle}
     >
       {app.imageSrc ? (
         <img
           src={app.imageSrc}
           alt={app.name}
           className={fit === 'contain' ? 'w-[82%] h-[82%] object-contain' : 'w-full h-full object-cover'}
+          style={imgFilter ? { filter: imgFilter } : undefined}
         />
       ) : (
         <HollrIcon size={26} />

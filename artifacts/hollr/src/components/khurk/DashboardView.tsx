@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '@/store/use-app-store';
-import { KHURK_APPS, HollrIcon, getKhurkIconFilter, type KhurkApp, type KhurkThemeId } from '@/lib/khurk-apps';
+import { KHURK_APPS, HollrIcon, getKhurkContainerStyle, getKhurkImgFilter, type KhurkApp, type KhurkThemeId } from '@/lib/khurk-apps';
 import { ExternalLink, EyeOff, Grid2x2, LayoutList, Menu, MonitorPlay, Pin, PinOff, RotateCcw, Sparkles } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
@@ -12,7 +12,8 @@ import { NotificationBell } from '@/components/notifications/NotificationBell';
 function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) {
   const { setActiveKhurkAppId } = useAppStore();
   const theme = useAppStore(s => s.theme) as KhurkThemeId;
-  const iconFilter = getKhurkIconFilter(theme, app.id);
+  const containerStyle = getKhurkContainerStyle(theme, app.id, app.gradient);
+  const imgFilter = getKhurkImgFilter(theme, app.id);
   const { show: showMenu } = useContextMenu();
 
   const handleLaunch = () => {
@@ -110,15 +111,18 @@ function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) 
                 backdropFilter: 'blur(10px)',
                 border: '1px solid rgba(255,255,255,0.18)',
                 boxShadow: '0 4px 20px rgba(0,0,0,0.45)',
-                filter: iconFilter || undefined,
-                transition: 'filter 0.4s ease',
+                ...(containerStyle.filter ? { filter: containerStyle.filter, transition: 'filter 0.4s ease' } : {}),
               }}
             >
               <img
                 src={app.imageSrc}
                 alt={app.name}
                 className="w-11 h-11 object-contain"
-                style={{ filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.6))' }}
+                style={{
+                  filter: imgFilter
+                    ? imgFilter + ' drop-shadow(0 1px 4px rgba(0,0,0,0.6))'
+                    : 'drop-shadow(0 1px 4px rgba(0,0,0,0.6))',
+                }}
               />
             </div>
           ) : (
@@ -167,7 +171,8 @@ function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) 
 function AppListRow({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) {
   const { setActiveKhurkAppId } = useAppStore();
   const theme = useAppStore(s => s.theme) as KhurkThemeId;
-  const iconFilter = getKhurkIconFilter(theme, app.id);
+  const containerStyle = getKhurkContainerStyle(theme, app.id, app.gradient);
+  const imgFilter = getKhurkImgFilter(theme, app.id);
   const { show: showMenu } = useContextMenu();
   const isTab = app.openMode === 'tab';
 
@@ -213,14 +218,19 @@ function AppListRow({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void 
       {/* Icon */}
       <div
         className="w-11 h-11 rounded-xl shrink-0 overflow-hidden flex items-center justify-center"
-        style={{
-          background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
-          filter: iconFilter || undefined,
-          transition: 'filter 0.4s ease',
-        }}
+        style={containerStyle}
       >
         {app.imageSrc ? (
-          <img src={app.imageSrc} alt={app.name} className="w-7 h-7 object-contain" style={{ filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.5))' }} />
+          <img
+            src={app.imageSrc}
+            alt={app.name}
+            className="w-7 h-7 object-contain"
+            style={{
+              filter: imgFilter
+                ? imgFilter + ' drop-shadow(0 1px 4px rgba(0,0,0,0.5))'
+                : 'drop-shadow(0 1px 4px rgba(0,0,0,0.5))',
+            }}
+          />
         ) : (
           <HollrIcon size={28} />
         )}
