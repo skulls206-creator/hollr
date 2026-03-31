@@ -166,7 +166,7 @@ export function ServerSidebar() {
     setUserSettingsModalOpen, setJoinServerModalOpen, setHelpModalOpen,
     toggleServerPrivacy, isServerPrivate,
     khurkOsEnabled, khurkDashboardOpen, setKhurkDashboardOpen, openKhurkDashboard,
-    dmSectionHidden, setDmSectionHidden,
+    dmSectionHidden, setDmSectionHidden, setClassicChannelOpen,
   } = useAppStore();
   const { data: rawServers = [] } = useListMyServers();
   const { user } = useAuth();
@@ -511,8 +511,10 @@ export function ServerSidebar() {
                   setDmSectionHidden(false);
                 } else if (activeServerId === null && !dmSectionHidden) {
                   setDmSectionHidden(true);
+                  setClassicChannelOpen(false);
                 } else {
                   setActiveServer(null);
+                  setClassicChannelOpen(true);
                 }
               }}
               onContextMenu={handleDmContextMenu}
