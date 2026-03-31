@@ -510,11 +510,7 @@ export function ServerSidebar() {
                   setKhurkDashboardOpen(false);
                   setDmSectionHidden(false);
                 } else if (activeServerId === null && !dmSectionHidden) {
-                  if (khurkOsEnabled) {
-                    openKhurkDashboard();
-                  } else {
-                    setDmSectionHidden(true);
-                  }
+                  setDmSectionHidden(true);
                 } else {
                   setActiveServer(null);
                 }
