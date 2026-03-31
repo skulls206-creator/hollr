@@ -511,10 +511,10 @@ export function ServerSidebar() {
                   setDmSectionHidden(false);
                 } else if (activeServerId === null && !dmSectionHidden) {
                   setDmSectionHidden(true);
-                  setClassicChannelOpen(false);
+                  if (window.innerWidth < 768) setClassicChannelOpen(false);
                 } else {
                   setActiveServer(null);
-                  setClassicChannelOpen(true);
+                  if (window.innerWidth < 768) setClassicChannelOpen(true);
                 }
               }}
               onContextMenu={handleDmContextMenu}
