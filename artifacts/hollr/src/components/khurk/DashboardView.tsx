@@ -1,13 +1,84 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { KHURK_APPS, HollrIcon, getKhurkContainerStyle, getKhurkImgFilter, type KhurkApp, type KhurkThemeId } from '@/lib/khurk-apps';
-import { ExternalLink, EyeOff, Grid2x2, LayoutList, Menu, MonitorPlay, Pin, PinOff, RotateCcw, Sparkles } from 'lucide-react';
+import { ExternalLink, EyeOff, Grid2x2, LayoutList, Menu, MonitorPlay, RotateCcw, Sparkles } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
 import { useDockOrder } from '@/hooks/use-dock-order';
 import { cn } from '@/lib/utils';
 import { ActivityFeed } from './ActivityFeed';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+
+const THEME_SWATCHES: { id: KhurkThemeId; label: string; accent: string; bg: string }[] = [
+  { id: 'void',      label: 'Void',       accent: '#8B5CF6', bg: '#0C0C10' },
+  { id: 'ember',     label: 'Ember',      accent: '#F97316', bg: '#1E1509' },
+  { id: 'bloom',     label: 'Bloom',      accent: '#E83D80', bg: '#1F1015' },
+  { id: 'slate',     label: 'Slate',      accent: '#9ca3af', bg: '#36393F' },
+  { id: 'blueapple', label: 'Blue',       accent: '#007AFF', bg: '#1C1C1E' },
+  { id: 'light',     label: 'Snow',       accent: '#a5b4fc', bg: '#f2f3f5' },
+];
+
+function ThemeSwitcherButton() {
+  const theme = useAppStore(s => s.theme) as KhurkThemeId;
+  const setTheme = useAppStore(s => s.setTheme);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = THEME_SWATCHES.find(t => t.id === theme) ?? THEME_SWATCHES[0];
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        title={`Theme: ${current.label}`}
+        className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-accent"
+      >
+        <span
+          className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-sm"
+          style={{ background: current.accent }}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[200] p-2 rounded-xl shadow-2xl border border-border/50"
+          style={{ background: 'hsl(var(--surface-2))', minWidth: '148px' }}
+        >
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-2 px-1">Theme</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {THEME_SWATCHES.map(t => (
+              <button
+                key={t.id}
+                onClick={() => { setTheme(t.id); setOpen(false); }}
+                title={t.label}
+                className={cn(
+                  'flex flex-col items-center gap-1 px-1 py-1.5 rounded-lg transition-all',
+                  theme === t.id
+                    ? 'bg-accent ring-1 ring-primary/50'
+                    : 'hover:bg-accent/60',
+                )}
+              >
+                <span
+                  className="w-6 h-6 rounded-full border border-white/15 shadow-sm"
+                  style={{ background: `radial-gradient(circle at 35% 35%, ${t.accent}cc, ${t.bg})` }}
+                />
+                <span className="text-[9px] font-semibold text-muted-foreground leading-none">{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AppCard({ app, onDismiss }: { app: KhurkApp; onDismiss?: () => void }) {
   const { setActiveKhurkAppId } = useAppStore();
@@ -265,7 +336,7 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
-  const { sidebarLocked, setSidebarLocked, layoutMode, setClassicChannelOpen } = useAppStore();
+  const { sidebarLocked, layoutMode } = useAppStore();
   const { visibleApps, hasAnyDismissed, dismissOne, restoreAll } = useKhurkDismissals();
   const dockOrder = useDockOrder();
   // Temporarily show all apps (ignores user's hidden list until they navigate away)
@@ -313,20 +384,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
         >
           <Menu size={18} />
         </button>
-        <button
-          onClick={() => {
-            const next = !sidebarLocked;
-            setSidebarLocked(next);
-            if (next && layoutMode === 'classic') setClassicChannelOpen(true);
-          }}
-          className={cn(
-            'w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-accent',
-            sidebarLocked ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground',
-          )}
-          title={sidebarLocked ? 'Unpin sidebar' : 'Pin sidebar open'}
-        >
-          {sidebarLocked ? <Pin size={13} /> : <PinOff size={13} />}
-        </button>
+        <ThemeSwitcherButton />
         <div className="flex items-center gap-2 ml-1">
           <img src="/khurk-logo.png" alt="KHURK OS" className="w-6 h-6 rounded-md object-cover shrink-0" draggable={false} />
           <span className="text-sm font-bold tracking-tight text-foreground">KHURK OS</span>
