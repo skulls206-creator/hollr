@@ -429,63 +429,6 @@ export function ServerSidebar() {
         onTouchMove={handleRailTouchEnd}
       >
 
-        {/* Direct Messages */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => setActiveServer(null)}
-              onContextMenu={handleDmContextMenu}
-              className="relative group flex items-center justify-center w-full h-12"
-            >
-              <div className={cn(
-                "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
-                activeServerId === null ? "h-10 opacity-100" : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
-              )} />
-              <div className={cn(
-                "w-12 h-12 relative overflow-hidden transition-all duration-300",
-                activeServerId === null ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"
-              )} style={{
-                background: activeServerId === null
-                  ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
-                  : 'hsl(var(--secondary))',
-              }}>
-                {/* Back bubble */}
-                <div style={{
-                  position: 'absolute', width: '54%', height: '50%',
-                  top: '12%', right: '8%',
-                  background: activeServerId === null
-                    ? 'rgba(255,255,255,0.25)' : 'rgba(128,128,160,0.18)',
-                  borderRadius: '7px 7px 2px 7px',
-                }} />
-                {/* Front bubble with typing dots */}
-                <div style={{
-                  position: 'absolute', width: '62%', height: '54%',
-                  bottom: '12%', left: '8%',
-                  background: activeServerId === null
-                    ? 'rgba(255,255,255,0.93)' : 'rgba(128,128,160,0.35)',
-                  borderRadius: '7px 7px 7px 2px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3.5px',
-                }}>
-                  {[0, 1, 2].map(i => (
-                    <div key={i} style={{
-                      width: '5px', height: '5px', borderRadius: '50%',
-                      background: activeServerId === null ? '#6366f1' : 'rgba(128,128,180,0.7)',
-                    }} />
-                  ))}
-                </div>
-              </div>
-              {totalDmUnread > 0 && activeServerId !== null && (
-                <span className="absolute bottom-0.5 right-1 min-w-[16px] h-4 px-1 bg-destructive text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none">
-                  {totalDmUnread > 99 ? '99+' : totalDmUnread}
-                </span>
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="font-semibold ml-2">Direct Messages</TooltipContent>
-        </Tooltip>
-
-        <div className="w-8 h-[2px] bg-border/40 rounded-full my-1" />
-
         {/* ── Supporter diamond ── */}
         <SupporterDiamondButton variant="sidebar" />
 
@@ -551,12 +494,67 @@ export function ServerSidebar() {
 
       </div>{/* end scrollable section */}
 
-      {/* ── Hollr / KHURK OS icon — always pinned to the bottom, never scrolls ── */}
+      {/* ── Pinned bottom — DM + KHURK OS, never scrolls ── */}
       <div
         className="shrink-0 flex flex-col items-center gap-1 px-3"
         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
       >
-        <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent mb-1" />
+        {/* Direct Messages — pinned above KHURK logo */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setActiveServer(null)}
+              onContextMenu={handleDmContextMenu}
+              className="relative group flex items-center justify-center w-full h-12"
+            >
+              <div className={cn(
+                "absolute left-0 w-1 bg-foreground rounded-r-full transition-all duration-300",
+                activeServerId === null ? "h-10 opacity-100" : "h-0 opacity-0 group-hover:h-5 group-hover:opacity-100"
+              )} />
+              <div className={cn(
+                "w-12 h-12 relative overflow-hidden transition-all duration-300",
+                activeServerId === null ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"
+              )} style={{
+                background: activeServerId === null
+                  ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
+                  : 'hsl(var(--secondary))',
+              }}>
+                {/* Back bubble */}
+                <div style={{
+                  position: 'absolute', width: '54%', height: '50%',
+                  top: '12%', right: '8%',
+                  background: activeServerId === null
+                    ? 'rgba(255,255,255,0.25)' : 'rgba(128,128,160,0.18)',
+                  borderRadius: '7px 7px 2px 7px',
+                }} />
+                {/* Front bubble with typing dots */}
+                <div style={{
+                  position: 'absolute', width: '62%', height: '54%',
+                  bottom: '12%', left: '8%',
+                  background: activeServerId === null
+                    ? 'rgba(255,255,255,0.93)' : 'rgba(128,128,160,0.35)',
+                  borderRadius: '7px 7px 7px 2px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3.5px',
+                }}>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} style={{
+                      width: '5px', height: '5px', borderRadius: '50%',
+                      background: activeServerId === null ? '#6366f1' : 'rgba(128,128,180,0.7)',
+                    }} />
+                  ))}
+                </div>
+              </div>
+              {totalDmUnread > 0 && activeServerId !== null && (
+                <span className="absolute bottom-0.5 right-1 min-w-[16px] h-4 px-1 bg-destructive text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none">
+                  {totalDmUnread > 99 ? '99+' : totalDmUnread}
+                </span>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="font-semibold ml-2">Direct Messages</TooltipContent>
+        </Tooltip>
+
+        <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-border/30 to-transparent" />
         <Tooltip>
           <TooltipTrigger asChild>
             <motion.button
