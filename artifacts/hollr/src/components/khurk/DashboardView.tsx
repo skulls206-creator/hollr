@@ -387,30 +387,9 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
         <ThemeSwitcherButton />
         <div className="flex items-center gap-2 ml-1">
           <img src="/khurk-logo.png" alt="KHURK OS" className="w-6 h-6 rounded-md object-cover shrink-0" draggable={false} />
-          <span className="hidden sm:inline text-sm font-bold tracking-tight text-foreground">KHURK OS</span>
+          <span className="text-sm font-bold tracking-tight text-foreground">KHURK OS</span>
         </div>
         <div className="flex items-center gap-1 ml-auto">
-          <button
-            onClick={() => setViewMode('grid')}
-            className={cn(
-              'w-7 h-7 flex items-center justify-center rounded-lg transition-colors',
-              viewMode === 'grid' ? 'bg-accent text-foreground' : 'text-muted-foreground/50 hover:text-foreground hover:bg-accent/60',
-            )}
-            title="Grid view"
-          >
-            <Grid2x2 size={14} />
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={cn(
-              'w-7 h-7 flex items-center justify-center rounded-lg transition-colors',
-              viewMode === 'list' ? 'bg-accent text-foreground' : 'text-muted-foreground/50 hover:text-foreground hover:bg-accent/60',
-            )}
-            title="List view"
-          >
-            <LayoutList size={14} />
-          </button>
-          <div className="w-px h-4 bg-border/30 mx-0.5 shrink-0" />
           <NotificationBell />
         </div>
       </div>
