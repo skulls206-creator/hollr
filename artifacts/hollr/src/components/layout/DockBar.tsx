@@ -28,7 +28,7 @@ import { cn, getInitials } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
-import { KHURK_APPS, HollrIcon, type KhurkApp } from '@/lib/khurk-apps';
+import { KHURK_APPS, HollrIcon, getKhurkIconFilter, type KhurkApp, type KhurkThemeId } from '@/lib/khurk-apps';
 import { useDockPresence } from '@/hooks/use-dock-presence';
 import { useSupporterButtonState, useSupporterContextMenu, SupporterContextMenuPopup } from '@/components/ui/SupporterDiamondButton';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
@@ -231,10 +231,16 @@ function SupporterDockItem({ mouseX }: { mouseX: ReturnType<typeof useMotionValu
 
 function KhurkDockIcon({ app }: { app: KhurkApp }) {
   const fit = app.iconFit ?? 'cover';
+  const theme = useAppStore(s => s.theme) as KhurkThemeId;
+  const iconFilter = getKhurkIconFilter(theme, app.id);
   return (
     <div
       className="w-full h-full flex items-center justify-center"
-      style={{ background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)` }}
+      style={{
+        background: `linear-gradient(135deg, ${app.gradient[0]} 0%, ${app.gradient[1]} 100%)`,
+        filter: iconFilter || undefined,
+        transition: 'filter 0.4s ease',
+      }}
     >
       {app.imageSrc ? (
         <img

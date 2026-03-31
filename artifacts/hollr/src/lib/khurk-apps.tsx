@@ -22,6 +22,33 @@ import ballpointBanner from '@assets/generated_images/banner_ballpoint.png';
 import onlyGamesBanner from '@assets/generated_images/banner_onlygames.png';
 import onlyXmrBanner from '@assets/generated_images/banner_onlyxmr.png';
 
+export type KhurkThemeId = 'void' | 'ember' | 'bloom' | 'slate' | 'blueapple' | 'light';
+
+/**
+ * Returns a CSS filter string for tinting khurk app icons to match the
+ * current theme. onlyxmr is always excluded — it stays its own gold colour.
+ */
+export function getKhurkIconFilter(theme: KhurkThemeId, appId: string): string {
+  if (appId === 'onlyxmr') return '';
+  switch (theme) {
+    case 'ember':
+      // purple → warm amber/orange
+      return 'hue-rotate(130deg) saturate(1.5)';
+    case 'bloom':
+      // purple → vivid rose-pink
+      return 'hue-rotate(55deg) saturate(1.35)';
+    case 'blueapple':
+      // purple → dense sky-blue
+      return 'hue-rotate(-65deg) saturate(1.3) brightness(1.1)';
+    case 'light':
+      // Snow — bleach colour out, crank brightness → clear diamond with icy shimmer
+      return 'saturate(0.06) brightness(2) contrast(1.4) drop-shadow(0 0 6px rgba(190,220,255,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))';
+    default:
+      // void / slate — keep natural purple
+      return '';
+  }
+}
+
 export interface NativePanelProps {
   /** App ID — used for any app-specific local preferences (e.g. sidebar collapsed). */
   storagePrefix: string;
