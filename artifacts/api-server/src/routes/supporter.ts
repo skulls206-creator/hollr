@@ -15,6 +15,65 @@ function getAppBaseUrl(): string {
   return 'http://localhost:3000';
 }
 
+/**
+ * Ensures the hollr Supporter product and its three prices exist in Stripe.
+ * Safe to call on every boot — skips creation if already present.
+ */
+export async function bootstrapSupporterProduct() {
+  try {
+    const stripe = await getUncachableStripeClient();
+
+    // Find or create product
+    const existing = await stripe.products.search({
+      query: `name:'${PRODUCT_NAME}' AND active:'true'`,
+      limit: 1,
+    });
+
+    let productId: string;
+    if (existing.data[0]) {
+      productId = existing.data[0].id;
+      console.log(`[supporter] product exists id=${productId}`);
+    } else {
+      const created = await stripe.products.create({
+        name: PRODUCT_NAME,
+        description: 'Access to KHURK diamond badge and supporter perks.',
+      });
+      productId = created.id;
+      console.log(`[supporter] product created id=${productId}`);
+    }
+
+    // Desired prices: monthly $1, 6-month $5, yearly $9
+    const desired = [
+      { unit_amount: 100,  interval: 'month' as const, interval_count: 1 },
+      { unit_amount: 500,  interval: 'month' as const, interval_count: 6 },
+      { unit_amount: 900,  interval: 'year'  as const, interval_count: 1 },
+    ];
+
+    const existingPrices = await stripe.prices.list({ product: productId, active: true, limit: 20 });
+
+    for (const d of desired) {
+      const match = existingPrices.data.find(
+        p => p.unit_amount === d.unit_amount &&
+             p.recurring?.interval === d.interval &&
+             p.recurring?.interval_count === d.interval_count
+      );
+      if (!match) {
+        const p = await stripe.prices.create({
+          product: productId,
+          unit_amount: d.unit_amount,
+          currency: 'usd',
+          recurring: { interval: d.interval, interval_count: d.interval_count },
+        });
+        console.log(`[supporter] price created ${d.unit_amount}¢ every ${d.interval_count} ${d.interval} id=${p.id}`);
+      }
+    }
+
+    console.log('[supporter] bootstrap complete');
+  } catch (err) {
+    console.error('[supporter] bootstrap error:', err);
+  }
+}
+
 /** Fetch active prices for the hollr Supporter product straight from the Stripe API. */
 async function fetchSupporterPricesFromStripe() {
   const stripe = await getUncachableStripeClient();
@@ -26,7 +85,10 @@ async function fetchSupporterPricesFromStripe() {
   });
 
   const product = products.data[0];
-  if (!product) return [];
+  if (!product) {
+    console.warn('[supporter] product not found in Stripe — run bootstrapSupporterProduct');
+    return [];
+  }
 
   // List all active prices for that product
   const prices = await stripe.prices.list({
