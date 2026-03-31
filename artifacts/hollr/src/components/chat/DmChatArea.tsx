@@ -618,6 +618,10 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                 ? 'bg-[#007AFF] text-white'
                 : 'bg-muted text-foreground';
 
+          const supporterGlow = isSupporter
+            ? { boxShadow: '0 0 18px 4px hsl(var(--primary) / 0.38), 0 0 6px 2px hsl(var(--primary) / 0.22)' }
+            : undefined;
+
           let radius: string;
           if (isFirst && isLast) radius = 'rounded-[20px]';
           else if (isOwner) {
@@ -729,7 +733,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                   ) : (
                     <>
                       {msg.content && (
-                        <div className={cn('px-4 py-2 leading-relaxed break-words whitespace-pre-wrap text-[15px]', bubbleBg, radius)}>
+                        <div className={cn('px-4 py-2 leading-relaxed break-words whitespace-pre-wrap text-[15px]', bubbleBg, radius)} style={supporterGlow}>
                           {formatContent(msg.content, onDark)}
                           {msg.edited && <span className="text-[11px] opacity-60 ml-1.5 italic">(edited)</span>}
                         </div>
@@ -745,6 +749,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                               return (
                                 <a key={att.id} href={url} target="_blank" rel="noopener noreferrer"
                                   className="inline-block max-w-[280px] rounded-2xl overflow-hidden border border-border/30 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity"
+                                  style={supporterGlow}
                                   onContextMenu={e => handleImageContextMenu(e, url, att.name)}>
                                   <img src={url} alt={att.name} className="block max-w-full max-h-[300px] object-contain" loading="lazy" />
                                 </a>
@@ -752,7 +757,8 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                             }
                             return (
                               <a key={att.id} href={url} download target="_blank" rel="noreferrer"
-                                className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-2xl hover:bg-secondary/80 transition-colors w-64">
+                                className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-2xl hover:bg-secondary/80 transition-colors w-64"
+                                style={supporterGlow}>
                                 <div className="bg-primary/20 p-2 rounded-lg"><FileText className="text-primary" size={20} /></div>
                                 <div className="flex flex-col overflow-hidden">
                                   <span className="text-sm font-medium text-primary hover:underline truncate">{att.name}</span>

@@ -447,6 +447,9 @@ export function MessageList({
               : 'bg-muted text-foreground';
 
         const radius = getBubbleRadius(isOwner, isFirst, isLast);
+        const supporterGlow = isSupporter
+          ? { boxShadow: '0 0 18px 4px hsl(var(--primary) / 0.38), 0 0 6px 2px hsl(var(--primary) / 0.22)' }
+          : undefined;
 
         return (
           <Fragment key={msg.id}>
@@ -569,6 +572,7 @@ export function MessageList({
                           radius,
                           msg.pinned && 'ring-1 ring-amber-400/60',
                         )}
+                        style={supporterGlow}
                       >
                         {formatContent(msg.content, onDark)}
                         {msg.edited && (
@@ -591,6 +595,7 @@ export function MessageList({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-block max-w-[280px] rounded-2xl overflow-hidden border border-border/30 bg-black/20 cursor-zoom-in hover:opacity-90 transition-opacity"
+                                style={supporterGlow}
                                 onContextMenu={e => handleImageContextMenu(e, url, att.name)}
                               >
                                 <img
@@ -610,6 +615,7 @@ export function MessageList({
                               target="_blank"
                               rel="noreferrer"
                               className="flex items-center gap-3 p-3 bg-secondary border border-border/50 rounded-2xl hover:bg-secondary/80 transition-colors w-64"
+                              style={supporterGlow}
                             >
                               <div className="bg-primary/20 p-2 rounded-lg"><FileText className="text-primary" size={20} /></div>
                               <div className="flex flex-col overflow-hidden">
