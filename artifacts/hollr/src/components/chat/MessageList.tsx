@@ -447,7 +447,8 @@ export function MessageList({
               : 'bg-muted text-foreground';
 
         const radius = getBubbleRadius(isOwner, isFirst, isLast);
-        const supporterGlow = isSupporter
+        const isSelfSupporter = isOwner && !!(msg.author as any).isSupporter;
+        const supporterGlow = (isSupporter || isSelfSupporter)
           ? { boxShadow: '0 0 18px 4px hsl(var(--primary) / 0.38), 0 0 6px 2px hsl(var(--primary) / 0.22)' }
           : undefined;
 

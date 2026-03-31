@@ -618,7 +618,8 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                 ? 'bg-[#007AFF] text-white'
                 : 'bg-muted text-foreground';
 
-          const supporterGlow = isSupporter
+          const isSelfSupporter = isOwner && !!(msg.author as any).isSupporter;
+          const supporterGlow = (isSupporter || isSelfSupporter)
             ? { boxShadow: '0 0 18px 4px hsl(var(--primary) / 0.38), 0 0 6px 2px hsl(var(--primary) / 0.22)' }
             : undefined;
 
