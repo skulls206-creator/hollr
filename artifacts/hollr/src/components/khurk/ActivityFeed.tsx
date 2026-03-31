@@ -345,6 +345,9 @@ export function ActivityFeed() {
     saveVisits(next);
     setVisits(next);
     setShowRead(false);
+    // Also clear the notification bell
+    useAppStore.getState().markAllNotificationsRead();
+    fetch(`${BASE}api/notifications/read-all`, { method: 'POST', credentials: 'include' }).catch(() => {});
   }, [data]);
 
   const events = data ?? [];
