@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { notificationsTable } from "@workspace/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, like } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -26,6 +26,27 @@ router.post("/notifications/read-all", async (req, res) => {
     .update(notificationsTable)
     .set({ read: true })
     .where(and(eq(notificationsTable.userId, req.user.id), eq(notificationsTable.read, false)));
+
+  res.json({ ok: true });
+});
+
+// POST /api/notifications/read-by-thread/:threadId — mark all DM notifications for a thread as read
+router.post("/notifications/read-by-thread/:threadId", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { threadId } = req.params;
+  await db
+    .update(notificationsTable)
+    .set({ read: true })
+    .where(
+      and(
+        eq(notificationsTable.userId, req.user.id),
+        eq(notificationsTable.read, false),
+        // Match notifications whose link contains this thread ID
+        // link format: /app?navType=dm&threadId=<id>
+        like(notificationsTable.link, `%threadId=${threadId}%`)
+      )
+    );
 
   res.json({ ok: true });
 });

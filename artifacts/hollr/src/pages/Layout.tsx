@@ -46,7 +46,7 @@ export function Layout() {
     activeKhurkAppId, khurkPipMode, khurkDashboardOpen, khurkOsEnabled,
     classicChannelOpen, toggleClassicChannel, setClassicChannelOpen,
     sidebarLocked, setSidebarLocked, toggleMobileSidebar,
-    incrementDmUnreadCount, clearDmUnreadCount,
+    incrementDmUnreadCount, clearDmUnreadCount, markNotificationsReadByThread,
     appWindowSidebarHidden,
   } = useAppStore();
 
@@ -170,7 +170,7 @@ export function Layout() {
     });
   }, [dmThreads, user, incrementDmUnreadCount]);
 
-  // When user opens a DM thread, persist the latest message as seen and clear the badge
+  // When user opens a DM thread: persist read position, clear row badge, and clear bell badge
   useEffect(() => {
     if (!activeDmThreadId) return;
     const thread = dmThreads.find((t: any) => t.id === activeDmThreadId);
@@ -178,6 +178,12 @@ export function Layout() {
       markDmThreadRead(activeDmThreadId, thread.lastMessage.id);
     }
     clearDmUnreadCount(activeDmThreadId);
+    // Mark server-side DM notifications for this thread as read (clears the bell badge)
+    markNotificationsReadByThread(activeDmThreadId);
+    fetch(`${import.meta.env.BASE_URL}api/notifications/read-by-thread/${activeDmThreadId}`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {});
   }, [activeDmThreadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {

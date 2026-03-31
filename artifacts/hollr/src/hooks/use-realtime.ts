@@ -368,11 +368,14 @@ export function useRealtime(userId?: string) {
                   incrementUnreadCount(msg.channelId);
                 }
 
-                // DM unread badge: always mark seen so poll never double-counts
+                // DM unread badge
                 if (msg.dmThreadId) {
-                  markDmThreadRead(msg.dmThreadId, msg.id);
-                  // Only show badge when the DM thread isn't currently open
-                  if (msg.dmThreadId !== activeDmThreadId) {
+                  if (msg.dmThreadId === activeDmThreadId) {
+                    // User is actively viewing this thread — mark as seen immediately
+                    markDmThreadRead(msg.dmThreadId, msg.id);
+                  } else {
+                    // Thread is not active — increment badge but DON'T update localStorage
+                    // so that on page reload the poll can still detect unread messages
                     incrementDmUnreadCount(msg.dmThreadId);
                   }
                 }

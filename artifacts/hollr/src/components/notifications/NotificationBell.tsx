@@ -50,7 +50,31 @@ export function useInitNotifications() {
   useEffect(() => {
     fetch(`${BASE}api/notifications`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
-      .then(data => setNotifications(data))
+      .then((data: import('@/store/use-app-store').AppNotification[]) => {
+        setNotifications(data);
+        // Seed per-thread DM unread row badges from server notification data
+        // This fixes reload badge loss where localStorage was prematurely updated
+        const store = useAppStore.getState();
+        const activeDmThreadId = store.activeDmThreadId;
+        const perThread: Record<string, number> = {};
+        data.forEach(n => {
+          if (n.read || n.type !== 'dm_message' || !n.link) return;
+          const match = n.link.match(/[?&]threadId=([^&]+)/);
+          if (!match) return;
+          const tid = match[1];
+          if (tid === activeDmThreadId) return; // skip currently open thread
+          perThread[tid] = (perThread[tid] ?? 0) + 1;
+        });
+        // Only set counts where the notification data shows unread — don't clear existing ones
+        Object.entries(perThread).forEach(([tid, count]) => {
+          const existing = store.dmUnreadCounts[tid] ?? 0;
+          if (count > existing) {
+            // Set to the server count (more accurate than the localStorage-based one)
+            const diff = count - existing;
+            for (let i = 0; i < diff; i++) store.incrementDmUnreadCount(tid);
+          }
+        });
+      })
       .catch(() => {});
   }, [setNotifications]);
 }

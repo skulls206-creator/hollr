@@ -307,6 +307,7 @@ interface AppState {
   setNotifications: (ns: AppNotification[]) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
+  markNotificationsReadByThread: (threadId: string) => void;
 
   // Dock presence: online member counts per server
   presenceCounts: Record<string, number>;
@@ -697,6 +698,15 @@ export const useAppStore = create<AppState>()(
     notifications: state.notifications.map(n => ({ ...n, read: true })),
     notificationUnread: 0,
   })),
+  markNotificationsReadByThread: (threadId) => set((state) => {
+    const updated = state.notifications.map(n =>
+      (!n.read && n.link?.includes(`threadId=${threadId}`)) ? { ...n, read: true } : n
+    );
+    return {
+      notifications: updated,
+      notificationUnread: updated.filter(n => !n.read).length,
+    };
+  }),
 
   presenceCounts: {},
   setPresenceCounts: (counts) => set({ presenceCounts: counts }),
