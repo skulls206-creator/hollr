@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@workspace/replit-auth-web';
-import { KHURK_APPS } from '@/lib/khurk-apps';
+import { VISIBLE_KHURK_APPS } from '@/lib/khurk-apps';
 import { useAppStore } from '@/store/use-app-store';
 
 const BASE = import.meta.env.BASE_URL;
@@ -24,7 +24,7 @@ export function useKhurkDismissals() {
   }, [khurkDismissedIds, setKhurkDismissedIds]);
 
   const dismissAll = useCallback(async () => {
-    setKhurkDismissedIds(KHURK_APPS.map(a => a.id));
+    setKhurkDismissedIds(VISIBLE_KHURK_APPS.map(a => a.id));
     await fetch(`${BASE}api/khurk-apps/dismiss-all`, { method: 'POST', credentials: 'include' });
   }, [setKhurkDismissedIds]);
 
@@ -36,7 +36,7 @@ export function useKhurkDismissals() {
   const dismissed = useMemo(() => new Set(khurkDismissedIds), [khurkDismissedIds]);
 
   const visibleApps = useMemo(
-    () => KHURK_APPS.filter(a => !dismissed.has(a.id)),
+    () => VISIBLE_KHURK_APPS.filter(a => !dismissed.has(a.id)),
     [dismissed]
   );
   const hasAnyDismissed = khurkDismissedIds.length > 0;

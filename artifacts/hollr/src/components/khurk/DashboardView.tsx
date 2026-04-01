@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/store/use-app-store';
-import { KHURK_APPS, HollrIcon, getKhurkContainerStyle, getKhurkImgFilter, type KhurkApp, type KhurkThemeId } from '@/lib/khurk-apps';
+import { VISIBLE_KHURK_APPS, HollrIcon, getKhurkContainerStyle, getKhurkImgFilter, type KhurkApp, type KhurkThemeId } from '@/lib/khurk-apps';
 import { ExternalLink, EyeOff, Grid2x2, LayoutList, Menu, MonitorPlay, RotateCcw, Sparkles } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { useKhurkDismissals } from '@/hooks/use-khurk-dismissals';
@@ -349,7 +349,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
   // original KHURK_APPS index order.
   const applyDockOrder = useCallback((apps: KhurkApp[]): KhurkApp[] => {
     // dockOrder contains server IDs too — filter to only app IDs
-    const appIdSet = new Set(KHURK_APPS.map(a => a.id));
+    const appIdSet = new Set(VISIBLE_KHURK_APPS.map(a => a.id));
     const orderedAppIds = dockOrder.filter(id => appIdSet.has(id));
     if (!orderedAppIds.length) return apps;
     return [...apps].sort((a, b) => {
@@ -363,7 +363,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
   }, [dockOrder]);
 
   const displayedApps = useMemo(
-    () => applyDockOrder(showAll ? KHURK_APPS : visibleApps),
+    () => applyDockOrder(showAll ? VISIBLE_KHURK_APPS : visibleApps),
     [applyDockOrder, showAll, visibleApps],
   );
 
@@ -464,7 +464,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
           <div className="w-full max-w-5xl px-6 md:px-10 pb-12">
             <div className="flex items-center justify-between mb-5">
               <p className="text-[10px] font-bold uppercase text-muted-foreground/60" style={{ letterSpacing: '0.2em' }}>
-                {showAll ? 'All Apps' : `My Apps${hasAnyDismissed ? ` · ${visibleApps.length} of ${KHURK_APPS.length}` : ''}`}
+                {showAll ? 'All Apps' : `My Apps${hasAnyDismissed ? ` · ${visibleApps.length} of ${VISIBLE_KHURK_APPS.length}` : ''}`}
               </p>
               {hasAnyDismissed && !showAll && (
                 <button
@@ -531,7 +531,7 @@ export function DashboardView({ onOpenSidebar }: DashboardViewProps) {
                   className="flex items-center gap-2 px-5 py-2 rounded-full border border-border/40 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-border/70 transition-colors"
                 >
                   <Grid2x2 size={13} />
-                  Show all {KHURK_APPS.length} apps
+                  Show all {VISIBLE_KHURK_APPS.length} apps
                 </button>
               ) : null}
             </div>

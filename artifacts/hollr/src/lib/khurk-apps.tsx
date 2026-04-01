@@ -115,6 +115,9 @@ export interface KhurkApp {
    * - 'fs-directory' — skips file reading, posts khurk:fs-directory with the raw handle
    */
   folderProtocol?: 'vault' | 'fs-directory';
+  /** When true the app is hidden from all user-facing lists (sidebar, dock, dashboard).
+   *  The code and assets stay in place so it can be re-enabled by removing this flag. */
+  hidden?: boolean;
 }
 
 const BallpointPanel = lazy(() =>
@@ -153,6 +156,7 @@ export const KHURK_APPS: KhurkApp[] = [
     imageSrc: uStreamImg,
     bannerSrc: uStreamBanner,
     gradient: ['#1a1f8f', '#4a54d4'],
+    hidden: true,
   },
   {
     id: 'playd',
@@ -241,3 +245,6 @@ export const KHURK_APPS: KhurkApp[] = [
 ];
 
 export const ALL_KHURK_APP_IDS = KHURK_APPS.map((a) => a.id);
+
+/** All apps that are not flagged as hidden — use this everywhere users see app lists. */
+export const VISIBLE_KHURK_APPS = KHURK_APPS.filter((a) => !a.hidden);
