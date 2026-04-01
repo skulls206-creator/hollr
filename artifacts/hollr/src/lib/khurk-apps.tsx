@@ -156,7 +156,6 @@ export const KHURK_APPS: KhurkApp[] = [
     imageSrc: uStreamImg,
     bannerSrc: uStreamBanner,
     gradient: ['#1a1f8f', '#4a54d4'],
-    hidden: true,
   },
   {
     id: 'playd',
