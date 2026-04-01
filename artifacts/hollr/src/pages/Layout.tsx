@@ -300,7 +300,7 @@ export function Layout() {
               ? [
                   'top-0 h-[100dvh] fixed md:left-auto md:relative md:h-full',
                   classicChannelOpen
-                    ? `left-0 ${showAppWindow && appWindowSidebarHidden ? 'translate-x-0' : 'translate-x-[72px]'}`
+                    ? `left-0 ${showAppWindow && appWindowSidebarHidden ? 'translate-x-0' : 'translate-x-[72px] md:translate-x-0'}`
                     : 'left-0 -translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:min-w-0',
                 ].join(' ')
               : layoutMode === 'dock'
