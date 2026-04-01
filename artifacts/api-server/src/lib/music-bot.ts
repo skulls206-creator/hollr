@@ -117,24 +117,31 @@ export async function resolveTrack(input: string): Promise<Resolved> {
       }
     }
 
-    // Tier 2: scrape YouTube's og:title via plain HTTPS fetch (no auth required)
+    // Tier 2: scrape YouTube's og:title via plain HTTPS fetch — try two user agents
     if (!metaOk) {
-      try {
-        const res = await fetch(input, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
-          signal: AbortSignal.timeout(6000),
-        });
-        const html = await res.text();
-        const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
-                     ?? html.match(/<title>([^<]+)<\/title>/i)?.[1]
-                     ?? '';
-        if (ogTitle) {
-          ytTitle = ogTitle.replace(/ - YouTube$/, '').trim();
-          metaOk = true;
-          console.log(`[music] og:title fallback: "${ytTitle}"`);
+      const ogUserAgents = [
+        'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+      ];
+      for (const ua of ogUserAgents) {
+        if (metaOk) break;
+        try {
+          const ogRes = await fetch(input, {
+            headers: { 'User-Agent': ua },
+            signal: AbortSignal.timeout(7000),
+          });
+          const html = await ogRes.text();
+          const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
+                       ?? html.match(/<title>([^<]+)<\/title>/i)?.[1]
+                       ?? '';
+          if (ogTitle) {
+            ytTitle = ogTitle.replace(/ - YouTube$/, '').trim();
+            metaOk = true;
+            console.log(`[music] og:title fallback (${ua.slice(0, 30)}...): "${ytTitle}"`);
+          }
+        } catch (fetchErr: any) {
+          console.warn('[music] og:title fetch failed:', fetchErr.message);
         }
-      } catch (fetchErr: any) {
-        console.warn('[music] og:title fetch failed:', fetchErr.message);
       }
     }
 
@@ -154,16 +161,31 @@ export async function resolveTrack(input: string): Promise<Resolved> {
     console.log(`[music] YouTube → SoundCloud auto-switch for: "${cleanTitle}" (${ytDurationSec}s)`);
 
     // Step 2: search SoundCloud with multiple query strategies
+    // Build queries from specific → broad so we stop at the first one with results
     const queries = [
       `${songName} ${artistName}`.trim(),
       `${songName} ${ytChannel}`.trim(),
       songName,
-    ].filter((q, i, arr) => q && arr.indexOf(q) === i);
+      // Broader: strip everything in parentheses/brackets from the song name
+      songName.replace(/[\[(][^\])]*/g, '').trim(),
+      // Broadest: first 4 words of the cleaned title
+      cleanTitle.split(' ').slice(0, 4).join(' '),
+    ].filter((q, i, arr) => q.length > 1 && arr.indexOf(q) === i);
 
     let scResults: SoundCloudTrack[] = [];
     for (const q of queries) {
       console.log(`[music] Searching SoundCloud: "${q}"`);
-      const found = await playdl.search(q, { source: { soundcloud: 'tracks' }, limit: 10 }) as SoundCloudTrack[];
+      let found: SoundCloudTrack[] = [];
+      // Retry the search once with a fresh SoundCloud client ID if it throws
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          found = await playdl.search(q, { source: { soundcloud: 'tracks' }, limit: 10 }) as SoundCloudTrack[];
+          break;
+        } catch (searchErr: any) {
+          console.warn(`[music] SoundCloud search attempt ${attempt} failed:`, searchErr.message);
+          if (attempt < 2) { playdlReady = false; await ensurePlaydl(); }
+        }
+      }
       if (found.length > 0) { scResults = found; break; }
     }
 
@@ -205,6 +227,41 @@ export async function resolveTrack(input: string): Promise<Resolved> {
       .sort((a, b) => b.score - a.score || a.diff - b.diff)[0];
 
     if (!best) {
+      // Relaxed second pass: drop the duration gate and accept any title overlap,
+      // picking purely by closest duration. This rescues live recordings, remixes,
+      // and tracks where the official duration differs wildly from YouTube.
+      const relaxed = candidates
+        .filter(c => c.score > 0)
+        .sort((a, b) => a.diff - b.diff)[0];
+
+      if (relaxed) {
+        console.log(`[music] Relaxed match: "${relaxed.r.name}" by ${relaxed.r.user?.name} (score=${relaxed.score}, diff=${relaxed.diff}s)`);
+        return {
+          track: {
+            url: input,
+            title: ytTitle,
+            durationMs: (ytDurationSec || relaxed.r.durationInSec) * 1000,
+            thumbnail: ytThumbnail ?? relaxed.r.thumbnail ?? null,
+          },
+          scUrl: relaxed.r.url,
+        };
+      }
+
+      // Last resort: return the first result even without a score match
+      const fallback = scResults[0];
+      if (fallback && ytDurationSec === 0) {
+        console.log(`[music] Last-resort fallback to first result: "${fallback.name}"`);
+        return {
+          track: {
+            url: input,
+            title: ytTitle,
+            durationMs: fallback.durationInSec * 1000,
+            thumbnail: ytThumbnail ?? fallback.thumbnail ?? null,
+          },
+          scUrl: fallback.url,
+        };
+      }
+
       throw new Error(
         `"${cleanTitle}" isn't available on SoundCloud. ` +
         `Try: /play ${songName}, or paste a SoundCloud link.`
@@ -362,9 +419,24 @@ class ChannelMusic extends EventEmitter {
   }
 
   private async startFfmpeg(scUrl: string, seekSecs: number = 0): Promise<void> {
-    // Get a fresh play-dl stream from SoundCloud
-    const dlStream = await playdl.stream(scUrl, { quality: 1 });
-    console.log(`[music] play-dl stream type: ${dlStream.type} for channel ${this.channelId}`);
+    // Get a fresh play-dl stream from SoundCloud — retry up to 3× with token refresh
+    let dlStream: Awaited<ReturnType<typeof playdl.stream>> | undefined;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        dlStream = await playdl.stream(scUrl, { quality: 1 });
+        break;
+      } catch (streamErr: any) {
+        console.warn(`[music] playdl.stream attempt ${attempt} failed: ${streamErr.message}`);
+        if (attempt < 3) {
+          playdlReady = false;
+          await ensurePlaydl();
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+        } else {
+          throw streamErr;
+        }
+      }
+    }
+    console.log(`[music] play-dl stream type: ${dlStream!.type} for channel ${this.channelId}`);
 
     const ffmpegArgs: string[] = [
       '-loglevel', 'warning',
@@ -393,12 +465,12 @@ class ChannelMusic extends EventEmitter {
       }
     });
 
-    dlStream.stream.on('error', (err) => {
+    dlStream!.stream.on('error', (err) => {
       console.error('[music] play-dl stream error:', err.message);
       try { proc.stdin?.destroy(); } catch { /* ignore */ }
     });
 
-    dlStream.stream.pipe(proc.stdin!);
+    dlStream!.stream.pipe(proc.stdin!);
 
     proc.stdout!.on('data', (chunk: Buffer) => {
       this.broadcastAudio(chunk);

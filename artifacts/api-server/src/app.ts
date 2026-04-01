@@ -1,4 +1,5 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
@@ -42,6 +43,14 @@ app.post(
 // Replit runs behind a proxy — trust the first forwarded IP so rate limiting
 // keys by the real client IP rather than the proxy's address
 app.set('trust proxy', 1);
+
+// Security headers — CSP and COEP disabled because the frontend embeds
+// cross-origin iframes (KHURK apps). All other helmet defaults apply:
+// HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, etc.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
