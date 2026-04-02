@@ -278,7 +278,7 @@ export default function ServerAdminScreen() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>Server Info</Text>
           <View style={s.card}>
-            {editingName ? (
+            {editingName && isAdmin ? (
               <View style={s.editRow}>
                 <TextInput
                   style={s.nameInput}
@@ -308,13 +308,17 @@ export default function ServerAdminScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={s.settingRow} onPress={() => setEditingName(true)}>
+              <TouchableOpacity
+                style={s.settingRow}
+                onPress={() => { if (isAdmin) setEditingName(true); }}
+                activeOpacity={isAdmin ? 0.7 : 1}
+              >
                 <Ionicons name="text" size={18} color={colors.mutedForeground} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.settingLabel}>Server Name</Text>
                   <Text style={s.settingValue}>{server?.name}</Text>
                 </View>
-                <Ionicons name="pencil" size={16} color={colors.mutedForeground} />
+                {isAdmin && <Ionicons name="pencil" size={16} color={colors.mutedForeground} />}
               </TouchableOpacity>
             )}
           </View>
@@ -334,17 +338,19 @@ export default function ServerAdminScreen() {
               <TouchableOpacity style={s.iconBtn} onPress={handleShareInvite}>
                 <Ionicons name="share-outline" size={20} color={colors.primary} />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={s.iconBtn}
-                onPress={() => regenerateInviteMutation.mutate()}
-                disabled={regenerateInviteMutation.isPending}
-              >
-                {regenerateInviteMutation.isPending ? (
-                  <ActivityIndicator color={colors.primary} size="small" />
-                ) : (
-                  <Ionicons name="refresh" size={20} color={colors.primary} />
-                )}
-              </TouchableOpacity>
+              {isAdmin && (
+                <TouchableOpacity
+                  style={s.iconBtn}
+                  onPress={() => regenerateInviteMutation.mutate()}
+                  disabled={regenerateInviteMutation.isPending}
+                >
+                  {regenerateInviteMutation.isPending ? (
+                    <ActivityIndicator color={colors.primary} size="small" />
+                  ) : (
+                    <Ionicons name="refresh" size={20} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -352,12 +358,14 @@ export default function ServerAdminScreen() {
         <View style={s.section}>
           <View style={s.sectionHeaderRow}>
             <Text style={s.sectionTitle}>Channels ({textChannels.length})</Text>
-            <TouchableOpacity style={s.addBtn} onPress={() => setAddingChannel(true)}>
-              <Ionicons name="add" size={18} color={colors.primary} />
-            </TouchableOpacity>
+            {isAdmin && (
+              <TouchableOpacity style={s.addBtn} onPress={() => setAddingChannel(true)}>
+                <Ionicons name="add" size={18} color={colors.primary} />
+              </TouchableOpacity>
+            )}
           </View>
 
-          {addingChannel && (
+          {isAdmin && addingChannel && (
             <View style={s.addChannelRow}>
               <TextInput
                 style={s.channelInput}
@@ -432,24 +440,28 @@ export default function ServerAdminScreen() {
                     <View style={s.channelRow}>
                       <Ionicons name="text" size={16} color={colors.mutedForeground} />
                       <Text style={s.channelName}>{ch.name}</Text>
-                      <TouchableOpacity
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        onPress={() => { setRenamingChannelId(ch.id); setRenameChannelValue(ch.name); }}
-                        style={{ marginRight: 6 }}
-                      >
-                        <Ionicons name="pencil-outline" size={16} color={colors.mutedForeground} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        onPress={() => {
-                          Alert.alert("Delete Channel", `Delete #${ch.name}?`, [
-                            { text: "Cancel", style: "cancel" },
-                            { text: "Delete", style: "destructive", onPress: () => deleteChannelMutation.mutate(ch.id) },
-                          ]);
-                        }}
-                      >
-                        <Ionicons name="trash-outline" size={16} color={colors.destructive} />
-                      </TouchableOpacity>
+                      {isAdmin && (
+                        <>
+                          <TouchableOpacity
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            onPress={() => { setRenamingChannelId(ch.id); setRenameChannelValue(ch.name); }}
+                            style={{ marginRight: 6 }}
+                          >
+                            <Ionicons name="pencil-outline" size={16} color={colors.mutedForeground} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            onPress={() => {
+                              Alert.alert("Delete Channel", `Delete #${ch.name}?`, [
+                                { text: "Cancel", style: "cancel" },
+                                { text: "Delete", style: "destructive", onPress: () => deleteChannelMutation.mutate(ch.id) },
+                              ]);
+                            }}
+                          >
+                            <Ionicons name="trash-outline" size={16} color={colors.destructive} />
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   )}
                 </View>

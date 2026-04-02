@@ -122,6 +122,12 @@ router.post("/channels/:channelId/read", async (req, res) => {
   const { channelId } = req.params;
   const userId = req.user.id;
 
+  // Verify the channel exists and the caller is a member of its server
+  const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, channelId) });
+  if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+  const member = await isMember(userId, channel.serverId);
+  if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
+
   await db
     .insert(channelReadsTable)
     .values({ userId, channelId, lastReadAt: new Date() })
