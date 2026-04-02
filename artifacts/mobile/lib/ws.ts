@@ -11,9 +11,9 @@ let shouldReconnect = true;
 
 const connectedListeners = new Set<(connected: boolean) => void>();
 
-export function onConnectionChange(cb: (connected: boolean) => void) {
+export function onConnectionChange(cb: (connected: boolean) => void): () => void {
   connectedListeners.add(cb);
-  return () => connectedListeners.delete(cb);
+  return () => { connectedListeners.delete(cb); };
 }
 
 function notifyConnection(connected: boolean) {

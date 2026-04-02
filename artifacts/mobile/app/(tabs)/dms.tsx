@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRealtime } from "@/contexts/RealtimeContext";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 
@@ -65,6 +66,7 @@ export default function DmsTab() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { subscribe } = useRealtime();
 
   const [newDmVisible, setNewDmVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -77,6 +79,20 @@ export default function DmsTab() {
     queryFn: () => api("/dms"),
     refetchInterval: 30000,
   });
+
+  useEffect(() => {
+    const unsub = subscribe("PRESENCE_UPDATE", (payload: { userId: string; status: string }) => {
+      queryClient.setQueryData(["dm-threads"], (old: DmThread[] = []) =>
+        old.map(thread => ({
+          ...thread,
+          participants: thread.participants.map(p =>
+            p.id === payload.userId ? { ...p, status: payload.status } : p
+          ),
+        }))
+      );
+    });
+    return unsub;
+  }, [subscribe, queryClient]);
 
   const startDmMutation = useMutation({
     mutationFn: (userId: string) =>
@@ -100,7 +116,7 @@ export default function DmsTab() {
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     },
-    onError: (e: any) => {
+    onError: (e: Error) => {
       Alert.alert("Error", e.message || "Failed to start DM");
     },
   });
@@ -113,8 +129,8 @@ export default function DmsTab() {
     try {
       const user = await api<UserLookup>(`/users/lookup?q=${encodeURIComponent(searchQuery.trim())}`);
       setLookupResult(user);
-    } catch (e: any) {
-      setLookupError(e.message || "User not found");
+    } catch (e) {
+      setLookupError((e instanceof Error ? e.message : null) || "User not found");
     } finally {
       setSearching(false);
     }
@@ -125,6 +141,7 @@ export default function DmsTab() {
   const renderThread = useCallback(({ item }: { item: DmThread }) => {
     const other = item.participants?.find(p => p.id !== user?.id) ?? item.participants?.[0];
     const isOnline = other?.status === "online";
+    const hasUnread = !!(item.lastMessage && item.lastMessage.authorId !== user?.id);
     return (
       <TouchableOpacity
         style={s.threadRow}
@@ -150,14 +167,19 @@ export default function DmsTab() {
         />
         <View style={s.threadInfo}>
           <View style={s.threadTopRow}>
-            <Text style={s.threadName} numberOfLines={1}>
+            <Text style={[s.threadName, hasUnread && s.threadNameUnread]} numberOfLines={1}>
               {other?.displayName || other?.username}
             </Text>
-            {item.lastMessage && (
-              <Text style={s.threadTime}>{timeAgo(item.lastMessage.createdAt)}</Text>
-            )}
+            <View style={s.threadTimeRow}>
+              {item.lastMessage && (
+                <Text style={s.threadTime}>{timeAgo(item.lastMessage.createdAt)}</Text>
+              )}
+              {hasUnread && (
+                <View style={[s.unreadDot, { backgroundColor: colors.primary }]} />
+              )}
+            </View>
           </View>
-          <Text style={s.threadPreview} numberOfLines={1}>
+          <Text style={[s.threadPreview, hasUnread && s.threadPreviewUnread]} numberOfLines={1}>
             {item.lastMessage?.content ?? "No messages yet"}
           </Text>
         </View>
@@ -300,7 +322,11 @@ export default function DmsTab() {
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: {
+  background: string; foreground: string; muted: string; mutedForeground: string;
+  primary: string; primaryForeground: string; secondary: string;
+  border: string; card: string; radius: number; destructive?: string;
+}) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -387,17 +413,34 @@ function createStyles(colors: any) {
       color: colors.foreground,
       flex: 1,
     },
+    threadNameUnread: {
+      fontFamily: "Inter_700Bold",
+      color: colors.foreground,
+    },
+    threadTimeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
     threadTime: {
       fontFamily: "Inter_400Regular",
       fontSize: 11,
       color: colors.mutedForeground,
-      marginLeft: 8,
+    },
+    unreadDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
     },
     threadPreview: {
       fontFamily: "Inter_400Regular",
       fontSize: 13,
       color: colors.mutedForeground,
       marginTop: 2,
+    },
+    threadPreviewUnread: {
+      fontFamily: "Inter_500Medium",
+      color: colors.foreground,
     },
     separator: { height: 1, backgroundColor: colors.border, marginLeft: 72 },
     overlay: {

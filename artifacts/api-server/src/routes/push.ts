@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pushSubscriptionsTable, notificationPrefsTable } from "@workspace/db/schema";
+import { pushSubscriptionsTable, notificationPrefsTable, expoPushTokensTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { sendPushToUser } from "../lib/push";
+import { Expo } from "expo-server-sdk";
 
 const router = Router();
 
@@ -158,6 +159,40 @@ router.post("/push/test", async (req, res) => {
     tag: "push-test",
     nav,
   });
+
+  res.json({ ok: true });
+});
+
+// Register an Expo push token (mobile app — called after Expo permission grant)
+router.post("/push/expo-token", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { token, label } = req.body ?? {};
+  if (!token || !Expo.isExpoPushToken(token)) {
+    res.status(400).json({ error: "Invalid Expo push token" }); return;
+  }
+
+  await db
+    .insert(expoPushTokensTable)
+    .values({ userId: req.user.id, token, label: label ?? null })
+    .onConflictDoUpdate({
+      target: expoPushTokensTable.token,
+      set: { userId: req.user.id },
+    });
+
+  res.json({ ok: true });
+});
+
+// Remove an Expo push token (on sign-out or token refresh)
+router.delete("/push/expo-token", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { token } = req.body ?? {};
+  if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+
+  await db.delete(expoPushTokensTable).where(
+    and(eq(expoPushTokensTable.userId, req.user.id), eq(expoPushTokensTable.token, token))
+  );
 
   res.json({ ok: true });
 });

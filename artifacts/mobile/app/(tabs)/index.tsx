@@ -14,7 +14,7 @@ import {
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,6 +47,21 @@ export default function ServersTab() {
     queryFn: () => api("/servers"),
   });
 
+  const unreadResults = useQueries({
+    queries: servers.map(s => ({
+      queryKey: ["server-unread", s.id],
+      queryFn: () => api<Record<string, number>>(`/servers/${s.id}/unread`),
+      refetchInterval: 30000,
+      staleTime: 15000,
+    })),
+  });
+
+  const serverUnreadMap = servers.reduce<Record<string, number>>((acc, srv, idx) => {
+    const counts = unreadResults[idx]?.data ?? {};
+    acc[srv.id] = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    return acc;
+  }, {});
+
   const createMutation = useMutation({
     mutationFn: (name: string) =>
       api("/servers", { method: "POST", body: JSON.stringify({ name }) }),
@@ -56,21 +71,22 @@ export default function ServersTab() {
       setServerName("");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
-    onError: (e: any) => {
+    onError: (e: Error) => {
       Alert.alert("Error", e.message || "Failed to create server");
     },
   });
 
   const joinMutation = useMutation({
     mutationFn: (code: string) =>
-      api(`/invite/${code.trim()}/join`, { method: "POST" }),
-    onSuccess: () => {
+      api<Server>(`/invite/${code.trim()}/join`, { method: "POST" }),
+    onSuccess: (joinedServer: Server) => {
       queryClient.invalidateQueries({ queryKey: ["servers"] });
       setModalVisible(false);
       setInviteCode("");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push({ pathname: "/server/[serverId]", params: { serverId: joinedServer.id } });
     },
-    onError: (e: any) => {
+    onError: (e: Error) => {
       Alert.alert("Error", e.message || "Invalid invite code");
     },
   });
@@ -94,28 +110,40 @@ export default function ServersTab() {
 
   const s = createStyles(colors);
 
-  const renderServer = useCallback(({ item }: { item: Server }) => (
-    <TouchableOpacity
-      style={s.serverRow}
-      onPress={() => router.push({ pathname: "/server/[serverId]", params: { serverId: item.id } })}
-      activeOpacity={0.7}
-    >
-      <Avatar
-        avatarUrl={item.iconUrl}
-        username={item.name}
-        displayName={item.name}
-        size={44}
-      />
-      <View style={s.serverInfo}>
-        <Text style={s.serverName} numberOfLines={1}>{item.name}</Text>
-        <Text style={s.serverMeta}>
-          {item.memberCount} {item.memberCount === 1 ? "member" : "members"}
-          {item.ownerId === user?.id ? " · Owner" : ""}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-    </TouchableOpacity>
-  ), [colors, user?.id, s]);
+  const renderServer = useCallback(({ item }: { item: Server }) => {
+    const unreadCount = serverUnreadMap[item.id] ?? 0;
+    return (
+      <TouchableOpacity
+        style={s.serverRow}
+        onPress={() => router.push({ pathname: "/server/[serverId]", params: { serverId: item.id } })}
+        activeOpacity={0.7}
+      >
+        <View>
+          <Avatar
+            avatarUrl={item.iconUrl}
+            username={item.name}
+            displayName={item.name}
+            size={44}
+          />
+          {unreadCount > 0 && (
+            <View style={[s.unreadBadge, { backgroundColor: colors.primary }]}>
+              <Text style={[s.unreadBadgeText, { color: colors.primaryForeground }]}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={s.serverInfo}>
+          <Text style={[s.serverName, unreadCount > 0 && s.serverNameUnread]} numberOfLines={1}>{item.name}</Text>
+          <Text style={s.serverMeta}>
+            {item.memberCount} {item.memberCount === 1 ? "member" : "members"}
+            {item.ownerId === user?.id ? " · Owner" : ""}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+      </TouchableOpacity>
+    );
+  }, [colors, user?.id, s, serverUnreadMap]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -267,7 +295,11 @@ export default function ServersTab() {
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: {
+  background: string; foreground: string; muted: string; mutedForeground: string;
+  primary: string; primaryForeground: string; secondary: string;
+  border: string; card: string; radius: number;
+}) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -347,6 +379,24 @@ function createStyles(colors: any) {
       fontFamily: "Inter_600SemiBold",
       fontSize: 15,
       color: colors.foreground,
+    },
+    serverNameUnread: {
+      fontFamily: "Inter_700Bold",
+    },
+    unreadBadge: {
+      position: "absolute",
+      bottom: -2,
+      right: -2,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 3,
+    },
+    unreadBadgeText: {
+      fontFamily: "Inter_700Bold",
+      fontSize: 10,
     },
     serverMeta: {
       fontFamily: "Inter_400Regular",

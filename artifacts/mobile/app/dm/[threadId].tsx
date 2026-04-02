@@ -22,6 +22,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { api } from "@/lib/api";
+import { send as wsSend } from "@/lib/ws";
 import { Avatar } from "@/components/Avatar";
 
 interface DmMessageAuthor {
@@ -101,6 +102,9 @@ export default function DmChatScreen() {
 
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const lastTypingSent = useRef(0);
 
   const { data: messages = [], isLoading } = useQuery<DmMessage[]>({
     queryKey: ["dm-messages", threadId],
@@ -129,8 +133,15 @@ export default function DmChatScreen() {
   };
 
   useEffect(() => {
+    return () => {
+      typingTimers.current.forEach(t => clearTimeout(t));
+      typingTimers.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
     const unsubs = [
-      subscribe("MESSAGE_CREATE", (payload: any) => {
+      subscribe("MESSAGE_CREATE", (payload: { dmThreadId?: string; id: string } & DmMessage) => {
         if (payload.dmThreadId !== threadId) return;
         queryClient.setQueryData(["dm-messages", threadId], (old: DmMessage[] = []) => {
           if (old.find(m => m.id === payload.id)) return old;
@@ -138,14 +149,26 @@ export default function DmChatScreen() {
         });
         queryClient.invalidateQueries({ queryKey: ["dm-threads"] });
       }),
-      subscribe("MESSAGE_UPDATE", (payload: any) => {
+      subscribe("MESSAGE_UPDATE", (payload: { id: string } & Partial<DmMessage>) => {
         queryClient.setQueryData(["dm-messages", threadId], (old: DmMessage[] = []) =>
           old.map(m => m.id === payload.id ? { ...m, ...payload } : m)
         );
       }),
+      subscribe("TYPING", (payload: { dmThreadId?: string; userId: string }) => {
+        if (payload.dmThreadId !== threadId) return;
+        if (payload.userId === user?.id) return;
+        setTypingUsers(prev => prev.includes(payload.userId) ? prev : [...prev, payload.userId]);
+        const existing = typingTimers.current.get(payload.userId);
+        if (existing) clearTimeout(existing);
+        const timer = setTimeout(() => {
+          setTypingUsers(prev => prev.filter(id => id !== payload.userId));
+          typingTimers.current.delete(payload.userId);
+        }, 3000);
+        typingTimers.current.set(payload.userId, timer);
+      }),
     ];
     return () => unsubs.forEach(u => u());
-  }, [threadId, subscribe, queryClient]);
+  }, [threadId, subscribe, queryClient, user?.id]);
 
   const sendMutation = useMutation({
     mutationFn: (text: string) =>
@@ -428,13 +451,27 @@ export default function DmChatScreen() {
       )}
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        {typingUsers.length > 0 && (
+          <View style={s.typingBar}>
+            <Text style={s.typingText}>
+              {otherUser?.displayName ?? "Someone"} is typing...
+            </Text>
+          </View>
+        )}
         <View style={s.inputBar}>
           <TextInput
             style={s.textInput}
             placeholder={`Message ${otherUser?.displayName ?? "..."}`}
             placeholderTextColor={colors.mutedForeground}
             value={content}
-            onChangeText={setContent}
+            onChangeText={(text) => {
+              setContent(text);
+              const now = Date.now();
+              if (now - lastTypingSent.current > 2000 && text.length > 0) {
+                lastTypingSent.current = now;
+                wsSend({ type: "TYPING_START", payload: { dmThreadId: threadId } });
+              }
+            }}
             multiline
             maxLength={2000}
           />
@@ -455,8 +492,23 @@ export default function DmChatScreen() {
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: {
+  background: string; foreground: string; muted: string; mutedForeground: string;
+  primary: string; primaryForeground: string; border: string; card: string;
+  radius: number; destructive?: string;
+}) {
   return StyleSheet.create({
+    typingBar: {
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+      backgroundColor: colors.background,
+    },
+    typingText: {
+      fontFamily: "Inter_400Regular",
+      fontSize: 12,
+      color: colors.mutedForeground,
+      fontStyle: "italic",
+    },
     root: { flex: 1, backgroundColor: colors.background },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
     header: {

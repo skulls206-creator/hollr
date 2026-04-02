@@ -189,6 +189,17 @@ export const notificationPrefsTable = pgTable("notification_prefs", {
 export type PushSubscription = typeof pushSubscriptionsTable.$inferSelect;
 export type NotificationPrefs = typeof notificationPrefsTable.$inferSelect;
 
+// Expo push tokens — registered from the mobile app, used to deliver native push
+export const expoPushTokensTable = pgTable("expo_push_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  token: text("token").notNull().unique(),
+  label: varchar("label", { length: 64 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("idx_expo_push_tokens_user_id").on(t.userId)]);
+
+export type ExpoPushToken = typeof expoPushTokensTable.$inferSelect;
+
 // Tracks which KHURK ecosystem apps a user has removed from their sidebar.
 // All apps are visible by default (no row = visible). A row means hidden.
 export const khurkAppDismissalsTable = pgTable("khurk_app_dismissals", {

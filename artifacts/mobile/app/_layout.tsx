@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -77,11 +77,19 @@ export default function RootLayout() {
     registerForPushNotifications().catch(() => {});
 
     notifListener.current = Notifications.addNotificationReceivedListener(_notification => {});
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(_response => {});
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data as { navType?: string; serverId?: string; channelId?: string; threadId?: string } | undefined;
+      if (!data) return;
+      if (data.navType === "dm" && data.threadId) {
+        router.push({ pathname: "/dm/[threadId]", params: { threadId: data.threadId } });
+      } else if (data.navType === "channel" && data.serverId && data.channelId) {
+        router.push({ pathname: "/channel", params: { channelId: data.channelId, serverId: data.serverId } });
+      }
+    });
 
     return () => {
-      if (notifListener.current) Notifications.removeNotificationSubscription(notifListener.current);
-      if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
+      notifListener.current?.remove();
+      responseListener.current?.remove();
     };
   }, []);
 

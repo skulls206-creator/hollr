@@ -356,6 +356,18 @@ export function initWebSocket(server: Server) {
             break;
           }
 
+          case "TYPING_START": {
+            const { channelId: typingChannelId, dmThreadId: typingThreadId } = msg.payload ?? {};
+            const typingUserId = socketUsers.get(ws);
+            if (!typingUserId) break;
+            if (typingChannelId) {
+              broadcast({ type: "TYPING", payload: { userId: typingUserId, channelId: typingChannelId } });
+            } else if (typingThreadId) {
+              broadcast({ type: "TYPING", payload: { userId: typingUserId, dmThreadId: typingThreadId } });
+            }
+            break;
+          }
+
           case "PRESENCE_UPDATE": {
             const { userId: presenceUserId, status } = msg.payload ?? {};
             const validStatuses = ["online", "idle", "dnd", "invisible"];

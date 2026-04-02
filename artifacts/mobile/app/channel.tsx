@@ -22,6 +22,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { api } from "@/lib/api";
+import { send as wsSend } from "@/lib/ws";
 import { Avatar } from "@/components/Avatar";
 
 interface MessageAuthor {
@@ -87,6 +88,9 @@ export default function ChannelScreen() {
   const [emojiTargetId, setEmojiTargetId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const lastTypingSent = useRef(0);
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["messages", channelId],
@@ -115,29 +119,48 @@ export default function ChannelScreen() {
   };
 
   useEffect(() => {
+    return () => {
+      typingTimers.current.forEach(t => clearTimeout(t));
+      typingTimers.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
     const unsubs = [
-      subscribe("MESSAGE_CREATE", (payload: any) => {
+      subscribe("MESSAGE_CREATE", (payload: { channelId?: string; id: string } & Message) => {
         if (payload.channelId !== channelId) return;
         queryClient.setQueryData(["messages", channelId], (old: Message[] = []) => {
           if (old.find(m => m.id === payload.id)) return old;
           return [...old, payload];
         });
       }),
-      subscribe("MESSAGE_UPDATE", (payload: any) => {
+      subscribe("MESSAGE_UPDATE", (payload: { channelId?: string; id: string } & Partial<Message>) => {
         if (payload.channelId !== channelId) return;
         queryClient.setQueryData(["messages", channelId], (old: Message[] = []) =>
           old.map(m => m.id === payload.id ? { ...m, ...payload } : m)
         );
       }),
-      subscribe("MESSAGE_DELETE", (payload: any) => {
+      subscribe("MESSAGE_DELETE", (payload: { channelId?: string; id: string }) => {
         if (payload.channelId !== channelId) return;
         queryClient.setQueryData(["messages", channelId], (old: Message[] = []) =>
           old.filter(m => m.id !== payload.id)
         );
       }),
+      subscribe("TYPING", (payload: { channelId?: string; userId: string }) => {
+        if (payload.channelId !== channelId) return;
+        if (payload.userId === user?.id) return;
+        setTypingUsers(prev => prev.includes(payload.userId) ? prev : [...prev, payload.userId]);
+        const existing = typingTimers.current.get(payload.userId);
+        if (existing) clearTimeout(existing);
+        const timer = setTimeout(() => {
+          setTypingUsers(prev => prev.filter(id => id !== payload.userId));
+          typingTimers.current.delete(payload.userId);
+        }, 3000);
+        typingTimers.current.set(payload.userId, timer);
+      }),
     ];
     return () => unsubs.forEach(u => u());
-  }, [channelId, subscribe, queryClient]);
+  }, [channelId, subscribe, queryClient, user?.id]);
 
   const sendMutation = useMutation({
     mutationFn: (text: string) =>
@@ -407,13 +430,25 @@ export default function ChannelScreen() {
       )}
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        {typingUsers.length > 0 && (
+          <View style={s.typingBar}>
+            <Text style={s.typingText}>{typingUsers.length === 1 ? "Someone is" : `${typingUsers.length} people are`} typing...</Text>
+          </View>
+        )}
         <View style={s.inputBar}>
           <TextInput
             style={s.textInput}
             placeholder={`Message #${channelName}`}
             placeholderTextColor={colors.mutedForeground}
             value={content}
-            onChangeText={setContent}
+            onChangeText={(text) => {
+              setContent(text);
+              const now = Date.now();
+              if (now - lastTypingSent.current > 2000 && text.length > 0) {
+                lastTypingSent.current = now;
+                wsSend({ type: "TYPING_START", payload: { channelId } });
+              }
+            }}
             multiline
             maxLength={2000}
             returnKeyType="default"
@@ -435,8 +470,23 @@ export default function ChannelScreen() {
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: {
+  background: string; foreground: string; muted: string; mutedForeground: string;
+  primary: string; primaryForeground: string; border: string; card: string;
+  radius: number; destructive?: string;
+}) {
   return StyleSheet.create({
+    typingBar: {
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+      backgroundColor: colors.background,
+    },
+    typingText: {
+      fontFamily: "Inter_400Regular",
+      fontSize: 12,
+      color: colors.mutedForeground,
+      fontStyle: "italic",
+    },
     root: { flex: 1, backgroundColor: colors.background },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
     header: {
