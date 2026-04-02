@@ -1,4 +1,3 @@
-import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -6,39 +5,62 @@ import { api } from "./api";
 
 const PUSH_TOKEN_KEY = "hollr:expo-push-token";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// expo-notifications remote push support was removed from Expo Go in SDK 53.
+// We use require() so we can wrap it in try/catch at runtime instead of
+// crashing at module load time on a static import.
+const isExpoGo = Constants.appOwnership === "expo";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Notifications: any = null;
+
+if (!isExpoGo) {
+  try {
+    // Dynamic require so the module load error is catchable.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    Notifications = require("expo-notifications");
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch (e) {
+    console.warn("[push] expo-notifications unavailable:", e);
+    Notifications = null;
+  }
+}
 
 async function getExpoPushToken(): Promise<string | null> {
+  if (isExpoGo || !Notifications) return null;
   if (!Constants.isDevice) return null;
 
   if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "hollr messages",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#7c3aed",
-    });
+    try {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "hollr messages",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#7c3aed",
+      });
+    } catch (e) {
+      console.warn("[push] setNotificationChannelAsync failed:", e);
+    }
   }
-
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== "granted") return null;
 
   try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") return null;
+
     const projectId: string | undefined =
       Constants.easConfig?.projectId ??
       (Constants.expoConfig?.extra?.eas?.projectId as string | undefined);
@@ -55,6 +77,7 @@ async function getExpoPushToken(): Promise<string | null> {
 }
 
 export async function updateBadgeCount(count: number): Promise<void> {
+  if (isExpoGo || !Notifications) return;
   try {
     await Notifications.setBadgeCountAsync(Math.max(0, count));
   } catch (e) {
@@ -71,6 +94,7 @@ export async function getStoredPushToken(): Promise<string | null> {
 }
 
 export async function registerForPushNotifications(): Promise<void> {
+  if (isExpoGo || !Notifications) return;
   const token = await getExpoPushToken();
   if (!token) return;
 
@@ -85,6 +109,7 @@ export async function registerForPushNotifications(): Promise<void> {
 }
 
 export async function unregisterPushToken(): Promise<void> {
+  if (isExpoGo || !Notifications) return;
   const token = await getStoredPushToken();
   if (!token) return;
   try {
