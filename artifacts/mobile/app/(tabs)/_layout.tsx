@@ -85,6 +85,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="khurk"
+        options={{
+          title: "KHURK",
+          tabBarIcon: ({ color, size }) => (
+            <TabIcon sf="sparkles" ionicon="apps-sharp" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
