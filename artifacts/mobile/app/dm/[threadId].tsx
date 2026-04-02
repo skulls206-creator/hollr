@@ -136,6 +136,19 @@ export default function DmChatScreen() {
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const lastTypingSent = useRef(0);
+  const tapTimestamps = useRef<Record<string, number>>({});
+
+  const handleDoubleTap = useCallback((msg: DmMessage) => {
+    const now = Date.now();
+    const last = tapTimestamps.current[msg.id] ?? 0;
+    if (now - last < 350) {
+      tapTimestamps.current[msg.id] = 0;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setEmojiTargetId(prev => prev === msg.id ? null : msg.id);
+    } else {
+      tapTimestamps.current[msg.id] = now;
+    }
+  }, []);
 
   const { data: messages = [], isLoading } = useQuery<DmMessage[]>({
     queryKey: ["dm-messages", threadId],
@@ -300,9 +313,9 @@ export default function DmChatScreen() {
   const handleLongPress = (msg: DmMessage) => {
     const isOwn = msg.authorId === user?.id;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setEmojiTargetId(msg.id);
+    setEmojiTargetId(null);
 
-    const copyText = () => { if (msg.content) Clipboard.setStringAsync(msg.content); setEmojiTargetId(null); };
+    const copyText = () => { if (msg.content) Clipboard.setStringAsync(msg.content); };
 
     if (Platform.OS === "ios") {
       if (isOwn) {
@@ -371,6 +384,7 @@ export default function DmChatScreen() {
           </View>
         )}
         <Pressable
+          onPress={() => handleDoubleTap(item)}
           onLongPress={() => handleLongPress(item)}
           delayLongPress={400}
           style={[s.msgRow, isOwn ? s.msgRowOwn : s.msgRowOther]}
