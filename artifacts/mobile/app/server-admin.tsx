@@ -8,8 +8,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  FlatList,
   Share,
+  Clipboard,
 } from "react-native";
 import { router, useLocalSearchParams, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,12 +36,19 @@ interface Channel {
   type: string;
 }
 
-interface Member {
-  userId: string;
+interface MemberUser {
+  id: string;
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  status: string;
+}
+
+interface Member {
+  userId: string;
   role: string;
+  joinedAt: string;
+  user: MemberUser;
 }
 
 export default function ServerAdminScreen() {
@@ -55,6 +62,8 @@ export default function ServerAdminScreen() {
   const [editingName, setEditingName] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [addingChannel, setAddingChannel] = useState(false);
+  const [renamingChannelId, setRenamingChannelId] = useState<string | null>(null);
+  const [renameChannelValue, setRenameChannelValue] = useState("");
 
   const { data: server, isLoading: serverLoading } = useQuery<Server>({
     queryKey: ["server", serverId],
@@ -78,6 +87,10 @@ export default function ServerAdminScreen() {
     if (server) setServerName(server.name);
   }, [server]);
 
+  const isOwner = user?.id === server?.ownerId;
+  const myMember = members.find(m => m.userId === user?.id);
+  const isAdmin = isOwner || myMember?.role === "admin";
+
   const updateServerMutation = useMutation({
     mutationFn: (data: { name?: string; description?: string }) =>
       api(`/servers/${serverId}`, { method: "PATCH", body: JSON.stringify(data) }),
@@ -87,7 +100,7 @@ export default function ServerAdminScreen() {
       setEditingName(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const deleteServerMutation = useMutation({
@@ -96,7 +109,7 @@ export default function ServerAdminScreen() {
       queryClient.invalidateQueries({ queryKey: ["servers"] });
       router.replace("/(tabs)");
     },
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const addChannelMutation = useMutation({
@@ -111,7 +124,22 @@ export default function ServerAdminScreen() {
       setAddingChannel(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
+  });
+
+  const renameChannelMutation = useMutation({
+    mutationFn: ({ channelId, name }: { channelId: string; name: string }) =>
+      api(`/servers/${serverId}/channels/${channelId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["channels", serverId] });
+      setRenamingChannelId(null);
+      setRenameChannelValue("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const deleteChannelMutation = useMutation({
@@ -120,7 +148,7 @@ export default function ServerAdminScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["channels", serverId] });
     },
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const kickMemberMutation = useMutation({
@@ -130,13 +158,28 @@ export default function ServerAdminScreen() {
       queryClient.invalidateQueries({ queryKey: ["members", serverId] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
+  });
+
+  const transferOwnershipMutation = useMutation({
+    mutationFn: (newOwnerId: string) =>
+      api(`/servers/${serverId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ownerId: newOwnerId }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server", serverId] });
+      queryClient.invalidateQueries({ queryKey: ["members", serverId] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Ownership Transferred", "The server ownership has been transferred.");
+    },
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const regenerateInviteMutation = useMutation({
     mutationFn: () => api(`/servers/${serverId}/invite`, { method: "POST" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["server", serverId] }),
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const handleDeleteServer = () => {
@@ -155,9 +198,10 @@ export default function ServerAdminScreen() {
   };
 
   const handleKick = (member: Member) => {
+    const name = member.user.displayName || member.user.username;
     Alert.alert(
       "Remove Member",
-      `Remove ${member.displayName || member.username} from this server?`,
+      `Remove ${name} from this server?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -167,6 +211,29 @@ export default function ServerAdminScreen() {
         },
       ]
     );
+  };
+
+  const handleTransferOwnership = (member: Member) => {
+    const name = member.user.displayName || member.user.username;
+    Alert.alert(
+      "Transfer Ownership",
+      `Transfer server ownership to ${name}? You will become a regular member.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Transfer",
+          style: "destructive",
+          onPress: () => transferOwnershipMutation.mutate(member.userId),
+        },
+      ]
+    );
+  };
+
+  const handleCopyInvite = () => {
+    if (!server?.inviteCode) return;
+    Clipboard.setString(server.inviteCode);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert("Copied", "Invite code copied to clipboard!");
   };
 
   const handleShareInvite = async () => {
@@ -261,6 +328,9 @@ export default function ServerAdminScreen() {
                 <Text style={s.inviteCode}>{server?.inviteCode ?? "—"}</Text>
                 <Text style={s.inviteHint}>Share this code for others to join</Text>
               </View>
+              <TouchableOpacity style={s.iconBtn} onPress={handleCopyInvite}>
+                <Ionicons name="copy-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
               <TouchableOpacity style={s.iconBtn} onPress={handleShareInvite}>
                 <Ionicons name="share-outline" size={20} color={colors.primary} />
               </TouchableOpacity>
@@ -328,21 +398,60 @@ export default function ServerAdminScreen() {
               textChannels.map((ch, idx) => (
                 <View key={ch.id}>
                   {idx > 0 && <View style={s.sep} />}
-                  <View style={s.channelRow}>
-                    <Ionicons name="hash" size={16} color={colors.mutedForeground} />
-                    <Text style={s.channelName}>{ch.name}</Text>
-                    <TouchableOpacity
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      onPress={() => {
-                        Alert.alert("Delete Channel", `Delete #${ch.name}?`, [
-                          { text: "Cancel", style: "cancel" },
-                          { text: "Delete", style: "destructive", onPress: () => deleteChannelMutation.mutate(ch.id) },
-                        ]);
-                      }}
-                    >
-                      <Ionicons name="trash-outline" size={16} color={colors.destructive} />
-                    </TouchableOpacity>
-                  </View>
+                  {renamingChannelId === ch.id ? (
+                    <View style={s.addChannelRow}>
+                      <TextInput
+                        style={s.channelInput}
+                        value={renameChannelValue}
+                        onChangeText={setRenameChannelValue}
+                        autoFocus
+                        autoCapitalize="none"
+                        returnKeyType="done"
+                        onSubmitEditing={() => {
+                          if (renameChannelValue.trim()) renameChannelMutation.mutate({ channelId: ch.id, name: renameChannelValue.trim().toLowerCase().replace(/\s+/g, "-") });
+                        }}
+                      />
+                      <TouchableOpacity
+                        style={s.addChannelBtn}
+                        onPress={() => {
+                          if (renameChannelValue.trim()) renameChannelMutation.mutate({ channelId: ch.id, name: renameChannelValue.trim().toLowerCase().replace(/\s+/g, "-") });
+                        }}
+                        disabled={renameChannelMutation.isPending}
+                      >
+                        {renameChannelMutation.isPending ? (
+                          <ActivityIndicator color={colors.primaryForeground} size="small" />
+                        ) : (
+                          <Ionicons name="checkmark" size={18} color={colors.primaryForeground} />
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity style={s.cancelSmallBtn} onPress={() => setRenamingChannelId(null)}>
+                        <Ionicons name="close" size={18} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={s.channelRow}>
+                      <Ionicons name="text" size={16} color={colors.mutedForeground} />
+                      <Text style={s.channelName}>{ch.name}</Text>
+                      <TouchableOpacity
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        onPress={() => { setRenamingChannelId(ch.id); setRenameChannelValue(ch.name); }}
+                        style={{ marginRight: 6 }}
+                      >
+                        <Ionicons name="pencil-outline" size={16} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        onPress={() => {
+                          Alert.alert("Delete Channel", `Delete #${ch.name}?`, [
+                            { text: "Cancel", style: "cancel" },
+                            { text: "Delete", style: "destructive", onPress: () => deleteChannelMutation.mutate(ch.id) },
+                          ]);
+                        }}
+                      >
+                        <Ionicons name="trash-outline" size={16} color={colors.destructive} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               ))
             )}
@@ -360,23 +469,34 @@ export default function ServerAdminScreen() {
                   {idx > 0 && <View style={s.sep} />}
                   <View style={s.memberRow}>
                     <Avatar
-                      avatarUrl={m.avatarUrl}
-                      username={m.username}
-                      displayName={m.displayName}
+                      avatarUrl={m.user.avatarUrl}
+                      username={m.user.username}
+                      displayName={m.user.displayName}
                       size={36}
                     />
                     <View style={{ flex: 1 }}>
-                      <Text style={s.memberName}>{m.displayName || m.username}</Text>
+                      <Text style={s.memberName}>{m.user.displayName || m.user.username}</Text>
                       <Text style={s.memberRole}>{m.role}</Text>
                     </View>
-                    {m.userId !== user?.id && m.role !== "owner" && (
-                      <TouchableOpacity
-                        style={s.kickBtn}
-                        onPress={() => handleKick(m)}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <Ionicons name="person-remove-outline" size={18} color={colors.destructive} />
-                      </TouchableOpacity>
+                    {m.userId !== user?.id && m.role !== "owner" && isAdmin && (
+                      <View style={{ flexDirection: "row", gap: 6 }}>
+                        {isOwner && (
+                          <TouchableOpacity
+                            style={s.transferBtn}
+                            onPress={() => handleTransferOwnership(m)}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          >
+                            <Ionicons name="shield-outline" size={18} color={colors.primary} />
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          style={s.kickBtn}
+                          onPress={() => handleKick(m)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <Ionicons name="person-remove-outline" size={18} color={colors.destructive} />
+                        </TouchableOpacity>
+                      </View>
                     )}
                   </View>
                 </View>
@@ -385,30 +505,35 @@ export default function ServerAdminScreen() {
           </View>
         </View>
 
-        <View style={[s.section, { marginTop: 8 }]}>
-          <Text style={s.sectionTitle}>Danger Zone</Text>
-          <TouchableOpacity
-            style={s.deleteBtn}
-            onPress={handleDeleteServer}
-            disabled={deleteServerMutation.isPending}
-            activeOpacity={0.8}
-          >
-            {deleteServerMutation.isPending ? (
-              <ActivityIndicator color={colors.destructive} size="small" />
-            ) : (
-              <>
-                <Ionicons name="trash" size={18} color={colors.destructive} />
-                <Text style={s.deleteText}>Delete Server</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+        {isOwner && (
+          <View style={[s.section, { marginTop: 8 }]}>
+            <Text style={s.sectionTitle}>Danger Zone</Text>
+            <TouchableOpacity
+              style={s.deleteBtn}
+              onPress={handleDeleteServer}
+              disabled={deleteServerMutation.isPending}
+              activeOpacity={0.8}
+            >
+              {deleteServerMutation.isPending ? (
+                <ActivityIndicator color={colors.destructive} size="small" />
+              ) : (
+                <>
+                  <Ionicons name="trash" size={18} color={colors.destructive} />
+                  <Text style={s.deleteText}>Delete Server</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: {
+  background: string; foreground: string; card: string; muted: string; mutedForeground: string;
+  primary: string; primaryForeground: string; border: string; destructive: string; radius: number;
+}) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
     center: { alignItems: "center", justifyContent: "center" },
@@ -603,6 +728,14 @@ function createStyles(colors: any) {
       fontSize: 12,
       color: colors.mutedForeground,
       textTransform: "capitalize",
+    },
+    transferBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.primary + "18",
+      alignItems: "center",
+      justifyContent: "center",
     },
     kickBtn: {
       width: 32,

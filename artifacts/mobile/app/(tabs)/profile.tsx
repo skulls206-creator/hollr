@@ -14,10 +14,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+import { api, getSessionId } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { THEMES, THEME_LABELS, ThemeId } from "@/constants/colors";
 
@@ -52,6 +53,7 @@ export default function ProfileTab() {
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const { data: profile, isLoading } = useQuery<UserProfile>({
     queryKey: ["profile", "me"],
@@ -99,6 +101,57 @@ export default function ProfileTab() {
     setEditingName(false);
   };
 
+  const handleAvatarUpload = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library to change your avatar.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    setUploadingAvatar(true);
+    try {
+      const asset = result.assets[0];
+      const ext = asset.uri.split(".").pop() ?? "jpg";
+      const mimeType = asset.mimeType ?? `image/${ext}`;
+
+      const { uploadURL, objectPath } = await api<{ uploadURL: string; objectPath: string }>(
+        "/storage/uploads/request-url",
+        { method: "POST", body: JSON.stringify({ contentType: mimeType, prefix: "avatars" }) }
+      );
+
+      const fileData = await fetch(asset.uri);
+      const blob = await fileData.blob();
+
+      const uploadRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": mimeType },
+        body: blob,
+      });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+
+      await api("/users/me", {
+        method: "PATCH",
+        body: JSON.stringify({ avatarUrl: objectPath }),
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["profile", "me"] });
+      refreshUser();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Avatar Updated", "Your profile picture has been updated.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message ?? "Failed to upload avatar");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleLogout = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
@@ -142,12 +195,20 @@ export default function ProfileTab() {
       </View>
 
       <View style={s.avatarSection}>
-        <Avatar
-          avatarUrl={profile?.avatarUrl}
-          username={profile?.username}
-          displayName={profile?.displayName}
-          size={80}
-        />
+        <TouchableOpacity onPress={handleAvatarUpload} disabled={uploadingAvatar} style={s.avatarWrapper}>
+          <Avatar
+            avatarUrl={profile?.avatarUrl}
+            username={profile?.username}
+            displayName={profile?.displayName}
+            size={80}
+          />
+          <View style={[s.avatarEditBadge, { backgroundColor: colors.primary }]}>
+            {uploadingAvatar
+              ? <ActivityIndicator color={colors.primaryForeground} size="small" />
+              : <Ionicons name="camera" size={14} color={colors.primaryForeground} />
+            }
+          </View>
+        </TouchableOpacity>
         <View style={s.nameCol}>
           {editingName ? (
             <View style={s.editNameRow}>
@@ -328,6 +389,21 @@ function createStyles(colors: any) {
       fontSize: 22,
       color: colors.foreground,
       letterSpacing: -0.5,
+    },
+    avatarWrapper: {
+      position: "relative",
+    },
+    avatarEditBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.background,
     },
     avatarSection: {
       flexDirection: "row",

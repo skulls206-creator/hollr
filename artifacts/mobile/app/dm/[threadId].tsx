@@ -99,11 +99,34 @@ export default function DmChatScreen() {
       }
     : null;
 
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const { data: messages = [], isLoading } = useQuery<DmMessage[]>({
     queryKey: ["dm-messages", threadId],
-    queryFn: () => api(`/dms/${threadId}/messages`),
+    queryFn: async () => {
+      const data: DmMessage[] = await api(`/dms/${threadId}/messages?limit=50`);
+      if (data.length < 50) setHasMore(false);
+      return data;
+    },
     enabled: !!threadId,
   });
+
+  const loadMore = async () => {
+    if (!hasMore || loadingMore || messages.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const oldest = [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
+      const older: DmMessage[] = await api(`/dms/${threadId}/messages?limit=50&before=${oldest.id}`);
+      if (older.length < 50) setHasMore(false);
+      queryClient.setQueryData(["dm-messages", threadId], (old: DmMessage[] = []) => {
+        const ids = new Set(old.map(m => m.id));
+        return [...old, ...older.filter(m => !ids.has(m.id))];
+      });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     const unsubs = [
@@ -151,12 +174,23 @@ export default function DmChatScreen() {
     onError: (e: any) => Alert.alert("Error", e.message),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      api(`/dms/${threadId}/messages/${id}`, { method: "DELETE" }),
+    onSuccess: (_, id) => {
+      queryClient.setQueryData(["dm-messages", threadId], (old: DmMessage[] = []) =>
+        old.filter(m => m.id !== id)
+      );
+    },
+    onError: (e: Error) => Alert.alert("Error", e.message),
+  });
+
   const reactMutation = useMutation({
     mutationFn: ({ id, emoji }: { id: string; emoji: string }) =>
       api(`/dms/${threadId}/messages/${id}/reactions/${encodeURIComponent(emoji)}`, {
         method: "PUT",
       }),
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const handleSend = () => {
@@ -172,17 +206,31 @@ export default function DmChatScreen() {
     if (Platform.OS === "ios" && isOwn) {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ["Cancel", "Edit", "React"],
+          options: ["Cancel", "Edit", "Delete"],
           cancelButtonIndex: 0,
+          destructiveButtonIndex: 2,
         },
         (idx) => {
           if (idx === 1) {
             setEditingId(msg.id);
             setEditContent(msg.content);
             setEmojiTargetId(null);
+          } else if (idx === 2) {
+            Alert.alert("Delete Message", "Are you sure?", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Delete", style: "destructive", onPress: () => { deleteMutation.mutate(msg.id); setEmojiTargetId(null); } },
+            ]);
+          } else {
+            setEmojiTargetId(null);
           }
         }
       );
+    } else if (isOwn) {
+      Alert.alert("Message Options", "", [
+        { text: "Edit", onPress: () => { setEditingId(msg.id); setEditContent(msg.content); setEmojiTargetId(null); } },
+        { text: "Delete", style: "destructive", onPress: () => { deleteMutation.mutate(msg.id); setEmojiTargetId(null); } },
+        { text: "Cancel", style: "cancel", onPress: () => setEmojiTargetId(null) },
+      ]);
     }
   };
 
@@ -356,6 +404,11 @@ export default function DmChatScreen() {
           contentContainerStyle={{ paddingTop: 12, paddingBottom: 8 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={loadingMore ? () => (
+            <ActivityIndicator color={colors.primary} style={{ padding: 12 }} />
+          ) : null}
           ListEmptyComponent={() => (
             <View style={s.emptyState}>
               {otherUser && (

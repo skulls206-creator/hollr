@@ -85,12 +85,34 @@ export default function ChannelScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [emojiTargetId, setEmojiTargetId] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["messages", channelId],
-    queryFn: () => api(`/channels/${channelId}/messages`),
+    queryFn: async () => {
+      const data: Message[] = await api(`/channels/${channelId}/messages?limit=50`);
+      if (data.length < 50) setHasMore(false);
+      return data;
+    },
     enabled: !!channelId,
   });
+
+  const loadMore = async () => {
+    if (!hasMore || loadingMore || messages.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const oldest = [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
+      const older: Message[] = await api(`/channels/${channelId}/messages?limit=50&before=${oldest.id}`);
+      if (older.length < 50) setHasMore(false);
+      queryClient.setQueryData(["messages", channelId], (old: Message[] = []) => {
+        const ids = new Set(old.map(m => m.id));
+        return [...old, ...older.filter(m => !ids.has(m.id))];
+      });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     const unsubs = [
@@ -369,6 +391,11 @@ export default function ChannelScreen() {
           contentContainerStyle={[s.listContent, { paddingTop: 12, paddingBottom: 8 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={loadingMore ? () => (
+            <ActivityIndicator color={colors.primary} style={{ padding: 12 }} />
+          ) : null}
           ListEmptyComponent={() => (
             <View style={s.emptyState}>
               <Ionicons name="chatbubbles-outline" size={40} color={colors.mutedForeground} />

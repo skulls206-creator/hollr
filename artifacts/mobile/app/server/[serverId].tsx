@@ -31,6 +31,16 @@ interface Server {
   memberCount: number;
 }
 
+interface ServerMember {
+  userId: string;
+  role: string;
+}
+
+interface UnreadCount {
+  channelId: string;
+  count: number;
+}
+
 export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
   const { colors } = useTheme();
@@ -49,7 +59,26 @@ export default function ServerScreen() {
     enabled: !!serverId,
   });
 
+  const { data: members = [] } = useQuery<ServerMember[]>({
+    queryKey: ["members", serverId],
+    queryFn: () => api(`/servers/${serverId}/members`),
+    enabled: !!serverId,
+    select: (data: Array<{ userId: string; role: string }>) => data,
+  });
+
+  const { data: unreadCounts = [] } = useQuery<UnreadCount[]>({
+    queryKey: ["unread", serverId],
+    queryFn: () => api(`/servers/${serverId}/unread`),
+    enabled: !!serverId,
+    refetchInterval: 15000,
+  });
+
   const isOwner = user?.id === server?.ownerId;
+  const myMember = members.find(m => m.userId === user?.id);
+  const isAdminOrOwner = isOwner || myMember?.role === "admin";
+
+  const unreadMap = new Map(unreadCounts.map(u => [u.channelId, u.count]));
+
   const textChannels = channels.filter(c => c.type === "text").sort((a, b) => a.position - b.position);
   const voiceChannels = channels.filter(c => c.type === "voice").sort((a, b) => a.position - b.position);
 
@@ -57,6 +86,7 @@ export default function ServerScreen() {
 
   const renderChannel = useCallback(({ item }: { item: Channel }) => {
     const isVoice = item.type === "voice";
+    const unread = unreadMap.get(item.id) ?? 0;
     return (
       <TouchableOpacity
         style={s.channelRow}
@@ -71,20 +101,27 @@ export default function ServerScreen() {
         disabled={isVoice}
       >
         <Ionicons
-          name={isVoice ? "volume-medium-outline" : "hash"}
+          name={isVoice ? "volume-medium-outline" : "chatbubble-outline"}
           size={18}
-          color={isVoice ? colors.mutedForeground : colors.mutedForeground}
+          color={colors.mutedForeground}
           style={{ opacity: isVoice ? 0.5 : 1 }}
         />
-        <Text style={[s.channelName, isVoice && { color: colors.mutedForeground, opacity: 0.6 }]}>
+        <Text style={[s.channelName, isVoice && { color: colors.mutedForeground, opacity: 0.6 }, unread > 0 && s.channelNameUnread]}>
           {item.name}
         </Text>
         {isVoice && (
           <Text style={s.voiceTag}>voice</Text>
         )}
+        {unread > 0 && !isVoice && (
+          <View style={[s.badgePill, { backgroundColor: colors.primary }]}>
+            <Text style={[s.badgeText, { color: colors.primaryForeground }]}>
+              {unread > 99 ? "99+" : unread}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
-  }, [colors, serverId, server?.name, s]);
+  }, [colors, serverId, server?.name, unreadMap, s]);
 
   if (serverLoading) {
     return (
@@ -114,7 +151,7 @@ export default function ServerScreen() {
           <Text style={s.headerSub}>{server?.memberCount} members</Text>
         </View>
 
-        {isOwner && (
+        {isAdminOrOwner && (
           <TouchableOpacity
             style={s.settingsBtn}
             onPress={() =>
@@ -148,7 +185,7 @@ export default function ServerScreen() {
           ListEmptyComponent={() => (
             <View style={s.emptyState}>
               <Text style={s.emptyText}>No channels yet</Text>
-              {isOwner && (
+              {isAdminOrOwner && (
                 <Text style={s.emptySubText}>Add channels from the server settings</Text>
               )}
             </View>
@@ -160,7 +197,10 @@ export default function ServerScreen() {
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: {
+  background: string; foreground: string; muted: string; mutedForeground: string;
+  primary: string; primaryForeground: string; border: string; radius: number;
+}) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
@@ -224,6 +264,10 @@ function createStyles(colors: any) {
       fontSize: 15,
       color: colors.foreground,
     },
+    channelNameUnread: {
+      fontFamily: "Inter_700Bold",
+      color: colors.foreground,
+    },
     voiceTag: {
       fontFamily: "Inter_400Regular",
       fontSize: 11,
@@ -232,6 +276,18 @@ function createStyles(colors: any) {
       borderRadius: 4,
       paddingHorizontal: 6,
       paddingVertical: 2,
+    },
+    badgePill: {
+      borderRadius: 10,
+      minWidth: 20,
+      height: 20,
+      paddingHorizontal: 5,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeText: {
+      fontFamily: "Inter_700Bold",
+      fontSize: 11,
     },
     separator: { height: 1, backgroundColor: colors.border, marginLeft: 44 },
     emptyState: {
