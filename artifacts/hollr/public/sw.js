@@ -1,7 +1,7 @@
 /* hollr.chat service worker — offline shell + push notifications */
 /* Strategy: Cache-first for assets, network-first for API, app-shell for navigation */
 
-const CACHE_VERSION = 'hollr-v11';
+const CACHE_VERSION = 'hollr-v12';
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const API_CACHE   = `${CACHE_VERSION}-api`;
@@ -9,26 +9,44 @@ const API_CACHE   = `${CACHE_VERSION}-api`;
 const SHELL_URLS = [
   '/',
   '/offline.html',
-  '/manifest.webmanifest',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+  '/favicon.svg',
+];
+
+const EXTENDED_URLS = [
   '/icon-48.png',
   '/icon-72.png',
   '/icon-96.png',
   '/icon-128.png',
   '/icon-144.png',
   '/icon-152.png',
-  '/icon-192.png',
   '/icon-384.png',
-  '/icon-512.png',
-  '/apple-touch-icon.png',
-  '/favicon.svg',
 ];
 
-// ── Install: pre-cache app shell ───────────────────────────────────────────
+// ── Install: pre-cache app shell (resilient — one miss doesn't abort) ────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE)
-      .then((cache) => cache.addAll(SHELL_URLS))
-      .then(() => self.skipWaiting())
+    caches.open(SHELL_CACHE).then(async (cache) => {
+      // Cache critical shell URLs individually — a single failure won't abort install
+      await Promise.allSettled(
+        SHELL_URLS.map((url) =>
+          fetch(url, { cache: 'no-cache' })
+            .then((res) => { if (res.ok) cache.put(url, res); })
+            .catch(() => { /* non-fatal */ })
+        )
+      );
+      // Cache extended icons in background (best-effort)
+      Promise.allSettled(
+        EXTENDED_URLS.map((url) =>
+          fetch(url)
+            .then((res) => { if (res.ok) cache.put(url, res); })
+            .catch(() => {})
+        )
+      );
+    }).then(() => self.skipWaiting())
   );
 });
 
@@ -99,13 +117,14 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() =>
-          caches.match('/offline.html') ||
-          caches.match('/') ||
-          new Response('Offline — open hollr when connected to load the app.', {
-            headers: { 'Content-Type': 'text/plain' },
-          })
-        )
+        .catch(async () => {
+          const cached = await caches.match('/');
+          if (cached) return cached;
+          const offline = await caches.match('/offline.html');
+          return offline || new Response('Offline — open hollr when connected to load the app.', {
+            headers: { 'Content-Type': 'text/html' },
+          });
+        })
     );
     return;
   }
@@ -197,8 +216,6 @@ self.addEventListener('notificationclick', (event) => {
     ? { type: 'CALL_ANSWER_FROM_NOTIFICATION', callerId: notifData.callerId, callerName: notifData.callerName, dmThreadId: notifData.dmThreadId, notifType: notifData.notifType }
     : { type: 'NOTIFICATION_NAVIGATE', nav, url: targetUrl };
 
-  // When opening a new window for an "Answer" tap, encode the action in the URL so the
-  // freshly-launched app can read it and surface the incoming call UI immediately.
   const openUrl = isAnswerAction
     ? (() => {
         const u = new URL(targetUrl, self.location.origin);
@@ -226,7 +243,6 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ── Notification close (user swiped away a call notification) ───────────────
-// Send a decline message to any open app windows so the caller is informed.
 self.addEventListener('notificationclose', (event) => {
   const notifData = event.notification.data || {};
   const isCall = notifData.notifType === 'call' || notifData.notifType === 'video_call';
@@ -254,11 +270,9 @@ self.addEventListener('sync', (event) => {
       self.clients
         .matchAll({ type: 'window', includeUncontrolled: true })
         .then((clients) => {
-          // Tell the app to flush any queued messages now that we have connectivity
           if (clients.length > 0) {
             clients.forEach((c) => c.postMessage({ type: 'FLUSH_MESSAGE_QUEUE' }));
           } else {
-            // No window open — open the app so it can flush on next load
             return self.clients.openWindow('/');
           }
         })
