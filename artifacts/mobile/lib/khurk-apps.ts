@@ -9,6 +9,7 @@ export interface KhurkApp {
   gradient: [string, string];
   initials: string;
   icon: ImageSourcePropType;
+  pwa: boolean;
 }
 
 export const KHURK_APPS: KhurkApp[] = [
@@ -21,6 +22,7 @@ export const KHURK_APPS: KhurkApp[] = [
     gradient: ['#1a1f8f', '#4a54d4'],
     initials: 'ST',
     icon: require('@/assets/images/khurk/streamd.png'),
+    pwa: true,
   },
   {
     id: 'playd',
@@ -31,6 +33,7 @@ export const KHURK_APPS: KhurkApp[] = [
     gradient: ['#c0340a', '#f07020'],
     initials: 'PL',
     icon: require('@/assets/images/khurk/playd.png'),
+    pwa: true,
   },
   {
     id: 'foldr',
@@ -41,6 +44,7 @@ export const KHURK_APPS: KhurkApp[] = [
     gradient: ['#0a5a9c', '#2ea8e0'],
     initials: 'FL',
     icon: require('@/assets/images/khurk/foldr.png'),
+    pwa: true,
   },
   {
     id: 'rippd',
@@ -51,6 +55,7 @@ export const KHURK_APPS: KhurkApp[] = [
     gradient: ['#7e1d8f', '#0891b2'],
     initials: 'RP',
     icon: require('@/assets/images/khurk/rippd.png'),
+    pwa: true,
   },
   {
     id: 'ghostd',
@@ -61,6 +66,7 @@ export const KHURK_APPS: KhurkApp[] = [
     gradient: ['#006b4a', '#00c47a'],
     initials: 'GH',
     icon: require('@/assets/images/khurk/ghostd.png'),
+    pwa: true,
   },
   {
     id: 'gasless',
@@ -71,6 +77,7 @@ export const KHURK_APPS: KhurkApp[] = [
     gradient: ['#007a5a', '#00d4a0'],
     initials: 'GW',
     icon: require('@/assets/images/khurk/gasless.png'),
+    pwa: true,
   },
   {
     id: 'ballpoint',
@@ -81,6 +88,7 @@ export const KHURK_APPS: KhurkApp[] = [
     gradient: ['#5a10c0', '#a040f0'],
     initials: 'BP',
     icon: require('@/assets/images/khurk/ballpoint.png'),
+    pwa: true,
   },
   {
     id: 'onlygames',
@@ -91,6 +99,7 @@ export const KHURK_APPS: KhurkApp[] = [
     gradient: ['#1a1a2e', '#4a4a8a'],
     initials: 'OG',
     icon: require('@/assets/images/khurk/onlygames.png'),
+    pwa: true,
   },
   {
     id: 'onlyxmr',
@@ -101,5 +110,6 @@ export const KHURK_APPS: KhurkApp[] = [
     gradient: ['#8a2a00', '#e05010'],
     initials: 'XM',
     icon: require('@/assets/images/khurk/onlyxmr.png'),
+    pwa: true,
   },
 ];
