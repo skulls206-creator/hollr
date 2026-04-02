@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const domain = process.env.EXPO_PUBLIC_DOMAIN ?? "";
     setBaseUrl(`https://${domain}/api`);
-    setAuthTokenGetter(() => Promise.resolve(getSessionId()));
+    setAuthTokenGetter(() => SecureStore.getItemAsync(SESSION_KEY));
   }, []);
 
   const applySession = useCallback(async (sid: string, userData: AuthUser) => {
@@ -55,7 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await SecureStore.deleteItemAsync(SESSION_KEY);
       await SecureStore.deleteItemAsync(USER_KEY);
-    } catch {}
+    } catch (e) {
+      console.warn("[auth] Failed to clear SecureStore:", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -115,7 +117,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await unregisterPushToken().catch(() => {});
     try {
       await api('/auth/logout', { method: 'POST' });
-    } catch {}
+    } catch (e) {
+      console.warn("[auth] Logout API error (continuing):", e);
+    }
     await clearSession();
   }, [clearSession]);
 
@@ -123,7 +127,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const profile = await api<AuthUser>('/users/me');
       setUser(prev => prev ? { ...prev, ...profile } : prev);
-    } catch {}
+    } catch (e) {
+      console.warn("[auth] refreshUser failed:", e);
+    }
   }, []);
 
   return (

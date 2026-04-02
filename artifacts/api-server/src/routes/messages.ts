@@ -62,8 +62,10 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserI
       reactedByCurrentUser: userReactionEmojis.has(r.emojiId),
     }));
 
-  let mentionsList: any[] = [];
-  try { mentionsList = JSON.parse(msg.mentions || "[]"); } catch {}
+  let mentionsList: string[] = [];
+  try { mentionsList = JSON.parse(msg.mentions || "[]") as string[]; } catch (e) {
+    console.warn("[messages] Failed to parse mentions JSON:", e);
+  }
 
   return {
     id: msg.id,
@@ -233,7 +235,9 @@ router.post("/channels/:channelId/messages", async (req, res) => {
             ]);
           })
       );
-    } catch {}
+    } catch (err) {
+      console.warn("[messages] Push/notification delivery error:", err);
+    }
   })();
 });
 

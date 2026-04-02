@@ -202,8 +202,8 @@ router.get("/dms/search", async (req, res) => {
     orderBy: (m, { desc }) => [desc(m.createdAt)],
   });
 
-  // Group results by thread
-  const grouped: Record<string, { threadId: string; messages: any[] }> = {};
+  type FormattedMessage = Awaited<ReturnType<typeof formatMessage>>;
+  const grouped: Record<string, { threadId: string; messages: FormattedMessage[] }> = {};
   await Promise.all(messages.map(async (msg) => {
     const tid = msg.dmThreadId!;
     if (!grouped[tid]) grouped[tid] = { threadId: tid, messages: [] };
@@ -382,7 +382,9 @@ router.post("/dms/:threadId/messages", async (req, res) => {
             ]);
           })
       );
-    } catch {}
+    } catch (err) {
+      console.warn("[dms] Push/notification delivery error:", err);
+    }
   })();
 });
 

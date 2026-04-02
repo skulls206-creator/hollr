@@ -57,7 +57,9 @@ async function getExpoPushToken(): Promise<string | null> {
 export async function updateBadgeCount(count: number): Promise<void> {
   try {
     await Notifications.setBadgeCountAsync(Math.max(0, count));
-  } catch {}
+  } catch (e) {
+    console.warn("[push] Failed to set badge count:", e);
+  }
 }
 
 export async function getStoredPushToken(): Promise<string | null> {

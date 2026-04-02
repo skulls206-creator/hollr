@@ -56,7 +56,9 @@ function connectWs(userId: string, sessionId: string) {
         if (handlers) {
           handlers.forEach(h => h(data.payload));
         }
-      } catch {}
+      } catch (e) {
+        console.warn("[ws] Failed to parse message:", e);
+      }
     };
 
     ws.onclose = () => {
