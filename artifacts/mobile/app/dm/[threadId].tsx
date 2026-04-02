@@ -25,6 +25,7 @@ import { useNav } from "@/contexts/NavContext";
 import { api } from "@/lib/api";
 import { send as wsSend } from "@/lib/ws";
 import { Avatar } from "@/components/Avatar";
+import { KhurkSupporterBadge } from "@/components/KhurkSupporterBadge";
 
 interface DmMessageAuthor {
   id: string;
@@ -32,6 +33,7 @@ interface DmMessageAuthor {
   displayName: string;
   avatarUrl: string | null;
   status: string;
+  isSupporter?: boolean;
 }
 
 interface DmReaction {
@@ -326,6 +328,14 @@ export default function DmChatScreen() {
     const isFirst = !prevMsg || prevMsg.authorId !== item.authorId;
     const isLast = !nextMsg || nextMsg.authorId !== item.authorId;
     const showDate = isFirst && (!prevMsg || formatDate(prevMsg.createdAt) !== formatDate(item.createdAt));
+    const isSupporter = !!item.author?.isSupporter;
+    const glowStyle = isSupporter ? {
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.55,
+      shadowRadius: 10,
+      elevation: 6,
+    } : undefined;
 
     return (
       <View>
@@ -353,6 +363,19 @@ export default function DmChatScreen() {
           {!isOwn && !isLast && <View style={{ width: 36 }} />}
 
           <View style={[s.bubbleCol, isOwn && s.bubbleColOwn]}>
+            {!isOwn && isFirst && isSupporter && (
+              <View style={s.authorRow}>
+                <Text style={s.authorName}>
+                  {item.author?.displayName || item.author?.username}
+                </Text>
+                <KhurkSupporterBadge size={13} />
+              </View>
+            )}
+            {isOwn && isFirst && isSupporter && (
+              <View style={[s.authorRow, s.authorRowOwn]}>
+                <KhurkSupporterBadge size={13} />
+              </View>
+            )}
             {editingId === item.id ? (
               <View style={[s.bubble, s.editBubble]}>
                 <TextInput
@@ -384,6 +407,7 @@ export default function DmChatScreen() {
                   isOwn
                     ? [s.bubbleOwn, { borderTopRightRadius: isFirst ? 4 : 16, borderBottomRightRadius: isLast ? 4 : 16 }]
                     : [s.bubbleOther, { borderTopLeftRadius: isFirst ? 4 : 16, borderBottomLeftRadius: isLast ? 4 : 16 }],
+                  glowStyle,
                 ]}
               >
                 <Text style={[s.msgText, isOwn && { color: colors.primaryForeground }]}>
@@ -604,6 +628,18 @@ function createStyles(colors: {
     msgRowOther: { justifyContent: "flex-start" },
     bubbleCol: { maxWidth: "78%", gap: 2 },
     bubbleColOwn: { alignItems: "flex-end" },
+    authorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginBottom: 2,
+    },
+    authorRowOwn: { justifyContent: "flex-end" },
+    authorName: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 12,
+      color: colors.mutedForeground,
+    },
     bubble: {
       paddingHorizontal: 12,
       paddingVertical: 8,
