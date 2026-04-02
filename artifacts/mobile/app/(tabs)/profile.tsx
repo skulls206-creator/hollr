@@ -49,11 +49,14 @@ export default function ProfileTab() {
 
   const [editingName, setEditingName] = useState(false);
   const [displayName, setDisplayName] = useState("");
+  const [nameStatus, setNameStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [editingPassword, setEditingPassword] = useState(false);
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarStatus, setAvatarStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const { data: profile, isLoading } = useQuery<UserProfile>({
     queryKey: ["profile", "me"],
@@ -65,15 +68,23 @@ export default function ProfileTab() {
   }, [profile]);
 
   const updateProfileMutation = useMutation({
-    mutationFn: (data: Partial<{ displayName: string; status: string }>) =>
+    mutationFn: (data: Partial<{ displayName: string; status: string; avatarUrl: string }>) =>
       api("/users/me", { method: "PATCH", body: JSON.stringify(data) }),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["profile", "me"] });
       refreshUser();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (variables.displayName !== undefined) {
+        setEditingName(false);
+        setNameStatus({ ok: true, msg: "Display name updated" });
+        setTimeout(() => setNameStatus(null), 3000);
+      }
     },
-    onError: (e: Error) => {
-      Alert.alert("Error", e.message || "Failed to update profile");
+    onError: (e: Error, variables) => {
+      if (variables.displayName !== undefined) {
+        setNameStatus({ ok: false, msg: e.message || "Failed to update name" });
+        setTimeout(() => setNameStatus(null), 4000);
+      }
     },
   });
 
@@ -88,17 +99,18 @@ export default function ProfileTab() {
       setCurrentPw("");
       setNewPw("");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Password Changed", "Your password has been updated.");
+      setPasswordStatus({ ok: true, msg: "Password changed successfully" });
+      setTimeout(() => setPasswordStatus(null), 3000);
     },
     onError: (e: Error) => {
-      Alert.alert("Error", e.message || "Failed to change password");
+      setPasswordStatus({ ok: false, msg: e.message || "Failed to change password" });
+      setTimeout(() => setPasswordStatus(null), 4000);
     },
   });
 
   const handleSaveName = () => {
     if (!displayName.trim()) return;
     updateProfileMutation.mutate({ displayName: displayName.trim() });
-    setEditingName(false);
   };
 
   const handleAvatarUpload = async () => {
@@ -116,6 +128,7 @@ export default function ProfileTab() {
     if (result.canceled || !result.assets[0]) return;
 
     setUploadingAvatar(true);
+    setAvatarStatus(null);
     try {
       const asset = result.assets[0];
       const ext = asset.uri.split(".").pop() ?? "jpg";
@@ -146,9 +159,11 @@ export default function ProfileTab() {
       queryClient.invalidateQueries({ queryKey: ["profile", "me"] });
       refreshUser();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Avatar Updated", "Your profile picture has been updated.");
+      setAvatarStatus({ ok: true, msg: "Profile picture updated" });
+      setTimeout(() => setAvatarStatus(null), 3000);
     } catch (e) {
-      Alert.alert("Error", (e instanceof Error ? e.message : null) ?? "Failed to upload avatar");
+      setAvatarStatus({ ok: false, msg: (e instanceof Error ? e.message : null) ?? "Failed to upload avatar" });
+      setTimeout(() => setAvatarStatus(null), 4000);
     } finally {
       setUploadingAvatar(false);
     }
@@ -223,10 +238,12 @@ export default function ProfileTab() {
                 onSubmitEditing={handleSaveName}
                 maxLength={50}
               />
-              <TouchableOpacity onPress={handleSaveName} style={s.saveBtn}>
-                <Ionicons name="checkmark" size={20} color={colors.primaryForeground} />
+              <TouchableOpacity onPress={handleSaveName} style={s.saveBtn} disabled={updateProfileMutation.isPending}>
+                {updateProfileMutation.isPending
+                  ? <ActivityIndicator color={colors.primaryForeground} size="small" />
+                  : <Ionicons name="checkmark" size={20} color={colors.primaryForeground} />}
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setEditingName(false)} style={s.cancelBtn}>
+              <TouchableOpacity onPress={() => { setEditingName(false); setNameStatus(null); }} style={s.cancelBtn}>
                 <Ionicons name="close" size={20} color={colors.mutedForeground} />
               </TouchableOpacity>
             </View>
@@ -237,6 +254,16 @@ export default function ProfileTab() {
               </Text>
               <Ionicons name="pencil" size={14} color={colors.mutedForeground} />
             </TouchableOpacity>
+          )}
+          {nameStatus && (
+            <Text style={[s.inlineStatus, { color: nameStatus.ok ? "#22c55e" : colors.destructive }]}>
+              {nameStatus.msg}
+            </Text>
+          )}
+          {avatarStatus && (
+            <Text style={[s.inlineStatus, { color: avatarStatus.ok ? "#22c55e" : colors.destructive }]}>
+              {avatarStatus.msg}
+            </Text>
           )}
           <Text style={s.username}>@{profile?.username}</Text>
           {profile?.isSupporter && (
@@ -320,17 +347,22 @@ export default function ProfileTab() {
             />
             <TextInput
               style={s.input}
-              placeholder="New password (min 6 chars)"
+              placeholder="New password (min 8 chars)"
               placeholderTextColor={colors.mutedForeground}
               value={newPw}
               onChangeText={setNewPw}
               secureTextEntry
             />
+            {passwordStatus && (
+              <Text style={[s.inlineStatus, { color: passwordStatus.ok ? "#22c55e" : colors.destructive }]}>
+                {passwordStatus.msg}
+              </Text>
+            )}
             <View style={{ flexDirection: "row", gap: 8 }}>
               <TouchableOpacity
                 style={[s.actionBtn, { flex: 1 }]}
                 onPress={() => changePasswordMutation.mutate({ current: currentPw, next: newPw })}
-                disabled={changePasswordMutation.isPending}
+                disabled={changePasswordMutation.isPending || newPw.length < 8}
               >
                 {changePasswordMutation.isPending ? (
                   <ActivityIndicator color={colors.primaryForeground} size="small" />
@@ -340,18 +372,25 @@ export default function ProfileTab() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.secondaryBtn, { flex: 1 }]}
-                onPress={() => { setEditingPassword(false); setCurrentPw(""); setNewPw(""); }}
+                onPress={() => { setEditingPassword(false); setCurrentPw(""); setNewPw(""); setPasswordStatus(null); }}
               >
                 <Text style={s.secondaryBtnText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : (
-          <TouchableOpacity style={s.settingRow} onPress={() => setEditingPassword(true)}>
-            <Ionicons name="lock-closed-outline" size={20} color={colors.mutedForeground} />
-            <Text style={s.settingLabel}>Change Password</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity style={s.settingRow} onPress={() => setEditingPassword(true)}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.mutedForeground} />
+              <Text style={s.settingLabel}>Change Password</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+            {passwordStatus && (
+              <Text style={[s.inlineStatus, { color: passwordStatus.ok ? "#22c55e" : colors.destructive, marginTop: 4 }]}>
+                {passwordStatus.msg}
+              </Text>
+            )}
+          </>
         )}
       </View>
 
@@ -482,6 +521,11 @@ function createStyles(colors: {
     supporterText: {
       fontFamily: "Inter_600SemiBold",
       fontSize: 11,
+    },
+    inlineStatus: {
+      fontFamily: "Inter_400Regular",
+      fontSize: 12,
+      marginTop: 2,
     },
     section: {
       paddingHorizontal: 16,

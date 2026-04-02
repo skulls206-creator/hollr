@@ -39,13 +39,17 @@ async function getExpoPushToken(): Promise<string | null> {
   if (finalStatus !== "granted") return null;
 
   try {
-    const projectId =
-      Constants.expoConfig?.extra?.eas?.projectId ??
-      Constants.easConfig?.projectId;
-    if (!projectId) return null;
+    const projectId: string | undefined =
+      Constants.easConfig?.projectId ??
+      (Constants.expoConfig?.extra?.eas?.projectId as string | undefined);
+    if (!projectId) {
+      console.warn("[push] No EAS project ID configured — push tokens unavailable");
+      return null;
+    }
     const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
     return token;
-  } catch {
+  } catch (err) {
+    console.warn("[push] Failed to get Expo push token:", err);
     return null;
   }
 }

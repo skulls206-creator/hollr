@@ -5,7 +5,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery, useQueries } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
@@ -15,9 +15,11 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-import { RealtimeProvider } from "@/contexts/RealtimeContext";
+import { RealtimeProvider, useRealtime } from "@/contexts/RealtimeContext";
+import { api } from "@/lib/api";
+import { updateBadgeCount } from "@/lib/notifications";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -29,6 +31,60 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function UnreadBadgeSync() {
+  const { user } = useAuth();
+  const { subscribe } = useRealtime();
+  const { data: servers = [] } = useQuery<{ id: string }[]>({
+    queryKey: ["servers"],
+    queryFn: () => api("/servers"),
+    enabled: !!user,
+    refetchInterval: 60000,
+  });
+
+  const unreadResults = useQueries({
+    queries: servers.map((s: { id: string }) => ({
+      queryKey: ["server-unread", s.id],
+      queryFn: () => api<Array<{ channelId: string; count: number }>>(`/servers/${s.id}/unread`),
+      enabled: !!user,
+      refetchInterval: 60000,
+      staleTime: 15000,
+    })),
+  });
+
+  const { data: dmUnreadCounts = [] } = useQuery<Array<{ threadId: string; count: number }>>({
+    queryKey: ["dm-unread"],
+    queryFn: () => api("/dms/unread"),
+    enabled: !!user,
+    refetchInterval: 60000,
+  });
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubs = [
+      subscribe("MESSAGE_CREATE", (payload: { channelId?: string; dmThreadId?: string }) => {
+        if (payload.channelId) queryClient.invalidateQueries({ queryKey: ["server-unread"] });
+        if (payload.dmThreadId) queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
+      }),
+      subscribe("MESSAGE_DELETE", (payload: { channelId?: string; dmThreadId?: string }) => {
+        if (payload.channelId) queryClient.invalidateQueries({ queryKey: ["server-unread"] });
+        if (payload.dmThreadId) queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
+      }),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, [subscribe, user]);
+
+  useEffect(() => {
+    const totalServer = unreadResults.reduce((sum, r) => {
+      const entries = (r.data as Array<{ count: number }> | undefined) ?? [];
+      return sum + entries.reduce((s, e) => s + e.count, 0);
+    }, 0);
+    const totalDm = dmUnreadCounts.reduce((sum, u) => sum + u.count, 0);
+    updateBadgeCount(totalServer + totalDm).catch(() => {});
+  }, [unreadResults, dmUnreadCounts]);
+
+  return null;
+}
 
 function RootLayoutNav() {
   return (
@@ -143,6 +199,7 @@ export default function RootLayout() {
           <AuthProvider>
             <ThemeProvider>
               <RealtimeProvider>
+                <UnreadBadgeSync />
                 <GestureHandlerRootView style={{ flex: 1 }}>
                   <KeyboardProvider>
                     <RootLayoutNav />
