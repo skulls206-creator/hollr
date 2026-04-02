@@ -21,6 +21,7 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { useNav } from "@/contexts/NavContext";
 import { api } from "@/lib/api";
 import { send as wsSend } from "@/lib/ws";
 import { Avatar } from "@/components/Avatar";
@@ -80,6 +81,15 @@ export default function ChannelScreen() {
   const { subscribe } = useRealtime();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { setActiveSection, setActiveServerId } = useNav();
+
+  useEffect(() => {
+    if (serverId) {
+      setActiveSection("server");
+      setActiveServerId(serverId);
+    }
+  }, [serverId, setActiveSection, setActiveServerId]);
+
   const listRef = useRef<FlatList>(null);
 
   const [content, setContent] = useState("");

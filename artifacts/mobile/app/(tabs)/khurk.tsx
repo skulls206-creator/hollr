@@ -21,6 +21,8 @@ import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/contexts/ThemeContext";
+import { useNav } from "@/contexts/NavContext";
+import { useFocusEffect } from "expo-router";
 import type { ThemeColors } from "@/constants/colors";
 import { KHURK_APPS, type KhurkApp } from "@/lib/khurk-apps";
 
@@ -136,6 +138,14 @@ function AppCard({
 export default function KhurkTab() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { setActiveSection, setActiveServerId } = useNav();
+
+  useFocusEffect(
+    useCallback(() => {
+      setActiveSection("khurk");
+      setActiveServerId(null);
+    }, [setActiveSection, setActiveServerId])
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: KhurkApp }) => <AppCard app={item} colors={colors} />,

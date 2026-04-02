@@ -14,7 +14,7 @@ export default function Index() {
   }
 
   if (user) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href="/(tabs)/dms" />;
   }
 
   return <Redirect href="/login" />;

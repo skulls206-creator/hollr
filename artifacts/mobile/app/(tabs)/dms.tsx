@@ -19,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { useNav } from "@/contexts/NavContext";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 
@@ -67,6 +68,7 @@ export default function DmsTab() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { subscribe } = useRealtime();
+  const { setActiveSection, setActiveServerId } = useNav();
 
   const [newDmVisible, setNewDmVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -88,8 +90,10 @@ export default function DmsTab() {
 
   useFocusEffect(
     useCallback(() => {
+      setActiveSection("dms");
+      setActiveServerId(null);
       queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
-    }, [queryClient])
+    }, [queryClient, setActiveSection, setActiveServerId])
   );
 
   useEffect(() => {

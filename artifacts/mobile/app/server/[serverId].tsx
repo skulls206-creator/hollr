@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNav } from "@/contexts/NavContext";
 import { api } from "@/lib/api";
 
 interface Channel {
@@ -46,6 +47,14 @@ export default function ServerScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const { setActiveSection, setActiveServerId } = useNav();
+
+  useEffect(() => {
+    if (serverId) {
+      setActiveSection("server");
+      setActiveServerId(serverId);
+    }
+  }, [serverId, setActiveSection, setActiveServerId]);
 
   const { data: server, isLoading: serverLoading } = useQuery<Server>({
     queryKey: ["server", serverId],

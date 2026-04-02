@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { useNav } from "@/contexts/NavContext";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { updateBadgeCount } from "@/lib/notifications";
@@ -39,6 +40,14 @@ export default function ServersTab() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { subscribe } = useRealtime();
+  const { setActiveSection, setActiveServerId } = useNav();
+
+  useFocusEffect(
+    useCallback(() => {
+      setActiveSection("dms");
+      setActiveServerId(null);
+    }, [setActiveSection, setActiveServerId])
+  );
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "join">("create");

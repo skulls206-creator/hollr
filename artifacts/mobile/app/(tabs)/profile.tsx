@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,9 +15,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNav } from "@/contexts/NavContext";
 import { api, getSessionId } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { THEMES, THEME_LABELS, ThemeId } from "@/constants/colors";
@@ -46,6 +47,14 @@ export default function ProfileTab() {
   const { user, logout, refreshUser } = useAuth();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { setActiveSection, setActiveServerId } = useNav();
+
+  useFocusEffect(
+    useCallback(() => {
+      setActiveSection("profile");
+      setActiveServerId(null);
+    }, [setActiveSection, setActiveServerId])
+  );
 
   const [editingName, setEditingName] = useState(false);
   const [displayName, setDisplayName] = useState("");

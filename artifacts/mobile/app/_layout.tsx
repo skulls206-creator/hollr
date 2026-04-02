@@ -6,9 +6,10 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider, useQuery, useQueries } from "@tanstack/react-query";
-import { Stack, router } from "expo-router";
+import { Stack, router, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
+import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -18,6 +19,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { RealtimeProvider, useRealtime } from "@/contexts/RealtimeContext";
+import { NavProvider, useNav } from "@/contexts/NavContext";
+import { ServerRail } from "@/components/ServerRail";
 import { api } from "@/lib/api";
 import { updateBadgeCount } from "@/lib/notifications";
 
@@ -86,34 +89,24 @@ function UnreadBadgeSync() {
   return null;
 }
 
-function RootLayoutNav() {
+const RAIL_HIDDEN_ROUTES = ["/login", "/signup", "/server-admin", "/index"];
+
+function AppShell({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const { railHidden } = useNav();
+  const pathname = usePathname();
+
+  const hideRail =
+    !user ||
+    loading ||
+    railHidden ||
+    RAIL_HIDDEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r));
+
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="signup" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen
-        name="server/[serverId]"
-        options={{ headerShown: false, animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="channel"
-        options={{ headerShown: false, animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="dm/[threadId]"
-        options={{ headerShown: false, animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="server-admin"
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_bottom",
-        }}
-      />
-    </Stack>
+    <View style={{ flex: 1, flexDirection: "row" }}>
+      {!hideRail && <ServerRail />}
+      <View style={{ flex: 1 }}>{children}</View>
+    </View>
   );
 }
 
@@ -156,19 +149,11 @@ function handleNotificationNav(data: PushData | undefined) {
   }
 }
 
-export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
-
+function RootLayoutNav() {
   const notifListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
-    // Handle cold-start: app launched by tapping a notification from terminated state
     Notifications.getLastNotificationResponseAsync().then(response => {
       if (response) handleNotificationNav(response.notification.request.content.data as PushData);
     });
@@ -183,6 +168,46 @@ export default function RootLayout() {
       responseListener.current?.remove();
     };
   }, []);
+
+  return (
+    <AppShell>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="signup" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="server/[serverId]"
+          options={{ headerShown: false, animation: "slide_from_right" }}
+        />
+        <Stack.Screen
+          name="channel"
+          options={{ headerShown: false, animation: "slide_from_right" }}
+        />
+        <Stack.Screen
+          name="dm/[threadId]"
+          options={{ headerShown: false, animation: "slide_from_right" }}
+        />
+        <Stack.Screen
+          name="server-admin"
+          options={{
+            headerShown: false,
+            presentation: "modal",
+            animation: "slide_from_bottom",
+          }}
+        />
+      </Stack>
+    </AppShell>
+  );
+}
+
+export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -199,12 +224,14 @@ export default function RootLayout() {
           <AuthProvider>
             <ThemeProvider>
               <RealtimeProvider>
-                <UnreadBadgeSync />
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
+                <NavProvider>
+                  <UnreadBadgeSync />
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </NavProvider>
               </RealtimeProvider>
             </ThemeProvider>
           </AuthProvider>
