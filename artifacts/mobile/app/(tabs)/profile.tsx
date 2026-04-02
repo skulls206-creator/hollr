@@ -332,9 +332,9 @@ export default function ProfileTab() {
                 <Text style={[s.themeLabel, { color: isActive ? tc.primary : tc.mutedForeground }]}>
                   {THEME_LABELS[tid]}
                 </Text>
-                {isActive && (
-                  <Ionicons name="checkmark-circle" size={14} color={tc.primary} />
-                )}
+                <View style={{ width: 14, height: 14, alignItems: "center", justifyContent: "center" }}>
+                  {isActive && <Ionicons name="checkmark-circle" size={14} color={tc.primary} />}
+                </View>
               </TouchableOpacity>
             );
           })}
