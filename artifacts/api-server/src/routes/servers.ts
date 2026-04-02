@@ -109,11 +109,16 @@ router.post("/servers", async (req, res) => {
 });
 
 router.get("/servers/:serverId", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const server = await getServerWithCount(req.params.serverId);
-  if (!server) {
-    res.status(404).json({ error: "Server not found" });
-    return;
-  }
+  if (!server) { res.status(404).json({ error: "Server not found" }); return; }
+
+  const member = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, server.id), eq(serverMembersTable.userId, req.user.id)),
+  });
+  if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
+
   res.json(formatServer(server));
 });
 

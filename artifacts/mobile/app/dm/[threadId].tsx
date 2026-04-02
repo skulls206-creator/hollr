@@ -126,12 +126,13 @@ export default function DmChatScreen() {
 
   useEffect(() => {
     if (otherUser || !threadId || !user) return;
-    api<{ participants: { userId: string; user: { id: string; username: string; displayName: string; avatarUrl: string | null; status: string } }[] }>(
+    // GET /dms/:threadId returns { participants: Array<{ id, username, displayName, avatarUrl, status, ... }> }
+    api<{ participants: { id: string; username: string; displayName: string; avatarUrl: string | null; status: string }[] }>(
       `/dms/${threadId}`
     )
       .then(data => {
-        const other = data.participants?.find(p => p.userId !== user.id);
-        if (other?.user) setOtherUser(other.user);
+        const other = data.participants?.find(p => p.id !== user.id);
+        if (other) setOtherUser(other);
       })
       .catch(() => {});
   }, [threadId, otherUser, user]);
