@@ -89,9 +89,26 @@ export default function RootLayout() {
       } | undefined;
       if (!data) return;
       if (data.navType === "dm" && data.threadId) {
-        router.push({ pathname: "/dm/[threadId]", params: { threadId: data.threadId } });
+        router.push({
+          pathname: "/dm/[threadId]",
+          params: {
+            threadId: data.threadId,
+            otherUserName: data.otherUserName ?? undefined,
+            otherDisplayName: data.otherDisplayName ?? undefined,
+            otherAvatarUrl: data.otherAvatarUrl ?? undefined,
+            otherStatus: data.otherStatus ?? undefined,
+          },
+        });
       } else if (data.navType === "channel" && data.serverId && data.channelId) {
-        router.push({ pathname: "/channel", params: { channelId: data.channelId, serverId: data.serverId } });
+        router.push({
+          pathname: "/channel",
+          params: {
+            channelId: data.channelId,
+            serverId: data.serverId,
+            channelName: data.channelName ?? undefined,
+            serverName: data.serverName ?? undefined,
+          },
+        });
       }
     });
 

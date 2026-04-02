@@ -133,16 +133,26 @@ export function initWebSocket(server: Server) {
               const authSid = sid || cookieSid;
 
               if (authSid) {
+                // Validate via our custom sessionsTable (mobile Bearer token or web cookie)
                 const session = await getSession(authSid).catch(() => null);
                 if (!session || session.user?.id !== userId) {
                   ws.send(JSON.stringify({ type: "ERROR", payload: { code: "UNAUTHORIZED", message: "Invalid session" } }));
                   ws.close();
                   break;
                 }
+              } else {
+                // No sid found (Replit Auth OIDC web clients don't use our sessionsTable).
+                // Verify the userId exists in our DB to prevent garbage/non-existent user claims.
+                const profile = await db.query.userProfilesTable.findFirst({
+                  where: eq(userProfilesTable.userId, userId),
+                  columns: { userId: true },
+                }).catch(() => null);
+                if (!profile) {
+                  ws.send(JSON.stringify({ type: "ERROR", payload: { code: "UNAUTHORIZED", message: "Unknown user" } }));
+                  ws.close();
+                  break;
+                }
               }
-              // If neither payload sid nor cookie sid — allow for Replit Auth web clients
-              // which use a separate OIDC session not tracked in our sessionsTable.
-              // Those clients are still bound to the API server via the OIDC session cookie.
               userSockets.set(userId, ws);
               socketUsers.set(ws, userId);
               console.log(`[WS] IDENTIFY userId=${userId} totalSockets=${clients.size}`);

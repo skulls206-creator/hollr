@@ -142,9 +142,15 @@ export default function ChannelScreen() {
       }),
       subscribe("MESSAGE_UPDATE", (payload: { channelId?: string; id: string } & Partial<Message>) => {
         if (payload.channelId !== channelId) return;
-        queryClient.setQueryData(["messages", channelId], (old: Message[] = []) =>
-          old.map(m => m.id === payload.id ? { ...m, ...payload } : m)
-        );
+        if (payload.deleted) {
+          queryClient.setQueryData(["messages", channelId], (old: Message[] = []) =>
+            old.filter(m => m.id !== payload.id)
+          );
+        } else {
+          queryClient.setQueryData(["messages", channelId], (old: Message[] = []) =>
+            old.map(m => m.id === payload.id ? { ...m, ...payload } : m)
+          );
+        }
       }),
       subscribe("MESSAGE_DELETE", (payload: { channelId?: string; id: string }) => {
         if (payload.channelId !== channelId) return;
