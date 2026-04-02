@@ -12,6 +12,8 @@ interface AuthUser {
   id: string;
   username: string;
   email: string | null;
+  avatarUrl?: string | null;
+  displayName?: string | null;
 }
 
 interface AuthContextType {
@@ -74,9 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { user: currentUser } = await api<{ user: AuthUser | null }>('/auth/user');
         if (currentUser) {
           setSessionIdState(storedSid);
-          setUser(currentUser);
           connect(currentUser.id, storedSid);
           registerForPushNotifications().catch(() => {});
+          try {
+            const fullProfile = await api<AuthUser>('/users/me');
+            setUser({ ...currentUser, ...fullProfile });
+          } catch {
+            setUser(currentUser);
+          }
         } else {
           await clearSession();
         }

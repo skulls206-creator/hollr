@@ -25,6 +25,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNav } from "@/contexts/NavContext";
 import { api } from "@/lib/api";
+import { Avatar } from "@/components/Avatar";
 
 const KHURK_K_LOGO = require("@/assets/images/khurk-k-logo.jpg");
 
@@ -277,20 +278,12 @@ export function ServerRail() {
           ]}
           activeOpacity={0.8}
         >
-          <View
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: accent,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>
-              {(user?.username ?? "?")[0].toUpperCase()}
-            </Text>
-          </View>
+          <Avatar
+            avatarUrl={user?.avatarUrl}
+            username={user?.username}
+            displayName={user?.displayName ?? user?.username}
+            size={36}
+          />
         </TouchableOpacity>
 
         <View style={[styles.divider, { backgroundColor: borderColor }]} />
