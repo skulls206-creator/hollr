@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -6,11 +6,21 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as Haptics from "expo-haptics";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNav } from "@/contexts/NavContext";
@@ -36,7 +46,13 @@ export function ServerRail() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const { activeSection, activeServerId, setActiveSection, setActiveServerId } = useNav();
+
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [modalMode, setModalMode] = useState<"create" | "join">("create");
+  const [serverName, setServerName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
 
   const { data: servers = [] } = useQuery<Server[]>({
     queryKey: ["servers"],
@@ -75,6 +91,44 @@ export function ServerRail() {
     [servers, unreadResults]
   );
 
+  const createMutation = useMutation({
+    mutationFn: (name: string) =>
+      api("/servers", { method: "POST", body: JSON.stringify({ name }) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["servers"] });
+      setAddModalVisible(false);
+      setServerName("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: Error) => {
+      Alert.alert("Error", e.message || "Failed to create server");
+    },
+  });
+
+  const joinMutation = useMutation({
+    mutationFn: (code: string) =>
+      api<Server>(`/invite/${code.trim()}/join`, { method: "POST" }),
+    onSuccess: (joinedServer: Server) => {
+      queryClient.invalidateQueries({ queryKey: ["servers"] });
+      setAddModalVisible(false);
+      setInviteCode("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setActiveSection("server");
+      setActiveServerId(joinedServer.id);
+      router.push({ pathname: "/server/[serverId]", params: { serverId: joinedServer.id } });
+    },
+    onError: (e: Error) => {
+      Alert.alert("Error", e.message || "Invalid invite code");
+    },
+  });
+
+  function openAddModal(mode: "create" | "join") {
+    setModalMode(mode);
+    setServerName("");
+    setInviteCode("");
+    setAddModalVisible(true);
+  }
+
   function navDms() {
     setActiveSection("dms");
     setActiveServerId(null);
@@ -99,91 +153,64 @@ export function ServerRail() {
     router.replace("/(tabs)/profile" as never);
   }
 
-  function navAddServer() {
-    setActiveSection("dms");
-    router.replace("/(tabs)" as never);
-  }
-
-  const bg = colors.background ?? "#0f0f1a";
   const accent = colors.primary ?? "#8b5cf6";
+  const railBg = colors.background;
+  const cardBg = colors.card;
+  const borderColor = colors.border;
+  const mutedFg = colors.mutedForeground;
 
-  const styles = StyleSheet.create({
-    rail: {
-      width: RAIL_WIDTH,
-      backgroundColor: colors.background ?? bg,
-      borderRightWidth: StyleSheet.hairlineWidth,
-      borderRightColor: colors.border ?? "#2a2a3a",
-      alignItems: "center",
-      paddingTop: insets.top + 8,
-      paddingBottom: insets.bottom + 8,
-      flexShrink: 0,
-    },
-    btn: {
-      width: 48,
-      height: 48,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 4,
-    },
-    pillWrap: {
-      flexDirection: "row",
-      alignItems: "center",
-      width: RAIL_WIDTH,
-      marginBottom: 4,
-    },
-    pill: {
-      width: 4,
-      borderRadius: 2,
-      backgroundColor: "#ffffff",
-      marginRight: 4,
-    },
-    badge: {
-      position: "absolute",
-      bottom: 0,
-      right: 0,
-      backgroundColor: "#ed4245",
-      borderRadius: 8,
-      minWidth: 16,
-      height: 16,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 3,
-    },
-    badgeText: {
-      color: "#fff",
-      fontSize: 10,
-      fontWeight: "700",
-    },
-    divider: {
-      width: 32,
-      height: 2,
-      borderRadius: 1,
-      backgroundColor: colors.border ?? "#2a2a3a",
-      marginVertical: 6,
-    },
-    spacer: { flex: 1 },
-    serverInitials: {
-      fontSize: 13,
-      fontWeight: "700",
-      color: "#fff",
-    },
-  });
-
-  function isServerActive(id: string) {
-    return activeSection === "server" && activeServerId === id;
+  function RailBtn({
+    onPress,
+    active,
+    children,
+    badge,
+  }: {
+    onPress: () => void;
+    active: boolean;
+    children: React.ReactNode;
+    badge?: number;
+  }) {
+    return (
+      <View style={styles.pillRow}>
+        <View
+          style={[
+            styles.pill,
+            { height: active ? 36 : 0, backgroundColor: "#ffffff", opacity: active ? 1 : 0 },
+          ]}
+        />
+        <TouchableOpacity
+          onPress={onPress}
+          style={[
+            styles.btn,
+            {
+              backgroundColor: active ? accent : cardBg,
+              borderRadius: active ? 16 : 24,
+            },
+          ]}
+          activeOpacity={0.8}
+        >
+          {children}
+          {!!badge && badge > 0 && !active && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{badge > 99 ? "99+" : badge}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
   }
 
-  function renderServer({ item, index }: { item: Server; index: number }) {
-    const active = isServerActive(item.id);
+  function renderServer({ item }: { item: Server }) {
+    const active = activeSection === "server" && activeServerId === item.id;
     const unread = getServerUnread(item.id);
     return (
-      <View style={styles.pillWrap}>
+      <View style={styles.pillRow}>
         <View
           style={[
             styles.pill,
             {
               height: active ? 36 : unread > 0 ? 8 : 0,
+              backgroundColor: "#ffffff",
               opacity: active || unread > 0 ? 1 : 0,
             },
           ]}
@@ -193,7 +220,7 @@ export function ServerRail() {
           style={[
             styles.btn,
             {
-              backgroundColor: active ? accent : colors.card,
+              backgroundColor: active ? accent : cardBg,
               borderRadius: active ? 16 : 24,
             },
           ]}
@@ -205,7 +232,9 @@ export function ServerRail() {
               style={{ width: 44, height: 44, borderRadius: active ? 14 : 22 }}
             />
           ) : (
-            <Text style={styles.serverInitials}>{getInitials(item.name)}</Text>
+            <Text style={[styles.serverInitials, { color: active ? "#fff" : colors.foreground }]}>
+              {getInitials(item.name)}
+            </Text>
           )}
           {unread > 0 && !active && (
             <View style={styles.badge}>
@@ -217,128 +246,334 @@ export function ServerRail() {
     );
   }
 
+  const isMutating = createMutation.isPending || joinMutation.isPending;
+
   return (
-    <View style={styles.rail}>
-      {/* Hollr gem — home / DMs */}
-      <View style={styles.pillWrap}>
-        <View
-          style={[
-            styles.pill,
-            {
-              height: activeSection === "dms" ? 36 : 0,
-              opacity: activeSection === "dms" ? 1 : 0,
-            },
-          ]}
-        />
-        <TouchableOpacity
-          onPress={navDms}
-          style={[
-            styles.btn,
-            {
-              backgroundColor:
-                activeSection === "dms" ? accent : colors.card,
-              borderRadius: activeSection === "dms" ? 16 : 24,
-            },
-          ]}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons
-            name="diamond-stone"
-            size={24}
-            color={activeSection === "dms" ? "#fff" : (colors.muted ?? "#9ca3af")}
-          />
-          {totalDmUnread > 0 && activeSection !== "dms" && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {totalDmUnread > 99 ? "99+" : totalDmUnread}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.divider} />
-
-      {/* Server list */}
-      <FlatList
-        data={servers}
-        keyExtractor={(s) => s.id}
-        renderItem={renderServer}
-        showsVerticalScrollIndicator={false}
-        style={{ flexGrow: 0, maxHeight: "55%" }}
-      />
-
-      {/* Add server */}
-      <TouchableOpacity
-        onPress={navAddServer}
-        style={[styles.btn, { backgroundColor: colors.card, marginTop: 4 }]}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={24} color={colors.primary ?? accent} />
-      </TouchableOpacity>
-
-      <View style={styles.divider} />
-      <View style={styles.spacer} />
-
-      {/* KHURK OS */}
-      <View style={styles.pillWrap}>
-        <View
-          style={[
-            styles.pill,
-            {
-              height: activeSection === "khurk" ? 36 : 0,
-              opacity: activeSection === "khurk" ? 1 : 0,
-            },
-          ]}
-        />
-        <TouchableOpacity
-          onPress={navKhurk}
-          style={[
-            styles.btn,
-            {
-              backgroundColor:
-                activeSection === "khurk" ? accent : colors.card,
-              borderRadius: activeSection === "khurk" ? 16 : 24,
-            },
-          ]}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons
-            name="sparkles"
-            size={22}
-            color={activeSection === "khurk" ? "#fff" : (colors.primary ?? accent)}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Profile */}
-      <TouchableOpacity
-        onPress={navProfile}
+    <>
+      <View
         style={[
-          styles.btn,
+          styles.rail,
           {
-            borderWidth: activeSection === "profile" ? 2 : 0,
-            borderColor: accent,
-            marginTop: 4,
+            backgroundColor: railBg,
+            borderRightColor: borderColor,
+            paddingTop: insets.top + 8,
+            paddingBottom: insets.bottom + 8,
           },
         ]}
-        activeOpacity={0.8}
       >
-        <View
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: accent,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+        {/* ── PROFILE (top) ── */}
+        <TouchableOpacity
+          onPress={navProfile}
+          style={[
+            styles.btn,
+            {
+              borderWidth: activeSection === "profile" ? 2 : 0,
+              borderColor: accent,
+              backgroundColor: cardBg,
+              marginBottom: 4,
+            },
+          ]}
+          activeOpacity={0.8}
         >
-          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>
-            {(user?.username ?? "?")[0].toUpperCase()}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    </View>
+          <View
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: accent,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>
+              {(user?.username ?? "?")[0].toUpperCase()}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <View style={[styles.divider, { backgroundColor: borderColor }]} />
+
+        {/* ── SERVER LIST (scrollable middle) ── */}
+        <FlatList
+          data={servers}
+          keyExtractor={(s) => s.id}
+          renderItem={renderServer}
+          showsVerticalScrollIndicator={false}
+          style={{ flexShrink: 1 }}
+          contentContainerStyle={{ paddingVertical: 2 }}
+        />
+
+        {/* ── ADD SERVER ── */}
+        <TouchableOpacity
+          onPress={() => openAddModal("create")}
+          style={[styles.btn, { backgroundColor: cardBg, marginTop: 4 }]}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={24} color={accent} />
+        </TouchableOpacity>
+
+        <View style={[styles.divider, { backgroundColor: borderColor, marginTop: 6 }]} />
+
+        <View style={styles.spacer} />
+
+        {/* ── KHURK ── */}
+        <RailBtn onPress={navKhurk} active={activeSection === "khurk"}>
+          <MaterialCommunityIcons
+            name="diamond-stone"
+            size={22}
+            color={activeSection === "khurk" ? "#fff" : accent}
+          />
+        </RailBtn>
+
+        {/* ── DMs / Hollr gem (bottom) ── */}
+        <RailBtn onPress={navDms} active={activeSection === "dms"} badge={totalDmUnread}>
+          <Ionicons
+            name="chatbubbles"
+            size={22}
+            color={activeSection === "dms" ? "#fff" : mutedFg}
+          />
+        </RailBtn>
+      </View>
+
+      {/* ── Add / Join Server Modal ── */}
+      <Modal
+        visible={addModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setAddModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.kavWrapper}
+              keyboardVerticalOffset={0}
+            >
+              <TouchableWithoutFeedback>
+                <View style={[styles.modalSheet, { backgroundColor: colors.card, borderColor }]}>
+                  {/* Header */}
+                  <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                      {modalMode === "create" ? "Create a Server" : "Join a Server"}
+                    </Text>
+                    <TouchableOpacity onPress={() => setAddModalVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close" size={22} color={mutedFg} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Tabs */}
+                  <View style={[styles.tabRow, { borderBottomColor: borderColor }]}>
+                    <TouchableOpacity
+                      style={[styles.tab, modalMode === "create" && { borderBottomColor: accent, borderBottomWidth: 2 }]}
+                      onPress={() => setModalMode("create")}
+                    >
+                      <Text style={[styles.tabText, { color: modalMode === "create" ? accent : mutedFg }]}>Create</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.tab, modalMode === "join" && { borderBottomColor: accent, borderBottomWidth: 2 }]}
+                      onPress={() => setModalMode("join")}
+                    >
+                      <Text style={[styles.tabText, { color: modalMode === "join" ? accent : mutedFg }]}>Join</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Form */}
+                  <ScrollView keyboardShouldPersistTaps="handled" style={{ padding: 16 }}>
+                    {modalMode === "create" ? (
+                      <>
+                        <Text style={[styles.label, { color: mutedFg }]}>Server name</Text>
+                        <TextInput
+                          style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor }]}
+                          placeholder="My Awesome Server"
+                          placeholderTextColor={mutedFg}
+                          value={serverName}
+                          onChangeText={setServerName}
+                          autoCapitalize="words"
+                          returnKeyType="done"
+                          onSubmitEditing={() => {
+                            if (serverName.trim()) createMutation.mutate(serverName.trim());
+                          }}
+                        />
+                        <TouchableOpacity
+                          style={[styles.submitBtn, { backgroundColor: accent, opacity: serverName.trim() ? 1 : 0.5 }]}
+                          onPress={() => {
+                            if (serverName.trim()) createMutation.mutate(serverName.trim());
+                          }}
+                          disabled={!serverName.trim() || isMutating}
+                        >
+                          {createMutation.isPending ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                          ) : (
+                            <Text style={styles.submitBtnText}>Create Server</Text>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[styles.label, { color: mutedFg }]}>Invite code</Text>
+                        <TextInput
+                          style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor }]}
+                          placeholder="abc123"
+                          placeholderTextColor={mutedFg}
+                          value={inviteCode}
+                          onChangeText={setInviteCode}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          returnKeyType="done"
+                          onSubmitEditing={() => {
+                            if (inviteCode.trim()) joinMutation.mutate(inviteCode.trim());
+                          }}
+                        />
+                        <TouchableOpacity
+                          style={[styles.submitBtn, { backgroundColor: accent, opacity: inviteCode.trim() ? 1 : 0.5 }]}
+                          onPress={() => {
+                            if (inviteCode.trim()) joinMutation.mutate(inviteCode.trim());
+                          }}
+                          disabled={!inviteCode.trim() || isMutating}
+                        >
+                          {joinMutation.isPending ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                          ) : (
+                            <Text style={styles.submitBtnText}>Join Server</Text>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </ScrollView>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  rail: {
+    width: RAIL_WIDTH,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  pillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: RAIL_WIDTH,
+    marginBottom: 4,
+  },
+  pill: {
+    width: 4,
+    borderRadius: 2,
+    marginRight: 4,
+  },
+  btn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#ed4245",
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  divider: {
+    width: 32,
+    height: 2,
+    borderRadius: 1,
+    marginVertical: 6,
+  },
+  spacer: { flex: 1 },
+  serverInitials: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  kavWrapper: {
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    maxHeight: "70%",
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
+  },
+  tabRow: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  tab: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    marginBottom: -StyleSheet.hairlineWidth,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  input: {
+    height: 48,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 16,
+  },
+  submitBtn: {
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  submitBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
+  },
+});
