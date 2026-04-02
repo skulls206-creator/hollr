@@ -24,7 +24,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import type { ThemeColors } from "@/constants/colors";
 import { KHURK_APPS, type KhurkApp } from "@/lib/khurk-apps";
 
-const HOLLR_LOGO = require("@/assets/images/hollr-logo.png");
+const KHURK_K_LOGO = require("@/assets/images/khurk-k-logo.jpg");
 
 function GradientTitle() {
   return (
@@ -154,7 +154,11 @@ export default function KhurkTab() {
       />
 
       <View style={styles.headerContent}>
-        <Image source={HOLLR_LOGO} style={styles.gemIcon} resizeMode="cover" />
+        <View style={styles.kLogoGlow}>
+          <View style={styles.kLogoCircle}>
+            <Image source={KHURK_K_LOGO} style={styles.kLogoImage} resizeMode="cover" />
+          </View>
+        </View>
 
         <View>
           <GradientTitle />
@@ -213,10 +217,25 @@ const styles = StyleSheet.create({
     gap: 14,
     marginBottom: 24,
   },
-  gemIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+  kLogoGlow: {
+    borderRadius: 36,
+    shadowColor: "#8b5cf6",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 18,
+    elevation: 18,
+  },
+  kLogoCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "rgba(139,92,246,0.5)",
+  },
+  kLogoImage: {
+    width: 72,
+    height: 72,
   },
   headerSubtitle: {
     fontSize: 13,
