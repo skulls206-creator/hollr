@@ -21,7 +21,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
-import { getDmSeenMap } from "@/lib/dm-seen-tracker";
 
 interface DmParticipant {
   id: string;
@@ -74,19 +73,24 @@ export default function DmsTab() {
   const [lookupResult, setLookupResult] = useState<UserLookup | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
-  const [seenMap, setSeenMap] = useState<Record<string, string>>({});
-
-  useFocusEffect(
-    useCallback(() => {
-      getDmSeenMap().then(setSeenMap).catch(() => {});
-    }, [])
-  );
 
   const { data: threads = [], isLoading, refetch, isRefetching } = useQuery<DmThread[]>({
     queryKey: ["dm-threads"],
     queryFn: () => api("/dms"),
     refetchInterval: 30000,
   });
+
+  const { data: unreadCounts = [] } = useQuery<Array<{ threadId: string; count: number }>>({
+    queryKey: ["dm-unread"],
+    queryFn: () => api("/dms/unread"),
+    refetchInterval: 30000,
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
+    }, [queryClient])
+  );
 
   useEffect(() => {
     const unsub = subscribe("PRESENCE_UPDATE", (payload: { userId: string; status: string }) => {
@@ -144,13 +148,17 @@ export default function DmsTab() {
     }
   };
 
+  const unreadMap = React.useMemo(
+    () => Object.fromEntries(unreadCounts.map(u => [u.threadId, u.count])),
+    [unreadCounts]
+  );
+
   const s = createStyles(colors);
 
   const renderThread = useCallback(({ item }: { item: DmThread }) => {
     const other = item.participants?.find(p => p.id !== user?.id) ?? item.participants?.[0];
-    const isOnline = other?.status === "online";
-    const lastMsgId = item.lastMessage ? `${item.id}:${item.lastMessage.createdAt}` : null;
-    const hasUnread = !!(lastMsgId && seenMap[item.id] !== lastMsgId);
+    const unreadCount = unreadMap[item.id] ?? 0;
+    const hasUnread = unreadCount > 0;
     return (
       <TouchableOpacity
         style={s.threadRow}
@@ -172,7 +180,7 @@ export default function DmsTab() {
           username={other?.username ?? ""}
           displayName={other?.displayName ?? ""}
           size={44}
-          online={isOnline}
+          status={other?.status ?? "offline"}
         />
         <View style={s.threadInfo}>
           <View style={s.threadTopRow}>
@@ -184,7 +192,9 @@ export default function DmsTab() {
                 <Text style={s.threadTime}>{timeAgo(item.lastMessage.createdAt)}</Text>
               )}
               {hasUnread && (
-                <View style={[s.unreadDot, { backgroundColor: colors.primary }]} />
+                <View style={[s.unreadBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={s.unreadBadgeText}>{unreadCount > 99 ? "99+" : unreadCount}</Text>
+                </View>
               )}
             </View>
           </View>
@@ -194,7 +204,7 @@ export default function DmsTab() {
         </View>
       </TouchableOpacity>
     );
-  }, [colors, user?.id, s, seenMap]);
+  }, [colors, user?.id, s, unreadMap]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -309,7 +319,7 @@ export default function DmsTab() {
                   username={lookupResult.username}
                   displayName={lookupResult.displayName}
                   size={40}
-                  online={lookupResult.status === "online"}
+                  status={lookupResult.status}
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={s.userResultName}>
@@ -436,10 +446,19 @@ function createStyles(colors: {
       fontSize: 11,
       color: colors.mutedForeground,
     },
-    unreadDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
+    unreadBadge: {
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 4,
+    },
+    unreadBadgeText: {
+      fontFamily: "Inter_700Bold",
+      fontSize: 10,
+      color: "#ffffff",
+      lineHeight: 12,
     },
     threadPreview: {
       fontFamily: "Inter_400Regular",

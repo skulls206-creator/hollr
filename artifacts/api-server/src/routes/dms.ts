@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { dmThreadsTable, dmParticipantsTable, messagesTable, attachmentsTable, userProfilesTable, messageReactionsTable, dmCallSignalsTable } from "@workspace/db/schema";
-import { eq, and, lt, inArray, sql as drizzleSql, ilike, isNull, desc, asc } from "drizzle-orm";
+import { eq, and, lt, inArray, sql as drizzleSql, ilike, isNull, desc, asc, gt } from "drizzle-orm";
 import { OpenDmThreadBody, SendMessageBody, EditMessageBody } from "@workspace/api-zod";
 import { broadcast, sendToUser, sendNotification } from "../lib/ws";
 import { sendPushToUser, getNotifPrefs } from "../lib/push";
@@ -142,6 +142,38 @@ router.delete("/dms/:threadId", async (req, res) => {
     .where(and(eq(dmParticipantsTable.threadId, threadId), eq(dmParticipantsTable.userId, req.user.id)));
 
   res.json({ ok: true });
+});
+
+// ─── Get DM unread counts (must be before /:threadId routes) ─────────────────
+router.get("/dms/unread", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const participations = await db.query.dmParticipantsTable.findMany({
+    where: eq(dmParticipantsTable.userId, req.user.id),
+  });
+
+  const counts = await Promise.all(participations.map(async (p) => {
+    let count = 0;
+    if (p.lastReadAt) {
+      const rows = await db.query.messagesTable.findMany({
+        where: and(
+          eq(messagesTable.dmThreadId, p.threadId),
+          gt(messagesTable.createdAt, p.lastReadAt),
+        ),
+        columns: { id: true },
+      });
+      count = rows.length;
+    } else {
+      const rows = await db.query.messagesTable.findMany({
+        where: eq(messagesTable.dmThreadId, p.threadId),
+        columns: { id: true },
+      });
+      count = rows.length;
+    }
+    return { threadId: p.threadId, count };
+  }));
+
+  res.json(counts);
 });
 
 // ─── Search DM messages (across all threads) ─────────────────────────────────
@@ -415,6 +447,23 @@ router.put("/dms/:threadId/messages/:messageId/reactions/:emojiId", async (req, 
 
 // POST /call-signal — store a call signal in the DB and deliver via WS + push.
 // This ensures signals reach the callee even when they're offline or WS isn't connected.
+// ─── Mark DM thread as read ───────────────────────────────────────────────────
+router.post("/dms/:threadId/read", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { threadId } = req.params;
+  const participant = await db.query.dmParticipantsTable.findFirst({
+    where: and(eq(dmParticipantsTable.threadId, threadId), eq(dmParticipantsTable.userId, req.user.id)),
+  });
+  if (!participant) { res.status(404).json({ error: "Thread not found" }); return; }
+
+  await db.update(dmParticipantsTable)
+    .set({ lastReadAt: new Date() })
+    .where(and(eq(dmParticipantsTable.threadId, threadId), eq(dmParticipantsTable.userId, req.user.id)));
+
+  res.json({ ok: true });
+});
+
 router.post("/call-signal", async (req, res) => {
   if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const { toUserId, threadId, signalType, payload } = req.body;

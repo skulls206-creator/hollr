@@ -23,7 +23,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { api } from "@/lib/api";
 import { send as wsSend } from "@/lib/ws";
-import { markDmThreadSeen } from "@/lib/dm-seen-tracker";
 import { Avatar } from "@/components/Avatar";
 
 interface DmMessageAuthor {
@@ -119,10 +118,9 @@ export default function DmChatScreen() {
 
   useEffect(() => {
     if (!threadId || messages.length === 0) return;
-    const sorted = [...messages].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    const key = `${threadId}:${sorted[0].createdAt}`;
-    markDmThreadSeen(threadId, key).catch(() => {});
-  }, [threadId, messages]);
+    api(`/dms/${threadId}/read`, { method: "POST" }).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
+  }, [threadId, messages.length, queryClient]);
 
   const loadMore = async () => {
     if (!hasMore || loadingMore || messages.length === 0) return;
@@ -265,8 +263,6 @@ export default function DmChatScreen() {
     }
   };
 
-  const isOnline = otherUser?.status === "online";
-
   const s = createStyles(colors);
 
   const sorted = [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -407,13 +403,15 @@ export default function DmChatScreen() {
               username={otherUser.username}
               displayName={otherUser.displayName}
               size={34}
-              online={isOnline}
+              status={otherUser.status}
             />
             <View style={{ flex: 1 }}>
               <Text style={s.headerName} numberOfLines={1}>
                 {otherUser.displayName || otherUser.username}
               </Text>
-              <Text style={s.headerStatus}>{isOnline ? "Online" : "Offline"}</Text>
+              <Text style={s.headerStatus}>
+                {otherUser.status === "online" ? "Online" : otherUser.status === "idle" ? "Away" : otherUser.status === "dnd" ? "Do Not Disturb" : "Offline"}
+              </Text>
             </View>
           </>
         ) : (

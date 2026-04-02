@@ -102,6 +102,12 @@ export default function ChannelScreen() {
     enabled: !!channelId,
   });
 
+  useEffect(() => {
+    if (!channelId || messages.length === 0) return;
+    api(`/channels/${channelId}/read`, { method: "POST" }).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: ["server-unread"] });
+  }, [channelId, messages.length, queryClient]);
+
   const loadMore = async () => {
     if (!hasMore || loadingMore || messages.length === 0) return;
     setLoadingMore(true);

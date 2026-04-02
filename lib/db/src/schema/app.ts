@@ -100,6 +100,7 @@ export type DmThread = typeof dmThreadsTable.$inferSelect;
 export const dmParticipantsTable = pgTable("dm_participants", {
   threadId: varchar("thread_id").notNull(),
   userId: varchar("user_id").notNull(),
+  lastReadAt: timestamp("last_read_at", { withTimezone: true }),
 }, (t) => [
   index("dm_participants_user_id_idx").on(t.userId),
   index("dm_participants_thread_id_idx").on(t.threadId),
