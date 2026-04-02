@@ -141,7 +141,7 @@ router.post("/push/test", async (req, res) => {
 
   const { navType, serverId, channelId, threadId } = req.body ?? {};
 
-  let nav: any = null;
+  let nav: import("../lib/push").PushNav | undefined = undefined;
   let url = "/app";
 
   if (navType === "channel" && serverId && channelId) {

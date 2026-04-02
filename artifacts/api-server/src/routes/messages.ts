@@ -395,8 +395,20 @@ router.get("/channels/:channelId/messages/search", async (req, res) => {
 router.put("/channels/:channelId/messages/:messageId/reactions/:emojiId", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { messageId, emojiId } = req.params;
+  const { channelId, messageId, emojiId } = req.params;
   const decodedEmoji = decodeURIComponent(emojiId);
+
+  // Verify the message belongs to the specified channel
+  const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, messageId) });
+  if (!msg || msg.channelId !== channelId) { res.status(404).json({ error: "Message not found" }); return; }
+
+  // Verify the caller is a member of the server that owns this channel
+  const channel = await db.query.channelsTable.findFirst({ where: eq(channelsTable.id, channelId) });
+  if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+  const member = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, channel.serverId), eq(serverMembersTable.userId, req.user.id)),
+  });
+  if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const existing = await db.query.messageReactionsTable.findFirst({
     where: and(
@@ -416,9 +428,10 @@ router.put("/channels/:channelId/messages/:messageId/reactions/:emojiId", async 
     });
   }
 
-  const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, messageId) });
-  if (msg) {
-    const formatted = await formatMessage(msg, req.user.id);
+  // Re-fetch message to get updated reaction counts, then broadcast
+  const updatedMsg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, messageId) });
+  if (updatedMsg) {
+    const formatted = await formatMessage(updatedMsg, req.user.id);
     broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
     res.json(formatted);
   } else {

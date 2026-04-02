@@ -446,8 +446,12 @@ router.put("/dms/:threadId/messages/:messageId/reactions/:emojiId", async (req, 
   });
   if (!participant) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const { messageId, emojiId } = req.params;
+  const { threadId, messageId, emojiId } = req.params;
   const decodedEmoji = decodeURIComponent(emojiId);
+
+  // Verify the message belongs to this DM thread
+  const targetMsg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, messageId) });
+  if (!targetMsg || targetMsg.dmThreadId !== threadId) { res.status(404).json({ error: "Message not found" }); return; }
 
   const existing = await db.query.messageReactionsTable.findFirst({
     where: and(
@@ -467,10 +471,11 @@ router.put("/dms/:threadId/messages/:messageId/reactions/:emojiId", async (req, 
     });
   }
 
-  const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, messageId) });
-  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+  // Re-fetch to get updated reaction counts, then broadcast
+  const updatedMsg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, messageId) });
+  if (!updatedMsg) { res.status(404).json({ error: "Message not found" }); return; }
 
-  const formatted = await formatMessage(msg, req.user.id);
+  const formatted = await formatMessage(updatedMsg, req.user.id);
   broadcast({ type: "MESSAGE_UPDATE", payload: formatted });
   res.json(formatted);
 });
