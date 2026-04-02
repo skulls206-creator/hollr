@@ -2,6 +2,13 @@ import React from 'react';
 import { View, Text, Image, StyleSheet, ViewStyle } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
+function resolveAvatarUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return `https://${domain}/api/storage${url.startsWith('/') ? url : '/' + url}`;
+}
+
 type PresenceStatus = 'online' | 'idle' | 'dnd' | 'offline' | 'invisible' | string;
 
 interface AvatarProps {
@@ -36,12 +43,13 @@ export function Avatar({ avatarUrl, username, displayName, size = 36, style, onl
   const initials = getInitials(displayName || username);
   const dotColor = statusColor(status, online);
   const showDot = dotColor !== null && (status !== undefined || online !== undefined);
+  const resolvedUrl = resolveAvatarUrl(avatarUrl);
 
   return (
     <View style={[{ width: size, height: size }, style]}>
-      {avatarUrl ? (
+      {resolvedUrl ? (
         <Image
-          source={{ uri: avatarUrl }}
+          source={{ uri: resolvedUrl }}
           style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
         />
       ) : (
