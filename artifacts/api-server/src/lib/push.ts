@@ -32,6 +32,14 @@ export interface PushPayload {
   callerId?: string;
   callerName?: string;
   dmThreadId?: string;
+  // DM context for mobile notification deep-link UI
+  otherUserName?: string;
+  otherDisplayName?: string;
+  otherAvatarUrl?: string;
+  otherStatus?: string;
+  // Channel context for mobile notification deep-link UI
+  channelName?: string;
+  serverName?: string;
   // Note: `quiet` is NOT set by callers — it is injected per-device from the DB
 }
 
@@ -79,15 +87,26 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
         body: payload.body,
         data: {
           navType: payload.nav?.type,
-          ...(payload.nav?.type === "channel" ? { serverId: payload.nav.serverId, channelId: payload.nav.channelId } : {}),
-          ...(payload.nav?.type === "dm" ? { threadId: payload.nav.threadId } : {}),
+          ...(payload.nav?.type === "channel"
+            ? { serverId: payload.nav.serverId, channelId: payload.nav.channelId }
+            : {}),
+          ...(payload.nav?.type === "dm"
+            ? { threadId: payload.nav.threadId }
+            : {}),
+          channelName: payload.channelName ?? undefined,
+          serverName: payload.serverName ?? undefined,
+          otherUserName: payload.otherUserName ?? undefined,
+          otherDisplayName: payload.otherDisplayName ?? undefined,
+          otherAvatarUrl: payload.otherAvatarUrl ?? undefined,
+          otherStatus: payload.otherStatus ?? undefined,
         },
         sound: "default",
       }));
 
     if (messages.length > 0) {
+      const chunks = expo.chunkPushNotifications(messages);
       tasks.push(
-        expo.sendPushNotificationsAsync(messages).catch(() => {})
+        ...chunks.map(chunk => expo.sendPushNotificationsAsync(chunk).catch(() => {}))
       );
     }
   }

@@ -169,12 +169,17 @@ router.post("/channels/:channelId/messages", async (req, res) => {
   // Fire-and-forget push notifications to other server members
   (async () => {
     try {
-      const members = await db.query.serverMembersTable.findMany({
-        where: eq(serverMembersTable.serverId, channel.serverId),
-      });
-      const senderProfile = await db.query.userProfilesTable.findFirst({
-        where: eq(userProfilesTable.userId, req.user.id),
-      });
+      const [members, senderProfile, server] = await Promise.all([
+        db.query.serverMembersTable.findMany({
+          where: eq(serverMembersTable.serverId, channel.serverId),
+        }),
+        db.query.userProfilesTable.findFirst({
+          where: eq(userProfilesTable.userId, req.user.id),
+        }),
+        db.query.serversTable.findFirst({
+          where: eq(serversTable.id, channel.serverId),
+        }),
+      ]);
       const senderName = senderProfile?.displayName || senderProfile?.username || "Someone";
       const body = parsed.data.content
         ? parsed.data.content.slice(0, 100)
@@ -202,6 +207,8 @@ router.post("/channels/:channelId/messages", async (req, res) => {
                 url: `/app?${navParams.toString()}`,
                 tag: `channel-${req.params.channelId}`,
                 nav: { type: "channel", serverId: channel.serverId, channelId: req.params.channelId },
+                channelName: channel.name,
+                serverName: server?.name || "",
               }),
               isMentioned
                 ? sendNotification(m.userId, {

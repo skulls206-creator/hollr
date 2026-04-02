@@ -74,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSessionIdState(storedSid);
           setUser(currentUser);
           connect(currentUser.id, storedSid);
+          registerForPushNotifications().catch(() => {});
         } else {
           await clearSession();
         }

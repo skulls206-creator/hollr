@@ -75,7 +75,18 @@ export default function RootLayout() {
   useEffect(() => {
     notifListener.current = Notifications.addNotificationReceivedListener(_notification => {});
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data as { navType?: string; serverId?: string; channelId?: string; threadId?: string } | undefined;
+      const data = response.notification.request.content.data as {
+        navType?: string;
+        serverId?: string;
+        channelId?: string;
+        threadId?: string;
+        channelName?: string;
+        serverName?: string;
+        otherUserName?: string;
+        otherDisplayName?: string;
+        otherAvatarUrl?: string;
+        otherStatus?: string;
+      } | undefined;
       if (!data) return;
       if (data.navType === "dm" && data.threadId) {
         router.push({ pathname: "/dm/[threadId]", params: { threadId: data.threadId } });

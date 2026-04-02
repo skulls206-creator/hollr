@@ -347,6 +347,10 @@ router.post("/dms/:threadId/messages", async (req, res) => {
                 url: `/app?${navParams.toString()}`,
                 tag: `dm-${req.params.threadId}`,
                 nav: { type: "dm", threadId: req.params.threadId },
+                otherUserName: senderProfile?.username || "",
+                otherDisplayName: senderProfile?.displayName || senderProfile?.username || "",
+                otherAvatarUrl: senderProfile?.avatarUrl || "",
+                otherStatus: senderProfile?.status || "offline",
               }),
               sendNotification(p.userId, {
                 type: 'dm_message',
