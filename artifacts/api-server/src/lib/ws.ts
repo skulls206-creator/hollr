@@ -132,26 +132,17 @@ export function initWebSocket(server: Server) {
               })();
               const authSid = sid || cookieSid;
 
-              if (authSid) {
-                // Validate via our custom sessionsTable (mobile Bearer token or web cookie)
-                const session = await getSession(authSid).catch(() => null);
-                if (!session || session.user?.id !== userId) {
-                  ws.send(JSON.stringify({ type: "ERROR", payload: { code: "UNAUTHORIZED", message: "Invalid session" } }));
-                  ws.close();
-                  break;
-                }
-              } else {
-                // No sid found (Replit Auth OIDC web clients don't use our sessionsTable).
-                // Verify the userId exists in our DB to prevent garbage/non-existent user claims.
-                const profile = await db.query.userProfilesTable.findFirst({
-                  where: eq(userProfilesTable.userId, userId),
-                  columns: { userId: true },
-                }).catch(() => null);
-                if (!profile) {
-                  ws.send(JSON.stringify({ type: "ERROR", payload: { code: "UNAUTHORIZED", message: "Unknown user" } }));
-                  ws.close();
-                  break;
-                }
+              if (!authSid) {
+                ws.send(JSON.stringify({ type: "ERROR", payload: { code: "UNAUTHORIZED", message: "Session required" } }));
+                ws.close();
+                break;
+              }
+              // Validate via our custom sessionsTable (mobile Bearer token or web sid cookie)
+              const session = await getSession(authSid).catch(() => null);
+              if (!session || session.user?.id !== userId) {
+                ws.send(JSON.stringify({ type: "ERROR", payload: { code: "UNAUTHORIZED", message: "Invalid session" } }));
+                ws.close();
+                break;
               }
               userSockets.set(userId, ws);
               socketUsers.set(ws, userId);
@@ -430,6 +421,10 @@ export function initWebSocket(server: Server) {
           case "PRESENCE_UPDATE": {
             const { userId: presenceUserId, status } = msg.payload ?? {};
             const validStatuses = ["online", "idle", "dnd", "invisible"];
+
+            // Only allow a socket to set presence for its own authenticated user
+            const authenticatedUserId = socketUsers.get(ws);
+            if (!authenticatedUserId || presenceUserId !== authenticatedUserId) break;
 
             if (presenceUserId && status && validStatuses.includes(status)) {
               // User-chosen status: persist to DB, broadcast the visible version
