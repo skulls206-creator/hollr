@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { api } from "@/lib/api";
 import { send as wsSend } from "@/lib/ws";
+import { markDmThreadSeen } from "@/lib/dm-seen-tracker";
 import { Avatar } from "@/components/Avatar";
 
 interface DmMessageAuthor {
@@ -115,6 +116,13 @@ export default function DmChatScreen() {
     },
     enabled: !!threadId,
   });
+
+  useEffect(() => {
+    if (!threadId || messages.length === 0) return;
+    const sorted = [...messages].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const key = `${threadId}:${sorted[0].createdAt}`;
+    markDmThreadSeen(threadId, key).catch(() => {});
+  }, [threadId, messages]);
 
   const loadMore = async () => {
     if (!hasMore || loadingMore || messages.length === 0) return;

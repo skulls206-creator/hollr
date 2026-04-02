@@ -11,7 +11,7 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
+import { getDmSeenMap } from "@/lib/dm-seen-tracker";
 
 interface DmParticipant {
   id: string;
@@ -73,6 +74,13 @@ export default function DmsTab() {
   const [lookupResult, setLookupResult] = useState<UserLookup | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const [seenMap, setSeenMap] = useState<Record<string, string>>({});
+
+  useFocusEffect(
+    useCallback(() => {
+      getDmSeenMap().then(setSeenMap).catch(() => {});
+    }, [])
+  );
 
   const { data: threads = [], isLoading, refetch, isRefetching } = useQuery<DmThread[]>({
     queryKey: ["dm-threads"],
@@ -141,7 +149,8 @@ export default function DmsTab() {
   const renderThread = useCallback(({ item }: { item: DmThread }) => {
     const other = item.participants?.find(p => p.id !== user?.id) ?? item.participants?.[0];
     const isOnline = other?.status === "online";
-    const hasUnread = !!(item.lastMessage && item.lastMessage.authorId !== user?.id);
+    const lastMsgId = item.lastMessage ? `${item.id}:${item.lastMessage.createdAt}` : null;
+    const hasUnread = !!(lastMsgId && seenMap[item.id] !== lastMsgId);
     return (
       <TouchableOpacity
         style={s.threadRow}
@@ -185,7 +194,7 @@ export default function DmsTab() {
         </View>
       </TouchableOpacity>
     );
-  }, [colors, user?.id, s]);
+  }, [colors, user?.id, s, seenMap]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>

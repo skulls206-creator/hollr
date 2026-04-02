@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import * as SecureStore from 'expo-secure-store';
 import { api, setSessionId } from '@/lib/api';
 import { connect, disconnect } from '@/lib/ws';
+import { registerForPushNotifications, unregisterPushToken, getStoredPushToken } from '@/lib/notifications';
 
 const SESSION_KEY = 'hollr_session_id';
 const USER_KEY = 'hollr_user';
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await SecureStore.setItemAsync(SESSION_KEY, sid);
     await SecureStore.setItemAsync(USER_KEY, JSON.stringify(userData));
     connect(userData.id, sid);
+    registerForPushNotifications().catch(() => {});
   }, []);
 
   const clearSession = useCallback(async () => {
@@ -102,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [applySession]);
 
   const logout = useCallback(async () => {
+    await unregisterPushToken().catch(() => {});
     try {
       await api('/auth/logout', { method: 'POST' });
     } catch {}

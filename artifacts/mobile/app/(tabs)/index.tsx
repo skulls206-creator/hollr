@@ -50,15 +50,15 @@ export default function ServersTab() {
   const unreadResults = useQueries({
     queries: servers.map(s => ({
       queryKey: ["server-unread", s.id],
-      queryFn: () => api<Record<string, number>>(`/servers/${s.id}/unread`),
+      queryFn: () => api<Array<{ channelId: string; count: number }>>(`/servers/${s.id}/unread`),
       refetchInterval: 30000,
       staleTime: 15000,
     })),
   });
 
   const serverUnreadMap = servers.reduce<Record<string, number>>((acc, srv, idx) => {
-    const counts = unreadResults[idx]?.data ?? {};
-    acc[srv.id] = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    const entries = unreadResults[idx]?.data ?? [];
+    acc[srv.id] = entries.reduce((sum, entry) => sum + entry.count, 0);
     return acc;
   }, {});
 
