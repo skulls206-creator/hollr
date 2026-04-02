@@ -61,6 +61,45 @@ function RootLayoutNav() {
   );
 }
 
+type PushData = {
+  navType?: string;
+  serverId?: string;
+  channelId?: string;
+  threadId?: string;
+  channelName?: string;
+  serverName?: string;
+  otherUserName?: string;
+  otherDisplayName?: string;
+  otherAvatarUrl?: string;
+  otherStatus?: string;
+};
+
+function handleNotificationNav(data: PushData | undefined) {
+  if (!data) return;
+  if (data.navType === "dm" && data.threadId) {
+    router.push({
+      pathname: "/dm/[threadId]",
+      params: {
+        threadId: data.threadId,
+        otherUserName: data.otherUserName ?? undefined,
+        otherDisplayName: data.otherDisplayName ?? undefined,
+        otherAvatarUrl: data.otherAvatarUrl ?? undefined,
+        otherStatus: data.otherStatus ?? undefined,
+      },
+    });
+  } else if (data.navType === "channel" && data.serverId && data.channelId) {
+    router.push({
+      pathname: "/channel",
+      params: {
+        channelId: data.channelId,
+        serverId: data.serverId,
+        channelName: data.channelName ?? undefined,
+        serverName: data.serverName ?? undefined,
+      },
+    });
+  }
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
@@ -73,43 +112,14 @@ export default function RootLayout() {
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
+    // Handle cold-start: app launched by tapping a notification from terminated state
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response) handleNotificationNav(response.notification.request.content.data as PushData);
+    });
+
     notifListener.current = Notifications.addNotificationReceivedListener(_notification => {});
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data as {
-        navType?: string;
-        serverId?: string;
-        channelId?: string;
-        threadId?: string;
-        channelName?: string;
-        serverName?: string;
-        otherUserName?: string;
-        otherDisplayName?: string;
-        otherAvatarUrl?: string;
-        otherStatus?: string;
-      } | undefined;
-      if (!data) return;
-      if (data.navType === "dm" && data.threadId) {
-        router.push({
-          pathname: "/dm/[threadId]",
-          params: {
-            threadId: data.threadId,
-            otherUserName: data.otherUserName ?? undefined,
-            otherDisplayName: data.otherDisplayName ?? undefined,
-            otherAvatarUrl: data.otherAvatarUrl ?? undefined,
-            otherStatus: data.otherStatus ?? undefined,
-          },
-        });
-      } else if (data.navType === "channel" && data.serverId && data.channelId) {
-        router.push({
-          pathname: "/channel",
-          params: {
-            channelId: data.channelId,
-            serverId: data.serverId,
-            channelName: data.channelName ?? undefined,
-            serverName: data.serverName ?? undefined,
-          },
-        });
-      }
+      handleNotificationNav(response.notification.request.content.data as PushData);
     });
 
     return () => {
