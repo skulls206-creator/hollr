@@ -11,6 +11,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, {
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Stop,
+  Text as SvgText,
+} from "react-native-svg";
 import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
 
@@ -19,6 +25,31 @@ import type { ThemeColors } from "@/constants/colors";
 import { KHURK_APPS, type KhurkApp } from "@/lib/khurk-apps";
 
 const HOLLR_LOGO = require("@/assets/images/hollr-logo.png");
+
+function GradientTitle() {
+  return (
+    <Svg height={34} width={170}>
+      <Defs>
+        <SvgLinearGradient id="khurkTitleGrad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor="#a78bfa" />
+          <Stop offset="0.5" stopColor="#818cf8" />
+          <Stop offset="1" stopColor="#60a5fa" />
+        </SvgLinearGradient>
+      </Defs>
+      <SvgText
+        fill="url(#khurkTitleGrad)"
+        fontSize={26}
+        fontWeight="bold"
+        fontFamily="Inter_700Bold"
+        letterSpacing={2}
+        x={0}
+        y={28}
+      >
+        KHURK OS
+      </SvgText>
+    </Svg>
+  );
+}
 
 function AppCard({
   app,
@@ -34,6 +65,7 @@ function AppCard({
       toolbarColor: colors.card,
       controlsColor: colors.primary,
       dismissButtonStyle: "close",
+      enableBarCollapsing: true,
     });
   }, [app.url, colors.card, colors.primary]);
 
@@ -125,16 +157,7 @@ export default function KhurkTab() {
         <Image source={HOLLR_LOGO} style={styles.gemIcon} resizeMode="cover" />
 
         <View>
-          <LinearGradient
-            colors={["#a78bfa", "#818cf8", "#60a5fa"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.headerTitleGradient}
-          >
-            <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-              KHURK OS
-            </Text>
-          </LinearGradient>
+          <GradientTitle />
           <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
             Your apps, everywhere.
           </Text>
@@ -143,7 +166,7 @@ export default function KhurkTab() {
 
       <View style={styles.sectionDivider}>
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-          APPS
+          KHURK OS
         </Text>
         <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
       </View>
@@ -195,19 +218,10 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
   },
-  headerTitleGradient: {
-    borderRadius: 4,
-    paddingHorizontal: 2,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 2,
-  },
   headerSubtitle: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    marginTop: 3,
+    marginTop: 2,
   },
   sectionDivider: {
     flexDirection: "row",
