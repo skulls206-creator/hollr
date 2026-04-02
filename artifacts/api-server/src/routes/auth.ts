@@ -132,6 +132,7 @@ router.post("/auth/signup", async (req: Request, res: Response) => {
     id: newUser.id,
     username: normalizedUsername,
     email: null,
+    sid,
     referrerName: referrerDisplayName ?? null,
   });
 });
@@ -215,7 +216,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   });
   setSessionCookie(res, sid);
 
-  res.json({ id: userId, username, email: userEmail });
+  res.json({ id: userId, username, email: userEmail, sid });
 
   // Fire-and-forget: validate any pending referrals for this user
   runReferralValidation(userId).catch(() => {});

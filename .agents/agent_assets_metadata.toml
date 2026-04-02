@@ -54,6 +54,12 @@ uri = "file://attached_assets/generated_images/banner_rippd.png"
 type = "image"
 title = "rippd dark neon pink cyan banner"
 
+[[generated]]
+id = "kxKJpYoHLiH3PrwlBvgXy"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "QBu7uwlotLYM0ql1-2kWC"
 uri = "file://artifacts/hollr/public/icon-512.png"
