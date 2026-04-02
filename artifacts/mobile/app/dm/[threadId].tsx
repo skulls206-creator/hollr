@@ -189,7 +189,7 @@ export default function DmChatScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       queryClient.invalidateQueries({ queryKey: ["dm-threads"] });
     },
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const editMutation = useMutation({
@@ -202,7 +202,7 @@ export default function DmChatScreen() {
       setEditingId(null);
       setEditContent("");
     },
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const deleteMutation = useMutation({

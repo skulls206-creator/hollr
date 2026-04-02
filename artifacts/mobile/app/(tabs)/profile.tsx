@@ -34,7 +34,7 @@ interface UserProfile {
 
 const STATUS_OPTIONS: { value: string; label: string; color: string }[] = [
   { value: "online", label: "Online", color: "#22c55e" },
-  { value: "away", label: "Away", color: "#eab308" },
+  { value: "idle", label: "Idle", color: "#eab308" },
   { value: "dnd", label: "Do Not Disturb", color: "#ef4444" },
   { value: "invisible", label: "Invisible", color: "#6b7280" },
 ];
@@ -72,7 +72,7 @@ export default function ProfileTab() {
       refreshUser();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
-    onError: (e: any) => {
+    onError: (e: Error) => {
       Alert.alert("Error", e.message || "Failed to update profile");
     },
   });
@@ -90,7 +90,7 @@ export default function ProfileTab() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Password Changed", "Your password has been updated.");
     },
-    onError: (e: any) => {
+    onError: (e: Error) => {
       Alert.alert("Error", e.message || "Failed to change password");
     },
   });
@@ -145,8 +145,8 @@ export default function ProfileTab() {
       refreshUser();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Avatar Updated", "Your profile picture has been updated.");
-    } catch (e: any) {
-      Alert.alert("Error", e.message ?? "Failed to upload avatar");
+    } catch (e) {
+      Alert.alert("Error", (e instanceof Error ? e.message : null) ?? "Failed to upload avatar");
     } finally {
       setUploadingAvatar(false);
     }
@@ -374,7 +374,11 @@ export default function ProfileTab() {
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: {
+  background: string; foreground: string; muted: string; mutedForeground: string;
+  primary: string; primaryForeground: string; secondary: string;
+  border: string; card: string; radius: number; destructive?: string;
+}) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
     center: { alignItems: "center", justifyContent: "center" },

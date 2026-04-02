@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
+import { updateBadgeCount } from "@/lib/notifications";
 
 interface Server {
   id: string;
@@ -61,6 +62,11 @@ export default function ServersTab() {
     acc[srv.id] = entries.reduce((sum, entry) => sum + entry.count, 0);
     return acc;
   }, {});
+
+  const totalUnread = Object.values(serverUnreadMap).reduce((sum, n) => sum + n, 0);
+  useEffect(() => {
+    updateBadgeCount(totalUnread).catch(() => {});
+  }, [totalUnread]);
 
   const createMutation = useMutation({
     mutationFn: (name: string) =>

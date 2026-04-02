@@ -279,6 +279,39 @@ router.post("/invite/:inviteCode/join", async (req, res) => {
   res.json(formatServer(result!));
 });
 
+router.post("/servers/:serverId/transfer-ownership", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { serverId } = req.params;
+  const { newOwnerId } = req.body as { newOwnerId?: string };
+  if (!newOwnerId) { res.status(400).json({ error: "newOwnerId is required" }); return; }
+
+  const server = await db.query.serversTable.findFirst({ where: eq(serversTable.id, serverId) });
+  if (!server) { res.status(404).json({ error: "Not found" }); return; }
+  if (server.ownerId !== req.user.id) {
+    res.status(403).json({ error: "Only the server owner can transfer ownership" });
+    return;
+  }
+
+  const newOwnerMember = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, serverId), eq(serverMembersTable.userId, newOwnerId)),
+  });
+  if (!newOwnerMember) { res.status(400).json({ error: "Target user is not a member of this server" }); return; }
+
+  await db.transaction(async (tx) => {
+    await tx.update(serversTable).set({ ownerId: newOwnerId }).where(eq(serversTable.id, serverId));
+    await tx.update(serverMembersTable).set({ role: "owner" }).where(
+      and(eq(serverMembersTable.serverId, serverId), eq(serverMembersTable.userId, newOwnerId))
+    );
+    await tx.update(serverMembersTable).set({ role: "admin" }).where(
+      and(eq(serverMembersTable.serverId, serverId), eq(serverMembersTable.userId, req.user.id))
+    );
+  });
+
+  const result = await getServerWithCount(serverId);
+  res.json(formatServer(result!));
+});
+
 router.post("/servers/:serverId/leave", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 

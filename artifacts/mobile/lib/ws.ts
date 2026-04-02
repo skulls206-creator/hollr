@@ -1,4 +1,4 @@
-type Handler = (payload: any) => void;
+type Handler = (payload: unknown) => void;
 
 const listeners = new Map<string, Set<Handler>>();
 let ws: WebSocket | null = null;

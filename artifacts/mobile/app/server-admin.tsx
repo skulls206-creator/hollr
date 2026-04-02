@@ -9,8 +9,8 @@ import {
   Alert,
   ActivityIndicator,
   Share,
-  Clipboard,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -163,9 +163,9 @@ export default function ServerAdminScreen() {
 
   const transferOwnershipMutation = useMutation({
     mutationFn: (newOwnerId: string) =>
-      api(`/servers/${serverId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ ownerId: newOwnerId }),
+      api(`/servers/${serverId}/transfer-ownership`, {
+        method: "POST",
+        body: JSON.stringify({ newOwnerId }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["server", serverId] });
@@ -231,7 +231,7 @@ export default function ServerAdminScreen() {
 
   const handleCopyInvite = () => {
     if (!server?.inviteCode) return;
-    Clipboard.setString(server.inviteCode);
+    Clipboard.setStringAsync(server.inviteCode).catch(() => {});
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert("Copied", "Invite code copied to clipboard!");
   };

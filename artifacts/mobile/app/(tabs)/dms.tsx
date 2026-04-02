@@ -104,12 +104,12 @@ export default function DmsTab() {
 
   const startDmMutation = useMutation({
     mutationFn: (userId: string) =>
-      api("/dms", { method: "POST", body: JSON.stringify({ userId }) }),
-    onSuccess: (thread: any) => {
+      api<DmThread>("/dms", { method: "POST", body: JSON.stringify({ userId }) }),
+    onSuccess: (thread: DmThread) => {
       queryClient.invalidateQueries({ queryKey: ["dm-threads"] });
       setNewDmVisible(false);
       setSearchQuery("");
-      const other = thread.participants?.find((p: any) => p.id !== user?.id) ?? thread.participants?.[0];
+      const other = thread.participants?.find(p => p.id !== user?.id) ?? thread.participants?.[0];
       setLookupResult(null);
       router.push({
         pathname: "/dm/[threadId]",

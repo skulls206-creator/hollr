@@ -42,8 +42,8 @@ export default function LoginScreen() {
       await login(identifier.trim(), password);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(tabs)");
-    } catch (e: any) {
-      setError(e.message || "Login failed. Please try again.");
+    } catch (e) {
+      setError((e instanceof Error ? e.message : null) || "Login failed. Please try again.");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -155,7 +155,11 @@ export default function LoginScreen() {
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: {
+  background: string; foreground: string; muted: string; mutedForeground: string;
+  primary: string; primaryForeground: string; secondary?: string;
+  border: string; card: string; radius: number; destructive?: string;
+}) {
   return StyleSheet.create({
     root: {
       flex: 1,

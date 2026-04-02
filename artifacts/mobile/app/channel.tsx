@@ -172,7 +172,7 @@ export default function ChannelScreen() {
       setContent("");
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     },
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const editMutation = useMutation({
@@ -185,13 +185,13 @@ export default function ChannelScreen() {
       setEditingId(null);
       setEditContent("");
     },
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
       api(`/channels/${channelId}/messages/${id}`, { method: "DELETE" }),
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const reactMutation = useMutation({
@@ -199,7 +199,7 @@ export default function ChannelScreen() {
       api(`/channels/${channelId}/messages/${id}/reactions/${encodeURIComponent(emoji)}`, {
         method: "PUT",
       }),
-    onError: (e: any) => Alert.alert("Error", e.message),
+    onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
   const handleSend = () => {

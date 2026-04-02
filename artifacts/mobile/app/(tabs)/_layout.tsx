@@ -1,7 +1,7 @@
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { SymbolView } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "expo-symbols";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { Redirect } from "expo-router";
@@ -15,13 +15,13 @@ function TabIcon({
   color,
   size,
 }: {
-  sf: string;
+  sf: SFSymbol;
   ionicon: keyof typeof Ionicons.glyphMap;
   color: string;
   size: number;
 }) {
   if (Platform.OS === "ios") {
-    return <SymbolView name={sf as any} tintColor={color} size={size} />;
+    return <SymbolView name={sf} tintColor={color} size={size} />;
   }
   return <Ionicons name={ionicon} size={size} color={color} />;
 }

@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext';
 
 interface RealtimeContextType {
   connected: boolean;
-  subscribe(event: string, handler: (payload: any) => void): () => void;
+  subscribe<T = unknown>(event: string, handler: (payload: T) => void): () => void;
 }
 
 const RealtimeContext = createContext<RealtimeContextType | null>(null);
@@ -18,8 +18,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     return unsub;
   }, []);
 
+  const typedSubscribe = <T = unknown>(event: string, handler: (payload: T) => void) =>
+    subscribe(event, handler as (payload: unknown) => void);
+
   return (
-    <RealtimeContext.Provider value={{ connected, subscribe }}>
+    <RealtimeContext.Provider value={{ connected, subscribe: typedSubscribe }}>
       {children}
     </RealtimeContext.Provider>
   );

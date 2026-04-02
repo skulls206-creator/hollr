@@ -50,6 +50,12 @@ async function getExpoPushToken(): Promise<string | null> {
   }
 }
 
+export async function updateBadgeCount(count: number): Promise<void> {
+  try {
+    await Notifications.setBadgeCountAsync(Math.max(0, count));
+  } catch {}
+}
+
 export async function getStoredPushToken(): Promise<string | null> {
   try {
     return await AsyncStorage.getItem(PUSH_TOKEN_KEY);
