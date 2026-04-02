@@ -255,6 +255,18 @@ router.post("/dms", async (req, res) => {
   res.json(formatted);
 });
 
+// ─── Get single DM thread (with participants) ─────────────────────────────────
+router.get("/dms/:threadId", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const participant = await db.query.dmParticipantsTable.findFirst({
+    where: and(eq(dmParticipantsTable.threadId, req.params.threadId), eq(dmParticipantsTable.userId, req.user.id)),
+  });
+  if (!participant) { res.status(404).json({ error: "Thread not found" }); return; }
+  const thread = await formatThread(req.params.threadId);
+  if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
+  res.json(thread);
+});
+
 // ─── List DM messages ─────────────────────────────────────────────────────────
 router.get("/dms/:threadId/messages", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }

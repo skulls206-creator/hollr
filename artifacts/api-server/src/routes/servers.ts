@@ -491,6 +491,11 @@ router.get("/servers/:serverId/bans", async (req, res) => {
 });
 
 router.get("/servers/:serverId/members", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const callerMembership = await db.query.serverMembersTable.findFirst({
+    where: and(eq(serverMembersTable.serverId, req.params.serverId), eq(serverMembersTable.userId, req.user.id)),
+  });
+  if (!callerMembership) { res.status(403).json({ error: "Forbidden" }); return; }
   const members = await db.query.serverMembersTable.findMany({
     where: eq(serverMembersTable.serverId, req.params.serverId),
   });

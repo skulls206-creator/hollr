@@ -90,15 +90,23 @@ export default function DmChatScreen() {
   const [editContent, setEditContent] = useState("");
   const [emojiTargetId, setEmojiTargetId] = useState<string | null>(null);
 
-  const otherUser = otherUserId
-    ? {
-        id: otherUserId,
-        username: otherUserName ?? "",
-        displayName: otherDisplayName ?? otherUserName ?? "",
-        avatarUrl: otherAvatarUrl || null,
-        status: otherStatus ?? "offline",
-      }
-    : null;
+  const [otherUser, setOtherUser] = useState<{
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+    status: string;
+  } | null>(
+    otherUserId
+      ? {
+          id: otherUserId,
+          username: otherUserName ?? "",
+          displayName: otherDisplayName ?? otherUserName ?? "",
+          avatarUrl: otherAvatarUrl || null,
+          status: otherStatus ?? "offline",
+        }
+      : null
+  );
 
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -115,6 +123,18 @@ export default function DmChatScreen() {
     },
     enabled: !!threadId,
   });
+
+  useEffect(() => {
+    if (otherUser || !threadId || !user) return;
+    api<{ participants: { userId: string; user: { id: string; username: string; displayName: string; avatarUrl: string | null; status: string } }[] }>(
+      `/dms/${threadId}`
+    )
+      .then(data => {
+        const other = data.participants?.find(p => p.userId !== user.id);
+        if (other?.user) setOtherUser(other.user);
+      })
+      .catch(() => {});
+  }, [threadId, otherUser, user]);
 
   useEffect(() => {
     if (!threadId || messages.length === 0) return;
@@ -179,6 +199,12 @@ export default function DmChatScreen() {
           typingTimers.current.delete(payload.userId);
         }, 3000);
         typingTimers.current.set(payload.userId, timer);
+      }),
+      subscribe("PRESENCE_UPDATE", (payload: { userId: string; status: string }) => {
+        setOtherUser(prev => {
+          if (!prev || prev.id !== payload.userId) return prev;
+          return { ...prev, status: payload.status };
+        });
       }),
     ];
     return () => unsubs.forEach(u => u());
