@@ -15,7 +15,9 @@ import {
   Alert,
   TouchableWithoutFeedback,
   Keyboard,
+  ActionSheetIOS,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -125,6 +127,52 @@ export function ServerRail() {
     },
   });
 
+  const leaveMutation = useMutation({
+    mutationFn: (serverId: string) =>
+      api(`/servers/${serverId}/leave`, { method: "POST" }),
+    onSuccess: (_: unknown, serverId: string) => {
+      queryClient.invalidateQueries({ queryKey: ["servers"] });
+      if (activeServerId === serverId) {
+        setActiveSection("dms");
+        setActiveServerId(null);
+        router.replace("/(tabs)/dms" as never);
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: Error) => {
+      Alert.alert("Error", e.message || "Failed to leave server");
+    },
+  });
+
+  const handleServerLongPress = useCallback((item: Server) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ["Cancel", "Copy Server Name", "Leave Server"], cancelButtonIndex: 0, destructiveButtonIndex: 2 },
+        (idx) => {
+          if (idx === 1) { Clipboard.setStringAsync(item.name); }
+          else if (idx === 2) {
+            Alert.alert("Leave Server", `Leave "${item.name}"? You can rejoin with an invite.`, [
+              { text: "Cancel", style: "cancel" },
+              { text: "Leave", style: "destructive", onPress: () => leaveMutation.mutate(item.id) },
+            ]);
+          }
+        }
+      );
+    } else {
+      Alert.alert(item.name, "", [
+        { text: "Copy Server Name", onPress: () => Clipboard.setStringAsync(item.name) },
+        { text: "Leave Server", style: "destructive", onPress: () =>
+          Alert.alert("Leave Server", `Leave "${item.name}"?`, [
+            { text: "Cancel", style: "cancel" },
+            { text: "Leave", style: "destructive", onPress: () => leaveMutation.mutate(item.id) },
+          ])
+        },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    }
+  }, [leaveMutation]);
+
   function openAddModal(mode: "create" | "join") {
     setModalMode(mode);
     setServerName("");
@@ -220,6 +268,8 @@ export function ServerRail() {
         />
         <TouchableOpacity
           onPress={() => navServer(item.id)}
+          onLongPress={() => handleServerLongPress(item)}
+          delayLongPress={400}
           style={[
             styles.btn,
             {
@@ -267,6 +317,22 @@ export function ServerRail() {
         {/* ── PROFILE (top) ── */}
         <TouchableOpacity
           onPress={navProfile}
+          onLongPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            const username = user?.username ?? "";
+            if (Platform.OS === "ios") {
+              ActionSheetIOS.showActionSheetWithOptions(
+                { options: ["Cancel", "Copy Username"], cancelButtonIndex: 0 },
+                (idx) => { if (idx === 1) Clipboard.setStringAsync(`@${username}`); }
+              );
+            } else {
+              Alert.alert("Profile", "", [
+                { text: "Copy Username", onPress: () => Clipboard.setStringAsync(`@${username}`) },
+                { text: "Cancel", style: "cancel" },
+              ]);
+            }
+          }}
+          delayLongPress={400}
           style={[
             styles.btn,
             {

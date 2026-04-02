@@ -9,7 +9,11 @@ import {
   Image,
   Modal,
   Platform,
+  Alert,
+  ActionSheetIOS,
+  Share,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -62,10 +66,12 @@ function AppCard({
   app,
   colors,
   onPress,
+  onLongPress,
 }: {
   app: KhurkApp;
   colors: ThemeColors;
   onPress: (app: KhurkApp) => void;
+  onLongPress: (app: KhurkApp) => void;
 }) {
   const handleOpenInBrowser = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -82,6 +88,8 @@ function AppCard({
     <TouchableOpacity
       activeOpacity={0.75}
       onPress={() => onPress(app)}
+      onLongPress={() => onLongPress(app)}
+      delayLongPress={400}
       style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
     >
       <View style={styles.cardTop}>
@@ -278,11 +286,41 @@ export default function KhurkTab() {
     setSheetApp(null);
   }, []);
 
+  const handleAppLongPress = useCallback((app: KhurkApp) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ["Cancel", "Open in Browser", "Copy URL", "Share"], cancelButtonIndex: 0 },
+        async (idx) => {
+          if (idx === 1) {
+            await WebBrowser.openBrowserAsync(app.url, {
+              presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+              toolbarColor: colors.card,
+              controlsColor: colors.primary,
+              dismissButtonStyle: "close",
+            });
+          } else if (idx === 2) {
+            Clipboard.setStringAsync(app.url);
+          } else if (idx === 3) {
+            Share.share({ message: `${app.name} — ${app.url}`, url: app.url });
+          }
+        }
+      );
+    } else {
+      Alert.alert(app.name, app.url, [
+        { text: "Open in Browser", onPress: () => WebBrowser.openBrowserAsync(app.url) },
+        { text: "Copy URL", onPress: () => Clipboard.setStringAsync(app.url) },
+        { text: "Share", onPress: () => Share.share({ message: `${app.name} — ${app.url}` }) },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    }
+  }, [colors.card, colors.primary]);
+
   const renderItem = useCallback(
     ({ item }: { item: KhurkApp }) => (
-      <AppCard app={item} colors={colors} onPress={handleAppPress} />
+      <AppCard app={item} colors={colors} onPress={handleAppPress} onLongPress={handleAppLongPress} />
     ),
-    [colors, handleAppPress]
+    [colors, handleAppPress, handleAppLongPress]
   );
 
   const keyExtractor = useCallback((item: KhurkApp) => item.id, []);

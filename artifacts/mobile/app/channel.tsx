@@ -23,6 +23,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useNav } from "@/contexts/NavContext";
+import * as Clipboard from "expo-clipboard";
 import { api } from "@/lib/api";
 import { send as wsSend } from "@/lib/ws";
 import { Avatar } from "@/components/Avatar";
@@ -252,32 +253,41 @@ export default function ChannelScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setEmojiTargetId(msg.id);
 
-    if (Platform.OS === "ios" && isOwn) {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ["Cancel", "Edit", "Delete"],
-          cancelButtonIndex: 0,
-          destructiveButtonIndex: 2,
-        },
-        (idx) => {
-          if (idx === 1) {
-            setEditingId(msg.id);
-            setEditContent(msg.content);
-          } else if (idx === 2) {
-            Alert.alert("Delete Message", "Are you sure?", [
+    const copyText = () => { if (msg.content) Clipboard.setStringAsync(msg.content); setEmojiTargetId(null); };
+
+    if (Platform.OS === "ios") {
+      if (isOwn) {
+        ActionSheetIOS.showActionSheetWithOptions(
+          { options: ["Cancel", "Copy Text", "Edit", "Delete"], cancelButtonIndex: 0, destructiveButtonIndex: 3 },
+          (idx) => {
+            if (idx === 1) copyText();
+            else if (idx === 2) { setEditingId(msg.id); setEditContent(msg.content); setEmojiTargetId(null); }
+            else if (idx === 3) Alert.alert("Delete Message", "Are you sure?", [
               { text: "Cancel", style: "cancel" },
-              { text: "Delete", style: "destructive", onPress: () => deleteMutation.mutate(msg.id) },
+              { text: "Delete", style: "destructive", onPress: () => { deleteMutation.mutate(msg.id); setEmojiTargetId(null); } },
             ]);
+            else setEmojiTargetId(null);
           }
-          setEmojiTargetId(null);
-        }
-      );
-    } else if (isOwn) {
-      Alert.alert("Message Options", "", [
-        { text: "Edit", onPress: () => { setEditingId(msg.id); setEditContent(msg.content); setEmojiTargetId(null); } },
-        { text: "Delete", style: "destructive", onPress: () => { deleteMutation.mutate(msg.id); setEmojiTargetId(null); } },
-        { text: "Cancel", style: "cancel", onPress: () => setEmojiTargetId(null) },
-      ]);
+        );
+      } else {
+        ActionSheetIOS.showActionSheetWithOptions(
+          { options: ["Cancel", "Copy Text"], cancelButtonIndex: 0 },
+          (idx) => { if (idx === 1) copyText(); else setEmojiTargetId(null); }
+        );
+      }
+    } else {
+      const options = isOwn
+        ? [
+            { text: "Copy Text", onPress: copyText },
+            { text: "Edit", onPress: () => { setEditingId(msg.id); setEditContent(msg.content); setEmojiTargetId(null); } },
+            { text: "Delete", style: "destructive" as const, onPress: () => { deleteMutation.mutate(msg.id); setEmojiTargetId(null); } },
+            { text: "Cancel", style: "cancel" as const, onPress: () => setEmojiTargetId(null) },
+          ]
+        : [
+            { text: "Copy Text", onPress: copyText },
+            { text: "Cancel", style: "cancel" as const, onPress: () => setEmojiTargetId(null) },
+          ];
+      Alert.alert("Message", "", options);
     }
   };
 

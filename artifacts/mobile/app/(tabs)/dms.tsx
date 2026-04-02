@@ -10,7 +10,10 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Platform,
+  ActionSheetIOS,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -151,6 +154,50 @@ export default function DmsTab() {
     },
   });
 
+  const closeDmMutation = useMutation({
+    mutationFn: (threadId: string) =>
+      api(`/dms/${threadId}`, { method: "DELETE" }),
+    onSuccess: (_: unknown, threadId: string) => {
+      queryClient.setQueryData(["dm-threads"], (old: DmThread[] = []) =>
+        old.filter(t => t.id !== threadId)
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: Error) => {
+      Alert.alert("Error", e.message || "Failed to close conversation");
+    },
+  });
+
+  const handleThreadLongPress = useCallback((item: DmThread) => {
+    const other = item.participants?.find(p => p.id !== user?.id) ?? item.participants?.[0];
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ["Cancel", "Copy Username", "Close Conversation"], cancelButtonIndex: 0, destructiveButtonIndex: 2 },
+        (idx) => {
+          if (idx === 1) { Clipboard.setStringAsync(`@${other?.username ?? ""}`); }
+          else if (idx === 2) {
+            Alert.alert("Close Conversation", "Remove this conversation from your list?", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Close", style: "destructive", onPress: () => closeDmMutation.mutate(item.id) },
+            ]);
+          }
+        }
+      );
+    } else {
+      Alert.alert(other?.displayName ?? other?.username ?? "DM", "", [
+        { text: "Copy Username", onPress: () => Clipboard.setStringAsync(`@${other?.username ?? ""}`) },
+        { text: "Close Conversation", style: "destructive", onPress: () =>
+          Alert.alert("Close Conversation", "Remove this conversation from your list?", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Close", style: "destructive", onPress: () => closeDmMutation.mutate(item.id) },
+          ])
+        },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    }
+  }, [user?.id, closeDmMutation]);
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
@@ -191,6 +238,8 @@ export default function DmsTab() {
             otherStatus: other?.status ?? "offline",
           },
         })}
+        onLongPress={() => handleThreadLongPress(item)}
+        delayLongPress={400}
         activeOpacity={0.7}
       >
         <Avatar
@@ -225,7 +274,7 @@ export default function DmsTab() {
         </View>
       </TouchableOpacity>
     );
-  }, [colors, user?.id, s, unreadMap]);
+  }, [colors, user?.id, s, unreadMap, handleThreadLongPress]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
