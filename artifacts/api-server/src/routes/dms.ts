@@ -152,6 +152,7 @@ router.get("/dms/unread", async (req, res) => {
     where: eq(dmParticipantsTable.userId, req.user.id),
   });
 
+  const userId = req.user.id;
   const counts = await Promise.all(participations.map(async (p) => {
     let count = 0;
     if (p.lastReadAt) {
@@ -159,13 +160,17 @@ router.get("/dms/unread", async (req, res) => {
         where: and(
           eq(messagesTable.dmThreadId, p.threadId),
           gt(messagesTable.createdAt, p.lastReadAt),
+          drizzleSql`${messagesTable.authorId} != ${userId}`,
         ),
         columns: { id: true },
       });
       count = rows.length;
     } else {
       const rows = await db.query.messagesTable.findMany({
-        where: eq(messagesTable.dmThreadId, p.threadId),
+        where: and(
+          eq(messagesTable.dmThreadId, p.threadId),
+          drizzleSql`${messagesTable.authorId} != ${userId}`,
+        ),
         columns: { id: true },
       });
       count = rows.length;

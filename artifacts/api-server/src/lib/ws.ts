@@ -2,8 +2,8 @@ import { WebSocketServer, WebSocket } from "ws";
 import { IncomingMessage } from "http";
 import { Server } from "http";
 import { db } from "@workspace/db";
-import { userProfilesTable, notificationsTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { userProfilesTable, notificationsTable, channelsTable, serverMembersTable, dmParticipantsTable } from "@workspace/db/schema";
+import { eq, and } from "drizzle-orm";
 import { sendPushToUser } from "./push";
 
 let wss: WebSocketServer | null = null;
@@ -361,8 +361,31 @@ export function initWebSocket(server: Server) {
             const typingUserId = socketUsers.get(ws);
             if (!typingUserId) break;
             if (typingChannelId) {
+              // Validate user is a member of the server that owns this channel
+              const channel = await db.query.channelsTable.findFirst({
+                where: eq(channelsTable.id, typingChannelId),
+                columns: { serverId: true },
+              });
+              if (!channel) break;
+              const membership = await db.query.serverMembersTable.findFirst({
+                where: and(
+                  eq(serverMembersTable.serverId, channel.serverId),
+                  eq(serverMembersTable.userId, typingUserId),
+                ),
+                columns: { userId: true },
+              });
+              if (!membership) break;
               broadcast({ type: "TYPING", payload: { userId: typingUserId, channelId: typingChannelId } });
             } else if (typingThreadId) {
+              // Validate user is a participant of the DM thread
+              const participant = await db.query.dmParticipantsTable.findFirst({
+                where: and(
+                  eq(dmParticipantsTable.threadId, typingThreadId),
+                  eq(dmParticipantsTable.userId, typingUserId),
+                ),
+                columns: { userId: true },
+              });
+              if (!participant) break;
               broadcast({ type: "TYPING", payload: { userId: typingUserId, dmThreadId: typingThreadId } });
             }
             break;
