@@ -162,7 +162,7 @@ function PwaInstallSheet({
   const steps = [
     {
       icon: "safari-outline" as const,
-      label: "Tap "Open in Safari" below",
+      label: 'Tap "Open in Safari" below',
     },
     {
       icon: "share-outline" as const,
