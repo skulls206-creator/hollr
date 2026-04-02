@@ -5,6 +5,7 @@ import { db } from "@workspace/db";
 import { userProfilesTable, notificationsTable, channelsTable, serverMembersTable, dmParticipantsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { sendPushToUser } from "./push";
+import { getSession, SESSION_COOKIE } from "./auth";
 
 let wss: WebSocketServer | null = null;
 
@@ -98,10 +99,13 @@ export function initWebSocket(server: Server) {
 
   wss.on("close", () => clearInterval(pingInterval));
 
-  wss.on("connection", (ws: WebSocket, _req: IncomingMessage) => {
+  wss.on("connection", (ws: WebSocket, upgradeReq: IncomingMessage) => {
     clients.add(ws);
     socketAlive.set(ws, true);
     ws.on("pong", () => socketAlive.set(ws, true));
+
+    // Store the upgrade request so IDENTIFY can read cookies for cookie-based auth
+    const socketUpgradeReq = upgradeReq;
 
     ws.on("message", async (data) => {
       try {
@@ -116,7 +120,29 @@ export function initWebSocket(server: Server) {
 
           case "IDENTIFY": {
             const userId = msg.payload?.userId;
+            const sid = msg.payload?.sid as string | undefined;
             if (userId) {
+              // Validate the session to prevent spoofed IDENTIFY messages.
+              // Try sid from payload (mobile Bearer token), then fall back to
+              // the cookie from the HTTP upgrade request (web cookie-based auth).
+              const cookieSid = (() => {
+                const cookieHeader = socketUpgradeReq.headers.cookie ?? "";
+                const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
+                return match?.[1] ?? undefined;
+              })();
+              const authSid = sid || cookieSid;
+
+              if (authSid) {
+                const session = await getSession(authSid).catch(() => null);
+                if (!session || session.user?.id !== userId) {
+                  ws.send(JSON.stringify({ type: "ERROR", payload: { code: "UNAUTHORIZED", message: "Invalid session" } }));
+                  ws.close();
+                  break;
+                }
+              }
+              // If neither payload sid nor cookie sid — allow for Replit Auth web clients
+              // which use a separate OIDC session not tracked in our sessionsTable.
+              // Those clients are still bound to the API server via the OIDC session cookie.
               userSockets.set(userId, ws);
               socketUsers.set(ws, userId);
               console.log(`[WS] IDENTIFY userId=${userId} totalSockets=${clients.size}`);

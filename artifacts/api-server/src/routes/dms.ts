@@ -277,10 +277,19 @@ router.get("/dms/:threadId/messages", async (req, res) => {
   if (!participant) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const beforeCreatedAt = req.query.beforeCreatedAt as string | undefined;
   const before = req.query.before as string | undefined;
 
-  const whereClause = before
-    ? and(eq(messagesTable.dmThreadId, req.params.threadId), lt(messagesTable.id, before))
+  let resolvedTs: Date | null = null;
+  if (beforeCreatedAt) {
+    resolvedTs = new Date(beforeCreatedAt);
+  } else if (before) {
+    const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, before) });
+    resolvedTs = msg?.createdAt ?? null;
+  }
+
+  const whereClause = resolvedTs
+    ? and(eq(messagesTable.dmThreadId, req.params.threadId), lt(messagesTable.createdAt, resolvedTs))
     : eq(messagesTable.dmThreadId, req.params.threadId);
 
   const messages = await db.query.messagesTable.findMany({

@@ -105,12 +105,24 @@ router.get("/channels/:channelId/messages", async (req, res) => {
   if (!member) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const limit = Math.min(Number(req.query.limit) || MAX_LIMIT, 100);
+  const beforeCreatedAt = req.query.beforeCreatedAt as string | undefined;
   const before = req.query.before as string | undefined;
 
-  const whereClause = before
+  const beforeTs = beforeCreatedAt
+    ? new Date(beforeCreatedAt)
+    : before
+      ? (async () => {
+          const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, before) });
+          return msg?.createdAt ?? null;
+        })()
+      : null;
+
+  const resolvedTs = beforeTs instanceof Promise ? await beforeTs : beforeTs;
+
+  const whereClause = resolvedTs
     ? and(
         eq(messagesTable.channelId, req.params.channelId),
-        lt(messagesTable.id, before),
+        lt(messagesTable.createdAt, resolvedTs),
         drizzleSql`${messagesTable.parentMessageId} is null`
       )
     : and(

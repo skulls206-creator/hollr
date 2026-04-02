@@ -113,7 +113,7 @@ export default function ChannelScreen() {
     setLoadingMore(true);
     try {
       const oldest = [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
-      const older: Message[] = await api(`/channels/${channelId}/messages?limit=50&before=${oldest.id}`);
+      const older: Message[] = await api(`/channels/${channelId}/messages?limit=50&beforeCreatedAt=${encodeURIComponent(oldest.createdAt)}`);
       if (older.length < 50) setHasMore(false);
       queryClient.setQueryData(["messages", channelId], (old: Message[] = []) => {
         const ids = new Set(old.map(m => m.id));

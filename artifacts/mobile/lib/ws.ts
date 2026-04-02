@@ -44,7 +44,7 @@ function connectWs(userId: string, sessionId: string) {
     ws.onopen = () => {
       isConnecting = false;
       reconnectDelay = 2000;
-      ws!.send(JSON.stringify({ type: 'IDENTIFY', payload: { userId } }));
+      ws!.send(JSON.stringify({ type: 'IDENTIFY', payload: { userId, sid: sessionId } }));
       notifyConnection(true);
     };
 

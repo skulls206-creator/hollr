@@ -147,7 +147,7 @@ export default function DmChatScreen() {
     setLoadingMore(true);
     try {
       const oldest = [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
-      const older: DmMessage[] = await api(`/dms/${threadId}/messages?limit=50&before=${oldest.id}`);
+      const older: DmMessage[] = await api(`/dms/${threadId}/messages?limit=50&beforeCreatedAt=${encodeURIComponent(oldest.createdAt)}`);
       if (older.length < 50) setHasMore(false);
       queryClient.setQueryData(["dm-messages", threadId], (old: DmMessage[] = []) => {
         const ids = new Set(old.map(m => m.id));
