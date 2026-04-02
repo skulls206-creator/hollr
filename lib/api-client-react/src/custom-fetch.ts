@@ -6,6 +6,19 @@ export type ErrorType<T = unknown> = ApiError<T>;
 
 export type BodyType<T> = T;
 
+// ─── Runtime configuration ────────────────────────────────────────────────────
+// Call these before making any requests (e.g., in mobile auth setup).
+let _baseUrl = "";
+let _authTokenGetter: (() => Promise<string | null>) | null = null;
+
+export function setBaseUrl(url: string): void {
+  _baseUrl = url.replace(/\/$/, "");
+}
+
+export function setAuthTokenGetter(getter: () => Promise<string | null>): void {
+  _authTokenGetter = getter;
+}
+
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
@@ -283,7 +296,24 @@ export async function customFetch<T = unknown>(
     throw new TypeError(`customFetch: ${method} requests cannot have a body.`);
   }
 
+  // Prepend base URL if configured and input is a relative path
+  let resolvedInput = input;
+  if (_baseUrl) {
+    const inputStr = resolveUrl(input);
+    if (inputStr.startsWith("/")) {
+      resolvedInput = `${_baseUrl}${inputStr}`;
+    }
+  }
+
   const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
+
+  // Inject auth token if configured
+  if (_authTokenGetter && !headers.has("authorization")) {
+    const token = await _authTokenGetter();
+    if (token) {
+      headers.set("authorization", `Bearer ${token}`);
+    }
+  }
 
   if (
     typeof init.body === "string" &&
@@ -297,9 +327,9 @@ export async function customFetch<T = unknown>(
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
-  const requestInfo = { method, url: resolveUrl(input) };
+  const requestInfo = { method, url: resolveUrl(resolvedInput) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const response = await fetch(resolvedInput, { ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

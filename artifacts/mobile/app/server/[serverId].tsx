@@ -80,39 +80,31 @@ export default function ServerScreen() {
   const unreadMap = new Map(unreadCounts.map(u => [u.channelId, u.count]));
 
   const textChannels = channels.filter(c => c.type === "text").sort((a, b) => a.position - b.position);
-  const voiceChannels = channels.filter(c => c.type === "voice").sort((a, b) => a.position - b.position);
 
   const s = createStyles(colors);
 
   const renderChannel = useCallback(({ item }: { item: Channel }) => {
-    const isVoice = item.type === "voice";
     const unread = unreadMap.get(item.id) ?? 0;
     return (
       <TouchableOpacity
         style={s.channelRow}
         onPress={() => {
-          if (isVoice) return;
           router.push({
             pathname: "/channel",
             params: { channelId: item.id, channelName: item.name, serverId, serverName: server?.name ?? "" },
           });
         }}
-        activeOpacity={isVoice ? 1 : 0.7}
-        disabled={isVoice}
+        activeOpacity={0.7}
       >
         <Ionicons
-          name={isVoice ? "volume-medium-outline" : "chatbubble-outline"}
+          name="chatbubble-outline"
           size={18}
           color={colors.mutedForeground}
-          style={{ opacity: isVoice ? 0.5 : 1 }}
         />
-        <Text style={[s.channelName, isVoice && { color: colors.mutedForeground, opacity: 0.6 }, unread > 0 && s.channelNameUnread]}>
+        <Text style={[s.channelName, unread > 0 && s.channelNameUnread]}>
           {item.name}
         </Text>
-        {isVoice && (
-          <Text style={s.voiceTag}>voice</Text>
-        )}
-        {unread > 0 && !isVoice && (
+        {unread > 0 && (
           <View style={[s.badgePill, { backgroundColor: colors.primary }]}>
             <Text style={[s.badgeText, { color: colors.primaryForeground }]}>
               {unread > 99 ? "99+" : unread}
@@ -170,7 +162,7 @@ export default function ServerScreen() {
         </View>
       ) : (
         <FlatList
-          data={[...textChannels, ...voiceChannels]}
+          data={textChannels}
           keyExtractor={item => item.id}
           renderItem={renderChannel}
           refreshControl={

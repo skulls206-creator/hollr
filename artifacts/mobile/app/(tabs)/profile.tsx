@@ -120,14 +120,16 @@ export default function ProfileTab() {
       const asset = result.assets[0];
       const ext = asset.uri.split(".").pop() ?? "jpg";
       const mimeType = asset.mimeType ?? `image/${ext}`;
-
-      const { uploadURL, objectPath } = await api<{ uploadURL: string; objectPath: string }>(
-        "/storage/uploads/request-url",
-        { method: "POST", body: JSON.stringify({ contentType: mimeType, prefix: "avatars" }) }
-      );
+      const fileName = `avatar-${Date.now()}.${ext}`;
 
       const fileData = await fetch(asset.uri);
       const blob = await fileData.blob();
+      const fileSize = blob.size || asset.fileSize || 1;
+
+      const { uploadURL, objectPath } = await api<{ uploadURL: string; objectPath: string }>(
+        "/storage/uploads/request-url",
+        { method: "POST", body: JSON.stringify({ name: fileName, size: fileSize, contentType: mimeType }) }
+      );
 
       const uploadRes = await fetch(uploadURL, {
         method: "PUT",

@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { api, setSessionId } from '@/lib/api';
+import { api, setSessionId, getSessionId } from '@/lib/api';
 import { connect, disconnect } from '@/lib/ws';
 import { registerForPushNotifications, unregisterPushToken, getStoredPushToken } from '@/lib/notifications';
+import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 
 const SESSION_KEY = 'hollr_session_id';
 const USER_KEY = 'hollr_user';
@@ -29,6 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [sessionId, setSessionIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const domain = process.env.EXPO_PUBLIC_DOMAIN ?? "";
+    setBaseUrl(`https://${domain}/api`);
+    setAuthTokenGetter(() => Promise.resolve(getSessionId()));
+  }, []);
 
   const applySession = useCallback(async (sid: string, userData: AuthUser) => {
     setSessionId(sid);
