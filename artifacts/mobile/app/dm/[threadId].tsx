@@ -12,6 +12,7 @@ import {
   Alert,
   ActionSheetIOS,
   Pressable,
+  Image,
 } from "react-native";
 import { router, useLocalSearchParams, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,6 +27,7 @@ import { api } from "@/lib/api";
 import { send as wsSend } from "@/lib/ws";
 import { Avatar } from "@/components/Avatar";
 import { KhurkSupporterBadge } from "@/components/KhurkSupporterBadge";
+import { useAttachmentPicker, getAttachmentUrl } from "@/hooks/useAttachmentPicker";
 
 interface DmMessageAuthor {
   id: string;
@@ -42,6 +44,14 @@ interface DmReaction {
   reactedByCurrentUser: boolean;
 }
 
+interface DmAttachment {
+  id: string;
+  objectPath: string;
+  name: string;
+  contentType: string;
+  size: number;
+}
+
 interface DmMessage {
   id: string;
   content: string;
@@ -50,6 +60,7 @@ interface DmMessage {
   edited: boolean;
   deleted: boolean;
   reactions: DmReaction[];
+  attachments?: DmAttachment[];
   createdAt: string;
   updatedAt: string;
 }
@@ -99,6 +110,7 @@ export default function DmChatScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [emojiTargetId, setEmojiTargetId] = useState<string | null>(null);
+  const { pending: pendingAttachment, uploading: uploadingAttachment, pick: pickAttachment, clear: clearAttachment } = useAttachmentPicker();
 
   const [otherUser, setOtherUser] = useState<{
     id: string;
@@ -230,13 +242,17 @@ export default function DmChatScreen() {
   }, [threadId, subscribe, queryClient, user?.id]);
 
   const sendMutation = useMutation({
-    mutationFn: (text: string) =>
+    mutationFn: ({ text, attachment }: { text: string; attachment: typeof pendingAttachment }) =>
       api(`/dms/${threadId}/messages`, {
         method: "POST",
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({
+          content: text,
+          ...(attachment ? { attachments: [{ objectPath: attachment.objectPath, name: attachment.name, contentType: attachment.contentType, size: attachment.size }] } : {}),
+        }),
       }),
     onSuccess: () => {
       setContent("");
+      clearAttachment();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       queryClient.invalidateQueries({ queryKey: ["dm-threads"] });
     },
@@ -276,8 +292,8 @@ export default function DmChatScreen() {
   });
 
   const handleSend = () => {
-    if (!content.trim()) return;
-    sendMutation.mutate(content.trim());
+    if (!content.trim() && !pendingAttachment) return;
+    sendMutation.mutate({ text: content.trim(), attachment: pendingAttachment });
   };
 
   const handleLongPress = (msg: DmMessage) => {
@@ -410,9 +426,19 @@ export default function DmChatScreen() {
                   glowStyle,
                 ]}
               >
-                <Text style={[s.msgText, isOwn && { color: colors.primaryForeground }]}>
-                  {item.content}
-                </Text>
+                {item.content ? (
+                  <Text style={[s.msgText, isOwn && { color: colors.primaryForeground }]}>
+                    {item.content}
+                  </Text>
+                ) : null}
+                {(item.attachments ?? []).filter(a => a.contentType.startsWith("image/")).map(a => (
+                  <Image
+                    key={a.id}
+                    source={{ uri: getAttachmentUrl(a.objectPath) }}
+                    style={s.attachmentImage}
+                    resizeMode="cover"
+                  />
+                ))}
               </View>
             )}
 
@@ -539,7 +565,28 @@ export default function DmChatScreen() {
             </Text>
           </View>
         )}
+        {pendingAttachment && (
+          <View style={[s.attachmentPreviewBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+            <Image source={{ uri: pendingAttachment.localUri }} style={s.attachmentThumb} resizeMode="cover" />
+            <Text style={[s.attachmentPreviewName, { color: colors.mutedForeground }]} numberOfLines={1}>
+              {pendingAttachment.name}
+            </Text>
+            <TouchableOpacity onPress={clearAttachment} style={s.attachmentRemoveBtn}>
+              <Ionicons name="close-circle" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={s.inputBar}>
+          <TouchableOpacity
+            style={s.attachBtn}
+            onPress={pickAttachment}
+            disabled={uploadingAttachment || sendMutation.isPending}
+          >
+            {uploadingAttachment
+              ? <ActivityIndicator color={colors.mutedForeground} size="small" />
+              : <Ionicons name="image-outline" size={22} color={colors.mutedForeground} />
+            }
+          </TouchableOpacity>
           <TextInput
             style={s.textInput}
             placeholder={`Message ${otherUser?.displayName ?? "..."}`}
@@ -557,9 +604,9 @@ export default function DmChatScreen() {
             maxLength={2000}
           />
           <TouchableOpacity
-            style={[s.sendBtn, (!content.trim() || sendMutation.isPending) && s.sendBtnDisabled]}
+            style={[s.sendBtn, ((!content.trim() && !pendingAttachment) || sendMutation.isPending || uploadingAttachment) && s.sendBtnDisabled]}
             onPress={handleSend}
-            disabled={!content.trim() || sendMutation.isPending}
+            disabled={(!content.trim() && !pendingAttachment) || sendMutation.isPending || uploadingAttachment}
           >
             {sendMutation.isPending ? (
               <ActivityIndicator color={colors.primaryForeground} size="small" />
@@ -771,5 +818,39 @@ function createStyles(colors: {
       marginBottom: 1,
     },
     sendBtnDisabled: { opacity: 0.4 },
+    attachBtn: {
+      width: 38,
+      height: 38,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 1,
+    },
+    attachmentPreviewBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+    },
+    attachmentThumb: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+    },
+    attachmentPreviewName: {
+      flex: 1,
+      fontFamily: "Inter_400Regular",
+      fontSize: 13,
+    },
+    attachmentRemoveBtn: {
+      padding: 2,
+    },
+    attachmentImage: {
+      width: 220,
+      height: 160,
+      borderRadius: 10,
+      marginTop: 4,
+    },
   });
 }
