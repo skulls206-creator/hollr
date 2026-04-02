@@ -18,13 +18,15 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNav } from "@/contexts/NavContext";
 import { api } from "@/lib/api";
+
+const KHURK_K_LOGO = require("@/assets/images/khurk-k-logo.jpg");
 
 interface Server {
   id: string;
@@ -293,13 +295,13 @@ export function ServerRail() {
 
         <View style={[styles.divider, { backgroundColor: borderColor }]} />
 
-        {/* ── SERVER LIST (scrollable middle) ── */}
+        {/* ── SERVER LIST (scrollable middle — grows to fill space) ── */}
         <FlatList
           data={servers}
           keyExtractor={(s) => s.id}
           renderItem={renderServer}
           showsVerticalScrollIndicator={false}
-          style={{ flexShrink: 1 }}
+          style={{ flex: 1 }}
           contentContainerStyle={{ paddingVertical: 2 }}
         />
 
@@ -314,14 +316,16 @@ export function ServerRail() {
 
         <View style={[styles.divider, { backgroundColor: borderColor, marginTop: 6 }]} />
 
-        <View style={styles.spacer} />
-
         {/* ── KHURK ── */}
         <RailBtn onPress={navKhurk} active={activeSection === "khurk"}>
-          <MaterialCommunityIcons
-            name="diamond-stone"
-            size={22}
-            color={activeSection === "khurk" ? "#fff" : accent}
+          <Image
+            source={KHURK_K_LOGO}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              opacity: activeSection === "khurk" ? 1 : 0.85,
+            }}
           />
         </RailBtn>
 
@@ -498,7 +502,6 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     marginVertical: 6,
   },
-  spacer: { flex: 1 },
   serverInitials: {
     fontSize: 13,
     fontWeight: "700",
