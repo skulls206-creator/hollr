@@ -1,3 +1,5 @@
+import type { ImageSourcePropType } from "react-native";
+
 export interface KhurkApp {
   id: string;
   name: string;
@@ -6,6 +8,7 @@ export interface KhurkApp {
   url: string;
   gradient: [string, string];
   initials: string;
+  icon: ImageSourcePropType;
 }
 
 export const KHURK_APPS: KhurkApp[] = [
@@ -17,6 +20,7 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://streamd.khurk.xyz',
     gradient: ['#1a1f8f', '#4a54d4'],
     initials: 'ST',
+    icon: require('@/assets/images/khurk/streamd.png'),
   },
   {
     id: 'playd',
@@ -26,6 +30,7 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://playd.khurk.xyz',
     gradient: ['#c0340a', '#f07020'],
     initials: 'PL',
+    icon: require('@/assets/images/khurk/playd.png'),
   },
   {
     id: 'foldr',
@@ -35,6 +40,7 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://foldr.khurk.xyz',
     gradient: ['#0a5a9c', '#2ea8e0'],
     initials: 'FL',
+    icon: require('@/assets/images/khurk/foldr.png'),
   },
   {
     id: 'rippd',
@@ -44,6 +50,7 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://rippd.khurk.xyz',
     gradient: ['#7e1d8f', '#0891b2'],
     initials: 'RP',
+    icon: require('@/assets/images/khurk/rippd.png'),
   },
   {
     id: 'ghostd',
@@ -53,6 +60,7 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://ghostd.khurk.xyz',
     gradient: ['#006b4a', '#00c47a'],
     initials: 'GH',
+    icon: require('@/assets/images/khurk/ghostd.png'),
   },
   {
     id: 'gasless',
@@ -62,6 +70,7 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://gasless.khurk.xyz',
     gradient: ['#007a5a', '#00d4a0'],
     initials: 'GW',
+    icon: require('@/assets/images/khurk/gasless.png'),
   },
   {
     id: 'ballpoint',
@@ -71,6 +80,7 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://ballpoint.khurk.xyz',
     gradient: ['#5a10c0', '#a040f0'],
     initials: 'BP',
+    icon: require('@/assets/images/khurk/ballpoint.png'),
   },
   {
     id: 'onlygames',
@@ -80,6 +90,7 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://games.khurk.xyz',
     gradient: ['#1a1a2e', '#4a4a8a'],
     initials: 'OG',
+    icon: require('@/assets/images/khurk/onlygames.png'),
   },
   {
     id: 'onlyxmr',
@@ -89,5 +100,6 @@ export const KHURK_APPS: KhurkApp[] = [
     url: 'https://xmr.khurk.xyz',
     gradient: ['#8a2a00', '#e05010'],
     initials: 'XM',
+    icon: require('@/assets/images/khurk/onlyxmr.png'),
   },
 ];

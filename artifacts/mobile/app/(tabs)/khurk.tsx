@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Linking,
-  Platform,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,9 +15,18 @@ import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/contexts/ThemeContext";
+import type { ThemeColors } from "@/constants/colors";
 import { KHURK_APPS, type KhurkApp } from "@/lib/khurk-apps";
 
-function AppCard({ app, colors }: { app: KhurkApp; colors: any }) {
+const HOLLR_LOGO = require("@/assets/images/hollr-logo.png");
+
+function AppCard({
+  app,
+  colors,
+}: {
+  app: KhurkApp;
+  colors: ThemeColors;
+}) {
   const handleOpenInApp = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await WebBrowser.openBrowserAsync(app.url, {
@@ -46,7 +55,11 @@ function AppCard({ app, colors }: { app: KhurkApp; colors: any }) {
           end={{ x: 1, y: 1 }}
           style={styles.iconTile}
         >
-          <Text style={styles.iconInitials}>{app.initials}</Text>
+          <Image
+            source={app.icon}
+            style={styles.iconImage}
+            resizeMode="cover"
+          />
         </LinearGradient>
 
         <View style={styles.cardText}>
@@ -56,7 +69,10 @@ function AppCard({ app, colors }: { app: KhurkApp; colors: any }) {
           <Text style={[styles.appTagline, { color: colors.primary }]} numberOfLines={1}>
             {app.tagline}
           </Text>
-          <Text style={[styles.appDescription, { color: colors.mutedForeground }]} numberOfLines={2}>
+          <Text
+            style={[styles.appDescription, { color: colors.mutedForeground }]}
+            numberOfLines={2}
+          >
             {app.description}
           </Text>
         </View>
@@ -106,26 +122,26 @@ export default function KhurkTab() {
       />
 
       <View style={styles.headerContent}>
-        <LinearGradient
-          colors={["#a78bfa", "#818cf8"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gemIcon}
-        >
-          <Ionicons name="diamond" size={20} color="#fff" />
-        </LinearGradient>
+        <Image source={HOLLR_LOGO} style={styles.gemIcon} resizeMode="cover" />
 
         <View>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-            KHURK OS
-          </Text>
+          <LinearGradient
+            colors={["#a78bfa", "#818cf8", "#60a5fa"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.headerTitleGradient}
+          >
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+              KHURK OS
+            </Text>
+          </LinearGradient>
           <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
             Your apps, everywhere.
           </Text>
         </View>
       </View>
 
-      <View style={[styles.sectionDivider, { borderBottomColor: colors.border }]}>
+      <View style={styles.sectionDivider}>
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
           APPS
         </Text>
@@ -171,15 +187,17 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
     marginBottom: 24,
   },
   gemIcon: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+  },
+  headerTitleGradient: {
+    borderRadius: 4,
+    paddingHorizontal: 2,
   },
   headerTitle: {
     fontSize: 26,
@@ -189,7 +207,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    marginTop: 2,
+    marginTop: 3,
   },
   sectionDivider: {
     flexDirection: "row",
@@ -227,12 +245,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    overflow: "hidden",
   },
-  iconInitials: {
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 1,
+  iconImage: {
+    width: 62,
+    height: 62,
   },
   cardText: {
     flex: 1,
