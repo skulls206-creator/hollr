@@ -18,6 +18,7 @@ import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/rea
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRealtime } from "@/contexts/RealtimeContext";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { updateBadgeCount } from "@/lib/notifications";
@@ -37,6 +38,7 @@ export default function ServersTab() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { subscribe } = useRealtime();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "join">("create");
@@ -57,13 +59,42 @@ export default function ServersTab() {
     })),
   });
 
+  const { data: dmUnreadCounts = [] } = useQuery<Array<{ threadId: string; count: number }>>({
+    queryKey: ["dm-unread"],
+    queryFn: () => api("/dms/unread"),
+    refetchInterval: 30000,
+  });
+
+  useEffect(() => {
+    const unsubs = [
+      subscribe("MESSAGE_CREATE", (payload: { channelId?: string; dmThreadId?: string }) => {
+        if (payload.channelId) {
+          queryClient.invalidateQueries({ queryKey: ["server-unread"] });
+        } else if (payload.dmThreadId) {
+          queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
+        }
+      }),
+      subscribe("MESSAGE_DELETE", (payload: { channelId?: string; dmThreadId?: string }) => {
+        if (payload.channelId) {
+          queryClient.invalidateQueries({ queryKey: ["server-unread"] });
+        } else if (payload.dmThreadId) {
+          queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
+        }
+      }),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, [subscribe, queryClient]);
+
   const serverUnreadMap = servers.reduce<Record<string, number>>((acc, srv, idx) => {
     const entries = unreadResults[idx]?.data ?? [];
     acc[srv.id] = entries.reduce((sum, entry) => sum + entry.count, 0);
     return acc;
   }, {});
 
-  const totalUnread = Object.values(serverUnreadMap).reduce((sum, n) => sum + n, 0);
+  const totalServerUnread = Object.values(serverUnreadMap).reduce((sum, n) => sum + n, 0);
+  const totalDmUnread = dmUnreadCounts.reduce((sum, u) => sum + u.count, 0);
+  const totalUnread = totalServerUnread + totalDmUnread;
+
   useEffect(() => {
     updateBadgeCount(totalUnread).catch(() => {});
   }, [totalUnread]);

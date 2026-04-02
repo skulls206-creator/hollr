@@ -93,17 +93,29 @@ export default function DmsTab() {
   );
 
   useEffect(() => {
-    const unsub = subscribe("PRESENCE_UPDATE", (payload: { userId: string; status: string }) => {
-      queryClient.setQueryData(["dm-threads"], (old: DmThread[] = []) =>
-        old.map(thread => ({
-          ...thread,
-          participants: thread.participants.map(p =>
-            p.id === payload.userId ? { ...p, status: payload.status } : p
-          ),
-        }))
-      );
-    });
-    return unsub;
+    const unsubs = [
+      subscribe("PRESENCE_UPDATE", (payload: { userId: string; status: string }) => {
+        queryClient.setQueryData(["dm-threads"], (old: DmThread[] = []) =>
+          old.map(thread => ({
+            ...thread,
+            participants: thread.participants.map(p =>
+              p.id === payload.userId ? { ...p, status: payload.status } : p
+            ),
+          }))
+        );
+      }),
+      subscribe("MESSAGE_CREATE", (payload: { dmThreadId?: string }) => {
+        if (!payload.dmThreadId) return;
+        queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
+        queryClient.invalidateQueries({ queryKey: ["dm-threads"] });
+      }),
+      subscribe("MESSAGE_DELETE", (payload: { dmThreadId?: string }) => {
+        if (!payload.dmThreadId) return;
+        queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
+        queryClient.invalidateQueries({ queryKey: ["dm-threads"] });
+      }),
+    ];
+    return () => unsubs.forEach(u => u());
   }, [subscribe, queryClient]);
 
   const startDmMutation = useMutation({

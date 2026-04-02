@@ -160,6 +160,14 @@ export default function DmChatScreen() {
           old.map(m => m.id === payload.id ? { ...m, ...payload } : m)
         );
       }),
+      subscribe("MESSAGE_DELETE", (payload: { id: string; dmThreadId?: string }) => {
+        if (payload.dmThreadId !== threadId) return;
+        queryClient.setQueryData(["dm-messages", threadId], (old: DmMessage[] = []) =>
+          old.filter(m => m.id !== payload.id)
+        );
+        queryClient.invalidateQueries({ queryKey: ["dm-threads"] });
+        queryClient.invalidateQueries({ queryKey: ["dm-unread"] });
+      }),
       subscribe("TYPING", (payload: { dmThreadId?: string; userId: string }) => {
         if (payload.dmThreadId !== threadId) return;
         if (payload.userId === user?.id) return;
