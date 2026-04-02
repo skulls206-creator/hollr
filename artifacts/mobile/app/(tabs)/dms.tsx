@@ -22,6 +22,7 @@ import { useRealtime } from "@/contexts/RealtimeContext";
 import { useNav } from "@/contexts/NavContext";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
+import { KhurkSupporterBadge } from "@/components/KhurkSupporterBadge";
 
 interface DmParticipant {
   id: string;
@@ -29,6 +30,7 @@ interface DmParticipant {
   displayName: string;
   avatarUrl: string | null;
   status: string;
+  isSupporter?: boolean;
 }
 
 interface DmThread {
@@ -200,9 +202,12 @@ export default function DmsTab() {
         />
         <View style={s.threadInfo}>
           <View style={s.threadTopRow}>
-            <Text style={[s.threadName, hasUnread && s.threadNameUnread]} numberOfLines={1}>
-              {other?.displayName || other?.username}
-            </Text>
+            <View style={s.threadNameRow}>
+              <Text style={[s.threadName, hasUnread && s.threadNameUnread]} numberOfLines={1}>
+                {other?.displayName || other?.username}
+              </Text>
+              {other?.isSupporter && <KhurkSupporterBadge size={13} />}
+            </View>
             <View style={s.threadTimeRow}>
               {item.lastMessage && (
                 <Text style={s.threadTime}>{timeAgo(item.lastMessage.createdAt)}</Text>
@@ -442,11 +447,18 @@ function createStyles(colors: {
       alignItems: "center",
       justifyContent: "space-between",
     },
+    threadNameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      flex: 1,
+      minWidth: 0,
+    },
     threadName: {
       fontFamily: "Inter_600SemiBold",
       fontSize: 15,
       color: colors.foreground,
-      flex: 1,
+      flexShrink: 1,
     },
     threadNameUnread: {
       fontFamily: "Inter_700Bold",
