@@ -341,6 +341,8 @@ export const ghostSecretsTable = pgTable("ghost_secrets", {
   contextType: varchar("context_type", { length: 8 }),
   /** threadId or channelId — used for authorization on read */
   contextId: varchar("context_id"),
+  /** When set, only this user may reveal the secret (enforced server-side) */
+  targetUserId: varchar("target_user_id"),
   /** Set to non-null on first fetch; row is deleted atomically after read */
   viewedAt: timestamp("viewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

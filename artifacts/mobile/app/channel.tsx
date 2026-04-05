@@ -15,6 +15,8 @@ import {
   ActionSheetIOS,
   Pressable,
   Image,
+  Modal,
+  ScrollView,
 } from "react-native";
 import { router, useLocalSearchParams, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -64,7 +66,7 @@ interface Message {
   deleted: boolean;
   reactions: Reaction[];
   attachments?: MessageAttachment[];
-  metadata?: { ghost?: boolean; secretId?: string; keyBase64?: string } | null;
+  metadata?: { ghost?: boolean; secretId?: string; keyBase64?: string; targetUserId?: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -115,6 +117,9 @@ export default function ChannelScreen() {
   const [emojiTargetId, setEmojiTargetId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [ghostMode, setGhostMode] = useState(false);
+  const [ghostTarget, setGhostTarget] = useState<{ userId: string; displayName: string } | null>(null);
+  const [ghostTargetPickerOpen, setGhostTargetPickerOpen] = useState(false);
+  const [ghostTargetQuery, setGhostTargetQuery] = useState("");
   const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, "pending" | "gone">>({});
   const [ghostSheetContent, setGhostSheetContent] = useState<string | null>(null);
   const { pending: pendingAttachment, uploading: uploadingAttachment, pick: pickAttachment, clear: clearAttachment } = useAttachmentPicker();
@@ -144,6 +149,12 @@ export default function ChannelScreen() {
       return data;
     },
     enabled: !!channelId,
+  });
+
+  const { data: serverMembers = [] } = useQuery<{ userId: string; user: { username: string; displayName: string; avatarUrl: string | null } }[]>({
+    queryKey: ["server-members", serverId],
+    queryFn: () => api(`/servers/${serverId}/members`),
+    enabled: !!serverId,
   });
 
   useEffect(() => {
@@ -286,14 +297,20 @@ export default function ChannelScreen() {
     if (!content.trim() && !pendingAttachment) return;
 
     if (ghostMode && content.trim()) {
+      if (!ghostTarget) {
+        Alert.alert("Pick a recipient", "Choose who this ghost message is for before sending.");
+        return;
+      }
       try {
         const { ciphertext, iv, keyBase64 } = await ghostEncrypt(content.trim());
         const secretData: { id?: string } = await api("/secrets", {
           method: "POST",
-          body: JSON.stringify({ ciphertext, iv, contextType: "channel", contextId: channelId }),
+          body: JSON.stringify({ ciphertext, iv, contextType: "channel", contextId: channelId, targetUserId: ghostTarget.userId }),
         });
         if (!secretData.id) throw new Error("No secret id returned");
-        sendMutation.mutate({ text: "", attachment: null, metadata: { ghost: true, secretId: secretData.id, keyBase64 } });
+        sendMutation.mutate({ text: "", attachment: null, metadata: { ghost: true, secretId: secretData.id, keyBase64, targetUserId: ghostTarget.userId } });
+        setGhostTarget(null);
+        setGhostMode(false);
       } catch {
         Alert.alert("Error", "Failed to send ghost message.");
       }
@@ -439,7 +456,50 @@ export default function ChannelScreen() {
               (() => {
                 const secretId = item.metadata?.secretId as string | undefined;
                 const keyBase64 = item.metadata?.keyBase64 as string | undefined;
+                const targetUserId = item.metadata?.targetUserId as string | undefined;
                 const revealed = secretId ? ghostRevealedContent[item.id] : "gone";
+                const isSender = item.authorId === user?.id;
+                const isTarget = !!targetUserId && user?.id === targetUserId;
+                const targetMember = targetUserId
+                  ? serverMembers.find(m => m.userId === targetUserId)
+                  : null;
+                const targetName = targetMember
+                  ? (targetMember.user?.displayName || targetMember.user?.username || "someone")
+                  : "someone";
+
+                if (revealed === "gone") {
+                  return (
+                    <View style={[s.bubble, { backgroundColor: colors.card, flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                      <Text style={{ fontSize: 14 }}>💨</Text>
+                      <Text style={[s.msgText, { color: colors.mutedForeground, fontStyle: "italic" }]}>
+                        Ghost message — self-destructed
+                      </Text>
+                    </View>
+                  );
+                }
+
+                if (isSender && targetUserId) {
+                  return (
+                    <View style={[s.bubble, { backgroundColor: colors.primary + "22", flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                      <Text style={{ fontSize: 14 }}>👻</Text>
+                      <Text style={[s.msgText, { color: colors.primary }]}>
+                        You sent a ghost to @{targetName}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                if (targetUserId && !isTarget) {
+                  return (
+                    <View style={[s.bubble, { backgroundColor: colors.card, flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                      <Text style={{ fontSize: 14 }}>👻</Text>
+                      <Text style={[s.msgText, { color: colors.mutedForeground, fontStyle: "italic" }]}>
+                        Ghost for @{targetName}
+                      </Text>
+                    </View>
+                  );
+                }
+
                 const canReveal = !revealed && !!secretId && !!keyBase64;
                 return (
                   <TouchableOpacity
@@ -448,20 +508,16 @@ export default function ChannelScreen() {
                     style={[
                       s.bubble,
                       {
-                        backgroundColor: revealed === "gone" ? colors.card : colors.primary + "26",
+                        backgroundColor: colors.primary + "26",
                         flexDirection: "row",
                         alignItems: "center",
                         gap: 8,
                       },
                     ]}
                   >
-                    <Text style={{ fontSize: 14 }}>{revealed === "gone" ? "💨" : "👻"}</Text>
-                    <Text style={[s.msgText, { color: revealed === "gone" ? colors.mutedForeground : colors.primary, fontStyle: revealed === "gone" ? "italic" : "normal" }]}>
-                      {revealed === "gone"
-                        ? "Ghost message — self-destructed"
-                        : revealed === "pending"
-                        ? "Revealing…"
-                        : "🔒 Ghost Message — tap to reveal"}
+                    <Text style={{ fontSize: 14 }}>👻</Text>
+                    <Text style={[s.msgText, { color: colors.primary }]}>
+                      {revealed === "pending" ? "Revealing…" : "🔒 Ghost Message — tap to reveal"}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -611,16 +667,46 @@ export default function ChannelScreen() {
           </View>
         )}
         {ghostMode && (
-          <View style={[s.typingBar, { backgroundColor: colors.primary + "22" }]}>
-            <Text style={[s.typingText, { color: colors.primary, fontStyle: "normal", fontFamily: "Inter_500Medium" }]}>
-              👻 Ghost mode — message self-destructs after first view
-            </Text>
+          <View style={{ backgroundColor: colors.primary + "18", paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.primary + "30" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <Text style={{ fontSize: 14 }}>👻</Text>
+              <Text style={{ fontFamily: "Inter_500Medium", fontSize: 12, color: colors.primary }}>
+                Ghost for:
+              </Text>
+              <TouchableOpacity
+                onPress={() => { setGhostTargetPickerOpen(true); setGhostTargetQuery(""); }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.primary + "60",
+                  backgroundColor: ghostTarget ? colors.primary + "28" : "transparent",
+                }}
+              >
+                <Text style={{ fontFamily: "Inter_500Medium", fontSize: 12, color: colors.primary }}>
+                  {ghostTarget ? `@${ghostTarget.displayName}` : "Pick someone…"}
+                </Text>
+                {ghostTarget && (
+                  <TouchableOpacity onPress={() => setGhostTarget(null)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Text style={{ color: colors.primary, fontSize: 12 }}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         )}
         <View style={s.inputBar}>
           <TouchableOpacity
             style={s.attachBtn}
-            onPress={() => setGhostMode(g => !g)}
+            onPress={() => {
+              const next = !ghostMode;
+              setGhostMode(next);
+              if (!next) { setGhostTarget(null); setGhostTargetPickerOpen(false); }
+            }}
           >
             <Text style={{ fontSize: 20, opacity: ghostMode ? 1 : 0.5 }}>👻</Text>
           </TouchableOpacity>
@@ -652,9 +738,9 @@ export default function ChannelScreen() {
             returnKeyType="default"
           />
           <TouchableOpacity
-            style={[s.sendBtn, ((!content.trim() && !pendingAttachment) || sendMutation.isPending || uploadingAttachment) && s.sendBtnDisabled]}
+            style={[s.sendBtn, ((!content.trim() && !pendingAttachment) || sendMutation.isPending || uploadingAttachment || (ghostMode && !ghostTarget)) && s.sendBtnDisabled]}
             onPress={handleSend}
-            disabled={(!content.trim() && !pendingAttachment) || sendMutation.isPending || uploadingAttachment}
+            disabled={(!content.trim() && !pendingAttachment) || sendMutation.isPending || uploadingAttachment || (ghostMode && !ghostTarget)}
           >
             {sendMutation.isPending ? (
               <ActivityIndicator color={colors.primaryForeground} size="small" />
@@ -672,6 +758,77 @@ export default function ChannelScreen() {
           colors={colors}
         />
       )}
+
+      {/* Ghost target picker modal */}
+      <Modal
+        visible={ghostTargetPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setGhostTargetPickerOpen(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+          activeOpacity={1}
+          onPress={() => setGhostTargetPickerOpen(false)}
+        />
+        <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: insets.bottom + 12, maxHeight: "60%", position: "absolute", left: 0, right: 0, bottom: 0 }}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
+            <Text style={{ fontFamily: "Inter_700Bold", fontSize: 15, color: colors.foreground, marginBottom: 10 }}>
+              👻 Who is this ghost for?
+            </Text>
+            <TextInput
+              autoFocus
+              placeholder="Search members…"
+              placeholderTextColor={colors.mutedForeground}
+              value={ghostTargetQuery}
+              onChangeText={setGhostTargetQuery}
+              style={{
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                fontFamily: "Inter_400Regular",
+                fontSize: 14,
+                color: colors.foreground,
+              }}
+            />
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {serverMembers
+              .filter(m =>
+                (m.user.displayName || m.user.username).toLowerCase().includes(ghostTargetQuery.toLowerCase())
+              )
+              .map(m => (
+                <TouchableOpacity
+                  key={m.userId}
+                  onPress={() => {
+                    setGhostTarget({ userId: m.userId, displayName: m.user.displayName || m.user.username });
+                    setGhostTargetPickerOpen(false);
+                    setGhostTargetQuery("");
+                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10 }}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary + "33", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: colors.primary }}>
+                      {(m.user.displayName || m.user.username).slice(0, 2).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: colors.foreground }}>
+                      {m.user.displayName || m.user.username}
+                    </Text>
+                    <Text style={{ fontFamily: "Inter_400Regular", fontSize: 12, color: colors.mutedForeground }}>
+                      @{m.user.username}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            }
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }

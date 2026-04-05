@@ -561,14 +561,45 @@ export function MessageList({
                   </div>
                 ) : isGhostMsg(msg.metadata) ? (
                   (() => {
-                    const { secretId, keyBase64 } = msg.metadata as GhostMetadata;
+                    const { secretId, keyBase64, targetUserId } = msg.metadata as GhostMetadata;
                     const revealed = ghostRevealedContent[msg.id];
-                    return revealed === 'gone' ? (
-                      <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 rounded-[20px] text-[13px] text-muted-foreground/60 italic select-none">
-                        <Ghost size={14} />
-                        Ghost message — self-destructed
-                      </div>
-                    ) : (
+                    const isSender = isOwner;
+                    const isTarget = !!targetUserId && user?.id === targetUserId;
+                    const targetMember = targetUserId
+                      ? (serverMembers as any[]).find(m => m.userId === targetUserId)
+                      : null;
+                    const targetName = targetMember
+                      ? (targetMember.user?.displayName || targetMember.user?.username || 'someone')
+                      : 'someone';
+
+                    if (revealed === 'gone') {
+                      return (
+                        <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 rounded-[20px] text-[13px] text-muted-foreground/60 italic select-none">
+                          <Ghost size={14} />
+                          Ghost message — self-destructed
+                        </div>
+                      );
+                    }
+
+                    if (isSender && targetUserId) {
+                      return (
+                        <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-[20px] text-[13px] text-primary/70 select-none">
+                          <Ghost size={13} />
+                          👻 You sent a ghost to @{targetName}
+                        </div>
+                      );
+                    }
+
+                    if (targetUserId && !isTarget) {
+                      return (
+                        <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 rounded-[20px] text-[13px] text-muted-foreground/60 italic select-none">
+                          <Ghost size={13} />
+                          👻 Ghost for @{targetName}
+                        </div>
+                      );
+                    }
+
+                    return (
                       <button
                         onClick={() => void handleRevealGhost(msg.id, secretId, keyBase64)}
                         disabled={revealed === 'pending'}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { PlusCircle, Smile, Music2, Slash, ArrowUp, Ghost } from 'lucide-react';
+import { PlusCircle, Smile, Music2, Slash, ArrowUp, Ghost, X, ChevronDown } from 'lucide-react';
 import { useSendMessage, useRequestUploadUrl, useListServerMembers, getListServerMembersQueryKey, getListMessagesQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -54,6 +54,9 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   const [selectedSlashIdx, setSelectedSlashIdx] = useState(0);
   const [cmdLoading, setCmdLoading] = useState(false);
   const [ghostMode, setGhostMode] = useState(false);
+  const [ghostTarget, setGhostTarget] = useState<{ userId: string; displayName: string } | null>(null);
+  const [ghostTargetPickerOpen, setGhostTargetPickerOpen] = useState(false);
+  const [ghostTargetQuery, setGhostTargetQuery] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -97,6 +100,12 @@ export function MessageComposer({ channelId }: { channelId: string }) {
 
   const slashMatches = slashQuery !== null
     ? SLASH_COMMANDS.filter(c => c.name.startsWith(slashQuery.toLowerCase()))
+    : [];
+
+  const ghostTargetMatches = ghostTargetPickerOpen
+    ? members.filter(m =>
+        (m.user.displayName || m.user.username).toLowerCase().includes(ghostTargetQuery.toLowerCase())
+      ).slice(0, 8)
     : [];
 
   const resizeTextarea = useCallback(() => {
@@ -236,19 +245,25 @@ export function MessageComposer({ channelId }: { channelId: string }) {
     }
 
     if (ghostMode) {
+      if (!ghostTarget) {
+        toast({ title: 'Choose a recipient', description: 'Select who this ghost message is for', variant: 'destructive' });
+        return;
+      }
       try {
         const { ciphertext, keyBase64, iv } = await ghostEncrypt(trimmed);
         const secretRes = await fetch(`${BASE}api/secrets`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ ciphertext, iv, contextType: 'channel', contextId: channelId }),
+          body: JSON.stringify({ ciphertext, iv, contextType: 'channel', contextId: channelId, targetUserId: ghostTarget.userId }),
         });
         if (!secretRes.ok) throw new Error('Failed to store ghost message');
         const { id: secretId } = await secretRes.json() as { id: string };
-        sendMessage({ channelId, data: { content: '', metadata: { ghost: true, secretId, keyBase64 } } }, {
+        sendMessage({ channelId, data: { content: '', metadata: { ghost: true, secretId, keyBase64, targetUserId: ghostTarget.userId } } }, {
           onSuccess: (newMsg) => {
             setContent('');
+            setGhostTarget(null);
+            setGhostMode(false);
             if (textareaRef.current) textareaRef.current.style.height = '46px';
             qc.setQueryData<unknown[]>(getListMessagesQueryKey(channelId), (old = []) => {
               if ((old as Array<{ id: string }>).some(m => m.id === newMsg.id)) return old;
@@ -279,7 +294,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         if (textareaRef.current) textareaRef.current.style.height = '34px';
       },
     });
-  }, [content, isUploading, channelId, sendMessage, toast, executeSlashCommand, ghostMode]);
+  }, [content, isUploading, channelId, sendMessage, toast, executeSlashCommand, ghostMode, ghostTarget]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashQuery !== null && slashMatches.length > 0) {
@@ -358,14 +373,89 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   };
 
   const hasContent = !!content.trim();
+  const canSendGhost = ghostMode ? (hasContent && !!ghostTarget) : hasContent;
 
   return (
     <div className="px-3 pb-3 pt-1 w-full relative">
       {/* Ghost mode banner */}
       {ghostMode && (
-        <div className="flex items-center gap-2 mb-1.5 px-3 py-1 rounded-lg bg-primary/10 border border-primary/20 text-[12px] text-primary font-medium select-none">
-          <Ghost size={13} />
-          Ghost mode on — message self-destructs after first reveal
+        <div className="mb-1.5 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-[12px] text-primary font-medium select-none">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Ghost size={13} />
+            <span className="opacity-80">Ghost for:</span>
+            {/* Target picker trigger */}
+            <button
+              type="button"
+              onClick={() => { setGhostTargetPickerOpen(v => !v); setGhostTargetQuery(''); }}
+              className={cn(
+                'flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition-colors',
+                ghostTarget
+                  ? 'bg-primary/20 border-primary/40 text-primary'
+                  : 'border-primary/30 text-primary/60 hover:bg-primary/10'
+              )}
+            >
+              {ghostTarget ? (
+                <>
+                  <span className="font-semibold">@{ghostTarget.displayName}</span>
+                  <X
+                    size={11}
+                    className="opacity-60 hover:opacity-100"
+                    onClick={(e) => { e.stopPropagation(); setGhostTarget(null); }}
+                  />
+                </>
+              ) : (
+                <>
+                  <span>Pick someone…</span>
+                  <ChevronDown size={11} />
+                </>
+              )}
+            </button>
+            <span className="ml-auto opacity-60 text-[11px]">self-destructs after reveal</span>
+          </div>
+
+          {/* Target member picker dropdown */}
+          {ghostTargetPickerOpen && (
+            <div className="mt-2 bg-surface-1 border border-border/30 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+              <div className="px-2 pt-2 pb-1">
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search members…"
+                  value={ghostTargetQuery}
+                  onChange={e => setGhostTargetQuery(e.target.value)}
+                  className="w-full bg-secondary border border-border/20 rounded-lg px-2.5 py-1 text-[12px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                />
+              </div>
+              {ghostTargetMatches.length === 0 ? (
+                <div className="px-3 py-2 text-[11px] text-muted-foreground/60">No members found</div>
+              ) : (
+                ghostTargetMatches.map((m) => (
+                  <button
+                    key={m.userId}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setGhostTarget({ userId: m.userId, displayName: m.user.displayName || m.user.username });
+                      setGhostTargetPickerOpen(false);
+                      setGhostTargetQuery('');
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-secondary/50 transition-colors"
+                  >
+                    <Avatar className="h-6 w-6 shrink-0">
+                      <AvatarImage src={m.user.avatarUrl || undefined} />
+                      <AvatarFallback className="bg-primary text-white text-[9px]">
+                        {getInitials(m.user.displayName || m.user.username)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-medium text-foreground truncate">{m.user.displayName || m.user.username}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">@{m.user.username}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -500,7 +590,11 @@ export function MessageComposer({ channelId }: { channelId: string }) {
 
         {/* Ghost mode toggle */}
         <button
-          onClick={() => setGhostMode(v => !v)}
+          onClick={() => {
+            const next = !ghostMode;
+            setGhostMode(next);
+            if (!next) { setGhostTarget(null); setGhostTargetPickerOpen(false); }
+          }}
           title={ghostMode ? 'Ghost mode on — click to disable' : 'Send as ghost message'}
           className={cn(
             'shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
@@ -515,11 +609,11 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         {/* Send button — filled circle when content is ready */}
         <button
           onClick={handleSend}
-          disabled={!hasContent || isSending || cmdLoading}
-          title="Send message"
+          disabled={!canSendGhost || isSending || cmdLoading}
+          title={ghostMode && !ghostTarget ? 'Pick a recipient first' : 'Send message'}
           className={cn(
             'shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
-            hasContent
+            canSendGhost
               ? ghostMode
                 ? 'bg-primary/80 text-primary-foreground shadow-md hover:bg-primary/70 active:scale-95'
                 : 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95'

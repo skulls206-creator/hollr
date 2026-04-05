@@ -272,6 +272,7 @@ export interface GhostMetadata {
   ghost: true;
   secretId: string;
   keyBase64: string;
+  targetUserId?: string;
 }
 
 export interface AttachmentInput {

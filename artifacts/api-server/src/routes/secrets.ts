@@ -15,6 +15,7 @@ async function canAccessContext(
   contextType: string | null | undefined,
   contextId: string | null | undefined,
   senderId: string,
+  targetUserId: string | null | undefined,
 ): Promise<boolean> {
   if (!contextType || !contextId) {
     return userId === senderId;
@@ -29,6 +30,9 @@ async function canAccessContext(
     return !!participant;
   }
   if (contextType === "channel") {
+    if (targetUserId) {
+      return userId === targetUserId;
+    }
     const channel = await db.query.channelsTable.findFirst({
       where: eq(channelsTable.id, contextId),
     });
@@ -47,7 +51,7 @@ async function canAccessContext(
 router.post("/secrets", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { ciphertext, iv, contextType, contextId } = req.body ?? {};
+  const { ciphertext, iv, contextType, contextId, targetUserId } = req.body ?? {};
   if (
     !ciphertext || typeof ciphertext !== "string" || ciphertext.length < 1 ||
     !iv || typeof iv !== "string" || iv.length < 1
@@ -64,6 +68,7 @@ router.post("/secrets", async (req, res) => {
     senderId: req.user.id,
     contextType: contextType ?? null,
     contextId: contextId ?? null,
+    targetUserId: (typeof targetUserId === "string" && targetUserId.length > 0) ? targetUserId : null,
   });
 
   res.status(201).json({ id });
@@ -85,7 +90,7 @@ router.get("/secrets/:id", async (req, res) => {
     return;
   }
 
-  const authorized = await canAccessContext(userId, secretMeta.contextType, secretMeta.contextId, secretMeta.senderId);
+  const authorized = await canAccessContext(userId, secretMeta.contextType, secretMeta.contextId, secretMeta.senderId, secretMeta.targetUserId);
   if (!authorized) {
     res.status(403).json({ error: "You are not authorized to view this message." });
     return;
