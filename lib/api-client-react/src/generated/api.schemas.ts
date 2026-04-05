@@ -281,6 +281,7 @@ export interface SendMessageRequest {
    */
   content: string;
   attachments?: AttachmentInput[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface EditMessageRequest {

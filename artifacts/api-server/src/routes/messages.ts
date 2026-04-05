@@ -80,6 +80,7 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserI
     pinned: msg.pinned,
     pinnedBy: msg.pinnedBy ?? null,
     mentions: mentionsList,
+    metadata: msg.metadata ?? null,
     reactions: sortedReactions,
     attachments: attachments.map((a) => ({
       id: a.id,
@@ -162,6 +163,7 @@ router.post("/channels/:channelId/messages", async (req, res) => {
     authorId: req.user.id,
     channelId: req.params.channelId,
     mentions: parsed.data.mentions ? JSON.stringify(parsed.data.mentions) : "[]",
+    metadata: parsed.data.metadata ?? null,
   }).returning();
 
   if (parsed.data.attachments?.length) {

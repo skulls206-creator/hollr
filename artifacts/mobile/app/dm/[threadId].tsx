@@ -62,6 +62,7 @@ interface DmMessage {
   deleted: boolean;
   reactions: DmReaction[];
   attachments?: DmAttachment[];
+  metadata?: { ghost?: boolean; secretId?: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -137,6 +138,8 @@ export default function DmChatScreen() {
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const lastTypingSent = useRef(0);
   const tapTimestamps = useRef<Record<string, number>>({});
+  const [ghostMode, setGhostMode] = useState(false);
+  const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, string | "pending" | "gone">>({});
 
   const handleDoubleTap = useCallback((msg: DmMessage) => {
     const now = Date.now();
@@ -256,12 +259,13 @@ export default function DmChatScreen() {
   }, [threadId, subscribe, queryClient, user?.id]);
 
   const sendMutation = useMutation({
-    mutationFn: ({ text, attachment }: { text: string; attachment: typeof pendingAttachment }) =>
+    mutationFn: ({ text, attachment, metadata }: { text: string; attachment: typeof pendingAttachment; metadata?: Record<string, unknown> }) =>
       api(`/dms/${threadId}/messages`, {
         method: "POST",
         body: JSON.stringify({
           content: text,
           ...(attachment ? { attachments: [{ objectPath: attachment.objectPath, name: attachment.name, contentType: attachment.contentType, size: attachment.size }] } : {}),
+          ...(metadata ? { metadata } : {}),
         }),
       }),
     onSuccess: () => {
@@ -305,8 +309,43 @@ export default function DmChatScreen() {
     onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
-  const handleSend = () => {
+  const handleRevealGhost = useCallback(async (messageId: string, secretId: string) => {
+    if (ghostRevealedContent[messageId]) return;
+    setGhostRevealedContent(prev => ({ ...prev, [messageId]: "pending" }));
+    try {
+      const data: { content?: string; error?: string } = await api(`/secrets/${secretId}`);
+      if (data.error || !data.content) {
+        setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
+        Alert.alert("Ghost message", "This message has already been viewed or no longer exists.");
+        return;
+      }
+      setGhostRevealedContent(prev => ({ ...prev, [messageId]: data.content! }));
+      Alert.alert("👻 Ghost Message", data.content, [
+        { text: "OK", style: "default" },
+      ]);
+    } catch {
+      setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
+      Alert.alert("Error", "Could not reveal ghost message.");
+    }
+  }, [ghostRevealedContent]);
+
+  const handleSend = async () => {
     if (!content.trim() && !pendingAttachment) return;
+
+    if (ghostMode && content.trim()) {
+      try {
+        const secretData: { id?: string } = await api("/secrets", {
+          method: "POST",
+          body: JSON.stringify({ content: content.trim() }),
+        });
+        if (!secretData.id) throw new Error("No secret id returned");
+        sendMutation.mutate({ text: "", attachment: null, metadata: { ghost: true, secretId: secretData.id } });
+      } catch {
+        Alert.alert("Error", "Failed to send ghost message.");
+      }
+      return;
+    }
+
     sendMutation.mutate({ text: content.trim(), attachment: pendingAttachment });
   };
 
@@ -438,6 +477,49 @@ export default function DmChatScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+            ) : item.metadata?.ghost ? (
+              (() => {
+                const secretId = item.metadata?.secretId;
+                const revealed = secretId ? ghostRevealedContent[item.id] : undefined;
+                const isGone = revealed === "gone" || !secretId;
+                const isRevealed = typeof revealed === "string" && revealed !== "pending" && revealed !== "gone";
+                return (
+                  <View style={{ gap: 4 }}>
+                    <TouchableOpacity
+                      onPress={() => !isGone && !isRevealed && revealed !== "pending" && secretId && void handleRevealGhost(item.id, secretId)}
+                      disabled={isGone || isRevealed || revealed === "pending"}
+                      style={[
+                        s.bubble,
+                        {
+                          backgroundColor: isGone || isRevealed
+                            ? colors.card
+                            : colors.primary + "26",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        },
+                      ]}
+                    >
+                      <Text style={{ fontSize: 14 }}>{isGone ? "💨" : "👻"}</Text>
+                      <Text style={[s.msgText, { color: isGone ? colors.mutedForeground : colors.primary, fontStyle: isGone ? "italic" : "normal" }]}>
+                        {isGone
+                          ? "Ghost message — self-destructed"
+                          : revealed === "pending"
+                          ? "Revealing…"
+                          : "🔒 Ghost Message — tap to reveal"}
+                      </Text>
+                    </TouchableOpacity>
+                    {isRevealed && (
+                      <View style={{ gap: 2 }}>
+                        <View style={[s.bubble, isOwn ? s.bubbleOwn : s.bubbleOther]}>
+                          <Text style={[s.msgText, isOwn && { color: colors.primaryForeground }]}>{revealed as string}</Text>
+                        </View>
+                        <Text style={{ fontSize: 11, color: colors.mutedForeground, fontStyle: "italic", marginLeft: 4 }}>👻 self-destructed</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()
             ) : (
               <View
                 style={[
@@ -580,6 +662,13 @@ export default function DmChatScreen() {
       )}
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        {ghostMode && (
+          <View style={[s.typingBar, { backgroundColor: colors.primary + "22" }]}>
+            <Text style={[s.typingText, { color: colors.primary, fontStyle: "normal", fontFamily: "Inter_500Medium" }]}>
+              👻 Ghost mode — message will self-destruct after first view
+            </Text>
+          </View>
+        )}
         {typingUsers.length > 0 && (
           <View style={s.typingBar}>
             <Text style={s.typingText}>
@@ -600,6 +689,12 @@ export default function DmChatScreen() {
         )}
         <View style={s.inputBar}>
           <TouchableOpacity
+            style={[s.attachBtn, ghostMode && { opacity: 1 }]}
+            onPress={() => setGhostMode(g => !g)}
+          >
+            <Text style={{ fontSize: 20 }}>👻</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={s.attachBtn}
             onPress={pickAttachment}
             disabled={uploadingAttachment || sendMutation.isPending}
@@ -611,7 +706,7 @@ export default function DmChatScreen() {
           </TouchableOpacity>
           <TextInput
             style={s.textInput}
-            placeholder={`Message ${otherUser?.displayName ?? "..."}`}
+            placeholder={ghostMode ? "👻 Ghost message..." : `Message ${otherUser?.displayName ?? "..."}`}
             placeholderTextColor={colors.mutedForeground}
             value={content}
             onChangeText={(text) => {

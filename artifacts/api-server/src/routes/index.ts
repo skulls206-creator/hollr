@@ -18,6 +18,7 @@ import foldrRouter from "./foldr";
 import ballpointRouter from "./ballpoint";
 import rippdRouter from "./rippd";
 import referralRouter from "./referral";
+import secretsRouter from "./secrets";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(referralRouter);
 router.use(foldrRouter);
 router.use(ballpointRouter);
 router.use(rippdRouter);
+router.use(secretsRouter);
 
 export default router;

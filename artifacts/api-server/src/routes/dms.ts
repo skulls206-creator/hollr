@@ -77,6 +77,7 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserI
     dmThreadId: msg.dmThreadId,
     edited: msg.edited,
     deleted: msg.deleted ?? false,
+    metadata: msg.metadata ?? null,
     reactions,
     attachments: attachments.map((a) => ({
       id: a.id,
@@ -320,6 +321,7 @@ router.post("/dms/:threadId/messages", async (req, res) => {
       content: parsed.data.content,
       authorId: req.user.id,
       dmThreadId: req.params.threadId,
+      metadata: parsed.data.metadata ?? null,
     })
     .returning();
 
@@ -348,7 +350,8 @@ router.post("/dms/:threadId/messages", async (req, res) => {
         where: eq(userProfilesTable.userId, req.user.id),
       });
       const senderName = senderProfile?.displayName || senderProfile?.username || "Someone";
-      const body = parsed.data.content ? parsed.data.content.slice(0, 100) : "Sent a message";
+      const isGhost = !!(parsed.data.metadata as any)?.ghost;
+      const body = isGhost ? "👻 Sent a ghost message" : (parsed.data.content ? parsed.data.content.slice(0, 100) : "Sent a message");
 
       await Promise.allSettled(
         participants

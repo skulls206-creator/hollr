@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { PlusCircle, Smile, Music2, Slash, ArrowUp } from 'lucide-react';
+import { PlusCircle, Smile, Music2, Slash, ArrowUp, Ghost } from 'lucide-react';
 import { useSendMessage, useRequestUploadUrl, useListServerMembers, getListServerMembersQueryKey, getListMessagesQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -52,6 +52,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [selectedSlashIdx, setSelectedSlashIdx] = useState(0);
   const [cmdLoading, setCmdLoading] = useState(false);
+  const [ghostMode, setGhostMode] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -233,6 +234,33 @@ export function MessageComposer({ channelId }: { channelId: string }) {
       }
     }
 
+    if (ghostMode) {
+      try {
+        const secretRes = await fetch(`${BASE}api/secrets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ content: trimmed }),
+        });
+        if (!secretRes.ok) throw new Error('Failed to store ghost message');
+        const { id: secretId } = await secretRes.json();
+        sendMessage({ channelId, data: { content: '', metadata: { ghost: true, secretId } } }, {
+          onSuccess: (newMsg) => {
+            setContent('');
+            if (textareaRef.current) textareaRef.current.style.height = '46px';
+            qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), (old = []) => {
+              if (old.some((m: any) => m.id === newMsg.id)) return old;
+              return [...old, newMsg];
+            });
+          },
+          onError: () => toast({ title: 'Failed to send ghost message', variant: 'destructive' }),
+        });
+      } catch {
+        toast({ title: 'Failed to send ghost message', variant: 'destructive' });
+      }
+      return;
+    }
+
     sendMessage({ channelId, data: { content: trimmed } }, {
       onSuccess: (newMsg) => {
         setContent('');
@@ -249,7 +277,7 @@ export function MessageComposer({ channelId }: { channelId: string }) {
         if (textareaRef.current) textareaRef.current.style.height = '34px';
       },
     });
-  }, [content, isUploading, channelId, sendMessage, toast, executeSlashCommand]);
+  }, [content, isUploading, channelId, sendMessage, toast, executeSlashCommand, ghostMode]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashQuery !== null && slashMatches.length > 0) {
@@ -331,6 +359,13 @@ export function MessageComposer({ channelId }: { channelId: string }) {
 
   return (
     <div className="px-3 pb-3 pt-1 w-full relative">
+      {/* Ghost mode banner */}
+      {ghostMode && (
+        <div className="flex items-center gap-2 mb-1.5 px-3 py-1 rounded-lg bg-primary/10 border border-primary/20 text-[12px] text-primary font-medium select-none">
+          <Ghost size={13} />
+          Ghost mode on — message self-destructs after first reveal
+        </div>
+      )}
 
       {/* Slash command palette */}
       {slashQuery !== null && slashMatches.length > 0 && (
@@ -461,6 +496,20 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           </div>
         </div>
 
+        {/* Ghost mode toggle */}
+        <button
+          onClick={() => setGhostMode(v => !v)}
+          title={ghostMode ? 'Ghost mode on — click to disable' : 'Send as ghost message'}
+          className={cn(
+            'shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
+            ghostMode
+              ? 'bg-primary/20 text-primary ring-1 ring-primary/40'
+              : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-secondary'
+          )}
+        >
+          <Ghost size={17} />
+        </button>
+
         {/* Send button — filled circle when content is ready */}
         <button
           onClick={handleSend}
@@ -469,11 +518,13 @@ export function MessageComposer({ channelId }: { channelId: string }) {
           className={cn(
             'shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
             hasContent
-              ? 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95'
+              ? ghostMode
+                ? 'bg-primary/80 text-primary-foreground shadow-md hover:bg-primary/70 active:scale-95'
+                : 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95'
               : 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
           )}
         >
-          <ArrowUp size={18} strokeWidth={2.5} />
+          {ghostMode ? <Ghost size={17} strokeWidth={2} /> : <ArrowUp size={18} strokeWidth={2.5} />}
         </button>
       </div>
     </div>

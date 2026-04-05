@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, integer, pgTable, text, timestamp, varchar, pgEnum, primaryKey, index, foreignKey } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, text, timestamp, varchar, pgEnum, primaryKey, index, foreignKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -119,6 +119,7 @@ export const messagesTable = pgTable("messages", {
   pinned: boolean("pinned").notNull().default(false),
   pinnedBy: varchar("pinned_by"),
   mentions: text("mentions").default("[]"),
+  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
@@ -328,3 +329,17 @@ export const referralsTable = pgTable("referrals", {
 ]);
 
 export type Referral = typeof referralsTable.$inferSelect;
+
+// ── Ghost (self-destructing) message secrets ──────────────────────────────
+export const ghostSecretsTable = pgTable("ghost_secrets", {
+  id: varchar("id", { length: 16 }).primaryKey(),
+  content: text("content").notNull(),
+  senderId: varchar("sender_id").notNull(),
+  viewedAt: timestamp("viewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("ghost_secrets_sender_id_idx").on(t.senderId),
+  index("ghost_secrets_created_at_idx").on(t.createdAt),
+]);
+
+export type GhostSecret = typeof ghostSecretsTable.$inferSelect;

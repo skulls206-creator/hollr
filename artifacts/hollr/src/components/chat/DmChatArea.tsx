@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   PlusCircle, Smile, ChevronLeft, FileText, Download,
-  ArrowUp, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video, User, EyeOff, Eye,
+  ArrowUp, Pencil, Trash2, Check, X, Copy, ExternalLink, Menu, Pin, PinOff, Phone, Video, User, EyeOff, Eye, Ghost, Lock,
 } from 'lucide-react';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { initiateVideoCall } from '@/hooks/use-video-call';
@@ -94,6 +94,8 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
   const [editDraft, setEditDraft] = useState('');
   const [emojiHoverMsg, setEmojiHoverMsg] = useState<string | null>(null);
   const [composerEmojiOpen, setComposerEmojiOpen] = useState(false);
+  const [ghostMode, setGhostMode] = useState(false);
+  const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, string | 'pending' | 'gone'>>({});
   const [hiddenMsgIds, setHiddenMsgIds] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('hollr:hidden-messages') ?? '[]') as string[]); }
     catch { return new Set(); }
@@ -381,9 +383,37 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
     doEdit({ messageId, content: editDraft.trim() });
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!content.trim()) return;
-    sendMessage({ threadId, data: { content: content.trim() } }, {
+    const text = content.trim();
+
+    if (ghostMode) {
+      try {
+        const secretRes = await fetch('/api/secrets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: text }),
+        });
+        if (!secretRes.ok) throw new Error('Failed to store ghost message');
+        const { id: secretId } = await secretRes.json();
+        sendMessage({ threadId, data: { content: '', metadata: { ghost: true, secretId } } }, {
+          onSuccess: (newMsg) => {
+            setContent('');
+            if (textareaRef.current) textareaRef.current.style.height = '46px';
+            qc.setQueryData<any[]>(getListDmMessagesQueryKey(threadId), (old = []) => {
+              if (old.some((m: any) => m.id === newMsg.id)) return old;
+              return [...old, newMsg];
+            });
+          },
+          onError: () => toast({ title: 'Failed to send ghost message', variant: 'destructive' }),
+        });
+      } catch {
+        toast({ title: 'Failed to send ghost message', variant: 'destructive' });
+      }
+      return;
+    }
+
+    sendMessage({ threadId, data: { content: text } }, {
       onSuccess: (newMsg) => {
         setContent('');
         if (textareaRef.current) textareaRef.current.style.height = '46px';
@@ -396,10 +426,28 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
     });
   };
 
+  const handleRevealGhost = async (messageId: string, secretId: string) => {
+    if (ghostRevealedContent[messageId]) return;
+    setGhostRevealedContent(prev => ({ ...prev, [messageId]: 'pending' }));
+    try {
+      const res = await fetch(`/api/secrets/${secretId}`);
+      if (res.status === 410) {
+        setGhostRevealedContent(prev => ({ ...prev, [messageId]: 'gone' }));
+        return;
+      }
+      if (!res.ok) throw new Error('Failed to reveal');
+      const { content: revealed } = await res.json();
+      setGhostRevealedContent(prev => ({ ...prev, [messageId]: revealed }));
+    } catch {
+      setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
+      toast({ title: 'Could not reveal ghost message', variant: 'destructive' });
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -700,6 +748,47 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                     <div className="text-[13px] italic text-muted-foreground/50 px-4 py-2 bg-muted/40 rounded-[20px]">
                       Message deleted
                     </div>
+                  ) : (msg as any).metadata?.ghost ? (
+                    (() => {
+                      const secretId = (msg as any).metadata?.secretId as string | undefined;
+                      const revealed = secretId ? ghostRevealedContent[msg.id] : undefined;
+                      if (revealed === 'gone') {
+                        return (
+                          <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 rounded-[20px] text-[13px] text-muted-foreground/60 italic select-none">
+                            <Ghost size={14} />
+                            Ghost message — self-destructed
+                          </div>
+                        );
+                      }
+                      if (typeof revealed === 'string') {
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <div className={cn('px-4 py-2 leading-relaxed break-words whitespace-pre-wrap text-[15px]', bubbleBg, radius)} style={supporterGlow}>
+                              {formatContent(revealed, onDark)}
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground/50 px-1">
+                              <Ghost size={10} />
+                              Ghost message — self-destructed
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <button
+                          onClick={() => secretId && handleRevealGhost(msg.id, secretId)}
+                          disabled={revealed === 'pending' || !secretId}
+                          className={cn(
+                            'flex items-center gap-2 px-4 py-2.5 rounded-[20px] text-[13px] font-medium transition-all select-none',
+                            revealed === 'pending'
+                              ? 'bg-primary/20 text-primary/60 cursor-wait'
+                              : 'bg-primary/15 text-primary hover:bg-primary/25 active:scale-[0.97] cursor-pointer'
+                          )}
+                        >
+                          <Lock size={13} />
+                          {revealed === 'pending' ? 'Revealing…' : '👻 Ghost Message — tap to reveal'}
+                        </button>
+                      );
+                    })()
                   ) : isHidden ? (
                     <button
                       onClick={() => toggleHide(msg.id)}
@@ -825,6 +914,13 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
 
       {/* Composer */}
       <div className="px-3 pb-3 pt-1 relative">
+        {/* Ghost mode banner */}
+        {ghostMode && (
+          <div className="flex items-center gap-2 mb-1.5 px-3 py-1 rounded-lg bg-primary/10 border border-primary/20 text-[12px] text-primary font-medium select-none">
+            <Ghost size={13} />
+            Ghost mode on — message self-destructs after first reveal
+          </div>
+        )}
         <div className="relative flex items-center gap-2">
           {/* Attach button */}
           <button
@@ -882,6 +978,20 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
             </div>
           </div>
 
+          {/* Ghost mode toggle */}
+          <button
+            onClick={() => setGhostMode(v => !v)}
+            title={ghostMode ? 'Ghost mode on — click to disable' : 'Send as ghost message'}
+            className={cn(
+              'shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
+              ghostMode
+                ? 'bg-primary/20 text-primary ring-1 ring-primary/40'
+                : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-secondary'
+            )}
+          >
+            <Ghost size={17} />
+          </button>
+
           {/* Send button — filled circle */}
           <button
             onClick={handleSend}
@@ -890,11 +1000,13 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
             className={cn(
               'shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150',
               content.trim() && !isUploading
-                ? 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95'
+                ? ghostMode
+                  ? 'bg-primary/80 text-primary-foreground shadow-md hover:bg-primary/70 active:scale-95'
+                  : 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95'
                 : 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
             )}
           >
-            <ArrowUp size={18} strokeWidth={2.5} />
+            {ghostMode ? <Ghost size={17} strokeWidth={2} /> : <ArrowUp size={18} strokeWidth={2.5} />}
           </button>
         </div>
       </div>

@@ -5,7 +5,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, formatBytes } from '@/lib/utils';
-import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare, Copy, ExternalLink, EyeOff, Eye, User, AtSign } from 'lucide-react';
+import { FileText, Download, Pencil, Trash2, Check, X, Pin, Smile, MessageSquare, Copy, ExternalLink, EyeOff, Eye, User, AtSign, Ghost, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppStore } from '@/store/use-app-store';
 import { cn } from '@/lib/utils';
@@ -120,6 +120,7 @@ export function MessageList({
     catch { return new Set(); }
   });
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, string | 'pending' | 'gone'>>({});
 
   const toggleHide = useCallback((msgId: string) => {
     setHiddenMsgIds(prev => {
@@ -164,6 +165,24 @@ export function MessageList({
 
   const startEdit = (id: string, content: string) => { setEditingId(id); setEditDraft(content); };
   const cancelEdit = () => { setEditingId(null); setEditDraft(''); };
+
+  const handleRevealGhost = useCallback(async (messageId: string, secretId: string) => {
+    if (ghostRevealedContent[messageId]) return;
+    setGhostRevealedContent(prev => ({ ...prev, [messageId]: 'pending' }));
+    try {
+      const res = await fetch(`/api/secrets/${secretId}`);
+      if (res.status === 410) {
+        setGhostRevealedContent(prev => ({ ...prev, [messageId]: 'gone' }));
+        return;
+      }
+      if (!res.ok) throw new Error('Failed to reveal');
+      const { content: revealed } = await res.json();
+      setGhostRevealedContent(prev => ({ ...prev, [messageId]: revealed }));
+    } catch {
+      setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
+      toast({ title: 'Could not reveal ghost message', variant: 'destructive' });
+    }
+  }, [ghostRevealedContent, toast]);
 
   const saveEdit = (messageId: string) => {
     if (!editDraft.trim()) return;
@@ -530,6 +549,54 @@ export function MessageList({
                   <div className="text-[13px] italic text-muted-foreground/50 px-4 py-2 bg-muted/40 rounded-[20px]">
                     Message deleted
                   </div>
+                ) : (msg as any).metadata?.ghost ? (
+                  (() => {
+                    const secretId = (msg as any).metadata?.secretId as string | undefined;
+                    const revealed = secretId ? ghostRevealedContent[msg.id] : undefined;
+                    if (revealed === 'gone') {
+                      return (
+                        <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 rounded-[20px] text-[13px] text-muted-foreground/60 italic select-none">
+                          <Ghost size={14} />
+                          Ghost message — self-destructed
+                        </div>
+                      );
+                    }
+                    if (typeof revealed === 'string') {
+                      return (
+                        <div className="flex flex-col gap-1">
+                          <div
+                            className={cn(
+                              'px-4 py-2 leading-relaxed break-words whitespace-pre-wrap',
+                              chatFontSize === 'sm' ? 'text-[13px]' : chatFontSize === 'lg' ? 'text-lg' : 'text-[15px]',
+                              bubbleBg, radius
+                            )}
+                            style={supporterGlow}
+                          >
+                            {formatContent(revealed, onDark)}
+                          </div>
+                          <div className="flex items-center gap-1 text-[11px] text-muted-foreground/50 px-1">
+                            <Ghost size={10} />
+                            Ghost message — self-destructed
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => secretId && void handleRevealGhost(msg.id, secretId)}
+                        disabled={revealed === 'pending' || !secretId}
+                        className={cn(
+                          'flex items-center gap-2 px-4 py-2.5 rounded-[20px] text-[13px] font-medium transition-all select-none',
+                          revealed === 'pending'
+                            ? 'bg-primary/20 text-primary/60 cursor-wait'
+                            : 'bg-primary/15 text-primary hover:bg-primary/25 active:scale-[0.97] cursor-pointer'
+                        )}
+                      >
+                        <Lock size={13} />
+                        {revealed === 'pending' ? 'Revealing…' : '👻 Ghost Message — tap to reveal'}
+                      </button>
+                    );
+                  })()
                 ) : isHidden ? (
                   <button
                     onClick={() => toggleHide(msg.id)}

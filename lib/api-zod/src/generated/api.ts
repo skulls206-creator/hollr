@@ -497,6 +497,7 @@ export const SendMessageBody = zod.object({
     )
     .optional(),
   mentions: zod.array(zod.string()).optional(),
+  metadata: zod.record(zod.string(), zod.unknown()).optional(),
 });
 
 /**
