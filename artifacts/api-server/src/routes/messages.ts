@@ -197,9 +197,13 @@ router.post("/channels/:channelId/messages", async (req, res) => {
         }),
       ]);
       const senderName = senderProfile?.displayName || senderProfile?.username || "Someone";
-      const body = parsed.data.content
-        ? parsed.data.content.slice(0, 100)
-        : "Sent an attachment";
+      const meta = parsed.data.metadata as Record<string, unknown> | null | undefined;
+      const isGhost = meta?.ghost === true;
+      const body = isGhost
+        ? "👻 Sent a ghost message"
+        : parsed.data.content
+          ? parsed.data.content.slice(0, 100)
+          : "Sent an attachment";
 
       const mentionedUserIds: string[] = Array.isArray(parsed.data.mentions) ? parsed.data.mentions as string[] : [];
 
