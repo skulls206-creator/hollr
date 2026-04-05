@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { useListMessages, useEditMessage, useDeleteMessage, useGetServer, useListServerMembers, getListMessagesQueryKey, getListDmThreadsQueryKey } from '@workspace/api-client-react';
+import { useListMessages, useEditMessage, useDeleteMessage, useGetServer, useListServerMembers, getListMessagesQueryKey, getListDmThreadsQueryKey, type GhostMetadata } from '@workspace/api-client-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
@@ -36,10 +36,9 @@ async function toggleReaction(channelId: string, messageId: string, emojiId: str
   return res.json();
 }
 
-interface GhostMeta { ghost: true; secretId: string; keyBase64: string }
-function isGhostMsg<T extends { metadata?: unknown }>(msg: T): msg is T & { metadata: GhostMeta } {
-  const m = msg.metadata as Record<string, unknown> | null | undefined;
-  return !!(m?.ghost && typeof m?.secretId === 'string' && typeof m?.keyBase64 === 'string');
+function isGhostMsg(metadata: unknown): metadata is GhostMetadata {
+  const m = metadata as Record<string, unknown> | null | undefined;
+  return !!(m?.ghost === true && typeof m?.secretId === 'string' && typeof m?.keyBase64 === 'string');
 }
 
 function formatContent(content: string, onDark = false) {
@@ -303,7 +302,7 @@ export function MessageList({
           label: 'Edit Message',
           icon: <Pencil size={14} />,
           onClick: () => startEdit(msg.id, msg.content),
-          disabled: !isOwner || isGhostMsg(msg),
+          disabled: !isOwner || isGhostMsg(msg.metadata),
           dividerBefore: true,
         },
         {
@@ -560,9 +559,9 @@ export function MessageList({
                   <div className="text-[13px] italic text-muted-foreground/50 px-4 py-2 bg-muted/40 rounded-[20px]">
                     Message deleted
                   </div>
-                ) : isGhostMsg(msg) ? (
+                ) : isGhostMsg(msg.metadata) ? (
                   (() => {
-                    const { secretId, keyBase64 } = msg.metadata;
+                    const { secretId, keyBase64 } = msg.metadata as GhostMetadata;
                     const revealed = ghostRevealedContent[msg.id];
                     return revealed === 'gone' ? (
                       <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 rounded-[20px] text-[13px] text-muted-foreground/60 italic select-none">

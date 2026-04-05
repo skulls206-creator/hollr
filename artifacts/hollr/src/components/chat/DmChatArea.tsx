@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { useListDmMessages, useSendDmMessage, useRequestUploadUrl, getListDmMessagesQueryKey } from '@workspace/api-client-react';
+import { useListDmMessages, useSendDmMessage, useRequestUploadUrl, getListDmMessagesQueryKey, type GhostMetadata } from '@workspace/api-client-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@workspace/replit-auth-web';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
@@ -40,10 +40,9 @@ async function deleteDmMessage(threadId: string, messageId: string) {
   return res.json();
 }
 
-interface GhostMeta { ghost: true; secretId: string; keyBase64: string }
-function isGhostMsg<T extends { metadata?: unknown }>(msg: T): msg is T & { metadata: GhostMeta } {
-  const m = msg.metadata as Record<string, unknown> | null | undefined;
-  return !!(m?.ghost && typeof m?.secretId === 'string' && typeof m?.keyBase64 === 'string');
+function isGhostMsg(metadata: unknown): metadata is GhostMetadata {
+  const m = metadata as Record<string, unknown> | null | undefined;
+  return !!(m?.ghost === true && typeof m?.secretId === 'string' && typeof m?.keyBase64 === 'string');
 }
 
 function formatContent(content: string, onDark = false) {
@@ -262,7 +261,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
           label: 'Edit Message',
           icon: <Pencil size={14} />,
           onClick: () => startEdit(msg.id, msg.content),
-          disabled: !isOwner || isGhostMsg(msg),
+          disabled: !isOwner || isGhostMsg(msg.metadata),
           dividerBefore: true,
         },
         {
@@ -761,9 +760,9 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                     <div className="text-[13px] italic text-muted-foreground/50 px-4 py-2 bg-muted/40 rounded-[20px]">
                       Message deleted
                     </div>
-                  ) : isGhostMsg(msg as any) ? (
+                  ) : isGhostMsg(msg.metadata) ? (
                     (() => {
-                      const { secretId, keyBase64 } = msg.metadata as { ghost: true; secretId: string; keyBase64: string };
+                      const { secretId, keyBase64 } = msg.metadata as GhostMetadata;
                       const revealed = ghostRevealedContent[msg.id];
                       const isGone = revealed === 'gone';
                       return isGone ? (

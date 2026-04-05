@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { ghostEncrypt, ghostDecrypt } from "@/lib/ghost-crypto";
 import {
   View,
   Text,
@@ -62,7 +63,7 @@ interface DmMessage {
   deleted: boolean;
   reactions: DmReaction[];
   attachments?: DmAttachment[];
-  metadata?: { ghost?: boolean; secretId?: string } | null;
+  metadata?: { ghost?: boolean; secretId?: string; keyBase64?: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -309,18 +310,19 @@ export default function DmChatScreen() {
     onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
-  const handleRevealGhost = useCallback(async (messageId: string, secretId: string) => {
+  const handleRevealGhost = useCallback(async (messageId: string, secretId: string, keyBase64: string) => {
     if (ghostRevealedContent[messageId]) return;
     setGhostRevealedContent(prev => ({ ...prev, [messageId]: "pending" }));
     try {
       const data: { ciphertext?: string; iv?: string; error?: string } = await api(`/secrets/${secretId}`);
-      if (data.error || !data.ciphertext) {
+      if (data.error || !data.ciphertext || !data.iv) {
         setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
         Alert.alert("Ghost message", "This message has already been viewed or no longer exists.");
         return;
       }
+      const plaintext = await ghostDecrypt(data.ciphertext, data.iv, keyBase64);
       setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
-      Alert.alert("👻 Ghost Message", "This message was decrypted client-side. Open hollr.chat on web to view the content.", [{ text: "OK" }]);
+      Alert.alert("👻 Ghost Message", plaintext, [{ text: "OK" }]);
     } catch {
       setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
       Alert.alert("Error", "Could not reveal ghost message.");
@@ -332,12 +334,13 @@ export default function DmChatScreen() {
 
     if (ghostMode && content.trim()) {
       try {
+        const { ciphertext, iv, keyBase64 } = await ghostEncrypt(content.trim());
         const secretData: { id?: string } = await api("/secrets", {
           method: "POST",
-          body: JSON.stringify({ ciphertext: btoa(unescape(encodeURIComponent(content.trim()))), iv: btoa("mobile") }),
+          body: JSON.stringify({ ciphertext, iv }),
         });
         if (!secretData.id) throw new Error("No secret id returned");
-        sendMutation.mutate({ text: "", attachment: null, metadata: { ghost: true, secretId: secretData.id } });
+        sendMutation.mutate({ text: "", attachment: null, metadata: { ghost: true, secretId: secretData.id, keyBase64 } });
       } catch {
         Alert.alert("Error", "Failed to send ghost message.");
       }
@@ -477,12 +480,13 @@ export default function DmChatScreen() {
               </View>
             ) : item.metadata?.ghost ? (
               (() => {
-                const secretId = item.metadata?.secretId;
+                const secretId = item.metadata?.secretId as string | undefined;
+                const keyBase64 = item.metadata?.keyBase64 as string | undefined;
                 const revealed = secretId ? ghostRevealedContent[item.id] : "gone";
-                const isGone = revealed === "gone" || !secretId;
+                const isGone = revealed === "gone" || !secretId || !keyBase64;
                 return (
                   <TouchableOpacity
-                    onPress={() => !isGone && revealed !== "pending" && secretId && void handleRevealGhost(item.id, secretId)}
+                    onPress={() => !isGone && revealed !== "pending" && secretId && keyBase64 && void handleRevealGhost(item.id, secretId, keyBase64)}
                     disabled={isGone || revealed === "pending"}
                     style={[
                       s.bubble,
