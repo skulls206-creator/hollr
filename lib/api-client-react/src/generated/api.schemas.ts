@@ -263,8 +263,15 @@ export interface Message {
   pinned?: boolean | null;
   attachments?: Attachment[];
   author: User;
+  metadata?: GhostMetadata | Record<string, unknown> | null;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface GhostMetadata {
+  ghost: true;
+  secretId: string;
+  keyBase64: string;
 }
 
 export interface AttachmentInput {

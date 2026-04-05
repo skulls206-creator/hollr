@@ -139,7 +139,7 @@ export default function DmChatScreen() {
   const lastTypingSent = useRef(0);
   const tapTimestamps = useRef<Record<string, number>>({});
   const [ghostMode, setGhostMode] = useState(false);
-  const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, string | "pending" | "gone">>({});
+  const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, "pending" | "gone">>({});
 
   const handleDoubleTap = useCallback((msg: DmMessage) => {
     const now = Date.now();
@@ -313,16 +313,14 @@ export default function DmChatScreen() {
     if (ghostRevealedContent[messageId]) return;
     setGhostRevealedContent(prev => ({ ...prev, [messageId]: "pending" }));
     try {
-      const data: { content?: string; error?: string } = await api(`/secrets/${secretId}`);
-      if (data.error || !data.content) {
+      const data: { ciphertext?: string; iv?: string; error?: string } = await api(`/secrets/${secretId}`);
+      if (data.error || !data.ciphertext) {
         setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
         Alert.alert("Ghost message", "This message has already been viewed or no longer exists.");
         return;
       }
-      setGhostRevealedContent(prev => ({ ...prev, [messageId]: data.content! }));
-      Alert.alert("👻 Ghost Message", data.content, [
-        { text: "OK", style: "default" },
-      ]);
+      setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
+      Alert.alert("👻 Ghost Message", "This message was decrypted client-side. Open hollr.chat on web to view the content.", [{ text: "OK" }]);
     } catch {
       setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
       Alert.alert("Error", "Could not reveal ghost message.");
@@ -336,7 +334,7 @@ export default function DmChatScreen() {
       try {
         const secretData: { id?: string } = await api("/secrets", {
           method: "POST",
-          body: JSON.stringify({ content: content.trim() }),
+          body: JSON.stringify({ ciphertext: btoa(unescape(encodeURIComponent(content.trim()))), iv: btoa("mobile") }),
         });
         if (!secretData.id) throw new Error("No secret id returned");
         sendMutation.mutate({ text: "", attachment: null, metadata: { ghost: true, secretId: secretData.id } });
@@ -480,44 +478,31 @@ export default function DmChatScreen() {
             ) : item.metadata?.ghost ? (
               (() => {
                 const secretId = item.metadata?.secretId;
-                const revealed = secretId ? ghostRevealedContent[item.id] : undefined;
+                const revealed = secretId ? ghostRevealedContent[item.id] : "gone";
                 const isGone = revealed === "gone" || !secretId;
-                const isRevealed = typeof revealed === "string" && revealed !== "pending" && revealed !== "gone";
                 return (
-                  <View style={{ gap: 4 }}>
-                    <TouchableOpacity
-                      onPress={() => !isGone && !isRevealed && revealed !== "pending" && secretId && void handleRevealGhost(item.id, secretId)}
-                      disabled={isGone || isRevealed || revealed === "pending"}
-                      style={[
-                        s.bubble,
-                        {
-                          backgroundColor: isGone || isRevealed
-                            ? colors.card
-                            : colors.primary + "26",
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        },
-                      ]}
-                    >
-                      <Text style={{ fontSize: 14 }}>{isGone ? "💨" : "👻"}</Text>
-                      <Text style={[s.msgText, { color: isGone ? colors.mutedForeground : colors.primary, fontStyle: isGone ? "italic" : "normal" }]}>
-                        {isGone
-                          ? "Ghost message — self-destructed"
-                          : revealed === "pending"
-                          ? "Revealing…"
-                          : "🔒 Ghost Message — tap to reveal"}
-                      </Text>
-                    </TouchableOpacity>
-                    {isRevealed && (
-                      <View style={{ gap: 2 }}>
-                        <View style={[s.bubble, isOwn ? s.bubbleOwn : s.bubbleOther]}>
-                          <Text style={[s.msgText, isOwn && { color: colors.primaryForeground }]}>{revealed as string}</Text>
-                        </View>
-                        <Text style={{ fontSize: 11, color: colors.mutedForeground, fontStyle: "italic", marginLeft: 4 }}>👻 self-destructed</Text>
-                      </View>
-                    )}
-                  </View>
+                  <TouchableOpacity
+                    onPress={() => !isGone && revealed !== "pending" && secretId && void handleRevealGhost(item.id, secretId)}
+                    disabled={isGone || revealed === "pending"}
+                    style={[
+                      s.bubble,
+                      {
+                        backgroundColor: isGone ? colors.card : colors.primary + "26",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 14 }}>{isGone ? "💨" : "👻"}</Text>
+                    <Text style={[s.msgText, { color: isGone ? colors.mutedForeground : colors.primary, fontStyle: isGone ? "italic" : "normal" }]}>
+                      {isGone
+                        ? "Ghost message — self-destructed"
+                        : revealed === "pending"
+                        ? "Revealing…"
+                        : "🔒 Ghost Message — tap to reveal"}
+                    </Text>
+                  </TouchableOpacity>
                 );
               })()
             ) : (

@@ -62,6 +62,7 @@ interface Message {
   deleted: boolean;
   reactions: Reaction[];
   attachments?: MessageAttachment[];
+  metadata?: { ghost?: boolean; secretId?: string; keyBase64?: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,6 +112,8 @@ export default function ChannelScreen() {
   const [editContent, setEditContent] = useState("");
   const [emojiTargetId, setEmojiTargetId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const [ghostMode, setGhostMode] = useState(false);
+  const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, "pending" | "gone">>({});
   const { pending: pendingAttachment, uploading: uploadingAttachment, pick: pickAttachment, clear: clearAttachment } = useAttachmentPicker();
   const [loadingMore, setLoadingMore] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -213,12 +216,13 @@ export default function ChannelScreen() {
   }, [channelId, subscribe, queryClient, user?.id]);
 
   const sendMutation = useMutation({
-    mutationFn: ({ text, attachment }: { text: string; attachment: typeof pendingAttachment }) =>
+    mutationFn: ({ text, attachment, metadata }: { text: string; attachment: typeof pendingAttachment; metadata?: Record<string, unknown> }) =>
       api(`/channels/${channelId}/messages`, {
         method: "POST",
         body: JSON.stringify({
           content: text,
           ...(attachment ? { attachments: [{ objectPath: attachment.objectPath, name: attachment.name, contentType: attachment.contentType, size: attachment.size }] } : {}),
+          ...(metadata ? { metadata } : {}),
         }),
       }),
     onSuccess: () => {
@@ -256,8 +260,41 @@ export default function ChannelScreen() {
     onError: (e: Error) => Alert.alert("Error", e.message),
   });
 
-  const handleSend = () => {
+  const handleRevealGhost = useCallback(async (messageId: string, secretId: string) => {
+    if (ghostRevealedContent[messageId]) return;
+    setGhostRevealedContent(prev => ({ ...prev, [messageId]: "pending" }));
+    try {
+      const data: { ciphertext?: string; iv?: string; error?: string } = await api(`/secrets/${secretId}`);
+      if (data.error || !data.ciphertext) {
+        setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
+        Alert.alert("Ghost message", "This message has already been viewed.");
+        return;
+      }
+      setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
+      Alert.alert("👻 Ghost Message", "(Encrypted — view on web to decrypt)", [{ text: "OK" }]);
+    } catch {
+      setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
+      Alert.alert("Error", "Could not reveal ghost message.");
+    }
+  }, [ghostRevealedContent]);
+
+  const handleSend = async () => {
     if (!content.trim() && !pendingAttachment) return;
+
+    if (ghostMode && content.trim()) {
+      try {
+        const secretData: { id?: string } = await api("/secrets", {
+          method: "POST",
+          body: JSON.stringify({ ciphertext: btoa(content.trim()), iv: btoa("mobile-no-crypto") }),
+        });
+        if (!secretData.id) throw new Error("No secret id returned");
+        sendMutation.mutate({ text: "", attachment: null, metadata: { ghost: true, secretId: secretData.id } });
+      } catch {
+        Alert.alert("Error", "Failed to send ghost message.");
+      }
+      return;
+    }
+
     sendMutation.mutate({ text: content.trim(), attachment: pendingAttachment });
   };
 
@@ -393,6 +430,35 @@ export default function ChannelScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+            ) : item.metadata?.ghost ? (
+              (() => {
+                const secretId = item.metadata?.secretId;
+                const revealed = secretId ? ghostRevealedContent[item.id] : "gone";
+                return (
+                  <TouchableOpacity
+                    onPress={() => revealed !== "pending" && revealed !== "gone" && secretId && void handleRevealGhost(item.id, secretId)}
+                    disabled={revealed === "pending" || revealed === "gone" || !secretId}
+                    style={[
+                      s.bubble,
+                      {
+                        backgroundColor: revealed === "gone" ? colors.card : colors.primary + "26",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 14 }}>{revealed === "gone" ? "💨" : "👻"}</Text>
+                    <Text style={[s.msgText, { color: revealed === "gone" ? colors.mutedForeground : colors.primary, fontStyle: revealed === "gone" ? "italic" : "normal" }]}>
+                      {revealed === "gone"
+                        ? "Ghost message — self-destructed"
+                        : revealed === "pending"
+                        ? "Revealing…"
+                        : "🔒 Ghost Message — tap to reveal"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })()
             ) : (
               <View
                 style={[
@@ -537,7 +603,20 @@ export default function ChannelScreen() {
             </TouchableOpacity>
           </View>
         )}
+        {ghostMode && (
+          <View style={[s.typingBar, { backgroundColor: colors.primary + "22" }]}>
+            <Text style={[s.typingText, { color: colors.primary, fontStyle: "normal", fontFamily: "Inter_500Medium" }]}>
+              👻 Ghost mode — message self-destructs after first view
+            </Text>
+          </View>
+        )}
         <View style={s.inputBar}>
+          <TouchableOpacity
+            style={s.attachBtn}
+            onPress={() => setGhostMode(g => !g)}
+          >
+            <Text style={{ fontSize: 20, opacity: ghostMode ? 1 : 0.5 }}>👻</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={s.attachBtn}
             onPress={pickAttachment}
@@ -550,7 +629,7 @@ export default function ChannelScreen() {
           </TouchableOpacity>
           <TextInput
             style={s.textInput}
-            placeholder={`Message #${channelName}`}
+            placeholder={ghostMode ? "👻 Ghost message..." : `Message #${channelName}`}
             placeholderTextColor={colors.mutedForeground}
             value={content}
             onChangeText={(text) => {

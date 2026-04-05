@@ -250,6 +250,10 @@ router.patch("/channels/:channelId/messages/:messageId", async (req, res) => {
   const msg = await db.query.messagesTable.findFirst({ where: eq(messagesTable.id, req.params.messageId) });
   if (!msg) { res.status(404).json({ error: "Not found" }); return; }
   if (msg.authorId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
+  if ((msg.metadata as Record<string, unknown> | null)?.ghost) {
+    res.status(403).json({ error: "Ghost messages cannot be edited." });
+    return;
+  }
 
   const parsed = EditMessageBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }

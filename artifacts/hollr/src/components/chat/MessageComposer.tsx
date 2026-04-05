@@ -9,6 +9,7 @@ import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { enqueueMessage } from '@/lib/bg-sync';
+import { ghostEncrypt } from '@/lib/ghost-crypto';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -236,20 +237,21 @@ export function MessageComposer({ channelId }: { channelId: string }) {
 
     if (ghostMode) {
       try {
+        const { ciphertext, keyBase64, iv } = await ghostEncrypt(trimmed);
         const secretRes = await fetch(`${BASE}api/secrets`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ content: trimmed }),
+          body: JSON.stringify({ ciphertext, iv }),
         });
         if (!secretRes.ok) throw new Error('Failed to store ghost message');
-        const { id: secretId } = await secretRes.json();
-        sendMessage({ channelId, data: { content: '', metadata: { ghost: true, secretId } } }, {
+        const { id: secretId } = await secretRes.json() as { id: string };
+        sendMessage({ channelId, data: { content: '', metadata: { ghost: true, secretId, keyBase64 } } }, {
           onSuccess: (newMsg) => {
             setContent('');
             if (textareaRef.current) textareaRef.current.style.height = '46px';
-            qc.setQueryData<any[]>(getListMessagesQueryKey(channelId), (old = []) => {
-              if (old.some((m: any) => m.id === newMsg.id)) return old;
+            qc.setQueryData<unknown[]>(getListMessagesQueryKey(channelId), (old = []) => {
+              if ((old as Array<{ id: string }>).some(m => m.id === newMsg.id)) return old;
               return [...old, newMsg];
             });
           },

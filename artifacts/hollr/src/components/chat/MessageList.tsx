@@ -13,6 +13,8 @@ import { ReactionPills } from './ReactionPills';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
 import { hideMessage, unhideMessage } from '@/lib/hidden-messages';
+import { ghostDecrypt } from '@/lib/ghost-crypto';
+import { GhostRevealModal } from '@/components/chat/GhostRevealModal';
 
 async function pinMessage(channelId: string, messageId: string) {
   const res = await fetch(`/api/channels/${channelId}/messages/${messageId}/pin`, { method: 'PUT' });
@@ -32,6 +34,12 @@ async function toggleReaction(channelId: string, messageId: string, emojiId: str
     { method: 'PUT' }
   );
   return res.json();
+}
+
+interface GhostMeta { ghost: true; secretId: string; keyBase64: string }
+function isGhostMsg<T extends { metadata?: unknown }>(msg: T): msg is T & { metadata: GhostMeta } {
+  const m = msg.metadata as Record<string, unknown> | null | undefined;
+  return !!(m?.ghost && typeof m?.secretId === 'string' && typeof m?.keyBase64 === 'string');
 }
 
 function formatContent(content: string, onDark = false) {
@@ -120,7 +128,8 @@ export function MessageList({
     catch { return new Set(); }
   });
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, string | 'pending' | 'gone'>>({});
+  const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, 'pending' | 'gone'>>({});
+  const [ghostModal, setGhostModal] = useState<{ content: string } | null>(null);
 
   const toggleHide = useCallback((msgId: string) => {
     setHiddenMsgIds(prev => {
@@ -166,18 +175,20 @@ export function MessageList({
   const startEdit = (id: string, content: string) => { setEditingId(id); setEditDraft(content); };
   const cancelEdit = () => { setEditingId(null); setEditDraft(''); };
 
-  const handleRevealGhost = useCallback(async (messageId: string, secretId: string) => {
+  const handleRevealGhost = useCallback(async (messageId: string, secretId: string, keyBase64: string) => {
     if (ghostRevealedContent[messageId]) return;
     setGhostRevealedContent(prev => ({ ...prev, [messageId]: 'pending' }));
     try {
-      const res = await fetch(`/api/secrets/${secretId}`);
+      const res = await fetch(`/api/secrets/${secretId}`, { credentials: 'include' });
       if (res.status === 410) {
         setGhostRevealedContent(prev => ({ ...prev, [messageId]: 'gone' }));
         return;
       }
       if (!res.ok) throw new Error('Failed to reveal');
-      const { content: revealed } = await res.json();
-      setGhostRevealedContent(prev => ({ ...prev, [messageId]: revealed }));
+      const { ciphertext, iv } = await res.json() as { ciphertext: string; iv: string };
+      const plaintext = await ghostDecrypt(ciphertext, iv, keyBase64);
+      setGhostRevealedContent(prev => ({ ...prev, [messageId]: 'gone' }));
+      setGhostModal({ content: plaintext });
     } catch {
       setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
       toast({ title: 'Could not reveal ghost message', variant: 'destructive' });
@@ -292,7 +303,7 @@ export function MessageList({
           label: 'Edit Message',
           icon: <Pencil size={14} />,
           onClick: () => startEdit(msg.id, msg.content),
-          disabled: !isOwner,
+          disabled: !isOwner || isGhostMsg(msg),
           dividerBefore: true,
         },
         {
@@ -549,42 +560,19 @@ export function MessageList({
                   <div className="text-[13px] italic text-muted-foreground/50 px-4 py-2 bg-muted/40 rounded-[20px]">
                     Message deleted
                   </div>
-                ) : (msg as any).metadata?.ghost ? (
+                ) : isGhostMsg(msg) ? (
                   (() => {
-                    const secretId = (msg as any).metadata?.secretId as string | undefined;
-                    const revealed = secretId ? ghostRevealedContent[msg.id] : undefined;
-                    if (revealed === 'gone') {
-                      return (
-                        <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 rounded-[20px] text-[13px] text-muted-foreground/60 italic select-none">
-                          <Ghost size={14} />
-                          Ghost message — self-destructed
-                        </div>
-                      );
-                    }
-                    if (typeof revealed === 'string') {
-                      return (
-                        <div className="flex flex-col gap-1">
-                          <div
-                            className={cn(
-                              'px-4 py-2 leading-relaxed break-words whitespace-pre-wrap',
-                              chatFontSize === 'sm' ? 'text-[13px]' : chatFontSize === 'lg' ? 'text-lg' : 'text-[15px]',
-                              bubbleBg, radius
-                            )}
-                            style={supporterGlow}
-                          >
-                            {formatContent(revealed, onDark)}
-                          </div>
-                          <div className="flex items-center gap-1 text-[11px] text-muted-foreground/50 px-1">
-                            <Ghost size={10} />
-                            Ghost message — self-destructed
-                          </div>
-                        </div>
-                      );
-                    }
-                    return (
+                    const { secretId, keyBase64 } = msg.metadata;
+                    const revealed = ghostRevealedContent[msg.id];
+                    return revealed === 'gone' ? (
+                      <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 rounded-[20px] text-[13px] text-muted-foreground/60 italic select-none">
+                        <Ghost size={14} />
+                        Ghost message — self-destructed
+                      </div>
+                    ) : (
                       <button
-                        onClick={() => secretId && void handleRevealGhost(msg.id, secretId)}
-                        disabled={revealed === 'pending' || !secretId}
+                        onClick={() => void handleRevealGhost(msg.id, secretId, keyBase64)}
+                        disabled={revealed === 'pending'}
                         className={cn(
                           'flex items-center gap-2 px-4 py-2.5 rounded-[20px] text-[13px] font-medium transition-all select-none',
                           revealed === 'pending'
@@ -777,6 +765,13 @@ export function MessageList({
       })}
 
       <div ref={bottomRef} />
+
+      {ghostModal && (
+        <GhostRevealModal
+          content={ghostModal.content}
+          onClose={() => setGhostModal(null)}
+        />
+      )}
     </div>
   );
 }

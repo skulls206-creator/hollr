@@ -331,11 +331,12 @@ export const referralsTable = pgTable("referrals", {
 export type Referral = typeof referralsTable.$inferSelect;
 
 // ── Ghost (self-destructing) message secrets ──────────────────────────────
+// ciphertext + iv are stored; server never sees plaintext (key stays in message metadata)
 export const ghostSecretsTable = pgTable("ghost_secrets", {
   id: varchar("id", { length: 16 }).primaryKey(),
-  content: text("content").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: varchar("iv", { length: 32 }).notNull(),
   senderId: varchar("sender_id").notNull(),
-  viewedAt: timestamp("viewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("ghost_secrets_sender_id_idx").on(t.senderId),
