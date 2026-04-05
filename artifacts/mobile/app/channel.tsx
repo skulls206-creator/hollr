@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { ghostEncrypt, ghostDecrypt } from "@/lib/ghost-crypto";
+import { GhostRevealSheet } from "@/components/GhostRevealSheet";
 import {
   View,
   Text,
@@ -115,6 +116,7 @@ export default function ChannelScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [ghostMode, setGhostMode] = useState(false);
   const [ghostRevealedContent, setGhostRevealedContent] = useState<Record<string, "pending" | "gone">>({});
+  const [ghostSheetContent, setGhostSheetContent] = useState<string | null>(null);
   const { pending: pendingAttachment, uploading: uploadingAttachment, pick: pickAttachment, clear: clearAttachment } = useAttachmentPicker();
   const [loadingMore, setLoadingMore] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -273,7 +275,7 @@ export default function ChannelScreen() {
       }
       const plaintext = await ghostDecrypt(data.ciphertext, data.iv, keyBase64);
       setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
-      Alert.alert("👻 Ghost Message", plaintext, [{ text: "OK" }]);
+      setGhostSheetContent(plaintext);
     } catch {
       setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
       Alert.alert("Error", "Could not reveal ghost message.");
@@ -288,7 +290,7 @@ export default function ChannelScreen() {
         const { ciphertext, iv, keyBase64 } = await ghostEncrypt(content.trim());
         const secretData: { id?: string } = await api("/secrets", {
           method: "POST",
-          body: JSON.stringify({ ciphertext, iv }),
+          body: JSON.stringify({ ciphertext, iv, contextType: "channel", contextId: channelId }),
         });
         if (!secretData.id) throw new Error("No secret id returned");
         sendMutation.mutate({ text: "", attachment: null, metadata: { ghost: true, secretId: secretData.id, keyBase64 } });
@@ -662,6 +664,14 @@ export default function ChannelScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+      {ghostSheetContent !== null && (
+        <GhostRevealSheet
+          visible={ghostSheetContent !== null}
+          content={ghostSheetContent}
+          onClose={() => setGhostSheetContent(null)}
+          colors={colors}
+        />
+      )}
     </View>
   );
 }

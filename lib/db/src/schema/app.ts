@@ -337,6 +337,12 @@ export const ghostSecretsTable = pgTable("ghost_secrets", {
   ciphertext: text("ciphertext").notNull(),
   iv: varchar("iv", { length: 32 }).notNull(),
   senderId: varchar("sender_id").notNull(),
+  /** 'dm' | 'channel' — used for authorization on read */
+  contextType: varchar("context_type", { length: 8 }),
+  /** threadId or channelId — used for authorization on read */
+  contextId: varchar("context_id"),
+  /** Set to non-null on first fetch; row is deleted atomically after read */
+  viewedAt: timestamp("viewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("ghost_secrets_sender_id_idx").on(t.senderId),

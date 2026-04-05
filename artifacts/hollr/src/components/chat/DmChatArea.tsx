@@ -402,7 +402,7 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ ciphertext, iv }),
+          body: JSON.stringify({ ciphertext, iv, contextType: 'dm', contextId: threadId }),
         });
         if (!secretRes.ok) throw new Error('Failed to store ghost message');
         const { id: secretId } = await secretRes.json() as { id: string };

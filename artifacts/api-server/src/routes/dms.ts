@@ -350,7 +350,8 @@ router.post("/dms/:threadId/messages", async (req, res) => {
         where: eq(userProfilesTable.userId, req.user.id),
       });
       const senderName = senderProfile?.displayName || senderProfile?.username || "Someone";
-      const isGhost = !!(parsed.data.metadata as any)?.ghost;
+      const meta = parsed.data.metadata as Record<string, unknown> | null | undefined;
+      const isGhost = meta?.ghost === true;
       const body = isGhost ? "👻 Sent a ghost message" : (parsed.data.content ? parsed.data.content.slice(0, 100) : "Sent a message");
 
       await Promise.allSettled(
