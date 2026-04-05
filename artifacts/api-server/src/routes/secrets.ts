@@ -72,29 +72,38 @@ router.post("/secrets", async (req, res) => {
 router.get("/secrets/:id", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const secret = await db.query.ghostSecretsTable.findFirst({
-    where: eq(ghostSecretsTable.id, req.params.id),
+  const secretId = req.params.id;
+  const userId = req.user.id;
+
+  // First check authorization without locking (avoids long-held locks during network I/O)
+  const secretMeta = await db.query.ghostSecretsTable.findFirst({
+    where: eq(ghostSecretsTable.id, secretId),
   });
 
-  if (!secret) {
+  if (!secretMeta) {
     res.status(410).json({ error: "This ghost message has already been viewed or does not exist." });
     return;
   }
 
-  const authorized = await canAccessContext(
-    req.user.id,
-    secret.contextType,
-    secret.contextId,
-    secret.senderId,
-  );
-
+  const authorized = await canAccessContext(userId, secretMeta.contextType, secretMeta.contextId, secretMeta.senderId);
   if (!authorized) {
     res.status(403).json({ error: "You are not authorized to view this message." });
     return;
   }
 
-  await db.delete(ghostSecretsTable).where(eq(ghostSecretsTable.id, req.params.id));
+  // Atomically delete and return the secret — DELETE RETURNING ensures exactly one reader wins
+  const deleted = await db
+    .delete(ghostSecretsTable)
+    .where(eq(ghostSecretsTable.id, secretId))
+    .returning();
 
+  if (!deleted.length) {
+    // Concurrently deleted by another request
+    res.status(410).json({ error: "This ghost message has already been viewed or does not exist." });
+    return;
+  }
+
+  const secret = deleted[0];
   res.json({ ciphertext: secret.ciphertext, iv: secret.iv });
 });
 

@@ -267,18 +267,18 @@ export default function ChannelScreen() {
     if (ghostRevealedContent[messageId]) return;
     setGhostRevealedContent(prev => ({ ...prev, [messageId]: "pending" }));
     try {
-      const data: { ciphertext?: string; iv?: string; error?: string } = await api(`/secrets/${secretId}`);
-      if (data.error || !data.ciphertext || !data.iv) {
-        setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
-        Alert.alert("Ghost message", "This message has already been viewed or no longer exists.");
-        return;
-      }
+      const data: { ciphertext: string; iv: string } = await api(`/secrets/${secretId}`);
       const plaintext = await ghostDecrypt(data.ciphertext, data.iv, keyBase64);
       setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
       setGhostSheetContent(plaintext);
-    } catch {
-      setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
-      Alert.alert("Error", "Could not reveal ghost message.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("410") || msg.toLowerCase().includes("already been viewed") || msg.toLowerCase().includes("not exist")) {
+        setGhostRevealedContent(prev => ({ ...prev, [messageId]: "gone" }));
+      } else {
+        setGhostRevealedContent(prev => { const n = { ...prev }; delete n[messageId]; return n; });
+        Alert.alert("Error", "Could not reveal ghost message.");
+      }
     }
   }, [ghostRevealedContent]);
 
