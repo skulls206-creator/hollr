@@ -60,6 +60,18 @@ uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "lhR9D50Eak5HMkCyWwFsk"
+uri = "file://attached_assets/generated_images/hollr_icon_1x1.png"
+type = "image"
+title = "hollr store icon 1:1"
+
+[[generated]]
+id = "QNL6mbzSjyR19d63oMvTp"
+uri = "file://attached_assets/generated_images/hollr_poster_916.png"
+type = "image"
+title = "hollr store poster 9:16"
+
 [[outputs]]
 id = "QBu7uwlotLYM0ql1-2kWC"
 uri = "file://artifacts/hollr/public/icon-512.png"
@@ -83,3 +95,15 @@ id = "PJ9S2qB3OLCy7j2TiJQvS"
 uri = "file://attached_assets/generated_images/hollr_logo_final.png"
 type = "image"
 title = "HOLLR Icon — Clean Dark Version"
+
+[[outputs]]
+id = "y0UBFjB5LvyKxatbDUEbK"
+uri = "file://attached_assets/generated_images/hollr_poster_916.png"
+type = "image"
+title = "hollr — 9:16 Poster Art (for 720×1080 / 1440×2160 slots)"
+
+[[outputs]]
+id = "w-26HmW7ILgRLEw1DKfQR"
+uri = "file://attached_assets/generated_images/hollr_icon_1x1.png"
+type = "image"
+title = "hollr — 1:1 Box Art & Icon (for 1080×1080, 300×300, 150×150, 71×71 slots)"
