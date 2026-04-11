@@ -1,7 +1,6 @@
 import { lazy } from 'react';
 import type { ComponentType } from 'react';
 
-import uStreamImg from '@assets/IMG_0053_1774901986488.png';
 import playdImg from '@assets/IMG_0052_1774901386511.png';
 import foldrImg from '@assets/IMG_0047_1774898186170.png';
 import ghostdImg from '@assets/IMG_0056_1774903687425.png';
@@ -12,7 +11,6 @@ import onlyXmrImg from '@assets/IMG_0054_1774902599574.png';
 import rippdImg from '@assets/IMG_0050_1774900796709.png';
 
 import hollrLogoImg from '@assets/generated_images/hollr_logo_final.png';
-import uStreamBanner from '@assets/generated_images/banner_ustream.png';
 import playdBanner from '@assets/generated_images/banner_playd.png';
 import foldrBanner from '@assets/generated_images/banner_foldr.png';
 import rippdBanner from '@assets/generated_images/banner_rippd.png';
@@ -147,16 +145,6 @@ export function HollrIcon({ size = 26 }: { size?: number }) {
 }
 
 export const KHURK_APPS: KhurkApp[] = [
-  {
-    id: 'streamd',
-    name: 'STREAMD',
-    tagline: 'Movies & TV',
-    description: 'High-definition streaming of movies and television series.',
-    url: 'https://streamd.khurk.xyz',
-    imageSrc: uStreamImg,
-    bannerSrc: uStreamBanner,
-    gradient: ['#1a1f8f', '#4a54d4'],
-  },
   {
     id: 'playd',
     name: 'PLAYD',
