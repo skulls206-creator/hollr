@@ -110,7 +110,7 @@ export function MessageList({
   const { openThread, openProfileCard, chatFontSize, setActiveDmThread, triggerMention, activeServerId, theme } = useAppStore();
   const { data: server } = useGetServer(activeServerId || '', { query: { enabled: !!activeServerId } });
   const { data: serverMembers = [] } = useListServerMembers(activeServerId || '', { query: { enabled: !!activeServerId } });
-  const myMemberRole = (serverMembers as any[]).find(m => m.userId === user?.id)?.role ?? null;
+  const myMemberRole = serverMembers.find(m => m.userId === user?.id)?.role ?? null;
   const isServerMod = !!(server as any)?.ownerId && ((server as any).ownerId === user?.id || myMemberRole === 'admin');
   const { show: showMenu } = useContextMenu();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -566,7 +566,7 @@ export function MessageList({
                     const isSender = isOwner;
                     const isTarget = !!targetUserId && user?.id === targetUserId;
                     const targetMember = targetUserId
-                      ? (serverMembers as any[]).find(m => m.userId === targetUserId)
+                      ? serverMembers.find(m => m.userId === targetUserId)
                       : null;
                     const targetName = targetMember
                       ? (targetMember.user?.displayName || targetMember.user?.username || 'someone')

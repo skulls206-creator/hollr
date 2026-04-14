@@ -15,13 +15,20 @@ function formatBytes(b: number) {
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
 
-async function importAesKey(rawBase64: string): Promise<CryptoKey> {
-  const rawBytes = Uint8Array.from(atob(rawBase64), c => c.charCodeAt(0));
-  return window.crypto.subtle.importKey('raw', rawBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+function b64ToBuffer(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const buf = new ArrayBuffer(bin.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+  return buf;
 }
 
-async function decryptBuffer(key: CryptoKey, ciphertext: Uint8Array, ivBase64: string): Promise<ArrayBuffer> {
-  const iv = Uint8Array.from(atob(ivBase64), c => c.charCodeAt(0));
+async function importAesKey(rawBase64: string): Promise<CryptoKey> {
+  return window.crypto.subtle.importKey('raw', b64ToBuffer(rawBase64), { name: 'AES-GCM' }, false, ['decrypt']);
+}
+
+async function decryptBuffer(key: CryptoKey, ciphertext: ArrayBuffer, ivBase64: string): Promise<ArrayBuffer> {
+  const iv = b64ToBuffer(ivBase64);
   return window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
 }
 
@@ -58,9 +65,9 @@ export function FoldrSharePage() {
       const key = await importAesKey(shareData.k);
       const fetchRes = await fetch(shareData.u);
       if (!fetchRes.ok) throw new Error('Failed to fetch file from storage. The link may have expired.');
-      const ciphertext = new Uint8Array(await fetchRes.arrayBuffer());
-      setFileSize(ciphertext.length);
-      const plaintext = await decryptBuffer(key, ciphertext, shareData.i);
+      const ciphertextBuf = await fetchRes.arrayBuffer();
+      setFileSize(ciphertextBuf.byteLength);
+      const plaintext = await decryptBuffer(key, ciphertextBuf, shareData.i);
       const blob = new Blob([plaintext], { type: shareData.m });
       const url = URL.createObjectURL(blob);
       setBlobUrl(url);
