@@ -466,6 +466,48 @@ router.get("/foldr/files/:id/content", async (req: Request, res: Response) => {
   }
 });
 
+/** GET /api/foldr/stats — total storage used by user */
+router.get("/foldr/stats", async (req: Request, res: Response) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  try {
+    const rows = await db
+      .select({ size: foldrFilesTable.size })
+      .from(foldrFilesTable)
+      .where(and(eq(foldrFilesTable.userId, userId), isNull(foldrFilesTable.deletedAt)));
+    const totalSize = rows.reduce((acc, r) => acc + (r.size ?? 0), 0);
+    res.json({ totalSize, fileCount: rows.length, limitBytes: 100 * 1024 * 1024 });
+  } catch (err) {
+    console.error("[Foldr] stats error:", err);
+    res.status(500).json({ error: "Failed to get stats" });
+  }
+});
+
+/** GET /api/foldr/files/:id/share-url — 7-day presigned URL for sharing */
+router.get("/foldr/files/:id/share-url", async (req: Request, res: Response) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  try {
+    const [file] = await db
+      .select()
+      .from(foldrFilesTable)
+      .where(and(eq(foldrFilesTable.id, req.params.id), eq(foldrFilesTable.userId, userId)));
+    if (!file) { res.status(404).json({ error: "File not found" }); return; }
+    if (!file.isClientEncrypted) {
+      res.status(400).json({ error: "Only client-encrypted files can be shared" });
+      return;
+    }
+    const r2 = getR2Client();
+    const bucket = getR2BucketName();
+    const cmd = new GetObjectCommand({ Bucket: bucket, Key: file.cid });
+    const downloadUrl = await getSignedUrl(r2, cmd, { expiresIn: 7 * 24 * 3600 });
+    res.json({ downloadUrl, iv: file.iv, mimeType: file.mimeType, name: file.name, size: file.size });
+  } catch (err) {
+    console.error("[Foldr] share-url error:", err);
+    res.status(500).json({ error: "Failed to generate share URL" });
+  }
+});
+
 /** PATCH /api/foldr/files/:id — update name, folderId, isStarred, sortOrder */
 router.patch("/foldr/files/:id", async (req: Request, res: Response) => {
   const userId = requireAuth(req, res);

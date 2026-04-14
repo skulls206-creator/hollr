@@ -228,6 +228,10 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
   // Dense / compact view
   const [dense, setDense] = useState<boolean>(() => localStorage.getItem(`${storagePrefix}:dense`) === 'true');
+  // Storage stats
+  const [storageStats, setStorageStats] = useState<{ totalSize: number; fileCount: number; limitBytes: number } | null>(null);
+  // Share feedback
+  const [shareCopied, setShareCopied] = useState<string | null>(null);
 
   const setView = (v: 'list' | 'grid') => { setViewMode(v); localStorage.setItem(`${storagePrefix}:view`, v); };
   const setTheme = (id: string) => { setThemeId(id); localStorage.setItem(`${storagePrefix}:theme`, id); };
@@ -305,6 +309,16 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  /* ── Storage stats ── */
+  const fetchStats = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`${API}api/foldr/stats`, { credentials: 'include' });
+      if (res.ok) setStorageStats(await res.json());
+    } catch { /* non-fatal */ }
+  }, [user]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
   /* ── Upload (client-side E2E encrypt) ── */
   const handleUpload = useCallback(async (fileList: FileList | File[]) => {
     const arr = Array.from(fileList);
@@ -367,6 +381,7 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
         }
 
         setFiles(prev => [newFile, ...prev]);
+        fetchStats();
       } catch (err) {
         console.error('[Foldr] upload error:', err);
         setUploadError('Upload failed. Please try again.');
@@ -375,13 +390,13 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
 
     setUploadStatus('idle');
     setUploadName('');
-  }, [currentFolder]);
+  }, [currentFolder, fetchStats]);
 
   /* ── Download / Preview (client-side decrypt) ── */
   const downloadOrPreview = useCallback(async (file: FoldrFile, forceDownload = false): Promise<string | null> => {
     if (!file.isClientEncrypted) {
-      // Legacy file: use server-side content endpoint
-      return file.url + (forceDownload ? '?download=1' : '');
+      // Legacy file: use server-side content endpoint (relative URL via Vite proxy)
+      return `${API}api/foldr/files/${file.id}/content${forceDownload ? '?download=1' : ''}`;
     }
 
     if (!cryptoKeyRef.current || !file.iv) {
@@ -457,15 +472,15 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
   /* ── Delete / Restore ── */
   const trashFile = async (f: FoldrFile) => {
     const res = await fetch(`${API}api/foldr/files/${f.id}`, { method: 'DELETE', credentials: 'include' });
-    if (res.ok) { setFiles(prev => prev.filter(x => x.id !== f.id)); if (selected?.id === f.id) { setSelected(null); setDrawerOpen(false); } }
+    if (res.ok) { setFiles(prev => prev.filter(x => x.id !== f.id)); if (selected?.id === f.id) { setSelected(null); setDrawerOpen(false); } fetchStats(); }
   };
   const hardDeleteFile = async (f: FoldrFile) => {
     const res = await fetch(`${API}api/foldr/files/${f.id}?hard=1`, { method: 'DELETE', credentials: 'include' });
-    if (res.ok) { setFiles(prev => prev.filter(x => x.id !== f.id)); if (selected?.id === f.id) { setSelected(null); setDrawerOpen(false); } }
+    if (res.ok) { setFiles(prev => prev.filter(x => x.id !== f.id)); if (selected?.id === f.id) { setSelected(null); setDrawerOpen(false); } fetchStats(); }
   };
   const restoreFile = async (f: FoldrFile) => {
     const res = await fetch(`${API}api/foldr/files/${f.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ restore: true }) });
-    if (res.ok) { const upd: FoldrFile = await res.json(); setFiles(prev => prev.map(x => x.id === f.id ? upd : x)); }
+    if (res.ok) { const upd: FoldrFile = await res.json(); setFiles(prev => prev.map(x => x.id === f.id ? upd : x)); fetchStats(); }
   };
   const toggleStar = async (f: FoldrFile) => {
     const res = await fetch(`${API}api/foldr/files/${f.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ isStarred: !f.isStarred }) });
@@ -545,6 +560,36 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
     fetchAll();
   }, [fetchAll]);
 
+  /* ── Share link ── */
+  const handleShare = useCallback(async (file: FoldrFile) => {
+    if (!file.isClientEncrypted || !cryptoKeyRef.current || !file.iv) {
+      setUploadError('Only encrypted files can be shared via link.');
+      return;
+    }
+    try {
+      // Get 7-day presigned download URL from dedicated share endpoint
+      const res = await fetch(`${API}api/foldr/files/${file.id}/share-url`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to get share URL');
+      const { downloadUrl, iv, name, mimeType } = await res.json();
+
+      // Export encryption key to base64 — key goes in fragment, never sent to server
+      const rawKey = await window.crypto.subtle.exportKey('raw', cryptoKeyRef.current);
+      const keyBase64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
+
+      // Pack all data into URL fragment (never sent to server)
+      const data = btoa(JSON.stringify({ u: downloadUrl, i: iv, k: keyBase64, n: name, m: mimeType }));
+      const base = window.location.origin + (import.meta.env.BASE_URL ?? '/');
+      const shareUrl = `${base}foldr/share#${data}`;
+
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(file.id);
+      setTimeout(() => setShareCopied(null), 2500);
+    } catch (err) {
+      console.error('[Foldr] share error:', err);
+      setUploadError('Failed to create share link.');
+    }
+  }, []);
+
   /* ── Copy helper ── */
   const copyText = async (text: string, key: string) => {
     await navigator.clipboard.writeText(text);
@@ -579,7 +624,9 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
   /* ── Context menu close on outside click ── */
   useEffect(() => {
     if (!ctxMenu) return;
-    const close = () => setCtxMenu(null);
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element).closest?.('[data-foldr-ctx]')) setCtxMenu(null);
+    };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [ctxMenu]);
@@ -636,7 +683,21 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
           <span style={{ fontWeight: 700, fontSize: '14px' }}>Foldr</span>
           <span style={{ fontSize: '10px', color: t.muted, background: t.surface2, borderRadius: '6px', padding: '2px 7px', border: `1px solid ${t.border}`, flexShrink: 0 }}>AES-256-GCM</span>
         </div>
-        <span style={{ fontSize: '11px', color: t.muted, flexShrink: 0 }}>{formatBytes(totalSize)}</span>
+        {/* Storage usage */}
+        {(() => {
+          const used = storageStats?.totalSize ?? 0;
+          const limit = 100 * 1024 * 1024;
+          const pct = Math.min(100, (used / limit) * 100);
+          const color = pct > 90 ? '#ef4444' : pct > 70 ? '#f59e0b' : t.accent;
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
+              <span style={{ fontSize: '10px', color: t.muted, whiteSpace: 'nowrap' }}>{formatBytes(used)} / 100 MB</span>
+              <div style={{ width: '72px', height: '4px', borderRadius: '2px', background: t.surface2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: '2px', background: color, width: `${pct}%`, transition: 'width 0.3s' }} />
+              </div>
+            </div>
+          );
+        })()}
         <button onClick={fetchAll} style={{ ...s.iconBtn, padding: '6px' }} title="Refresh"><RefreshCw size={14} /></button>
         {/* Theme picker */}
         <div style={{ position: 'relative' }} ref={themePickerRef}>
@@ -906,6 +967,8 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
           onRename={() => { setRenamingId(selected.id); setRenameValue(selected.name); setDrawerOpen(false); }}
           onDownload={() => triggerDownload(selected)}
           onGetPreviewUrl={() => downloadOrPreview(selected, false)}
+          onShare={() => handleShare(selected)}
+          shareCopied={shareCopied === selected.id}
           inTrash={section === 'trash'}
           copied={copied}
           onCopy={copyText}
@@ -936,6 +999,8 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
           onNewSubfolder={ctxMenu.isFolder ? (name: string) => { createSubfolderIn(ctxMenu.item as FoldrFolder, name); setCtxMenu(null); } : undefined}
           onCopyName={() => { navigator.clipboard.writeText(ctxMenu.item.name).catch(() => {}); setCtxMenu(null); }}
           onMoveToFolder={ctxMenu.isFolder ? undefined : (folderId) => { moveFileToFolder(ctxMenu.item as FoldrFile, folderId); setCtxMenu(null); }}
+          onShare={ctxMenu.isFolder ? undefined : () => { handleShare(ctxMenu.item as FoldrFile); setCtxMenu(null); }}
+          shareCopied={!ctxMenu.isFolder && shareCopied === (ctxMenu.item as FoldrFile).id}
         />
       )}
     </div>
@@ -981,8 +1046,8 @@ function FolderTree({ folders, parentId, currentId, depth, t, onSelect }: {
   );
 }
 
-function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename, onDownload, onGetPreviewUrl, inTrash, copied, onCopy }: {
-  file: FoldrFile; t: Theme; onClose: () => void; onStar: () => void; onDelete: () => void; onRestore: () => void; onRename: () => void; onDownload: () => void; onGetPreviewUrl: () => Promise<string | null>; inTrash: boolean; copied: string | null; onCopy: (text: string, key: string) => void;
+function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename, onDownload, onGetPreviewUrl, onShare, shareCopied, inTrash, copied, onCopy }: {
+  file: FoldrFile; t: Theme; onClose: () => void; onStar: () => void; onDelete: () => void; onRestore: () => void; onRename: () => void; onDownload: () => void; onGetPreviewUrl: () => Promise<string | null>; onShare?: () => void; shareCopied?: boolean; inTrash: boolean; copied: string | null; onCopy: (text: string, key: string) => void;
 }) {
   const isImg = file.mimeType.startsWith('image/');
   const isVideo = file.mimeType.startsWith('video/');
@@ -997,7 +1062,7 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
     if (prevBlobRef.current) { URL.revokeObjectURL(prevBlobRef.current); prevBlobRef.current = null; }
     setPreviewUrl(null);
     if (!isMedia) return;
-    if (!file.isClientEncrypted) { setPreviewUrl(file.url); return; }
+    if (!file.isClientEncrypted) { setPreviewUrl(`${API}api/foldr/files/${file.id}/content`); return; }
     let cancelled = false;
     setPreviewLoading(true);
     onGetPreviewUrl().then(url => {
@@ -1069,6 +1134,12 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
           ) : (
             <>
               <button onClick={onDownload} style={rowStyle}><Download size={16} style={{ color: t.accent }} /> Download</button>
+              {onShare && file.isClientEncrypted && (
+                <button onClick={onShare} style={rowStyle}>
+                  <ExternalLink size={16} style={{ color: shareCopied ? '#22c55e' : t.muted }} />
+                  {shareCopied ? 'Link copied!' : 'Copy Share Link'}
+                </button>
+              )}
               <button onClick={onStar} style={rowStyle}><Star size={16} style={{ color: file.isStarred ? '#f59e0b' : t.muted }} /> {file.isStarred ? 'Unstar' : 'Star'}</button>
               <button onClick={onRename} style={rowStyle}><Edit2 size={16} style={{ color: t.muted }} /> Rename</button>
               <button onClick={onDelete} style={{ ...rowStyle, color: '#ef4444' }}><Trash2 size={16} /> Move to Trash</button>
@@ -1096,7 +1167,7 @@ function DetailsDrawer({ file, t, onClose, onStar, onDelete, onRestore, onRename
 }
 
 /* ─── Rich context menu ─────────────────────────────────────────────────── */
-function FoldrCtxMenu({ x, y, t, isFolder, inTrash, item, onClose, onOpen, onDownload, onRename, onDuplicate, onDelete, onStar, onRestore, isStarred, onNewSubfolder, onCopyName, allFolders, onMoveToFolder }: {
+function FoldrCtxMenu({ x, y, t, isFolder, inTrash, item, onClose, onOpen, onDownload, onRename, onDuplicate, onDelete, onStar, onRestore, isStarred, onNewSubfolder, onCopyName, allFolders, onMoveToFolder, onShare, shareCopied }: {
   x: number; y: number; t: Theme; isFolder: boolean; inTrash: boolean;
   item: FoldrFile | FoldrFolder;
   onClose: () => void; onOpen: () => void;
@@ -1104,6 +1175,7 @@ function FoldrCtxMenu({ x, y, t, isFolder, inTrash, item, onClose, onOpen, onDow
   onDelete: () => void; onStar?: () => void; onRestore?: () => void;
   isStarred?: boolean; onNewSubfolder?: (name: string) => void; onCopyName: () => void;
   allFolders?: FoldrFolder[]; onMoveToFolder?: (folderId: string | null) => void;
+  onShare?: () => void; shareCopied?: boolean;
 }) {
   const [showInfo, setShowInfo] = useState(false);
   const [subfolderInput, setSubfolderInput] = useState('');
@@ -1241,6 +1313,14 @@ function FoldrCtxMenu({ x, y, t, isFolder, inTrash, item, onClose, onOpen, onDow
           )}
           {sep}
         </>
+      )}
+
+      {!isFolder && onShare && (
+        <Row
+          icon={shareCopied ? <CheckCheck size={13} /> : <ExternalLink size={13} />}
+          label={shareCopied ? 'Link copied!' : 'Copy Share Link'}
+          onClick={onShare}
+        />
       )}
 
       {!isFolder && onStar && (

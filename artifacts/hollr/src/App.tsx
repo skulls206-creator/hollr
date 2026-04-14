@@ -9,6 +9,7 @@ import { Login } from "@/pages/Login";
 import { JoinServer } from "@/pages/JoinServer";
 import { useAppStore } from "@/store/use-app-store";
 import { ContextMenuProvider } from "@/contexts/ContextMenuContext";
+import { FoldrSharePage } from "@/pages/FoldrSharePage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -65,6 +66,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/join/:code" component={JoinServerRoute} />
+      <Route path="/foldr/share" component={FoldrSharePage} />
       <Route path="/app">
         <RequireAuth>
           <Layout />

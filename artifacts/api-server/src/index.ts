@@ -43,6 +43,7 @@ initWebSocket(server);
               "https://playdmusic.replit.app",
               "https://*.replit.dev",
               "https://*.repl.co",
+              "http://localhost",
             ],
             AllowedMethods: ["GET", "PUT", "HEAD"],
             AllowedHeaders: ["*"],
