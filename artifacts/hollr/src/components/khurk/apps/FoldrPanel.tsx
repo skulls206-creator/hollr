@@ -967,7 +967,7 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
           onRename={() => { setRenamingId(selected.id); setRenameValue(selected.name); setDrawerOpen(false); }}
           onDownload={() => triggerDownload(selected)}
           onGetPreviewUrl={() => downloadOrPreview(selected, false)}
-          onShare={() => handleShare(selected)}
+          onShare={keyReady ? () => handleShare(selected) : undefined}
           shareCopied={shareCopied === selected.id}
           inTrash={section === 'trash'}
           copied={copied}
@@ -999,7 +999,7 @@ export function FoldrPanel({ storagePrefix }: NativePanelProps) {
           onNewSubfolder={ctxMenu.isFolder ? (name: string) => { createSubfolderIn(ctxMenu.item as FoldrFolder, name); setCtxMenu(null); } : undefined}
           onCopyName={() => { navigator.clipboard.writeText(ctxMenu.item.name).catch(() => {}); setCtxMenu(null); }}
           onMoveToFolder={ctxMenu.isFolder ? undefined : (folderId) => { moveFileToFolder(ctxMenu.item as FoldrFile, folderId); setCtxMenu(null); }}
-          onShare={ctxMenu.isFolder ? undefined : () => { handleShare(ctxMenu.item as FoldrFile); setCtxMenu(null); }}
+          onShare={ctxMenu.isFolder || !(ctxMenu.item as FoldrFile).isClientEncrypted || !keyReady ? undefined : () => { handleShare(ctxMenu.item as FoldrFile); setCtxMenu(null); }}
           shareCopied={!ctxMenu.isFolder && shareCopied === (ctxMenu.item as FoldrFile).id}
         />
       )}
