@@ -30,13 +30,25 @@ async function canAccessContext(
     return !!participant;
   }
   if (contextType === "channel") {
-    if (targetUserId) {
-      return userId === targetUserId;
-    }
+    // Resolve the channel to its parent server (required for both targeted and untargeted ghosts)
     const channel = await db.query.channelsTable.findFirst({
       where: eq(channelsTable.id, contextId),
     });
     if (!channel) return false;
+
+    if (targetUserId) {
+      // Targeted ghost: must be the intended recipient AND still a member of the server
+      if (userId !== targetUserId) return false;
+      const member = await db.query.serverMembersTable.findFirst({
+        where: and(
+          eq(serverMembersTable.serverId, channel.serverId),
+          eq(serverMembersTable.userId, userId),
+        ),
+      });
+      return !!member;
+    }
+
+    // Untargeted ghost: any server member may reveal
     const member = await db.query.serverMembersTable.findFirst({
       where: and(
         eq(serverMembersTable.serverId, channel.serverId),
@@ -60,6 +72,29 @@ router.post("/secrets", async (req, res) => {
     return;
   }
 
+  const normalizedTargetId = (typeof targetUserId === "string" && targetUserId.length > 0) ? targetUserId : null;
+
+  // For channel ghosts with a target, verify the target is currently a server member
+  if (contextType === "channel" && contextId && normalizedTargetId) {
+    const channel = await db.query.channelsTable.findFirst({
+      where: eq(channelsTable.id, contextId),
+    });
+    if (!channel) {
+      res.status(400).json({ error: "Channel not found" });
+      return;
+    }
+    const targetMember = await db.query.serverMembersTable.findFirst({
+      where: and(
+        eq(serverMembersTable.serverId, channel.serverId),
+        eq(serverMembersTable.userId, normalizedTargetId),
+      ),
+    });
+    if (!targetMember) {
+      res.status(400).json({ error: "Target user is not a member of this server" });
+      return;
+    }
+  }
+
   const id = generateSecretId();
   await db.insert(ghostSecretsTable).values({
     id,
@@ -68,7 +103,7 @@ router.post("/secrets", async (req, res) => {
     senderId: req.user.id,
     contextType: contextType ?? null,
     contextId: contextId ?? null,
-    targetUserId: (typeof targetUserId === "string" && targetUserId.length > 0) ? targetUserId : null,
+    targetUserId: normalizedTargetId,
   });
 
   res.status(201).json({ id });
