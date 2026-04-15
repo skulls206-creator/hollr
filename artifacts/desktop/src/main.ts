@@ -149,45 +149,39 @@ interface NotificationsResult {
 }
 
 async function fetchNotifications(): Promise<NotificationsResult> {
-  return new Promise((resolve) => {
-    const req = net.request({
-      url: `${HOLLR_URL}/api/notifications`,
-      method: 'GET',
-      session: session.defaultSession,
-      useSessionCookies: true,
-    });
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { isLoggedIn: false, unreadCount: 0, debugInfo: 'no main window' };
+  }
 
-    req.setHeader('Accept', 'application/json');
+  try {
+    type FetchResult = { status: number; body: string };
+    const [meResult, notifResult] = await mainWindow.webContents.executeJavaScript(`
+      Promise.all([
+        fetch('/api/users/me', { credentials: 'include' })
+          .then(r => r.text().then(b => ({ status: r.status, body: b.slice(0, 120) })))
+          .catch(e => ({ status: 0, body: e.message })),
+        fetch('/api/notifications', { credentials: 'include' })
+          .then(r => r.text().then(b => ({ status: r.status, body: b })))
+          .catch(e => ({ status: 0, body: '[]' })),
+      ])
+    `) as [FetchResult, FetchResult];
 
-    let body = '';
-    let statusCode = 0;
+    const debug = `JS /me: ${meResult.status} | ${meResult.body.replace(/\s+/g, ' ').slice(0, 80)}`;
 
-    req.on('response', (res) => {
-      statusCode = res.statusCode;
-      res.on('data', (chunk) => { body += chunk.toString(); });
-      res.on('end', () => {
-        const snippet = body.slice(0, 120).replace(/\s+/g, ' ');
-        const debug = `HTTP ${statusCode} | ${snippet}`;
-        if (statusCode === 401 || statusCode === 403) {
-          resolve({ isLoggedIn: false, unreadCount: 0, debugInfo: debug });
-          return;
-        }
-        try {
-          const data = JSON.parse(body);
-          const list: Array<{ read: boolean }> = Array.isArray(data)
-            ? data
-            : data.notifications ?? [];
-          const unread = list.filter((n) => !n.read).length;
-          resolve({ isLoggedIn: true, unreadCount: unread, debugInfo: debug });
-        } catch {
-          resolve({ isLoggedIn: false, unreadCount: 0, debugInfo: `PARSE ERR | ${debug}` });
-        }
-      });
-    });
+    if (meResult.status === 401 || meResult.status === 403 || meResult.status === 0) {
+      return { isLoggedIn: false, unreadCount: 0, debugInfo: debug };
+    }
 
-    req.on('error', (err) => resolve({ isLoggedIn: false, unreadCount: 0, debugInfo: `NET ERR: ${err.message}` }));
-    req.end();
-  });
+    let unread = 0;
+    try {
+      const notifs: Array<{ read: boolean }> = JSON.parse(notifResult.body);
+      unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
+    } catch { /* ignore */ }
+
+    return { isLoggedIn: true, unreadCount: unread, debugInfo: debug };
+  } catch (err) {
+    return { isLoggedIn: false, unreadCount: 0, debugInfo: `execJS err: ${String(err).slice(0, 80)}` };
+  }
 }
 
 interface OverlayPayload {
