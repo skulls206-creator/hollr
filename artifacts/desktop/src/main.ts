@@ -17,7 +17,7 @@ import path from 'path';
 const isDev = process.env.HOLLR_DEV === 'true';
 const HOLLR_URL = process.env.HOLLR_URL ?? 'https://hollr.chat';
 const OVERLAY_DEV_URL = 'http://localhost:6000';
-const POLL_INTERVAL_MS = 8000;
+const POLL_INTERVAL_MS = 5000;
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -95,7 +95,6 @@ function createOverlayWindow(): void {
       preload: path.join(__dirname, 'overlay-preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,
       session: session.defaultSession,
     },
     show: false,
@@ -104,6 +103,8 @@ function createOverlayWindow(): void {
   overlayWindow.loadURL(getOverlayUrl());
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
   overlayWindow.on('closed', () => {
     overlayWindow = null;
@@ -122,6 +123,8 @@ function toggleOverlay(): void {
     overlayWindow.hide();
     overlayVisible = false;
   } else {
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    overlayWindow.setFocusable(false);
     overlayWindow.show();
     overlayVisible = true;
     sendOverlayData();

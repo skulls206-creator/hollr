@@ -8,7 +8,7 @@ const path_1 = __importDefault(require("path"));
 const isDev = process.env.HOLLR_DEV === 'true';
 const HOLLR_URL = process.env.HOLLR_URL ?? 'https://hollr.chat';
 const OVERLAY_DEV_URL = 'http://localhost:6000';
-const POLL_INTERVAL_MS = 8000;
+const POLL_INTERVAL_MS = 5000;
 let mainWindow = null;
 let overlayWindow = null;
 let tray = null;
@@ -76,7 +76,6 @@ function createOverlayWindow() {
             preload: path_1.default.join(__dirname, 'overlay-preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            webSecurity: false,
             session: electron_1.session.defaultSession,
         },
         show: false,
@@ -84,6 +83,7 @@ function createOverlayWindow() {
     overlayWindow.loadURL(getOverlayUrl());
     overlayWindow.setAlwaysOnTop(true, 'screen-saver');
     overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
     overlayWindow.on('closed', () => {
         overlayWindow = null;
         overlayVisible = false;
@@ -100,6 +100,8 @@ function toggleOverlay() {
         overlayVisible = false;
     }
     else {
+        overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+        overlayWindow.setFocusable(false);
         overlayWindow.show();
         overlayVisible = true;
         sendOverlayData();

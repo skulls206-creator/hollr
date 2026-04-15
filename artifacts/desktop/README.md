@@ -19,9 +19,10 @@ Preview the overlay UI in a browser (does not require Electron or a display):
 pnpm --filter @workspace/desktop run dev:overlay
 ```
 
-The overlay opens at http://localhost:5173 with mock data.
+The overlay opens at http://localhost:6000 with mock data.
 
-Full Electron dev mode (requires a local display — Windows/Mac):
+Full Electron dev mode starts the overlay Vite server on port 6000, waits for it
+to be ready, then launches Electron (requires a local display — Windows/Mac):
 
 ```bash
 HOLLR_URL=http://localhost:22056 pnpm --filter @workspace/desktop run dev
