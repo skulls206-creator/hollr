@@ -142,10 +142,14 @@ function showMainWindow(): void {
   mainWindow.focus();
 }
 
-async function fetchNotificationCount(): Promise<number> {
+interface NotificationsResult {
+  isLoggedIn: boolean;
+  unreadCount: number;
+}
+
+async function fetchNotifications(): Promise<NotificationsResult> {
   return new Promise((resolve) => {
-    const cookies = session.defaultSession.cookies;
-    cookies.get({ url: HOLLR_URL }).then((allCookies) => {
+    session.defaultSession.cookies.get({ url: HOLLR_URL }).then((allCookies) => {
       const cookieHeader = allCookies.map((c) => `${c.name}=${c.value}`).join('; ');
 
       const req = net.request({
@@ -158,25 +162,30 @@ async function fetchNotificationCount(): Promise<number> {
       req.setHeader('Accept', 'application/json');
 
       let body = '';
+      let statusCode = 0;
+
       req.on('response', (res) => {
-        res.on('data', (chunk) => {
-          body += chunk.toString();
-        });
+        statusCode = res.statusCode;
+        res.on('data', (chunk) => { body += chunk.toString(); });
         res.on('end', () => {
+          if (statusCode === 401 || statusCode === 403) {
+            resolve({ isLoggedIn: false, unreadCount: 0 });
+            return;
+          }
           try {
             const data = JSON.parse(body);
             const list: Array<{ read: boolean }> = Array.isArray(data)
               ? data
               : data.notifications ?? [];
             const unread = list.filter((n) => !n.read).length;
-            resolve(unread);
+            resolve({ isLoggedIn: true, unreadCount: unread });
           } catch {
-            resolve(0);
+            resolve({ isLoggedIn: false, unreadCount: 0 });
           }
         });
       });
 
-      req.on('error', () => resolve(0));
+      req.on('error', () => resolve({ isLoggedIn: false, unreadCount: 0 }));
       req.end();
     });
   });
@@ -189,12 +198,7 @@ interface OverlayPayload {
 }
 
 async function buildOverlayPayload(): Promise<OverlayPayload> {
-  const cookies = await session.defaultSession.cookies.get({ url: HOLLR_URL });
-  const isLoggedIn = cookies.some(
-    (c) => c.name === 'sid' || c.name === 'hollr_session' || c.name === 'connect.sid' || c.name === 'session',
-  );
-  const unreadCount = isLoggedIn ? await fetchNotificationCount() : 0;
-
+  const { isLoggedIn, unreadCount } = await fetchNotifications();
   return { unreadCount, isLoggedIn, appUrl: HOLLR_URL };
 }
 
