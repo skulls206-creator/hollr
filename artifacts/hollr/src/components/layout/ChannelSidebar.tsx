@@ -1399,9 +1399,9 @@ function UserProfilePanel({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1">
                       <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
-                      {(profile as any)?.isGrandfathered
+                      {profile?.isGrandfathered
                         ? <GrandfatheredBadge size="sm" />
-                        : (profile as any)?.isSupporter
+                        : profile?.isSupporter
                           ? <KhurkDiamondBadge size="sm" />
                           : null}
                     </div>
