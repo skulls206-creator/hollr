@@ -147,8 +147,8 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
         type: 'call_ring',
         targetId: userId,
         callerId: user?.id,
-        callerName: (user as any)?.displayName || (user as any)?.username || 'Someone',
-        callerAvatar: (user as any)?.avatarUrl ?? null,
+        callerName: [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || user?.email || 'Someone',
+        callerAvatar: user?.profileImageUrl ?? null,
         dmThreadId: thread.id,
       });
       closeProfileCard();
@@ -181,8 +181,9 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
       toast({ title: data.message });
       await refetchProfile();
       qc.invalidateQueries({ queryKey: ['user-profile', userId] });
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'An error occurred';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
     } finally {
       setGrandfatherLoading(false);
     }
@@ -299,7 +300,7 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
                 </button>
               </div>
 
-              {isAdmin && userId !== (user as any)?.id && (
+              {isAdmin && userId !== user?.id && (
                 <button
                   onClick={handleGrandfather}
                   disabled={grandfatherLoading}
