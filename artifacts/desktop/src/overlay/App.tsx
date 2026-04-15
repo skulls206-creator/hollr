@@ -11,6 +11,7 @@ interface OverlayData {
   unreadCount: number;
   isLoggedIn: boolean;
   appUrl: string;
+  debugInfo?: string;
 }
 
 declare global {
@@ -122,6 +123,11 @@ export function App() {
       <div className="footer">
         <span className="shortcut">Ctrl+Shift+H to toggle</span>
       </div>
+      {data.debugInfo && (
+        <div style={{ fontSize: '9px', color: '#a0a0b0', padding: '2px 8px 4px', wordBreak: 'break-all', opacity: 0.7 }}>
+          {data.debugInfo}
+        </div>
+      )}
     </div>
   );
 }

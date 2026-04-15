@@ -145,6 +145,7 @@ function showMainWindow(): void {
 interface NotificationsResult {
   isLoggedIn: boolean;
   unreadCount: number;
+  debugInfo: string;
 }
 
 async function fetchNotifications(): Promise<NotificationsResult> {
@@ -165,8 +166,10 @@ async function fetchNotifications(): Promise<NotificationsResult> {
       statusCode = res.statusCode;
       res.on('data', (chunk) => { body += chunk.toString(); });
       res.on('end', () => {
+        const snippet = body.slice(0, 120).replace(/\s+/g, ' ');
+        const debug = `HTTP ${statusCode} | ${snippet}`;
         if (statusCode === 401 || statusCode === 403) {
-          resolve({ isLoggedIn: false, unreadCount: 0 });
+          resolve({ isLoggedIn: false, unreadCount: 0, debugInfo: debug });
           return;
         }
         try {
@@ -175,14 +178,14 @@ async function fetchNotifications(): Promise<NotificationsResult> {
             ? data
             : data.notifications ?? [];
           const unread = list.filter((n) => !n.read).length;
-          resolve({ isLoggedIn: true, unreadCount: unread });
+          resolve({ isLoggedIn: true, unreadCount: unread, debugInfo: debug });
         } catch {
-          resolve({ isLoggedIn: false, unreadCount: 0 });
+          resolve({ isLoggedIn: false, unreadCount: 0, debugInfo: `PARSE ERR | ${debug}` });
         }
       });
     });
 
-    req.on('error', () => resolve({ isLoggedIn: false, unreadCount: 0 }));
+    req.on('error', (err) => resolve({ isLoggedIn: false, unreadCount: 0, debugInfo: `NET ERR: ${err.message}` }));
     req.end();
   });
 }
@@ -191,11 +194,12 @@ interface OverlayPayload {
   unreadCount: number;
   isLoggedIn: boolean;
   appUrl: string;
+  debugInfo: string;
 }
 
 async function buildOverlayPayload(): Promise<OverlayPayload> {
-  const { isLoggedIn, unreadCount } = await fetchNotifications();
-  return { unreadCount, isLoggedIn, appUrl: HOLLR_URL };
+  const { isLoggedIn, unreadCount, debugInfo } = await fetchNotifications();
+  return { unreadCount, isLoggedIn, appUrl: HOLLR_URL, debugInfo };
 }
 
 function sendOverlayData(): void {
