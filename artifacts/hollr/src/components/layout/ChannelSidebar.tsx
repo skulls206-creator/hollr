@@ -596,7 +596,7 @@ export function ChannelSidebar() {
                   const x = touch.clientX; const y = touch.clientY;
                   dmEntryLongPressTimer.current = setTimeout(() => {
                     dmEntryLongPressTriggered.current = true;
-                    handleDmContextMenu({ preventDefault: () => {}, clientX: x, clientY: y } as any, thread, other);
+                    handleDmContextMenu({ preventDefault: () => {}, stopPropagation: () => {}, clientX: x, clientY: y } as any, thread, other);
                   }, 400);
                 }}
                 onTouchEnd={() => {
