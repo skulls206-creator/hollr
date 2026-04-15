@@ -213,6 +213,7 @@ router.get('/supporter/status', async (req: Request, res: Response) => {
 
     res.json({
       isSupporter,
+      isGrandfathered: profile?.isGrandfathered ?? false,
       hasCustomerId: !!(profile?.stripeCustomerId),
     });
   } catch (err) {
@@ -457,12 +458,37 @@ router.delete('/admin/users/:userId/grandfather', async (req: Request<{ userId: 
     }
 
     // Determine whether to clear isSupporter:
-    // - Keep if there is an active referral in the DB (accurate without Stripe call)
-    // - Keep if they have a stripeCustomerId (sync-all will correct on next run if sub lapsed)
-    // - Clear only if neither exists
+    // - Keep if there is an active referral in the DB
+    // - Keep if they have an active or trialing Stripe subscription for the supporter product
+    // - Clear only if neither condition holds
     const hasActiveReferral = !!(profile.referralSupporterUntil && profile.referralSupporterUntil > new Date());
-    const hasStripeCustomer = !!profile.stripeCustomerId;
-    const keepSupporter = hasActiveReferral || hasStripeCustomer;
+
+    let hasPaidSub = false;
+    if (profile.stripeCustomerId) {
+      try {
+        const stripe = await getUncachableStripeClient();
+        const productSearch = await stripe.products.search({ query: `name:"${PRODUCT_NAME}"` });
+        const supporterProductId = productSearch.data[0]?.id ?? null;
+        if (supporterProductId) {
+          const [active, trialing] = await Promise.all([
+            stripe.subscriptions.list({ customer: profile.stripeCustomerId, status: 'active',   limit: 10, expand: ['data.items.data.price'] }),
+            stripe.subscriptions.list({ customer: profile.stripeCustomerId, status: 'trialing', limit: 10, expand: ['data.items.data.price'] }),
+          ]);
+          hasPaidSub = [...active.data, ...trialing.data].some(sub =>
+            sub.items.data.some(item => {
+              const pid = typeof item.price?.product === 'string'
+                ? item.price.product
+                : (item.price?.product as { id?: string } | null)?.id ?? null;
+              return pid === supporterProductId;
+            })
+          );
+        }
+      } catch (stripeErr) {
+        console.error('[admin] stripe subscription check error during grandfather revoke:', stripeErr);
+      }
+    }
+
+    const keepSupporter = hasActiveReferral || hasPaidSub;
 
     await db
       .update(userProfilesTable)

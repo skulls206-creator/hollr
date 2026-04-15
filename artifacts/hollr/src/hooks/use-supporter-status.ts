@@ -33,3 +33,34 @@ export function useIsSupporter(): boolean | null {
 
   return isSupporter;
 }
+
+/**
+ * Returns whether the current user has grandfathered (General tier) status.
+ * null = loading, true/false = resolved.
+ */
+export function useIsGrandfathered(): boolean | null {
+  const [isGrandfathered, setIsGrandfathered] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const controller = new AbortController();
+
+    const fetchStatus = () => {
+      fetch(`${BASE}api/supporter/status`, { credentials: 'include', signal: controller.signal })
+        .then(r => r.json())
+        .then(data => { if (alive) setIsGrandfathered(data.isGrandfathered ?? false); })
+        .catch(() => { if (alive) setIsGrandfathered(false); });
+    };
+
+    fetchStatus();
+    window.addEventListener('focus', fetchStatus);
+
+    return () => {
+      alive = false;
+      controller.abort();
+      window.removeEventListener('focus', fetchStatus);
+    };
+  }, []);
+
+  return isGrandfathered;
+}
