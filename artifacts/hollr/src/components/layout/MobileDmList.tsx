@@ -316,7 +316,7 @@ export function MobileDmList() {
                   <p className={cn('truncate text-[15px]', dmUnread > 0 ? 'font-bold text-foreground' : 'font-semibold')}>
                     {other?.displayName || other?.username || 'Unknown'}
                   </p>
-                  {(other as any)?.isGrandfathered
+                  {other?.isGrandfathered
                     ? <GrandfatheredBadge size="sm" className="shrink-0" />
                     : other?.isSupporter
                       ? <KhurkDiamondBadge size="sm" className="shrink-0" />

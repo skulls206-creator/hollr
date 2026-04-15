@@ -744,9 +744,9 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                       >
                         {msg.author.displayName || msg.author.username}
                       </button>
-                      {(msg.author as any).isGrandfathered
+                      {msg.author.isGrandfathered
                         ? <GrandfatheredBadge size="sm" />
-                        : (msg.author as any).isSupporter
+                        : msg.author.isSupporter
                           ? <KhurkDiamondBadge size="sm" />
                           : null}
                       <span className="text-[10px] text-muted-foreground">{format(msgDate, 'h:mm a')}</span>

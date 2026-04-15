@@ -27,6 +27,7 @@ export interface VoiceChannelUser {
   hasCamera: boolean;
   isBot?: boolean;
   isSupporter?: boolean;
+  isGrandfathered?: boolean;
 }
 
 export interface VoiceStats {

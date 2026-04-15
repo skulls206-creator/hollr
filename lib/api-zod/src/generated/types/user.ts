@@ -17,5 +17,6 @@ export interface User {
   /** @nullable */
   customStatus?: string | null;
   isSupporter: boolean;
+  isGrandfathered?: boolean;
   createdAt: Date;
 }

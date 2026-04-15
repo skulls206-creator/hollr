@@ -21,6 +21,7 @@ async function formatUser(userId: string) {
       status: profile.status,
       customStatus: profile.customStatus,
       isSupporter: profile.isSupporter,
+      isGrandfathered: profile.isGrandfathered,
       createdAt: profile.createdAt.toISOString(),
     };
   }
@@ -32,6 +33,7 @@ async function formatUser(userId: string) {
     status: "offline" as const,
     customStatus: null,
     isSupporter: false,
+    isGrandfathered: false,
     createdAt: new Date().toISOString(),
   };
 }

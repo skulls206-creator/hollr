@@ -410,7 +410,7 @@ router.post('/admin/grant-supporter', async (req: Request, res: Response) => {
 // ── Grandfather badge endpoints ────────────────────────────────────────────────
 
 // POST /api/admin/users/:userId/grandfather — grant grandfathered status
-router.post('/admin/users/:userId/grandfather', async (req: Request, res: Response) => {
+router.post('/admin/users/:userId/grandfather', async (req: Request<{ userId: string }>, res: Response) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
   if (!isAdminUser(req.user.id)) { res.status(403).json({ error: 'Forbidden' }); return; }
 
@@ -440,7 +440,7 @@ router.post('/admin/users/:userId/grandfather', async (req: Request, res: Respon
 });
 
 // DELETE /api/admin/users/:userId/grandfather — revoke grandfathered status
-router.delete('/admin/users/:userId/grandfather', async (req: Request, res: Response) => {
+router.delete('/admin/users/:userId/grandfather', async (req: Request<{ userId: string }>, res: Response) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
   if (!isAdminUser(req.user.id)) { res.status(403).json({ error: 'Forbidden' }); return; }
 
@@ -456,10 +456,13 @@ router.delete('/admin/users/:userId/grandfather', async (req: Request, res: Resp
       return;
     }
 
-    // Only clear isSupporter if they don't have an active paid sub
-    const hasPaidSub = !!profile.stripeCustomerId;
+    // Determine whether to clear isSupporter:
+    // - Keep if there is an active referral in the DB (accurate without Stripe call)
+    // - Keep if they have a stripeCustomerId (sync-all will correct on next run if sub lapsed)
+    // - Clear only if neither exists
     const hasActiveReferral = !!(profile.referralSupporterUntil && profile.referralSupporterUntil > new Date());
-    const keepSupporter = hasPaidSub || hasActiveReferral;
+    const hasStripeCustomer = !!profile.stripeCustomerId;
+    const keepSupporter = hasActiveReferral || hasStripeCustomer;
 
     await db
       .update(userProfilesTable)

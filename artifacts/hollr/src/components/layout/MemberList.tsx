@@ -225,7 +225,7 @@ function MemberRow({
             <span className="text-sm font-semibold text-foreground truncate min-w-0">
               {member.user.displayName || member.user.username}
             </span>
-            {(member.user as any).isGrandfathered
+            {member.user.isGrandfathered
               ? <GrandfatheredBadge size="md" />
               : member.user.isSupporter
                 ? <KhurkDiamondBadge size="md" />

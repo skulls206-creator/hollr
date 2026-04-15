@@ -620,7 +620,7 @@ export function ChannelSidebar() {
                     <p className={cn("truncate text-sm", dmUnread > 0 ? "font-bold" : "font-medium")}>
                       {other?.displayName || other?.username || 'Unknown'}
                     </p>
-                    {(other as any)?.isGrandfathered
+                    {other?.isGrandfathered
                       ? <GrandfatheredBadge size="sm" className="shrink-0" />
                       : other?.isSupporter
                         ? <KhurkDiamondBadge size="sm" className="shrink-0" />
@@ -1728,7 +1728,7 @@ function VoiceSidebarUser({
           </div>
           <span className="text-xs text-muted-foreground truncate flex-1 flex items-center gap-1">
             {u.displayName}
-            {(u as any).isGrandfathered
+            {u.isGrandfathered
               ? <GrandfatheredBadge size="sm" className="shrink-0" />
               : u.isSupporter
                 ? <KhurkDiamondBadge size="sm" className="shrink-0" />
