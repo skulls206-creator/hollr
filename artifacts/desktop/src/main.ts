@@ -191,7 +191,7 @@ interface OverlayPayload {
 async function buildOverlayPayload(): Promise<OverlayPayload> {
   const cookies = await session.defaultSession.cookies.get({ url: HOLLR_URL });
   const isLoggedIn = cookies.some(
-    (c) => c.name === 'hollr_session' || c.name === 'connect.sid' || c.name === 'session',
+    (c) => c.name === 'sid' || c.name === 'hollr_session' || c.name === 'connect.sid' || c.name === 'session',
   );
   const unreadCount = isLoggedIn ? await fetchNotificationCount() : 0;
 
