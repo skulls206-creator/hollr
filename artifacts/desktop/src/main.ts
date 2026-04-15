@@ -170,7 +170,7 @@ async function fetchNotifications(): Promise<NotificationsResult> {
 
   try {
     type FetchResult = { status: number; body: string };
-    const [meResult, notifResult, voiceResult] = await mainWindow.webContents.executeJavaScript(`
+    const [meResult, notifResult, rawVoice] = await mainWindow.webContents.executeJavaScript(`
       Promise.all([
         fetch('/api/users/me', { credentials: 'include' })
           .then(r => r.text().then(b => ({ status: r.status, body: b.slice(0, 120) })))
@@ -178,11 +178,13 @@ async function fetchNotifications(): Promise<NotificationsResult> {
         fetch('/api/notifications', { credentials: 'include' })
           .then(r => r.text().then(b => ({ status: r.status, body: b })))
           .catch(e => ({ status: 0, body: '[]' })),
-        fetch('/api/voice/active', { credentials: 'include' })
-          .then(r => r.text().then(b => ({ status: r.status, body: b })))
-          .catch(e => ({ status: 0, body: '[]' })),
+        Promise.resolve(
+          window.__hollrVoice
+            ? JSON.stringify(window.__hollrVoice.rooms || [])
+            : '[]'
+        ),
       ])
-    `) as [FetchResult, FetchResult, FetchResult];
+    `) as [FetchResult, FetchResult, string];
 
     const debug = `JS /me: ${meResult.status} | ${meResult.body.replace(/\s+/g, ' ').slice(0, 80)}`;
 
@@ -198,7 +200,7 @@ async function fetchNotifications(): Promise<NotificationsResult> {
 
     let voiceRooms: VoiceRoom[] = [];
     try {
-      const parsed = JSON.parse(voiceResult.body);
+      const parsed = JSON.parse(rawVoice);
       voiceRooms = Array.isArray(parsed) ? parsed : [];
     } catch { /* ignore */ }
 

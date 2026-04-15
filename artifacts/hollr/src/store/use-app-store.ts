@@ -759,3 +759,28 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+// Expose voice state on window so the Electron desktop overlay can read it
+// without needing a separate API endpoint.
+function syncVoiceToWindow() {
+  const { voiceChannelUsers, voiceConnection } = useAppStore.getState();
+  (window as unknown as Record<string, unknown>).__hollrVoice = {
+    channelId: voiceConnection.channelId ?? null,
+    status: voiceConnection.status,
+    rooms: Object.entries(voiceChannelUsers)
+      .filter(([, users]) => users.length > 0)
+      .map(([channelId, users]) => ({
+        channelId,
+        users: users.map(u => ({
+          userId: u.userId,
+          displayName: u.displayName,
+          username: u.username,
+          muted: u.muted,
+          speaking: u.speaking,
+          streaming: u.streaming,
+        })),
+      })),
+  };
+}
+useAppStore.subscribe(syncVoiceToWindow);
+syncVoiceToWindow();
