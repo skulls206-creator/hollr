@@ -15,7 +15,7 @@ import {
 import path from 'path';
 
 const isDev = process.env.HOLLR_DEV === 'true';
-const HOLLR_URL = process.env.HOLLR_URL ?? 'https://hollr.chat';
+const HOLLR_URL = process.env.HOLLR_URL ?? 'https://app.hollr.chat';
 const OVERLAY_DEV_URL = 'http://localhost:6000';
 const POLL_INTERVAL_MS = 5000;
 

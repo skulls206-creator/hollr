@@ -38,7 +38,7 @@ declare global {
 const MOCK_DATA: OverlayData = {
   unreadCount: 3,
   isLoggedIn: true,
-  appUrl: 'https://hollr.chat',
+  appUrl: 'https://app.hollr.chat',
 };
 
 function useBridge() {
