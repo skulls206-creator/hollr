@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
+import { GrandfatheredBadge } from '@/components/ui/GrandfatheredBadge';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
 import { initiateVideoCall } from '@/hooks/use-video-call';
 
@@ -315,7 +316,11 @@ export function MobileDmList() {
                   <p className={cn('truncate text-[15px]', dmUnread > 0 ? 'font-bold text-foreground' : 'font-semibold')}>
                     {other?.displayName || other?.username || 'Unknown'}
                   </p>
-                  {other?.isSupporter && <KhurkDiamondBadge size="sm" className="shrink-0" />}
+                  {(other as any)?.isGrandfathered
+                    ? <GrandfatheredBadge size="sm" className="shrink-0" />
+                    : other?.isSupporter
+                      ? <KhurkDiamondBadge size="sm" className="shrink-0" />
+                      : null}
                 </div>
                 {thread.lastMessage && (
                   <p className={cn('text-[13px] truncate mt-0.5', dmUnread > 0 ? 'text-foreground' : 'text-muted-foreground')}>

@@ -528,6 +528,7 @@ router.get("/servers/:serverId/members", async (req, res) => {
       customStatus: profile.customStatus,
       createdAt: profile.createdAt.toISOString(),
       isSupporter: profile.isSupporter,
+      isGrandfathered: profile.isGrandfathered,
     } : {
       id: member.userId,
       username: `user_${member.userId.slice(0, 8)}`,
@@ -537,6 +538,7 @@ router.get("/servers/:serverId/members", async (req, res) => {
       customStatus: null,
       createdAt: member.joinedAt.toISOString(),
       isSupporter: false,
+      isGrandfathered: false,
     },
   })));
 });

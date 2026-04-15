@@ -407,4 +407,71 @@ router.post('/admin/grant-supporter', async (req: Request, res: Response) => {
   }
 });
 
+// ── Grandfather badge endpoints ────────────────────────────────────────────────
+
+// POST /api/admin/users/:userId/grandfather — grant grandfathered status
+router.post('/admin/users/:userId/grandfather', async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  if (!isAdminUser(req.user.id)) { res.status(403).json({ error: 'Forbidden' }); return; }
+
+  const { userId } = req.params;
+
+  try {
+    const profile = await db.query.userProfilesTable.findFirst({
+      where: eq(userProfilesTable.userId, userId),
+    });
+
+    if (!profile) {
+      res.status(404).json({ error: `No user found with id "${userId}"` });
+      return;
+    }
+
+    await db
+      .update(userProfilesTable)
+      .set({ isGrandfathered: true, isSupporter: true })
+      .where(eq(userProfilesTable.userId, userId));
+
+    console.log(`[admin] granted grandfathered badge to ${profile.username} (${userId})`);
+    res.json({ ok: true, message: `@${profile.username} is now Grandfathered — General Tier` });
+  } catch (err) {
+    console.error('[admin] grandfather grant error:', err);
+    res.status(500).json({ error: 'Failed to grant grandfathered status' });
+  }
+});
+
+// DELETE /api/admin/users/:userId/grandfather — revoke grandfathered status
+router.delete('/admin/users/:userId/grandfather', async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: 'Unauthorized' }); return; }
+  if (!isAdminUser(req.user.id)) { res.status(403).json({ error: 'Forbidden' }); return; }
+
+  const { userId } = req.params;
+
+  try {
+    const profile = await db.query.userProfilesTable.findFirst({
+      where: eq(userProfilesTable.userId, userId),
+    });
+
+    if (!profile) {
+      res.status(404).json({ error: `No user found with id "${userId}"` });
+      return;
+    }
+
+    // Only clear isSupporter if they don't have an active paid sub
+    const hasPaidSub = !!profile.stripeCustomerId;
+    const hasActiveReferral = !!(profile.referralSupporterUntil && profile.referralSupporterUntil > new Date());
+    const keepSupporter = hasPaidSub || hasActiveReferral;
+
+    await db
+      .update(userProfilesTable)
+      .set({ isGrandfathered: false, ...(keepSupporter ? {} : { isSupporter: false }) })
+      .where(eq(userProfilesTable.userId, userId));
+
+    console.log(`[admin] revoked grandfathered badge from ${profile.username} (${userId})`);
+    res.json({ ok: true, message: `Grandfathered badge revoked from @${profile.username}` });
+  } catch (err) {
+    console.error('[admin] grandfather revoke error:', err);
+    res.status(500).json({ error: 'Failed to revoke grandfathered status' });
+  }
+});
+
 export default router;

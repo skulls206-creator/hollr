@@ -18,6 +18,7 @@ import { DmReactionPills } from './DmReactionPills';
 import { EmojiPickerPopover } from './EmojiPickerPopover';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
+import { GrandfatheredBadge } from '@/components/ui/GrandfatheredBadge';
 import { ghostEncrypt, ghostDecrypt } from '@/lib/ghost-crypto';
 import { GhostRevealModal } from '@/components/chat/GhostRevealModal';
 import { hideMessage, unhideMessage } from '@/lib/hidden-messages';
@@ -743,7 +744,11 @@ export function DmChatArea({ threadId, recipientId, recipientName, recipientAvat
                       >
                         {msg.author.displayName || msg.author.username}
                       </button>
-                      {(msg.author as any).isSupporter && <KhurkDiamondBadge size="sm" />}
+                      {(msg.author as any).isGrandfathered
+                        ? <GrandfatheredBadge size="sm" />
+                        : (msg.author as any).isSupporter
+                          ? <KhurkDiamondBadge size="sm" />
+                          : null}
                       <span className="text-[10px] text-muted-foreground">{format(msgDate, 'h:mm a')}</span>
                     </div>
                   )}

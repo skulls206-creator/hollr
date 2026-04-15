@@ -2,14 +2,16 @@ import { useRef, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
-import { MessageSquare, AtSign, X, Loader2, Phone } from 'lucide-react';
+import { MessageSquare, AtSign, X, Loader2, Phone, Star } from 'lucide-react';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
+import { GrandfatheredBadge } from '@/components/ui/GrandfatheredBadge';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/use-app-store';
 import { getListDmThreadsQueryKey } from '@workspace/api-client-react';
 import { useAuth } from '@workspace/replit-auth-web';
 import { sendDmCallSignal } from '@/hooks/use-realtime';
+import { useToast } from '@/hooks/use-toast';
 
 function statusColor(status: string) {
   switch (status) {
@@ -36,6 +38,13 @@ async function fetchUserProfile(userId: string) {
   return res.json();
 }
 
+async function fetchIsAdmin() {
+  const base = import.meta.env.BASE_URL;
+  const res = await fetch(`${base}api/admin/check`, { credentials: 'include' });
+  if (!res.ok) return { isAdmin: false };
+  return res.json();
+}
+
 interface Props {
   userId: string;
   joinedAt?: string;
@@ -47,16 +56,26 @@ interface Props {
 export function UserProfileCard({ userId, joinedAt, role, onClose, position }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [dmLoading, setDmLoading] = useState(false);
+  const [grandfatherLoading, setGrandfatherLoading] = useState(false);
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { activeChannelId, setActiveDmThread, triggerMention, closeProfileCard, dmCall, setDmCallState } = useAppStore();
   const { user } = useAuth();
 
-  const { data: profile, isLoading } = useQuery({
+  const { data: profile, isLoading, refetch: refetchProfile } = useQuery({
     queryKey: ['user-profile', userId],
     queryFn: () => fetchUserProfile(userId),
     staleTime: 60_000,
   });
+
+  const { data: adminData } = useQuery({
+    queryKey: ['admin-check'],
+    queryFn: fetchIsAdmin,
+    staleTime: 5 * 60_000,
+  });
+
+  const isAdmin = adminData?.isAdmin === true;
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -84,8 +103,6 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
       });
       if (!res.ok) throw new Error('Failed to open DM');
       const thread = await res.json();
-      // Seed the DM threads cache immediately so Layout resolves the recipient name/avatar
-      // before the background refetch completes
       qc.setQueryData(getListDmThreadsQueryKey(), (old: any[]) => {
         const existing = (old || []).filter((t: any) => t.id !== thread.id);
         return [...existing, thread];
@@ -149,6 +166,28 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
     closeProfileCard();
   };
 
+  const handleGrandfather = async () => {
+    if (!profile || grandfatherLoading) return;
+    setGrandfatherLoading(true);
+    const base = import.meta.env.BASE_URL;
+    const isCurrentlyGrandfathered = profile.isGrandfathered;
+    try {
+      const res = await fetch(`${base}api/admin/users/${userId}/grandfather`, {
+        method: isCurrentlyGrandfathered ? 'DELETE' : 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast({ title: data.message });
+      await refetchProfile();
+      qc.invalidateQueries({ queryKey: ['user-profile', userId] });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setGrandfatherLoading(false);
+    }
+  };
+
   const style = position
     ? {
         position: 'fixed' as const,
@@ -199,7 +238,11 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
               <div>
                 <h3 className="font-bold text-foreground text-base leading-tight flex items-center gap-1.5">
                   {profile.displayName}
-                  {profile.isSupporter && <KhurkDiamondBadge size="lg" />}
+                  {profile.isGrandfathered
+                    ? <GrandfatheredBadge size="lg" />
+                    : profile.isSupporter
+                      ? <KhurkDiamondBadge size="lg" />
+                      : null}
                 </h3>
                 <p className="text-sm text-muted-foreground">@{profile.username}</p>
               </div>
@@ -255,6 +298,24 @@ export function UserProfileCard({ userId, joinedAt, role, onClose, position }: P
                   Mention
                 </button>
               </div>
+
+              {isAdmin && userId !== (user as any)?.id && (
+                <button
+                  onClick={handleGrandfather}
+                  disabled={grandfatherLoading}
+                  className={cn(
+                    'w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-60',
+                    profile.isGrandfathered
+                      ? 'bg-slate-600/40 hover:bg-slate-600/60 text-slate-300'
+                      : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400'
+                  )}
+                >
+                  {grandfatherLoading
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <Star size={13} className={profile.isGrandfathered ? '' : 'fill-amber-400'} />}
+                  {profile.isGrandfathered ? 'Revoke General Badge' : 'Grant General Badge'}
+                </button>
+              )}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Profile not found.</p>

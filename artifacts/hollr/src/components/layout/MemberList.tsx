@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { Crown, ShieldCheck, UserX, Ban, Loader2, Copy, MessageSquare, AtSign, User, ShieldBan } from 'lucide-react';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
+import { GrandfatheredBadge } from '@/components/ui/GrandfatheredBadge';
 import type { Member } from '@workspace/api-client-react';
 import { useAppStore } from '@/store/use-app-store';
 import { useAuth } from '@workspace/replit-auth-web';
@@ -224,7 +225,11 @@ function MemberRow({
             <span className="text-sm font-semibold text-foreground truncate min-w-0">
               {member.user.displayName || member.user.username}
             </span>
-            {member.user.isSupporter && <KhurkDiamondBadge size="md" />}
+            {(member.user as any).isGrandfathered
+              ? <GrandfatheredBadge size="md" />
+              : member.user.isSupporter
+                ? <KhurkDiamondBadge size="md" />
+                : null}
             {member.role === 'owner' && <Crown size={13} className="text-yellow-400 shrink-0" />}
             {member.role === 'admin' && <ShieldCheck size={13} className="text-primary shrink-0" />}
           </div>

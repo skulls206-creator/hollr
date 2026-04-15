@@ -32,6 +32,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
+import { GrandfatheredBadge } from '@/components/ui/GrandfatheredBadge';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import type { Channel } from '@workspace/api-client-react';
@@ -619,7 +620,11 @@ export function ChannelSidebar() {
                     <p className={cn("truncate text-sm", dmUnread > 0 ? "font-bold" : "font-medium")}>
                       {other?.displayName || other?.username || 'Unknown'}
                     </p>
-                    {other?.isSupporter && <KhurkDiamondBadge size="sm" className="shrink-0" />}
+                    {(other as any)?.isGrandfathered
+                      ? <GrandfatheredBadge size="sm" className="shrink-0" />
+                      : other?.isSupporter
+                        ? <KhurkDiamondBadge size="sm" className="shrink-0" />
+                        : null}
                   </div>
                   {thread.lastMessage && (
                     <p className={cn("text-[11px] truncate", dmUnread > 0 ? "text-foreground" : "text-muted-foreground")}>
@@ -1394,7 +1399,11 @@ function UserProfilePanel({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1">
                       <p className="text-sm font-bold text-foreground truncate">{displayName}</p>
-                      {(profile as any)?.isSupporter && <KhurkDiamondBadge size="sm" />}
+                      {(profile as any)?.isGrandfathered
+                        ? <GrandfatheredBadge size="sm" />
+                        : (profile as any)?.isSupporter
+                          ? <KhurkDiamondBadge size="sm" />
+                          : null}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">@{(user as any)?.username || displayName}</p>
                   </div>
@@ -1719,7 +1728,11 @@ function VoiceSidebarUser({
           </div>
           <span className="text-xs text-muted-foreground truncate flex-1 flex items-center gap-1">
             {u.displayName}
-            {u.isSupporter && <KhurkDiamondBadge size="sm" className="shrink-0" />}
+            {(u as any).isGrandfathered
+              ? <GrandfatheredBadge size="sm" className="shrink-0" />
+              : u.isSupporter
+                ? <KhurkDiamondBadge size="sm" className="shrink-0" />
+                : null}
           </span>
           <div className="flex items-center gap-0.5 shrink-0">
             {u.muted

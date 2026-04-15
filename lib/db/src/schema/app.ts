@@ -15,6 +15,7 @@ export const userProfilesTable = pgTable("user_profiles", {
   status: userStatusEnum("status").notNull().default("offline"),
   customStatus: varchar("custom_status", { length: 128 }),
   isSupporter: boolean("is_supporter").notNull().default(false),
+  isGrandfathered: boolean("is_grandfathered").notNull().default(false),
   stripeCustomerId: text("stripe_customer_id"),
   referralCode: varchar("referral_code", { length: 16 }).unique(),
   referredByUserId: varchar("referred_by_user_id"),

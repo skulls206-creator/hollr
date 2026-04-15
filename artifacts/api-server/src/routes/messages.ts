@@ -42,6 +42,7 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserI
     status: author.status,
     customStatus: author.customStatus,
     isSupporter: author.isSupporter,
+    isGrandfathered: author.isGrandfathered,
     createdAt: author.createdAt.toISOString(),
   } : {
     id: msg.authorId,
@@ -50,6 +51,8 @@ async function formatMessage(msg: typeof messagesTable.$inferSelect, viewerUserI
     avatarUrl: null,
     status: "offline" as const,
     customStatus: null,
+    isSupporter: false,
+    isGrandfathered: false,
     createdAt: msg.createdAt.toISOString(),
   };
 

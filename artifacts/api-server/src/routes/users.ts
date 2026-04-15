@@ -41,6 +41,7 @@ router.get("/users/me", async (req, res) => {
     status: profile.status,
     customStatus: profile.customStatus,
     isSupporter: profile.isSupporter,
+    isGrandfathered: profile.isGrandfathered,
     createdAt: profile.createdAt.toISOString(),
   });
 });
@@ -83,6 +84,7 @@ router.patch("/users/me", async (req, res) => {
     status: profile.status,
     customStatus: profile.customStatus,
     isSupporter: profile.isSupporter,
+    isGrandfathered: profile.isGrandfathered,
     createdAt: profile.createdAt.toISOString(),
   });
 });
@@ -153,6 +155,7 @@ router.get("/users/:userId", async (req, res) => {
     status: profile.status,
     customStatus: profile.customStatus,
     isSupporter: profile.isSupporter,
+    isGrandfathered: profile.isGrandfathered,
     createdAt: profile.createdAt.toISOString(),
   });
 });

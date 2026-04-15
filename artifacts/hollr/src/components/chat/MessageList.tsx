@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { ReactionPills } from './ReactionPills';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { KhurkDiamondBadge } from '@/components/ui/KhurkDiamondBadge';
+import { GrandfatheredBadge } from '@/components/ui/GrandfatheredBadge';
 import { hideMessage, unhideMessage } from '@/lib/hidden-messages';
 import { ghostDecrypt } from '@/lib/ghost-crypto';
 import { GhostRevealModal } from '@/components/chat/GhostRevealModal';
@@ -532,7 +533,11 @@ export function MessageList({
                     >
                       {msg.author.displayName || msg.author.username}
                     </button>
-                    {(msg.author as any).isSupporter && <KhurkDiamondBadge size="sm" />}
+                    {(msg.author as any).isGrandfathered
+                      ? <GrandfatheredBadge size="sm" />
+                      : (msg.author as any).isSupporter
+                        ? <KhurkDiamondBadge size="sm" />
+                        : null}
                     <span className="text-[10px] text-muted-foreground">{format(msgDate, 'h:mm a')}</span>
                     {msg.pinned && (
                       <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-0.5">
