@@ -6,6 +6,17 @@ packages:
 
 autoInstallPeers: false
 
+supportedArchitectures:
+  os:
+    - current
+    - win32
+  cpu:
+    - current
+    - x64
+  libc:
+    - current
+    - glibc
+
 catalog:
   '@replit/vite-plugin-cartographer': ^0.5.0
   '@replit/vite-plugin-dev-banner': ^0.1.1
