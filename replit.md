@@ -15,6 +15,8 @@ The project is structured as a pnpm monorepo, separating frontend, backend, and 
 **Monorepo Structure:**
 - `artifacts/hollr`: React + Vite frontend.
 - `artifacts/api-server`: Express + WebSocket backend.
+- `artifacts/desktop`: Electron desktop app — wraps hollr.chat with a transparent always-on-top game overlay.
+- `artifacts/mobile`: Expo (React Native) iOS/Android app.
 - `lib/db`: Drizzle ORM for PostgreSQL.
 - `lib/api-spec`: OpenAPI 3.1 YAML specification.
 - `lib/api-zod`: Zod schemas generated from OpenAPI.
@@ -53,12 +55,24 @@ The project is structured as a pnpm monorepo, separating frontend, backend, and 
 - Key tables include `user_profiles`, `servers`, `channels`, `messages`, `dm_threads`, `attachments`, `push_subscriptions`, `notification_prefs`, `foldr_folders`, `foldr_files`, and `ballpoint_notes`.
 - Support for message threads, user mentions, and supporter badges.
 
+**Desktop App (`artifacts/desktop`):**
+- Electron wrapper for hollr.chat — loads the production URL in a main BrowserWindow.
+- Transparent, always-on-top overlay window (frameless, click-through when idle) for in-game HUD.
+- Global hotkey `Ctrl+Shift+H` to toggle overlay, registered via Electron `globalShortcut`.
+- System tray icon (gem logo) with Show / Toggle Overlay / Quit menu.
+- Overlay polls `/api/notifications` every 8s using the shared session cookie jar to display unread count badge.
+- Overlay collapses to a gem pill when minimized; expands on hover with full HUD.
+- Build: `pnpm --filter @workspace/desktop run build:win` produces Windows NSIS `.exe` installer.
+- CI: `.github/workflows/build-desktop.yml` auto-builds `.exe` and attaches to GitHub Release on `desktop-v*` tags.
+- Overlay can be previewed in a browser via the `artifacts/desktop: overlay preview` workflow (port 6000).
+
 **Key Design Decisions:**
 - WebSocket server co-located with the HTTP server.
 - Mesh WebRTC topology for voice (for small teams).
 - Direct-to-R2 file uploads to optimize performance.
 - Transparent encryption for sensitive data in Foldr and Ballpoint Notes.
 - Client-side volume control via Web Audio API.
+- Electron desktop app uses `session.defaultSession` so cookie jar is shared between main window and overlay's API polling.
 
 ## External Dependencies
 

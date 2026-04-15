@@ -17,6 +17,27 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "artifacts/desktop: overlay preview"
+
+[[workflows.workflow]]
+name = "artifacts/desktop: overlay preview"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/desktop run dev:overlay"
+waitForPort = 6000
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true

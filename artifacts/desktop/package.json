@@ -1,0 +1,38 @@
+{
+  "name": "@workspace/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "hollr desktop app — always-on-top overlay for gamers",
+  "author": {
+    "name": "KHURK",
+    "email": "hello@khurk.xyz"
+  },
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k --raw \"vite --config vite.overlay.config.ts\" \"wait-on http://localhost:5173 && cross-env HOLLR_DEV=true electron .\"",
+    "dev:overlay": "vite --config vite.overlay.config.ts",
+    "build": "pnpm run build:overlay && pnpm run build:electron && pnpm run build:win",
+    "build:overlay": "vite build --config vite.overlay.config.ts",
+    "build:electron": "tsc --project tsconfig.electron.json",
+    "build:win": "pnpm run build:overlay && pnpm run build:electron && electron-builder --win --config electron-builder.yml",
+    "build:linux": "pnpm run build:overlay && pnpm run build:electron && electron-builder --linux --config electron-builder.yml",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0",
+    "typescript": "~5.7.0",
+    "vite": "^6.0.0",
+    "wait-on": "^8.0.0"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

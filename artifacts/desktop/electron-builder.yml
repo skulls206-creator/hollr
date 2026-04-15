@@ -1,0 +1,37 @@
+appId: xyz.khurk.hollr
+productName: hollr
+copyright: Copyright © 2025 KHURK
+
+directories:
+  buildResources: assets
+  output: dist
+
+files:
+  - dist-electron/**/*
+  - dist-overlay/**/*
+  - assets/**/*
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: assets/icon.png
+
+nsis:
+  oneClick: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: hollr
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: assets/icon.png
+  category: Network
+
+publish:
+  provider: github
+  owner: khurk
+  repo: hollr-desktop
