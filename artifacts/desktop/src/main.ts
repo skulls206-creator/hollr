@@ -149,45 +149,41 @@ interface NotificationsResult {
 
 async function fetchNotifications(): Promise<NotificationsResult> {
   return new Promise((resolve) => {
-    session.defaultSession.cookies.get({ url: HOLLR_URL }).then((allCookies) => {
-      const cookieHeader = allCookies.map((c) => `${c.name}=${c.value}`).join('; ');
-
-      const req = net.request({
-        url: `${HOLLR_URL}/api/notifications`,
-        method: 'GET',
-        session: session.defaultSession,
-      });
-
-      req.setHeader('Cookie', cookieHeader);
-      req.setHeader('Accept', 'application/json');
-
-      let body = '';
-      let statusCode = 0;
-
-      req.on('response', (res) => {
-        statusCode = res.statusCode;
-        res.on('data', (chunk) => { body += chunk.toString(); });
-        res.on('end', () => {
-          if (statusCode === 401 || statusCode === 403) {
-            resolve({ isLoggedIn: false, unreadCount: 0 });
-            return;
-          }
-          try {
-            const data = JSON.parse(body);
-            const list: Array<{ read: boolean }> = Array.isArray(data)
-              ? data
-              : data.notifications ?? [];
-            const unread = list.filter((n) => !n.read).length;
-            resolve({ isLoggedIn: true, unreadCount: unread });
-          } catch {
-            resolve({ isLoggedIn: false, unreadCount: 0 });
-          }
-        });
-      });
-
-      req.on('error', () => resolve({ isLoggedIn: false, unreadCount: 0 }));
-      req.end();
+    const req = net.request({
+      url: `${HOLLR_URL}/api/notifications`,
+      method: 'GET',
+      session: session.defaultSession,
+      useSessionCookies: true,
     });
+
+    req.setHeader('Accept', 'application/json');
+
+    let body = '';
+    let statusCode = 0;
+
+    req.on('response', (res) => {
+      statusCode = res.statusCode;
+      res.on('data', (chunk) => { body += chunk.toString(); });
+      res.on('end', () => {
+        if (statusCode === 401 || statusCode === 403) {
+          resolve({ isLoggedIn: false, unreadCount: 0 });
+          return;
+        }
+        try {
+          const data = JSON.parse(body);
+          const list: Array<{ read: boolean }> = Array.isArray(data)
+            ? data
+            : data.notifications ?? [];
+          const unread = list.filter((n) => !n.read).length;
+          resolve({ isLoggedIn: true, unreadCount: unread });
+        } catch {
+          resolve({ isLoggedIn: false, unreadCount: 0 });
+        }
+      });
+    });
+
+    req.on('error', () => resolve({ isLoggedIn: false, unreadCount: 0 }));
+    req.end();
   });
 }
 
