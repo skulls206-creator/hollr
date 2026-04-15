@@ -33,5 +33,5 @@ linux:
 
 publish:
   provider: github
-  owner: khurk
-  repo: hollr-desktop
+  owner: skulls206-creator
+  repo: hollr

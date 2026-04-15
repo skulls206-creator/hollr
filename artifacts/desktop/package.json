@@ -14,7 +14,7 @@
     "build": "pnpm run build:overlay && pnpm run build:electron && pnpm run build:win",
     "build:overlay": "vite build --config vite.overlay.config.ts",
     "build:electron": "tsc --project tsconfig.electron.json",
-    "build:win": "pnpm run build:overlay && pnpm run build:electron && electron-builder --win --config electron-builder.yml",
+    "build:win": "pnpm run build:overlay && pnpm run build:electron && electron-builder --win --config electron-builder.yml --publish never",
     "build:linux": "pnpm run build:overlay && pnpm run build:electron && electron-builder --linux --config electron-builder.yml",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
