@@ -7,10 +7,25 @@ interface OverlayBridge {
   setClickThrough: (enabled: boolean) => void;
 }
 
+interface VoiceUser {
+  userId: string;
+  displayName: string;
+  username: string;
+  muted: boolean;
+  speaking: boolean;
+  streaming: boolean;
+}
+
+interface VoiceRoom {
+  channelId: string;
+  users: VoiceUser[];
+}
+
 interface OverlayData {
   unreadCount: number;
   isLoggedIn: boolean;
   appUrl: string;
+  voiceRooms?: VoiceRoom[];
   debugInfo?: string;
 }
 
@@ -115,6 +130,9 @@ export function App() {
         ) : (
           <>
             <NotificationRow count={data.unreadCount} onOpen={handleOpenApp} />
+            {data.voiceRooms && data.voiceRooms.length > 0 && (
+              <VoiceRoomsSection rooms={data.voiceRooms} />
+            )}
             <StatusRow appUrl={data.appUrl} onOpen={handleOpenApp} />
           </>
         )}
@@ -128,6 +146,42 @@ export function App() {
           {data.debugInfo}
         </div>
       )}
+    </div>
+  );
+}
+
+function VoiceRoomsSection({ rooms }: { rooms: VoiceRoom[] }) {
+  const totalUsers = rooms.reduce((sum, r) => sum + r.users.length, 0);
+  return (
+    <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px', cursor: 'default' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
+        <span className="row-icon">🎙</span>
+        <span className="row-label">Voice</span>
+        <span className="row-muted" style={{ marginLeft: 'auto' }}>{totalUsers} in voice</span>
+      </div>
+      {rooms.map(room => (
+        <div key={room.channelId} style={{ paddingLeft: '28px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+          {room.users.map(u => (
+            <span
+              key={u.userId}
+              title={`@${u.username}${u.muted ? ' (muted)' : ''}${u.streaming ? ' (streaming)' : ''}`}
+              style={{
+                fontSize: '10px',
+                padding: '1px 6px',
+                borderRadius: '9px',
+                background: u.speaking ? 'rgba(74,222,128,0.18)' : 'rgba(160,120,255,0.12)',
+                color: u.speaking ? '#4ade80' : '#c4b5fd',
+                border: `1px solid ${u.speaking ? 'rgba(74,222,128,0.35)' : 'rgba(160,120,255,0.25)'}`,
+                display: 'flex', alignItems: 'center', gap: '3px',
+              }}
+            >
+              {u.muted && <span style={{ opacity: 0.7 }}>🔇</span>}
+              {u.streaming && <span style={{ opacity: 0.7 }}>📡</span>}
+              {u.displayName || u.username}
+            </span>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

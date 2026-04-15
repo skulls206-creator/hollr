@@ -142,20 +142,35 @@ function showMainWindow(): void {
   mainWindow.focus();
 }
 
+interface VoiceUser {
+  userId: string;
+  displayName: string;
+  username: string;
+  muted: boolean;
+  speaking: boolean;
+  streaming: boolean;
+}
+
+interface VoiceRoom {
+  channelId: string;
+  users: VoiceUser[];
+}
+
 interface NotificationsResult {
   isLoggedIn: boolean;
   unreadCount: number;
+  voiceRooms: VoiceRoom[];
   debugInfo: string;
 }
 
 async function fetchNotifications(): Promise<NotificationsResult> {
   if (!mainWindow || mainWindow.isDestroyed()) {
-    return { isLoggedIn: false, unreadCount: 0, debugInfo: 'no main window' };
+    return { isLoggedIn: false, unreadCount: 0, voiceRooms: [], debugInfo: 'no main window' };
   }
 
   try {
     type FetchResult = { status: number; body: string };
-    const [meResult, notifResult] = await mainWindow.webContents.executeJavaScript(`
+    const [meResult, notifResult, voiceResult] = await mainWindow.webContents.executeJavaScript(`
       Promise.all([
         fetch('/api/users/me', { credentials: 'include' })
           .then(r => r.text().then(b => ({ status: r.status, body: b.slice(0, 120) })))
@@ -163,13 +178,16 @@ async function fetchNotifications(): Promise<NotificationsResult> {
         fetch('/api/notifications', { credentials: 'include' })
           .then(r => r.text().then(b => ({ status: r.status, body: b })))
           .catch(e => ({ status: 0, body: '[]' })),
+        fetch('/api/voice/active', { credentials: 'include' })
+          .then(r => r.text().then(b => ({ status: r.status, body: b })))
+          .catch(e => ({ status: 0, body: '[]' })),
       ])
-    `) as [FetchResult, FetchResult];
+    `) as [FetchResult, FetchResult, FetchResult];
 
     const debug = `JS /me: ${meResult.status} | ${meResult.body.replace(/\s+/g, ' ').slice(0, 80)}`;
 
     if (meResult.status === 401 || meResult.status === 403 || meResult.status === 0) {
-      return { isLoggedIn: false, unreadCount: 0, debugInfo: debug };
+      return { isLoggedIn: false, unreadCount: 0, voiceRooms: [], debugInfo: debug };
     }
 
     let unread = 0;
@@ -178,9 +196,15 @@ async function fetchNotifications(): Promise<NotificationsResult> {
       unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
     } catch { /* ignore */ }
 
-    return { isLoggedIn: true, unreadCount: unread, debugInfo: debug };
+    let voiceRooms: VoiceRoom[] = [];
+    try {
+      const parsed = JSON.parse(voiceResult.body);
+      voiceRooms = Array.isArray(parsed) ? parsed : [];
+    } catch { /* ignore */ }
+
+    return { isLoggedIn: true, unreadCount: unread, voiceRooms, debugInfo: debug };
   } catch (err) {
-    return { isLoggedIn: false, unreadCount: 0, debugInfo: `execJS err: ${String(err).slice(0, 80)}` };
+    return { isLoggedIn: false, unreadCount: 0, voiceRooms: [], debugInfo: `execJS err: ${String(err).slice(0, 80)}` };
   }
 }
 
@@ -188,12 +212,13 @@ interface OverlayPayload {
   unreadCount: number;
   isLoggedIn: boolean;
   appUrl: string;
+  voiceRooms: VoiceRoom[];
   debugInfo: string;
 }
 
 async function buildOverlayPayload(): Promise<OverlayPayload> {
-  const { isLoggedIn, unreadCount, debugInfo } = await fetchNotifications();
-  return { unreadCount, isLoggedIn, appUrl: HOLLR_URL, debugInfo };
+  const { isLoggedIn, unreadCount, voiceRooms, debugInfo } = await fetchNotifications();
+  return { unreadCount, isLoggedIn, appUrl: HOLLR_URL, voiceRooms, debugInfo };
 }
 
 function sendOverlayData(): void {

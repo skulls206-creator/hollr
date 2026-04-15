@@ -246,4 +246,16 @@ router.get("/presence/summary", async (req, res) => {
   }
 });
 
+// GET /api/voice/active — returns all currently occupied voice channels (auth required)
+router.get("/voice/active", async (req, res) => {
+  if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  try {
+    const { getVoiceRooms } = await import('../lib/ws.js');
+    res.json(getVoiceRooms());
+  } catch (err: any) {
+    console.error('[voice/active] error:', err);
+    res.status(500).json({ error: 'Failed to fetch voice rooms' });
+  }
+});
+
 export default router;

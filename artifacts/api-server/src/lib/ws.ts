@@ -532,3 +532,23 @@ export async function sendNotification(userId: string, payload: {
     return null;
   }
 }
+
+export function getVoiceRooms(): Array<{ channelId: string; users: Array<{ userId: string; displayName: string; username: string; muted: boolean; speaking: boolean; streaming: boolean }> }> {
+  const result = [];
+  for (const [channelId, room] of voiceRooms) {
+    if (room.size > 0) {
+      result.push({
+        channelId,
+        users: Array.from(room.values()).map(u => ({
+          userId: u.userId,
+          displayName: u.displayName,
+          username: u.username,
+          muted: u.muted,
+          speaking: u.speaking,
+          streaming: u.streaming,
+        })),
+      });
+    }
+  }
+  return result;
+}
