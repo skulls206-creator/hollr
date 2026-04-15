@@ -464,6 +464,7 @@ router.delete('/admin/users/:userId/grandfather', async (req: Request<{ userId: 
     const hasActiveReferral = !!(profile.referralSupporterUntil && profile.referralSupporterUntil > new Date());
 
     let hasPaidSub = false;
+    let stripeCheckFailed = false;
     if (profile.stripeCustomerId) {
       try {
         const stripe = await getUncachableStripeClient();
@@ -484,11 +485,15 @@ router.delete('/admin/users/:userId/grandfather', async (req: Request<{ userId: 
           );
         }
       } catch (stripeErr) {
+        // Err on the side of caution: preserve isSupporter if Stripe lookup fails
+        // (sync-all will correct the flag on the next scheduled run)
+        stripeCheckFailed = true;
         console.error('[admin] stripe subscription check error during grandfather revoke:', stripeErr);
       }
     }
 
-    const keepSupporter = hasActiveReferral || hasPaidSub;
+    // Keep isSupporter if: active referral, confirmed paid Stripe sub, or Stripe was unreachable
+    const keepSupporter = hasActiveReferral || hasPaidSub || stripeCheckFailed;
 
     await db
       .update(userProfilesTable)

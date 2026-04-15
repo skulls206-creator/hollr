@@ -37,6 +37,7 @@ export function GrandfatheredBadge({ size = 'sm', className, title = 'Hollr Gran
       aria-label={title}
       role="img"
     >
+      <title>{title}</title>
       <defs>
         <linearGradient id={`${uid}-oval`} x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor="#e2e8f0" />
