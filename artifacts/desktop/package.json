@@ -9,7 +9,7 @@
   },
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "concurrently -k --raw \"vite --config vite.overlay.config.ts\" \"wait-on http://localhost:6000 && cross-env HOLLR_DEV=true electron .\"",
+    "dev": "concurrently -k --raw \"vite --config vite.overlay.config.ts\" \"tsc --project tsconfig.electron.json --watch\" \"wait-on http://localhost:6000 && wait-on dist-electron/main.js && cross-env HOLLR_DEV=true electron .\"",
     "dev:overlay": "vite --config vite.overlay.config.ts",
     "build": "pnpm run build:overlay && pnpm run build:electron && pnpm run build:win",
     "build:overlay": "vite build --config vite.overlay.config.ts",

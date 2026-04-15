@@ -234,11 +234,11 @@ function updateTrayMenu(): void {
   if (!tray) return;
   const menu = Menu.buildFromTemplate([
     {
-      label: 'Open hollr',
+      label: 'Show',
       click: () => showMainWindow(),
     },
     {
-      label: overlayVisible ? 'Hide Overlay' : 'Show Overlay  Ctrl+Shift+H',
+      label: 'Toggle Overlay  Ctrl+Shift+H',
       click: () => toggleOverlay(),
     },
     { type: 'separator' },
@@ -261,11 +261,6 @@ function createTray(): void {
 }
 
 app.on('ready', () => {
-  protocol.handle('hollr-overlay', (req) => {
-    const url = req.url.replace('hollr-overlay://', '');
-    return new Response(url);
-  });
-
   createMainWindow();
   createOverlayWindow();
   createTray();

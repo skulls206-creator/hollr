@@ -195,11 +195,11 @@ function updateTrayMenu() {
         return;
     const menu = electron_1.Menu.buildFromTemplate([
         {
-            label: 'Open hollr',
+            label: 'Show',
             click: () => showMainWindow(),
         },
         {
-            label: overlayVisible ? 'Hide Overlay' : 'Show Overlay  Ctrl+Shift+H',
+            label: 'Toggle Overlay  Ctrl+Shift+H',
             click: () => toggleOverlay(),
         },
         { type: 'separator' },
@@ -220,10 +220,6 @@ function createTray() {
     updateTrayMenu();
 }
 electron_1.app.on('ready', () => {
-    electron_1.protocol.handle('hollr-overlay', (req) => {
-        const url = req.url.replace('hollr-overlay://', '');
-        return new Response(url);
-    });
     createMainWindow();
     createOverlayWindow();
     createTray();
