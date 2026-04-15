@@ -1,0 +1,205 @@
+Run pnpm --filter @workspace/desktop run build:win
+> @workspace/desktop@1.0.0 build:win D:\a\hollr\hollr\artifacts\desktop
+> pnpm run build:overlay && pnpm run build:electron && electron-builder --win --config electron-builder.yml
+> @workspace/desktop@1.0.0 build:overlay D:\a\hollr\hollr\artifacts\desktop
+> vite build --config vite.overlay.config.ts
+vite v6.4.2 building for production...
+transforming...
+✓ 30 modules transformed.
+rendering chunks...
+computing gzip size...
+../../dist-overlay/index.html                   0.70 kB │ gzip:  0.42 kB
+../../dist-overlay/assets/index-D0bY-wv5.css    3.02 kB │ gzip:  1.12 kB
+../../dist-overlay/assets/index-CY8g3_qn.js   190.13 kB │ gzip: 59.96 kB
+✓ built in 1.26s
+> @workspace/desktop@1.0.0 build:electron D:\a\hollr\hollr\artifacts\desktop
+> tsc --project tsconfig.electron.json
+  • electron-builder  version=26.8.1 os=10.0.26100
+  • Implicit publishing triggered by CI detection. This behavior will be disabled in electron-builder v27. Please use --publish explicitly.
+  • loaded configuration  file=D:\a\hollr\hollr\artifacts\desktop\electron-builder.yml
+  • packageManager not detected by file, falling back to environment detection  resolvedPackageManager=pnpm detected=D:\a\hollr\hollr\artifacts\desktop
+  • packageManager not detected by file, falling back to environment detection  resolvedPackageManager=pnpm detected=D:\a\hollr\hollr\artifacts\desktop
+  • detected workspace root for project using process environment  pm=pnpm config=undefined resolved=undefined projectDir=D:\a\hollr\hollr\artifacts\desktop
+  • executing @electron/rebuild  electronVersion=35.7.5 arch=x64 buildFromSource=false workspaceRoot=D:\a\hollr\hollr\artifacts\desktop projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=35.7.5 appOutDir=dist\win-unpacked
+  • downloading     url=https://github.com/electron/electron/releases/download/v35.7.5/electron-v35.7.5-win32-x64.zip size=121 MB parts=8
+  • downloaded      url=https://github.com/electron/electron/releases/download/v35.7.5/electron-v35.7.5-win32-x64.zip duration=541ms
+  • searching for node modules  pm=pnpm searchDir=D:\a\hollr\hollr\artifacts\desktop
+  • dependency not found on disk  dependencies=["@rollup/rollup-linux-x64-gnu@4.59.0"]
+  • updating asar integrity executable resource  executablePath=dist\win-unpacked\hollr.exe
+  • downloading     url=https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-2.6.0/winCodeSign-2.6.0.7z size=5.6 MB parts=1
+  • downloaded      url=https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-2.6.0/winCodeSign-2.6.0.7z duration=438ms
+  • signing with signtool.exe  path=dist\win-unpacked\hollr.exe
+  • building        target=nsis file=dist\hollr Setup 1.0.0.exe archs=x64 oneClick=true perMachine=false
+  • downloading     url=https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z size=1.3 MB parts=1
+  • downloaded      url=https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z duration=417ms
+  • signing with signtool.exe  path=dist\win-unpacked\resources\elevate.exe
+  • downloading     url=https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-resources-3.4.1/nsis-resources-3.4.1.7z size=731 kB parts=1
+  • downloaded      url=https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-resources-3.4.1/nsis-resources-3.4.1.7z duration=367ms
+  • signing with signtool.exe  path=dist\hollr Setup 1.0.0.__uninstaller.exe
+  • signing with signtool.exe  path=dist\hollr Setup 1.0.0.exe
+  • building block map  blockMapFile=dist\hollr Setup 1.0.0.exe.blockmap
+  • publishing      publisher=Github (owner: khurk, project: hollr-desktop, version: 1.0.0)
+  • uploading       file=hollr-Setup-1.0.0.exe.blockmap provider=github
+  • uploading       file=hollr-Setup-1.0.0.exe provider=github
+  ⨯ Cannot cleanup: 
+Error #1 --------------------------------------------------------------------------------
+HttpError: 404 Not Found
+"method: GET url: https://api.github.com/repos/khurk/hollr-desktop/releases\n\nPlease double check that your authentication token is correct. Due to security reasons, actual status maybe not reported, but 404.\n"
+Headers: {
+  "date": "Wed, 15 Apr 2026 02:50:32 GMT",
+  "content-type": "application/json; charset=utf-8",
+  "content-length": "121",
+  "x-github-media-type": "github.v3; format=json",
+  "x-accepted-github-permissions": "contents=read",
+  "x-github-api-version-selected": "2022-11-28",
+  "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset",
+  "access-control-allow-origin": "*",
+  "strict-transport-security": "max-age=31536000; includeSubdomains; preload",
+  "x-frame-options": "deny",
+  "x-content-type-options": "nosniff",
+  "x-xss-protection": "0",
+  "referrer-policy": "origin-when-cross-origin, strict-origin-when-cross-origin",
+  "content-security-policy": "default-src 'none'",
+  "vary": "Accept-Encoding, Accept, X-Requested-With",
+  "x-github-request-id": "EC10:2A9838:1A4D23:6A7788:69DEFCF8",
+  "server": "github.com",
+  "x-ratelimit-limit": "5000",
+  "x-ratelimit-remaining": "4999",
+  "x-ratelimit-reset": "1776225032",
+  "x-ratelimit-used": "1",
+  "x-ratelimit-resource": "core"
+}
+    at createHttpError (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:31:10)
+    at NodeHttpExecutor.handleResponse (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:163:9)
+    at ClientRequest.<anonymous> (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:118:16)
+    at Object.onceWrapper (node:events:639:26)
+    at ClientRequest.emit (node:events:524:28)
+    at HTTPParser.parserOnIncomingClient (node:_http_client:702:27)
+    at HTTPParser.parserOnHeadersComplete (node:_http_common:118:17)
+    at TLSSocket.socketOnData (node:_http_client:544:22)
+    at TLSSocket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+Error #2 --------------------------------------------------------------------------------
+HttpError: 404 Not Found
+"method: GET url: https://api.github.com/repos/khurk/hollr-desktop/releases\n\nPlease double check that your authentication token is correct. Due to security reasons, actual status maybe not reported, but 404.\n"
+Headers: {
+  "date": "Wed, 15 Apr 2026 02:50:32 GMT",
+  "content-type": "application/json; charset=utf-8",
+  "content-length": "121",
+  "x-github-media-type": "github.v3; format=json",
+  "x-accepted-github-permissions": "contents=read",
+  "x-github-api-version-selected": "2022-11-28",
+  "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset",
+  "access-control-allow-origin": "*",
+  "strict-transport-security": "max-age=31536000; includeSubdomains; preload",
+  "x-frame-options": "deny",
+  "x-content-type-options": "nosniff",
+  "x-xss-protection": "0",
+  "referrer-policy": "origin-when-cross-origin, strict-origin-when-cross-origin",
+  "content-security-policy": "default-src 'none'",
+  "vary": "Accept-Encoding, Accept, X-Requested-With",
+  "x-github-request-id": "EC10:2A9838:1A4D23:6A7788:69DEFCF8",
+  "server": "github.com",
+  "x-ratelimit-limit": "5000",
+  "x-ratelimit-remaining": "4999",
+  "x-ratelimit-reset": "1776225032",
+  "x-ratelimit-used": "1",
+  "x-ratelimit-resource": "core"
+}
+    at createHttpError (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:31:10)
+    at NodeHttpExecutor.handleResponse (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:163:9)
+    at ClientRequest.<anonymous> (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:118:16)
+    at Object.onceWrapper (node:events:639:26)
+    at ClientRequest.emit (node:events:524:28)
+    at HTTPParser.parserOnIncomingClient (node:_http_client:702:27)
+    at HTTPParser.parserOnHeadersComplete (node:_http_common:118:17)
+    at TLSSocket.socketOnData (node:_http_client:544:22)
+    at TLSSocket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)  failedTask=build stackTrace=Error: Cannot cleanup: 
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+HttpError: 404 Not Found
+"method: GET url: https://api.github.com/repos/khurk/hollr-desktop/releases\n\nPlease double check that your authentication token is correct. Due to security reasons, actual status maybe not reported, but 404.\n"
+Headers: {
+  "date": "Wed, 15 Apr 2026 02:50:32 GMT",
+  "content-type": "application/json; charset=utf-8",
+  "content-length": "121",
+  "x-github-media-type": "github.v3; format=json",
+  "x-accepted-github-permissions": "contents=read",
+  "x-github-api-version-selected": "2022-11-28",
+  "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset",
+  "access-control-allow-origin": "*",
+  "strict-transport-security": "max-age=31536000; includeSubdomains; preload",
+  "x-frame-options": "deny",
+  "x-content-type-options": "nosniff",
+  "x-xss-protection": "0",
+  "referrer-policy": "origin-when-cross-origin, strict-origin-when-cross-origin",
+  "content-security-policy": "default-src 'none'",
+  "vary": "Accept-Encoding, Accept, X-Requested-With",
+  "x-github-request-id": "EC10:2A9838:1A4D23:6A7788:69DEFCF8",
+  "server": "github.com",
+  "x-ratelimit-limit": "5000",
+  "x-ratelimit-remaining": "4999",
+  "x-ratelimit-reset": "1776225032",
+  "x-ratelimit-used": "1",
+  "x-ratelimit-resource": "core"
+}
+    at createHttpError (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:31:10)
+    at NodeHttpExecutor.handleResponse (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:163:9)
+    at ClientRequest.<anonymous> (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:118:16)
+    at Object.onceWrapper (node:events:639:26)
+    at ClientRequest.emit (node:events:524:28)
+    at HTTPParser.parserOnIncomingClient (node:_http_client:702:27)
+    at HTTPParser.parserOnHeadersComplete (node:_http_common:118:17)
+    at TLSSocket.socketOnData (node:_http_client:544:22)
+    at TLSSocket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+HttpError: 404 Not Found
+"method: GET url: https://api.github.com/repos/khurk/hollr-desktop/releases\n\nPlease double check that your authentication token is correct. Due to security reasons, actual status maybe not reported, but 404.\n"
+Headers: {
+  "date": "Wed, 15 Apr 2026 02:50:32 GMT",
+  "content-type": "application/json; charset=utf-8",
+  "content-length": "121",
+  "x-github-media-type": "github.v3; format=json",
+  "x-accepted-github-permissions": "contents=read",
+  "x-github-api-version-selected": "2022-11-28",
+  "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset",
+  "access-control-allow-origin": "*",
+  "strict-transport-security": "max-age=31536000; includeSubdomains; preload",
+  "x-frame-options": "deny",
+  "x-content-type-options": "nosniff",
+  "x-xss-protection": "0",
+  "referrer-policy": "origin-when-cross-origin, strict-origin-when-cross-origin",
+  "content-security-policy": "default-src 'none'",
+  "vary": "Accept-Encoding, Accept, X-Requested-With",
+  "x-github-request-id": "EC10:2A9838:1A4D23:6A7788:69DEFCF8",
+  "server": "github.com",
+  "x-ratelimit-limit": "5000",
+  "x-ratelimit-remaining": "4999",
+  "x-ratelimit-reset": "1776225032",
+  "x-ratelimit-used": "1",
+  "x-ratelimit-resource": "core"
+}
+    at createHttpError (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:31:10)
+    at NodeHttpExecutor.handleResponse (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:163:9)
+    at ClientRequest.<anonymous> (D:\a\hollr\hollr\node_modules\.pnpm\builder-util-runtime@9.5.1\node_modules\builder-util-runtime\src\httpExecutor.ts:118:16)
+    at Object.onceWrapper (node:events:639:26)
+    at ClientRequest.emit (node:events:524:28)
+    at HTTPParser.parserOnIncomingClient (node:_http_client:702:27)
+    at HTTPParser.parserOnHeadersComplete (node:_http_common:118:17)
+    at TLSSocket.socketOnData (node:_http_client:544:22)
+    at TLSSocket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at throwError (D:\a\hollr\hollr\node_modules\.pnpm\builder-util@26.8.1\node_modules\builder-util\src\asyncTaskManager.ts:88:11)
+    at checkErrors (D:\a\hollr\hollr\node_modules\.pnpm\builder-util@26.8.1\node_modules\builder-util\src\asyncTaskManager.ts:53:9)
+    at AsyncTaskManager.awaitTasks (D:\a\hollr\hollr\node_modules\.pnpm\builder-util@26.8.1\node_modules\builder-util\src\asyncTaskManager.ts:67:7)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at PublishManager.awaitTasks (D:\a\hollr\hollr\node_modules\.pnpm\app-builder-lib@26.8.1_dmg-builder@26.8.1\node_modules\app-builder-lib\src\publish\PublishManager.ts:247:5)
+    at executeFinally (D:\a\hollr\hollr\node_modules\.pnpm\builder-util@26.8.1\node_modules\builder-util\src\promise.ts:23:3)
+D:\a\hollr\hollr\artifacts\desktop:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/desktop@1.0.0 build:win: `pnpm run build:overlay && pnpm run build:electron && electron-builder --win --config electron-builder.yml`
+Exit status 1
+Error: Process completed with exit code 1.
