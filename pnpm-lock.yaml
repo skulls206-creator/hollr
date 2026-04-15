@@ -314,6 +314,13 @@ importers:
       wait-on:
         specifier: ^8.0.0
         version: 8.0.5
+    optionalDependencies:
+      '@rollup/rollup-linux-x64-gnu':
+        specifier: '*'
+        version: 4.59.0
+      '@rollup/rollup-win32-x64-msvc':
+        specifier: '*'
+        version: 4.59.0
 
   artifacts/hollr:
     dependencies:
